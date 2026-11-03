@@ -3,6 +3,7 @@ package checker
 import (
 	"sort"
 
+	"fiig-lang/compiler/lexer"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
 )
@@ -38,7 +39,9 @@ func (c *checker) checkComparable(e *syntax.BinaryExpr, left, right types.Type) 
 		// it, since the float may be several fields below the operand.
 		for _, t := range []types.Type{left, right} {
 			if path, ok := c.floatPath(t, t.String(), map[syntax.Decl]bool{}); ok {
-				if path == t.String() {
+				if isFloatList(t) {
+					c.report(start, "M1", "cannot compare %s with %s: two floats that should agree can differ in the last bit (use math.allClose)", t, e.Op)
+				} else if path == t.String() {
 					c.report(start, "M1", "cannot compare %s with %s: two floats that should agree can differ in the last bit (use math.closeTo or math.isZero)", t, e.Op)
 				} else {
 					c.report(start, "M1", "cannot compare %s with %s: %s is float (use math.closeTo or compare a specific field)", t, e.Op, path)
@@ -51,11 +54,41 @@ func (c *checker) checkComparable(e *syntax.BinaryExpr, left, right types.Type) 
 		// structurally.
 		for _, t := range []types.Type{left, right} {
 			if !ordered(t) {
-				c.report(start, "M3", "%s is not ordered; < <= > >= apply only to int, float, and string", t)
+				c.report(start, "M3", "%s is not ordered; < <= > >= apply only to int, float, decimal, and string", t)
 				return
 			}
 		}
 	}
+}
+
+// checkListElement enforces what List's table can't say (ADR 0065 §1-§2):
+// contains compares with ==, so its element must be comparable (M1), and
+// the sorts order elements, so theirs must be ordered (M3).
+func (c *checker) checkListElement(elem types.Type, method string, start lexer.Pos) {
+	switch method {
+	case "contains":
+		if what := c.handle(elem); what != "" {
+			c.report(start, "M1", "List<%s>.contains compares elements with ==, and %s is not comparable; it is a handle, not a value", elem, what)
+		} else if types.HoldsResult(elem, c.resolveField) {
+			c.report(start, "M1", "List<%s>.contains compares elements with ==, and %s holds a Result; loop over the list and match each one", elem, elem)
+		} else if path, ok := c.floatPath(elem, elem.String(), map[syntax.Decl]bool{}); ok {
+			if path == elem.String() {
+				c.report(start, "M1", "List<float>.contains would compare floats with ==, and two floats that should agree can differ in the last bit (use math.containsClose)")
+			} else {
+				c.report(start, "M1", "List<%s>.contains compares elements with ==, and %s is float; loop over the list and compare with math.closeTo", elem, path)
+			}
+		}
+	case "sorted", "sortedDescending":
+		if !ordered(elem) {
+			c.report(start, "M3", "List<%s>.%s needs an ordered element type: int, float, decimal, or string", elem, method)
+		}
+	}
+}
+
+// isFloatList is List<float>, whose == has math.allClose as its counterpart.
+func isFloatList(t types.Type) bool {
+	g, ok := t.(types.Generic)
+	return ok && g.Name == "List" && len(g.Args) == 1 && g.Args[0].String() == "float"
 }
 
 // ordered reports whether < and its siblings apply to t. float is ordered

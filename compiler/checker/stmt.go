@@ -216,6 +216,11 @@ func (c *checker) checkUnhandledResultExpr(e syntax.Expr, at lexer.Pos, env map[
 		c.report(at, "A13", "the result of append is discarded; append returns a new list and leaves its argument unchanged, so write `xs = append(xs, x)`")
 	}
 	t := c.inferExpr(e, env)
+	if call, ok := e.(*syntax.CallExpr); ok {
+		if fa, ok := call.Callee.(*syntax.FieldAccess); ok && c.methodCalls[fa] {
+			c.report(at, "A13", "the result of %s() is discarded; methods return a new value and change nothing, so use it or assign it", fa.Field)
+		}
+	}
 	if g, ok := t.(types.Generic); ok && g.Name == "Result" && len(g.Args) == 2 {
 		c.report(at, "F1", "typed error is left unhandled — use `?` to propagate it or `match` to handle it")
 	}

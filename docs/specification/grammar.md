@@ -572,9 +572,14 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
   structural is ordered.
 - A method call (`name.isBlank()`, `xs.at(0)`) is legal only when the
   receiver's type is in the closed builtin table of ADR 0049 §2.6: `string`
-  (`isBlank`, `contains`, `utf8`), `bytes` (`length`, `at`, `slice`, `utf8`;
-  ADR 0058), and `List<T>` (`length`, `at`, `atOrNone`, `slice`). Anything
-  else is K1. Models and enums have no methods.
+  (`isBlank`, `contains`, `utf8`, `toDecimalOrNone`), `bytes` (`length`,
+  `at`, `slice`, `utf8`; ADR 0058), and `List<T>` (`length`, `at`,
+  `atOrNone`, `slice`, and ADR 0065's `first`, `firstOrNone`, `last`,
+  `lastOrNone`, `contains`, `sorted`, `sortedDescending`). Anything else is
+  K1. Models and enums have no methods. `contains` needs a comparable
+  element (M1; floats use `math.containsClose`) and the sorts an ordered one
+  (M3); both sorts are stable and return a new list. Every method is pure,
+  so a bare method-call statement is A13.
 - Qualified calls like `Database.queryOne(...)` and `PaymentGateway.charge(...)`
   parse as ordinary postfix field-access-then-call — the grammar doesn't need
   to distinguish "capability method call" from any other call.

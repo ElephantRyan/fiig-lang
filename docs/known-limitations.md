@@ -38,7 +38,9 @@ doesn't have to discover them.
 
 ## Language
 
-- **No sorting, `first`/`last`, or `Map`** (ADR 0065, accepted, not built).
+- **No keyed sort or `Map` yet.** Lists have `first`, `last`, `contains`,
+  `sorted()` and `sortedDescending()`; sorting records by a field
+  (`sorted(x in xs): x.field`) and `Map` are ADR 0065's remaining steps.
 - **Strings have few methods:** `contains`, `isBlank`, `utf8`, and
   `toDecimalOrNone`. No `length`, `split`, `trim`, or case conversion.
 - **No user-defined generics** and no lambdas (ADR 0056).
