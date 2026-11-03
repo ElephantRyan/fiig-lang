@@ -1,0 +1,4 @@
+# The repository is LF everywhere: fiig reads CR LF inside a string literal
+# as LF (ADR 0061), but tools and tests compare bytes.
+* text=auto eol=lf
+*.png binary
