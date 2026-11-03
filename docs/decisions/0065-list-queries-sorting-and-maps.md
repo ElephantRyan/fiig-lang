@@ -1,9 +1,9 @@
 # ADR 0065: List Queries, Sorting, and `Map`
 
-Status: Accepted (2026-10-29, one-decision-at-a-time review). Being
-implemented in four steps (2026-11-03): steps 1 (§1, §2, §6's A13), 2
-(§3, the keyed sort), and 3 (`Map`, §4-§9) done; the corpus remains. See
-Implementation notes.
+Status: Accepted (2026-10-29, one-decision-at-a-time review). Implemented
+2026-11-03 in four steps; see Implementation notes. Two pieces wait: a map
+literal as a constant (§5's last sentence), and a JSON object's member
+order when decoded into a `Map`, which is ADR 0062's.
 Date: 2026-10-28
 Amends: `grammar.md` (map literals, `sorted` form, two-name `for`), ADR 0057
 (A12 and A13 widen).
@@ -522,3 +522,13 @@ catches the misreading they guarded against (§6).
   it can't appear in a headed enum's header.
 - Tests: `compiler/runtime/map_test.go`, `map_lang_test.go`,
   `compiler/checker/map_test.go`, and `TestFormatMapSyntaxIsStable`.
+
+**Step 4, 2026-11-03: corpus.**
+
+- `order-processing/rules/order_count_by_customer.fiig` counts orders per
+  customer into a `Map<string, int>`, with a private helper that says what
+  an absent key means; `orders_by_id.fiig` builds an index; and
+  `largest_orders_first.fiig` is a keyed sort of records. examples/README
+  row 21. Dogfooded with `fiig run` (three orders: `[c2: 2, c1: 1]`, and
+  the two equal totals keep their order) and `fiig catalog find --output
+  'Map<string, int>'`, which finds the counting rule.

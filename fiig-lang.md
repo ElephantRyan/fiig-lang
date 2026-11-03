@@ -557,7 +557,7 @@ writing a model as a plain object (2026-11-03).
 Designed, build only:
 
 1. ADR 0065 collections: `first`, `last`, `contains`, `sorted` with a key,
-   and `Map`.
+   and `Map`. Done 2026-11-03.
 
 Need an ADR first, in build order:
 
