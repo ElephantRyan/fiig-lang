@@ -124,6 +124,50 @@ var builtinMethods = map[string]map[string]builtinFunc{
 		"sorted":           func(recv Value, _ []Value) (Value, *Fault) { return sortedList(recv.(List).Elems, false) },
 		"sortedDescending": func(recv Value, _ []Value) (Value, *Fault) { return sortedList(recv.(List).Elems, true) },
 	},
+	"Map": mapMethods,
+}
+
+// mapMethods is Map's table (ADR 0065 §6): every one returns a value, and
+// put, putIfAbsent, and remove a new map.
+var mapMethods = map[string]builtinFunc{
+	"at": func(recv Value, args []Value) (Value, *Fault) {
+		if v, ok := recv.(Map).Get(args[0]); ok {
+			return v, nil
+		}
+		return nil, Faultf("Map.at: no key %s; use atOrNone or containsKey when it may be absent", args[0])
+	},
+	"atOrNone": func(recv Value, args []Value) (Value, *Fault) {
+		if v, ok := recv.(Map).Get(args[0]); ok {
+			return v, nil
+		}
+		return None{}, nil
+	},
+	"containsKey": func(recv Value, args []Value) (Value, *Fault) {
+		_, ok := recv.(Map).Get(args[0])
+		return Bool(ok), nil
+	},
+	"length": func(recv Value, _ []Value) (Value, *Fault) { return Int(recv.(Map).Len()), nil },
+	"keys": func(recv Value, _ []Value) (Value, *Fault) {
+		out := List{}
+		recv.(Map).Each(func(k, _ Value) bool { out.Elems = append(out.Elems, k); return true })
+		return out, nil
+	},
+	"values": func(recv Value, _ []Value) (Value, *Fault) {
+		out := List{}
+		recv.(Map).Each(func(_, v Value) bool { out.Elems = append(out.Elems, v); return true })
+		return out, nil
+	},
+	"put": func(recv Value, args []Value) (Value, *Fault) { return recv.(Map).Put(args[0], args[1]), nil },
+	// Present means present, even with a None value; the map is returned
+	// unchanged, spelling and position included (§6).
+	"putIfAbsent": func(recv Value, args []Value) (Value, *Fault) {
+		m := recv.(Map)
+		if _, ok := m.Get(args[0]); ok {
+			return m, nil
+		}
+		return m.Put(args[0], args[1]), nil
+	},
+	"remove": func(recv Value, args []Value) (Value, *Fault) { return recv.(Map).Remove(args[0]), nil },
 }
 
 // listEnd is first/last and their OrNone forms.
@@ -175,6 +219,8 @@ func methodKind(v Value) string {
 		return "bytes"
 	case List:
 		return "List"
+	case Map:
+		return "Map"
 	}
 	return ""
 }

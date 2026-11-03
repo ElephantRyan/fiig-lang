@@ -115,6 +115,25 @@ func (in *Interp) evalExpr(ctx context.Context, e syntax.Expr, env *Env) (Value,
 		return in.evalExpr(ctx, e.Inner, env)
 	case *syntax.BytesLit:
 		return in.evalBytesLit(ctx, e, env)
+	case *syntax.MapLit:
+		// ADR 0065 §5: a repeated key the checker couldn't see is a fault,
+		// never a silent overwrite.
+		m := Map{}
+		for _, en := range e.Entries {
+			k, earlyReturn, fault := in.evalExpr(ctx, en.Key, env)
+			if fault != nil || earlyReturn {
+				return k, earlyReturn, fault
+			}
+			v, earlyReturn, fault := in.evalExpr(ctx, en.Value, env)
+			if fault != nil || earlyReturn {
+				return v, earlyReturn, fault
+			}
+			if _, dup := m.Get(k); dup {
+				return nil, false, Faultf("the map literal at %s repeats the key %s; build a map with repeated keys with put", e.Start, k)
+			}
+			m = m.Put(k, v)
+		}
+		return m, false, nil
 	case *syntax.ListLit:
 		elems := make([]Value, len(e.Elems))
 		for i, el := range e.Elems {

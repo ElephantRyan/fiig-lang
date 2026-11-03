@@ -324,6 +324,17 @@ var mathFormulas = map[string]mathFunc{
 		if f != nil {
 			return nil, f
 		}
+		if am, ok := c.args[0].(Map); ok {
+			// Same keys, each value close (ADR 0065 §1).
+			bm := c.args[1].(Map)
+			close := am.Len() == bm.Len()
+			am.Each(func(k, v Value) bool {
+				bv, ok := bm.Get(k)
+				close = ok && isClose(float64(v.(Float)), float64(bv.(Float)), relative, absolute)
+				return close
+			})
+			return Bool(close), nil
+		}
 		a, b := c.args[0].(List).Elems, c.args[1].(List).Elems
 		if len(a) != len(b) {
 			return Bool(false), nil
@@ -396,6 +407,8 @@ func (in *Interp) callMath(ctx context.Context, fa *syntax.FieldAccess, args []s
 // valueHasType is whether v is a value of a math parameter's type.
 func valueHasType(v Value, t types.Type) bool {
 	switch t := t.(type) {
+	case types.Unknown:
+		return true
 	case types.Primitive:
 		switch t.Name {
 		case "int":
@@ -412,6 +425,14 @@ func valueHasType(v Value, t types.Type) bool {
 		e, ok := v.(EnumValue)
 		return ok && e.TypeName == t.Name
 	case types.Generic:
+		if m, ok := v.(Map); ok && t.Name == "Map" {
+			fits := true
+			m.Each(func(k, val Value) bool {
+				fits = valueHasType(val, t.Args[1])
+				return fits
+			})
+			return fits
+		}
 		l, ok := v.(List)
 		if !ok || t.Name != "List" {
 			return false

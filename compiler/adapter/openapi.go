@@ -293,6 +293,14 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 		if t.Name == "List" && len(t.Args) == 1 {
 			return map[string]any{"type": "array", "items": schemaFor(t.Args[0], u)}
 		}
+		if t.Name == "Map" && len(t.Args) == 2 && t.Args[0].String() == "string" {
+			// A JSON object; other key types encode as [key, value] pairs.
+			return map[string]any{"type": "object", "additionalProperties": schemaFor(t.Args[1], u)}
+		}
+		if t.Name == "Map" && len(t.Args) == 2 {
+			pair := map[string]any{"type": "array", "prefixItems": []any{schemaFor(t.Args[0], u), schemaFor(t.Args[1], u)}}
+			return map[string]any{"type": "array", "items": pair}
+		}
 		if (t.Name == "Result" || t.Name == "BatchResult") && len(t.Args) >= 2 {
 			variants := make([]any, 0, 2)
 			variants = append(variants, schemaFor(t.Args[0], u), schemaFor(t.Args[1], u))

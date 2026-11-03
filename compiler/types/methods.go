@@ -57,6 +57,23 @@ func listMethods(elem Type) map[string]Method {
 	}
 }
 
+// mapMethods is Map<K, V>'s table (ADR 0065 §6). put, putIfAbsent, and
+// remove return a new map; a map is never changed in place.
+func mapMethods(key, val Type) map[string]Method {
+	m := Generic{Name: "Map", Args: []Type{key, val}}
+	return map[string]Method{
+		"at":          {[]Type{key}, val},
+		"atOrNone":    {[]Type{key}, Union{Members: []Type{val, NoneType{}}}},
+		"containsKey": {[]Type{key}, boolType},
+		"length":      {nil, intType},
+		"keys":        {nil, Generic{Name: "List", Args: []Type{key}}},
+		"values":      {nil, Generic{Name: "List", Args: []Type{val}}},
+		"put":         {[]Type{key, val}, m},
+		"putIfAbsent": {[]Type{key, val}, m},
+		"remove":      {[]Type{key}, m},
+	}
+}
+
 // MethodsOf is the method table for a receiver of type recv, and the name
 // diagnostics call the receiver kind by ("string", "List"). ok is false for
 // a type with no table, which has no methods at all. This one table is what
@@ -71,6 +88,9 @@ func MethodsOf(recv Type) (kind string, table map[string]Method, ok bool) {
 		if t.Name == "List" && len(t.Args) == 1 {
 			return "List", listMethods(t.Args[0]), true
 		}
+		if t.Name == "Map" && len(t.Args) == 2 {
+			return "Map", mapMethods(t.Args[0], t.Args[1]), true
+		}
 	}
 	return "", nil, false
 }
@@ -78,7 +98,7 @@ func MethodsOf(recv Type) (kind string, table map[string]Method, ok bool) {
 // MethodKinds lists every receiver kind with a table, for the runtime's
 // check that it implements exactly the methods declared here.
 func MethodKinds() []string {
-	kinds := []string{"List"}
+	kinds := []string{"List", "Map"}
 	for k := range primitiveMethods {
 		kinds = append(kinds, k)
 	}
@@ -92,6 +112,9 @@ func MethodKinds() []string {
 func MethodsOfKind(kind string) (map[string]Method, bool) {
 	if kind == "List" {
 		return listMethods(Unknown{}), true
+	}
+	if kind == "Map" {
+		return mapMethods(Unknown{}, Unknown{}), true
 	}
 	table, ok := primitiveMethods[kind]
 	return table, ok

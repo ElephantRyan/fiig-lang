@@ -241,6 +241,7 @@ var preludeGenerics = map[string]bool{
 	"List":        true,
 	"Result":      true,
 	"BatchResult": true,
+	"Map":         true, // ADR 0065 §4
 }
 
 // Resolve converts a parsed syntax.Type into a semantic Type, looking up
