@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -102,7 +103,67 @@ var builtinMethods = map[string]map[string]builtinFunc{
 			}
 			return List{Elems: elems[from:to:to]}, nil
 		},
+		// ADR 0065 §1: the faulting form and the OrNone form, as at and
+		// atOrNone.
+		"first":       listEnd("first", true, false),
+		"firstOrNone": listEnd("first", true, true),
+		"last":        listEnd("last", false, false),
+		"lastOrNone":  listEnd("last", false, true),
+		// == semantics, so a decimal matches by value (ADR 0064 §5).
+		"contains": func(recv Value, args []Value) (Value, *Fault) {
+			for _, e := range recv.(List).Elems {
+				if Equal(e, args[0]) {
+					return Bool(true), nil
+				}
+			}
+			return Bool(false), nil
+		},
+		// ADR 0065 §2: a new list, sorted stably. Descending is its own
+		// stable sort, not the ascending one reversed, which would reverse
+		// ties (1.5 and 1.50 print differently).
+		"sorted":           func(recv Value, _ []Value) (Value, *Fault) { return sortedList(recv.(List).Elems, false) },
+		"sortedDescending": func(recv Value, _ []Value) (Value, *Fault) { return sortedList(recv.(List).Elems, true) },
 	},
+}
+
+// listEnd is first/last and their OrNone forms.
+func listEnd(name string, first, orNone bool) builtinFunc {
+	return func(recv Value, _ []Value) (Value, *Fault) {
+		elems := recv.(List).Elems
+		if len(elems) == 0 {
+			if orNone {
+				return None{}, nil
+			}
+			return nil, Faultf("List.%s() on an empty list; use %sOrNone() when the list may be empty", name, name)
+		}
+		if first {
+			return elems[0], nil
+		}
+		return elems[len(elems)-1], nil
+	}
+}
+
+// sortedList is a stably sorted copy of elems. The checker allows only
+// ordered element types, so a pair Less can't order is a fault for an
+// unchecked program.
+func sortedList(elems []Value, descending bool) (Value, *Fault) {
+	out := append([]Value(nil), elems...)
+	var fault *Fault
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if descending {
+			a, b = b, a
+		}
+		less, ok := Less(a, b)
+		if !ok && fault == nil {
+			fault = Faultf("cannot sort %s and %s: not ordered", out[i], out[j])
+		}
+		return less
+	})
+	if fault != nil {
+		return nil, fault
+	}
+	return List{Elems: out}, nil
 }
 
 // methodKind is the table a runtime value's methods are in.

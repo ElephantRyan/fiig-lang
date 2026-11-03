@@ -298,19 +298,63 @@ var mathFormulas = map[string]mathFunc{
 		return List{Elems: elems}, nil
 	},
 
-	// Python's math.isclose (ADR 0051): symmetric, and the larger of the
-	// two tolerances wins. A difference too large for a float is not close.
 	"closeTo": func(c mathCall) (Value, *Fault) {
-		a, b, relative, absolute := floatArg(c, 0), floatArg(c, 1), floatArg(c, 2), floatArg(c, 3)
-		if relative < 0 || absolute < 0 {
-			return nil, c.faultf("has a negative tolerance; relative and absolute must be at least 0.0")
+		relative, absolute, f := tolerances(c)
+		if f != nil {
+			return nil, f
 		}
-		limit := math.Max(relative*math.Max(math.Abs(a), math.Abs(b)), absolute)
-		return Bool(math.Abs(a-b) <= limit), nil
+		return Bool(isClose(floatArg(c, 0), floatArg(c, 1), relative, absolute)), nil
+	},
+	// ADR 0065 §1: closeTo's rule where == is refused for floats.
+	"containsClose": func(c mathCall) (Value, *Fault) {
+		relative, absolute, f := tolerances(c)
+		if f != nil {
+			return nil, f
+		}
+		x := floatArg(c, 1)
+		for _, e := range c.args[0].(List).Elems {
+			if isClose(float64(e.(Float)), x, relative, absolute) {
+				return Bool(true), nil
+			}
+		}
+		return Bool(false), nil
+	},
+	"allClose": func(c mathCall) (Value, *Fault) {
+		relative, absolute, f := tolerances(c)
+		if f != nil {
+			return nil, f
+		}
+		a, b := c.args[0].(List).Elems, c.args[1].(List).Elems
+		if len(a) != len(b) {
+			return Bool(false), nil
+		}
+		for i := range a {
+			if !isClose(float64(a[i].(Float)), float64(b[i].(Float)), relative, absolute) {
+				return Bool(false), nil
+			}
+		}
+		return Bool(true), nil
 	},
 	"isZero": func(c mathCall) (Value, *Fault) {
 		return Bool(floatArg(c, 0) == 0), nil
 	},
+}
+
+// tolerances is a closeness call's relative and absolute arguments, its
+// last two.
+func tolerances(c mathCall) (relative, absolute float64, f *Fault) {
+	relative, absolute = floatArg(c, len(c.args)-2), floatArg(c, len(c.args)-1)
+	if relative < 0 || absolute < 0 {
+		return 0, 0, c.faultf("has a negative tolerance; relative and absolute must be at least 0.0")
+	}
+	return relative, absolute, nil
+}
+
+// isClose is Python's math.isclose (ADR 0051): symmetric, and the larger of
+// the two tolerances wins. A difference too large for a float is not close.
+func isClose(a, b, relative, absolute float64) bool {
+	limit := math.Max(relative*math.Max(math.Abs(a), math.Abs(b)), absolute)
+	return math.Abs(a-b) <= limit
 }
 
 // callMath calls `math.member(args)`. The checker picked the call's form
@@ -367,6 +411,17 @@ func valueHasType(v Value, t types.Type) bool {
 	case types.Named:
 		e, ok := v.(EnumValue)
 		return ok && e.TypeName == t.Name
+	case types.Generic:
+		l, ok := v.(List)
+		if !ok || t.Name != "List" {
+			return false
+		}
+		for _, e := range l.Elems {
+			if !valueHasType(e, t.Args[0]) {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }

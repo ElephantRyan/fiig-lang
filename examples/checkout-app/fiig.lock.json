@@ -1,4 +1,5 @@
 {
+  "toolchain": "dev",
   "dependencies": [
     {
       "path": "acme.http",

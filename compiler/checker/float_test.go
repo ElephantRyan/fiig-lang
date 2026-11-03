@@ -111,7 +111,7 @@ func TestFloatEqualityIsM1(t *testing.T) {
 		{"a: float, b: float", "a == b", "cannot compare float with =="},
 		{"a: float, b: float", "a != 0.0", "cannot compare float with !="},
 		{"a: Order, b: Order", "a == b", "Order.total.amount is float"},
-		{"a: List<float>, b: List<float>", "a == b", "List<float> element is float"},
+		{"a: List<float>, b: List<float>", "a == b", "use math.allClose"},
 		{"a: Shape, b: Shape", "a == b", "Shape.Circle.radius is float"},
 		{"a: float | None, b: float | None", "a == b", "cannot compare float | None with =="},
 	}

@@ -35,14 +35,25 @@ var primitiveMethods = map[string]map[string]Method{
 	},
 }
 
-// listMethods is List<T>'s table (ADR 0049 §2.6), for element type elem.
+// listMethods is List<T>'s table (ADR 0049 §2.6, ADR 0065 §1-§2), for
+// element type elem. contains needs a comparable element and the sorts an
+// ordered one; the checker enforces both, since the table has no
+// constraints.
 func listMethods(elem Type) map[string]Method {
 	list := Generic{Name: "List", Args: []Type{elem}}
+	orNone := Union{Members: []Type{elem, NoneType{}}}
 	return map[string]Method{
-		"length":   {nil, intType},
-		"at":       {[]Type{intType}, elem},
-		"atOrNone": {[]Type{intType}, Union{Members: []Type{elem, NoneType{}}}},
-		"slice":    {[]Type{intType, intType}, list},
+		"length":           {nil, intType},
+		"at":               {[]Type{intType}, elem},
+		"atOrNone":         {[]Type{intType}, orNone},
+		"slice":            {[]Type{intType, intType}, list},
+		"first":            {nil, elem},
+		"firstOrNone":      {nil, orNone},
+		"last":             {nil, elem},
+		"lastOrNone":       {nil, orNone},
+		"contains":         {[]Type{elem}, boolType},
+		"sorted":           {nil, list},
+		"sortedDescending": {nil, list},
 	}
 }
 

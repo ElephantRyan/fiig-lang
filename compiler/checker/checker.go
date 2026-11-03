@@ -595,6 +595,10 @@ type checker struct {
 	// bare form's actual safe-default bound is never specified anywhere to
 	// compare against). Used by Category D.
 	concurrencyBudget *int
+	// methodCalls marks each `x.m(...)` that resolved to a closed-table
+	// method (ADR 0049 §2.6). Those are pure, so discarding one's result
+	// is A13 (ADR 0065 §6).
+	methodCalls map[*syntax.FieldAccess]bool
 }
 
 // lookup resolves a bare name against the universe for the purpose of

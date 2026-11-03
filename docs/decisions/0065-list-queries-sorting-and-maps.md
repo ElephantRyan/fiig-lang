@@ -1,7 +1,9 @@
 # ADR 0065: List Queries, Sorting, and `Map`
 
-Status: Accepted (2026-10-29, one-decision-at-a-time review). Not yet
-implemented.
+Status: Accepted (2026-10-29, one-decision-at-a-time review). Being
+implemented in four steps (2026-11-03): step 1 (§1, §2, §6's A13) done;
+the keyed sort (§3), `Map` (§4-§9), and the corpus remain. See
+Implementation notes.
 Date: 2026-10-28
 Amends: `grammar.md` (map literals, `sorted` form, two-name `for`), ADR 0057
 (A12 and A13 widen).
@@ -429,3 +431,26 @@ catches the misreading they guarded against (§6).
    does: `peek` returns the element and `pop` returns the collection without
    it, since fiig has no tuples to return both. `put` should not be a queue
    name (Python's `queue.Queue` uses it), because §6 gives `put` to maps.
+
+## Implementation notes
+
+**Step 1, 2026-11-03: list queries, sorting, and A13 (§1, §2, §6).**
+
+- `compiler/types/methods.go`: `List` gains `first`, `firstOrNone`, `last`,
+  `lastOrNone`, `contains`, `sorted`, and `sortedDescending`. The table
+  can't state constraints, so `checker.checkListElement` does: `contains`
+  is M1 on a handle, a `Result`, or a float at any depth (the message names
+  `math.containsClose` for `List<float>`, and the field path otherwise),
+  and the sorts are M3 on an unordered element.
+- `math.containsClose` and `math.allClose` (list form) join the prelude
+  `math` group with named tolerances; `allClose`'s map form waits for
+  `Map`. `==` on `List<float>` now names `math.allClose`.
+- A13 covers every closed-table method: the checker marks each call that
+  resolved to a table method, and a bare one is reported.
+- Runtime: `first()` and `last()` on an empty list fault and name the
+  `OrNone` form; `contains` uses `Equal`, so decimals match by value; the
+  sorts use a stable sort, descending included, so `1.50` and `1.5` keep
+  their order either way.
+- Also fixed: M3's message omitted `decimal` from the ordered types.
+- Tests: `compiler/checker/list_query_test.go`,
+  `compiler/runtime/list_query_test.go`.

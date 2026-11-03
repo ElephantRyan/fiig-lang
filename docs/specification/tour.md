@@ -377,6 +377,12 @@ rule largeOrderIds(orders: List<Order>, threshold: int) -> List<string> {
     }
     return ids
 }
+
+// List queries (ADR 0065). Every method returns a value and changes
+// nothing, so a bare `xs.sorted()` statement is an error (A13).
+best = scores.sortedDescending()   // stable; sorted() ascends
+top = best.firstOrNone()           // int | None; first() faults when empty
+seen = best.contains(10)           // ==, so floats use math.containsClose
 ```
 
 ## 7. Concurrency, retry, transactions

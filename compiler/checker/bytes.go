@@ -38,6 +38,13 @@ func (c *checker) inferMethodCall(recv types.Type, fa *syntax.FieldAccess, args 
 	if _, unknown := recv.(types.Unknown); !unknown {
 		kind, table, ok := types.MethodsOf(recv)
 		if m, found := table[fa.Field]; ok && found {
+			if c.methodCalls == nil {
+				c.methodCalls = map[*syntax.FieldAccess]bool{}
+			}
+			c.methodCalls[fa] = true
+			if kind == "List" {
+				c.checkListElement(recv.(types.Generic).Args[0], fa.Field, start)
+			}
 			return c.checkMethodArgs(kind, fa.Field, m, args, start, env)
 		}
 		if ok {

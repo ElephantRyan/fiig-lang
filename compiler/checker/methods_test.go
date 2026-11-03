@@ -52,7 +52,7 @@ func TestMethodNotInTableIsK1(t *testing.T) {
 		`42.isBlank()`:         `int has no methods`,
 		`name.trim()`:          `string has no method "trim"`,
 		`customer.name.size()`: `string has no method "size"`,
-		`xs.first()`:           `List has no method "first"`,
+		`xs.reversed()`:        `List has no method "reversed"`,
 		`customer.isValid()`:   `Customer has no methods`,
 		`maybe.isBlank()`:      `has no methods`,
 	}

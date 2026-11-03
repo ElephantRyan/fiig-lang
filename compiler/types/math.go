@@ -114,7 +114,14 @@ var mathFormulas = map[string][]MathForm{
 		MathParam{Name: "relative", Type: floatType, Named: true},
 		MathParam{Name: "absolute", Type: floatType, Named: true}), boolType}},
 	"isZero": {{params(floatType, "x"), boolType}},
+
+	// ADR 0065 §1: where == is refused for floats, closeTo's rule over a
+	// list. allClose's map form arrives with Map.
+	"containsClose": {{[]MathParam{{Name: "xs", Type: floatList}, {Name: "x", Type: floatType}, named("relative", floatType), named("absolute", floatType)}, boolType}},
+	"allClose":      {{[]MathParam{{Name: "a", Type: floatList}, {Name: "b", Type: floatList}, named("relative", floatType), named("absolute", floatType)}, boolType}},
 }
+
+var floatList = Generic{Name: "List", Args: []Type{floatType}}
 
 // BindMathArgs binds a call's arguments to ps: argNames holds each
 // argument's name, "" for a positional one. It returns, for each parameter,
