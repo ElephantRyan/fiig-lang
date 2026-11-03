@@ -235,6 +235,9 @@ func Equal(a, b Value) bool {
 	case Bytes:
 		bv, ok := b.(Bytes)
 		return ok && bytesEqual(a, bv)
+	case Map:
+		bv, ok := b.(Map)
+		return ok && mapsEqual(a, bv)
 	case List:
 		// ADR 0057 §6: same length, equal elements in the same order. Two
 		// views of the same buffer slots are equal without walking them,

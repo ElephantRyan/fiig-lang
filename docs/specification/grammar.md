@@ -91,7 +91,7 @@ distinguished only by convention (capitalized) and by appearing as pattern
 constructors:
 
 ```
-Result  Ok  Err  BatchResult  List  None  Connection  SocketError  Rounding
+Result  Ok  Err  BatchResult  List  Map  None  Connection  SocketError  Rounding
 ```
 
 `Connection` is opaque: no fields, methods or constructor, and not
@@ -389,7 +389,8 @@ statement ::= binding
 
 binding         ::= identifier [ ':' type ] '=' expression    -- ADR 0053: typed form declares a reassignable local
 if-statement    ::= 'if' expression block { 'else' 'if' expression block } [ 'else' block ]
-for-statement   ::= [ identifier ':' ] 'for' identifier 'in' expression block   -- ADR 0053
+for-statement   ::= [ identifier ':' ] 'for' loop-name [ ',' loop-name ] 'in' expression block   -- ADR 0053; two names over a Map, ADR 0065 §7
+loop-name       ::= identifier | '_'
 while-statement ::= [ identifier ':' ] 'while' expression block                -- ADR 0059
 break-statement ::= 'break' [ identifier ]                                   -- label on the same line
 continue-statement ::= 'continue' [ identifier ]
@@ -486,9 +487,10 @@ unary           ::= '-' unary | postfix-expression
 postfix-expression ::= primary { '.' identifier | '(' [ arguments ] ')' }
 arguments  ::= argument { ',' argument } [ ',' ]
 argument   ::= [ identifier ':' ] expression
-primary    ::= identifier | literal | list-literal | sorted-expr | '(' expression ')' | 'not' primary
+primary    ::= identifier | literal | list-literal | map-literal | sorted-expr | '(' expression ')' | 'not' primary
 literal    ::= string-literal | integer-literal | float-literal
 list-literal ::= '[' [ expression { ',' expression } [ ',' ] ] ']'
+map-literal  ::= '[' ':' ']' | '[' expression ':' expression { ',' expression ':' expression } [ ',' ] ']'
 binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } [ ',' ] ] '>' '>'
 ```
 
@@ -579,7 +581,13 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
   K1. Models and enums have no methods. `contains` needs a comparable
   element (M1; floats use `math.containsClose`) and the sorts an ordered one
   (M3); both sorts are stable and return a new list. Every method is pure,
-  so a bare method-call statement is A13.
+  so a bare method-call statement is A13. `Map<K, V>` (ADR 0065 §4-§9)
+  has `at`, `atOrNone`, `containsKey`, `length`, `keys`, `values`, `put`,
+  `putIfAbsent`, and `remove`; the last three return a new map. Its key must
+  be comparable (M1; a float key is told to round to a decimal), it
+  iterates in insertion order with `for key, value in m`, and `==` ignores
+  order. A map literal with two equal constant keys is A18; a repeated key
+  the compiler can't see faults.
 - Qualified calls like `Database.queryOne(...)` and `PaymentGateway.charge(...)`
   parse as ordinary postfix field-access-then-call — the grammar doesn't need
   to distinguish "capability method call" from any other call.

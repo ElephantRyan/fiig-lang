@@ -39,7 +39,7 @@ func (c *checker) checkComparable(e *syntax.BinaryExpr, left, right types.Type) 
 		// it, since the float may be several fields below the operand.
 		for _, t := range []types.Type{left, right} {
 			if path, ok := c.floatPath(t, t.String(), map[syntax.Decl]bool{}); ok {
-				if isFloatList(t) {
+				if isFloatCollection(t) {
 					c.report(start, "M1", "cannot compare %s with %s: two floats that should agree can differ in the last bit (use math.allClose)", t, e.Op)
 				} else if path == t.String() {
 					c.report(start, "M1", "cannot compare %s with %s: two floats that should agree can differ in the last bit (use math.closeTo or math.isZero)", t, e.Op)
@@ -85,10 +85,14 @@ func (c *checker) checkListElement(elem types.Type, method string, start lexer.P
 	}
 }
 
-// isFloatList is List<float>, whose == has math.allClose as its counterpart.
-func isFloatList(t types.Type) bool {
+// isFloatCollection is List<float> or Map<K, float>, whose == has
+// math.allClose as its counterpart (ADR 0065 §1).
+func isFloatCollection(t types.Type) bool {
 	g, ok := t.(types.Generic)
-	return ok && g.Name == "List" && len(g.Args) == 1 && g.Args[0].String() == "float"
+	if !ok || len(g.Args) == 0 || g.Args[len(g.Args)-1].String() != "float" {
+		return false
+	}
+	return (g.Name == "List" && len(g.Args) == 1) || (g.Name == "Map" && len(g.Args) == 2)
 }
 
 // ordered reports whether < and its siblings apply to t. float is ordered

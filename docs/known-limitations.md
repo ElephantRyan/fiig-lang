@@ -38,8 +38,8 @@ doesn't have to discover them.
 
 ## Language
 
-- **No `Map` yet** (ADR 0065's remaining step). Lists have `first`,
-  `last`, `contains`, the sorts, and `sorted(x in xs): key`.
+- **A JSON object decoded into a `Map` takes its members in name order**,
+  not the order they arrived in (ADR 0062 decides that).
 - **Strings have few methods:** `contains`, `isBlank`, `utf8`, and
   `toDecimalOrNone`. No `length`, `split`, `trim`, or case conversion.
 - **No user-defined generics** and no lambdas (ADR 0056).

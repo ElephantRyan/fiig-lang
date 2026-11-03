@@ -535,8 +535,11 @@ type MatchStmt struct {
 // the loop is unlabeled.
 type ForStmt struct {
 	Span
-	Label    string
-	Var      string
+	Label string
+	Var   string
+	// Value is the second name of `for key, value in m` (ADR 0065 §7), ""
+	// for a one-name loop.
+	Value    string
 	Iterable Expr
 	Body     *Block
 }
@@ -837,6 +840,17 @@ type ConcurrentExpr struct {
 	Body          Body
 }
 
+// MapLit is `["a": 1, "b": 2]`, or `[:]` with no entries (ADR 0065 §5).
+type MapLit struct {
+	Span
+	Entries []MapEntry
+}
+
+// MapEntry is one `key: value` of a map literal.
+type MapEntry struct {
+	Key, Value Expr
+}
+
 // SortedExpr is ADR 0065 §3's keyed sort, `sorted(x in xs): key` or
 // `sorted(x in xs, descending): key`: a new list of xs's elements, stably
 // ordered by Key, which is evaluated once per element with Var bound to it.
@@ -870,3 +884,4 @@ func (*BytesLit) exprNode()       {}
 func (*ConcurrentExpr) exprNode() {}
 func (*RetryExpr) exprNode()      {}
 func (*SortedExpr) exprNode()     {}
+func (*MapLit) exprNode()         {}

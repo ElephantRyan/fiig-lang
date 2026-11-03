@@ -78,6 +78,15 @@ func (c *checker) checkBinding(s *syntax.Binding, env map[string]types.Type) {
 func (c *checker) checkForStmt(s *syntax.ForStmt, declReturn types.Type, env map[string]types.Type) {
 	iterType := c.inferExpr(s.Iterable, env)
 	elemType := types.Type(types.Unknown{})
+	if key, val, ok := mapTypes(iterType); ok {
+		if g, isGeneric := iterType.(types.Generic); isGeneric && g.Name == "Map" {
+			c.checkMapFor(s, key, val, declReturn, env)
+			return
+		}
+	}
+	if s.Value != "" {
+		c.report(s.Start, "I1", "for %s, %s in ... binds two names, which is for a Map; a %s binds one", s.Var, s.Value, iterType)
+	}
 	switch it := iterType.(type) {
 	case types.Generic:
 		if it.Name == "List" && len(it.Args) == 1 {
@@ -100,8 +109,31 @@ func (c *checker) checkForStmt(s *syntax.ForStmt, declReturn types.Type, env map
 	}
 
 	bodyEnv := childEnv(env)
-	declare(bodyEnv, s.Var, elemType, false)
-	c.checkLocalName(s.Var, elemType, s.Start)
+	if s.Var != "_" {
+		declare(bodyEnv, s.Var, elemType, false)
+		c.checkLocalName(s.Var, elemType, s.Start)
+	}
+	c.checkLoopBody(s.Label, s.Start, s.Body, declReturn, bodyEnv)
+}
+
+// checkMapFor is ADR 0065 §7: a loop over a map binds a key and a value,
+// in insertion order, and `_` discards either. One name is an error, since
+// languages disagree on what it would mean.
+func (c *checker) checkMapFor(s *syntax.ForStmt, key, val types.Type, declReturn types.Type, env map[string]types.Type) {
+	if s.Value == "" {
+		c.report(s.Start, "I1", "for over a Map binds two names, `for key, value in m`; to iterate one, use `for key in m.keys()` or `for value in m.values()`")
+	}
+	bodyEnv := childEnv(env)
+	for _, b := range []struct {
+		name string
+		t    types.Type
+	}{{s.Var, key}, {s.Value, val}} {
+		if b.name == "" || b.name == "_" {
+			continue
+		}
+		declare(bodyEnv, b.name, b.t, false)
+		c.checkLocalName(b.name, b.t, s.Start)
+	}
 	c.checkLoopBody(s.Label, s.Start, s.Body, declReturn, bodyEnv)
 }
 

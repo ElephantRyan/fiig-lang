@@ -603,6 +603,9 @@ type checker struct {
 	// which may call only what a rule may: callerKind is rule meanwhile,
 	// and report notes why on an effect diagnostic.
 	inSortKey bool
+	// mapKeyReported keeps checkMapKey to one M1 per position, since a
+	// type can be resolved more than once.
+	mapKeyReported map[lexer.Pos]bool
 }
 
 // lookup resolves a bare name against the universe for the purpose of
@@ -646,11 +649,12 @@ func (c *checker) report(at lexer.Pos, rule, format string, args ...any) {
 // cascade into unrelated false positives elsewhere in the same signature.
 func (c *checker) resolve(t syntax.Type) types.Type {
 	rt, ok := types.ResolveWithImports(t, c.universe, universesOf(c.imports))
+	start, _ := t.(syntax.Spanned).Bounds()
 	if !ok {
-		start, _ := t.(syntax.Spanned).Bounds()
 		c.reportUndefined(start, "type", types.SyntaxString(t))
 		return types.Unknown{}
 	}
+	c.checkMapKeysIn(rt, start)
 	return rt
 }
 

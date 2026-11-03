@@ -347,6 +347,8 @@ func (in *Interp) evalFor(ctx context.Context, s *syntax.ForStmt, env *Env) (Val
 	}
 	var elems []Value
 	switch it := iterVal.(type) {
+	case Map:
+		return in.evalMapFor(ctx, s, it, env)
 	case List:
 		elems = it.Elems
 	case Bytes:
@@ -364,6 +366,31 @@ func (in *Interp) evalFor(ctx context.Context, s *syntax.ForStmt, env *Env) (Val
 		}
 		bodyEnv := env.Child()
 		bodyEnv.Bind(s.Var, elem)
+		val, jumped, fault := in.evalBlock(ctx, s.Body, bodyEnv, false)
+		if exit, out, outJumped, outFault := loopExit(val, jumped, fault, s.Label); exit {
+			return out, outJumped, outFault
+		}
+	}
+	return nil, false, nil
+}
+
+// evalMapFor is `for key, value in m` (ADR 0065 §7), in insertion order;
+// `_` binds nothing.
+func (in *Interp) evalMapFor(ctx context.Context, s *syntax.ForStmt, m Map, env *Env) (Value, bool, *Fault) {
+	type entry struct{ k, v Value }
+	var entries []entry
+	m.Each(func(k, v Value) bool { entries = append(entries, entry{k, v}); return true })
+	for _, en := range entries {
+		if f := checkCancelled(ctx); f != nil {
+			return nil, false, f
+		}
+		bodyEnv := env.Child()
+		if s.Var != "_" {
+			bodyEnv.Bind(s.Var, en.k)
+		}
+		if s.Value != "" && s.Value != "_" {
+			bodyEnv.Bind(s.Value, en.v)
+		}
 		val, jumped, fault := in.evalBlock(ctx, s.Body, bodyEnv, false)
 		if exit, out, outJumped, outFault := loopExit(val, jumped, fault, s.Label); exit {
 			return out, outJumped, outFault

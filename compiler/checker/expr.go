@@ -19,6 +19,10 @@ func (c *checker) checkExpected(e syntax.Expr, expected types.Type, env map[stri
 		c.checkListLit(lit, expected, env)
 		return
 	}
+	if lit, ok := e.(*syntax.MapLit); ok {
+		c.checkMapLit(lit, expected, env)
+		return
+	}
 	if call, ok := e.(*syntax.CallExpr); ok {
 		if ident, ok := call.Callee.(*syntax.Ident); ok && (ident.Name == "Ok" || ident.Name == "Err") {
 			c.checkOkErr(call, ident.Name, expected, env)
@@ -117,6 +121,8 @@ func (c *checker) inferExpr(e syntax.Expr, env map[string]types.Type) types.Type
 		return c.inferExpr(e.Inner, env)
 	case *syntax.ListLit:
 		return c.inferListLit(e, env)
+	case *syntax.MapLit:
+		return c.inferMapLit(e, env)
 	case *syntax.BytesLit:
 		return c.inferBytesLit(e, env)
 	case *syntax.ConcurrentExpr:

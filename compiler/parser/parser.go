@@ -953,11 +953,26 @@ func (p *Parser) parseTypedBinding() *syntax.Binding {
 // which is the label when there is one.
 func (p *Parser) parseForStmt(label string, start lexer.Pos) *syntax.ForStmt {
 	p.expect(lexer.KwFor)
-	varTok := p.expectName()
+	name := p.loopName()
+	value := ""
+	if p.at(lexer.Comma) { // `for key, value in m` (ADR 0065 §7)
+		p.advance()
+		value = p.loopName()
+	}
 	p.expect(lexer.KwIn)
 	iterable := p.parseExpression()
 	body := p.parseBlock()
-	return &syntax.ForStmt{Span: syntax.Span{Start: start, End: body.End}, Label: label, Var: varTok.Text, Iterable: iterable, Body: body}
+	return &syntax.ForStmt{Span: syntax.Span{Start: start, End: body.End}, Label: label, Var: name, Value: value, Iterable: iterable, Body: body}
+}
+
+// loopName is a for loop's name: a name, or `_` to bind nothing (ADR 0065
+// §7).
+func (p *Parser) loopName() string {
+	if p.at(lexer.Underscore) {
+		p.advance()
+		return "_"
+	}
+	return p.expectName().Text
 }
 
 // parseWhileStmt is `while cond { ... }`, with an optional label already
@@ -1371,12 +1386,22 @@ func (p *Parser) parseEncoding() syntax.Encoding {
 	return enc
 }
 
-// parseListLit is ADR 0057's `[a, b, c]`, trailing comma allowed.
-func (p *Parser) parseListLit() *syntax.ListLit {
+// parseListLit is ADR 0057's `[a, b, c]`, trailing comma allowed, or ADR
+// 0065 §5's map literal: `[:]`, or a first element followed by `:`.
+func (p *Parser) parseListLit() syntax.Expr {
 	start := p.expect(lexer.LBracket).Start
+	if p.at(lexer.Colon) && p.peek(1).Kind == lexer.RBracket {
+		p.advance()
+		end := p.advance().End
+		return &syntax.MapLit{Span: syntax.Span{Start: start, End: end}}
+	}
 	var elems []syntax.Expr
 	for !p.at(lexer.RBracket) && !p.at(lexer.EOF) {
-		elems = append(elems, p.parseExpression())
+		elem := p.parseExpression()
+		if len(elems) == 0 && p.at(lexer.Colon) {
+			return p.parseMapEntries(start, elem)
+		}
+		elems = append(elems, elem)
 		if !p.at(lexer.Comma) {
 			break
 		}
@@ -1384,6 +1409,26 @@ func (p *Parser) parseListLit() *syntax.ListLit {
 	}
 	end := p.expect(lexer.RBracket).End
 	return &syntax.ListLit{Span: syntax.Span{Start: start, End: end}, Elems: elems}
+}
+
+// parseMapEntries finishes a map literal whose first key is parsed and
+// whose `:` is next.
+func (p *Parser) parseMapEntries(start lexer.Pos, key syntax.Expr) *syntax.MapLit {
+	var entries []syntax.MapEntry
+	for {
+		p.expect(lexer.Colon)
+		entries = append(entries, syntax.MapEntry{Key: key, Value: p.parseExpression()})
+		if !p.at(lexer.Comma) {
+			break
+		}
+		p.advance()
+		if p.at(lexer.RBracket) {
+			break
+		}
+		key = p.parseExpression()
+	}
+	end := p.expect(lexer.RBracket).End
+	return &syntax.MapLit{Span: syntax.Span{Start: start, End: end}, Entries: entries}
 }
 
 func (p *Parser) parseStringLit() *syntax.StringLit {

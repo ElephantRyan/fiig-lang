@@ -152,6 +152,11 @@ func CollectExprCallNames(e Expr, out map[string]bool) {
 	case *SortedExpr:
 		CollectExprCallNames(e.Iterable, out)
 		CollectExprCallNames(e.Key, out)
+	case *MapLit:
+		for _, en := range e.Entries {
+			CollectExprCallNames(en.Key, out)
+			CollectExprCallNames(en.Value, out)
+		}
 	case *RetryExpr:
 		collectBodyCallNames(e.Body, out)
 	case *StringLit:
@@ -281,6 +286,11 @@ func walkExpr(e Expr, visit func(Expr)) {
 	case *SortedExpr:
 		walkExpr(e.Iterable, visit)
 		walkExpr(e.Key, visit)
+	case *MapLit:
+		for _, en := range e.Entries {
+			walkExpr(en.Key, visit)
+			walkExpr(en.Value, visit)
+		}
 	case *RetryExpr:
 		walkBodyExprs(e.Body, visit)
 	case *StringLit:

@@ -1,8 +1,8 @@
 # ADR 0065: List Queries, Sorting, and `Map`
 
 Status: Accepted (2026-10-29, one-decision-at-a-time review). Being
-implemented in four steps (2026-11-03): steps 1 (§1, §2, §6's A13) and 2
-(§3, the keyed sort) done; `Map` (§4-§9) and the corpus remain. See
+implemented in four steps (2026-11-03): steps 1 (§1, §2, §6's A13), 2
+(§3, the keyed sort), and 3 (`Map`, §4-§9) done; the corpus remains. See
 Implementation notes.
 Date: 2026-10-28
 Amends: `grammar.md` (map literals, `sorted` form, two-name `for`), ADR 0057
@@ -475,3 +475,50 @@ catches the misreading they guarded against (§6).
   sorted stably by key, descending as its own stable sort.
 - Tests: `compiler/checker/sorted_test.go`,
   `compiler/runtime/sorted_test.go`, `compiler/format/sorted_format_test.go`.
+
+**Step 3, 2026-11-03: `Map` (§4-§9).**
+
+- **Structure (§9).** `compiler/runtime/maptrie.go` is a persistent hash
+  array mapped trie over `uint64` keys: 32-way nodes, a child kept as a
+  leaf until a second key needs its slot, path copying on every update, so
+  every version stays valid and every operation on any version touches at
+  most 13 nodes. `Map` (`map.go`) holds two of them: one by key hash, whose
+  leaves are collision buckets, and one by insertion sequence, which
+  iterates in ascending order and so gives the map its order. This is
+  Scala's `VectorMap` idea with a trie in place of the vector, so a remove
+  leaves no tombstone. Measured (`BenchmarkMap*`, one desktop): a `put` on
+  the newest map is about 1.1 µs at 1,000 entries and 2.6 µs at 100,000;
+  a `put` that branches from a 100,000-entry base, §9's example, is about
+  1.7 µs, with no copy of the base; a lookup is 40-120 ns.
+  `TestMapMatchesReference` checks 4,000 random puts and removes, each on a
+  random earlier version, against a plain model.
+- **Hash (§4, §9).** Structural and consistent with `Equal`: a decimal
+  hashes with trailing zeros trimmed, a record by sorted field names, a map
+  by the sum of its entries' hashes, so equal maps in different orders hash
+  alike. The seed is `maphash.MakeSeed()`, once per process.
+- `Map` joins the prelude generics, so K2 reserves it. Its method table is
+  §6's. A13 already covers every method (step 1).
+- Keys must be comparable: `checker.checkMapKey` runs on every resolved
+  type and on a literal's inferred key type, once per position. A `float`
+  key's message gives §4's decimal route.
+- Literals: `[k: v, ...]` and `[:]`, typed like list literals (expected
+  type first, else inferred with no implicit union; `[:]` alone is A12).
+  Equal constant keys are the new class **A18**, compared by value; a
+  repeated key known only at run time faults, naming the literal's
+  position.
+- `for key, value in m` in insertion order, `_` discarding either (which
+  also made `_` legal in a one-name `for`). One name over a map, or two
+  over anything else, is I1 with §7's suggestion.
+- `==` ignores order (§8); `math.allClose` gains its map form, and `==` on
+  `Map<K, float>` names it.
+- Boundaries: a `Map` with string keys encodes as a JSON object with its
+  members in the map's order (`encoding/json` would sort them, so an
+  ordered object type writes it); other keys encode as `[key, value]`
+  pairs. `Map<string, V>` decodes from a JSON object, taking members in
+  name order, since the parser doesn't keep arrival order; that is ADR
+  0062's to settle. OpenAPI describes a string-keyed map as an object with
+  `additionalProperties`.
+- Not done: a map literal is not yet a constant (§5's last sentence), so
+  it can't appear in a headed enum's header.
+- Tests: `compiler/runtime/map_test.go`, `map_lang_test.go`,
+  `compiler/checker/map_test.go`, and `TestFormatMapSyntaxIsStable`.

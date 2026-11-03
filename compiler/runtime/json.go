@@ -1,8 +1,10 @@
 package runtime
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
@@ -96,6 +98,28 @@ func DecodeJSON(raw any, t types.Type, u *types.Universe) (Value, error) {
 				elems[i] = v
 			}
 			return List{Elems: elems}, nil
+		}
+		if t.Name == "Map" && len(t.Args) == 2 && t.Args[0].String() == "string" {
+			// The parser doesn't keep member order, so members are taken in
+			// name order; keeping arrival order is ADR 0062's.
+			obj, ok := raw.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("expected an object, got %s", jsonKind(raw))
+			}
+			names := make([]string, 0, len(obj))
+			for n := range obj {
+				names = append(names, n)
+			}
+			sort.Strings(names)
+			m := Map{}
+			for _, n := range names {
+				v, err := DecodeJSON(obj[n], t.Args[1], u)
+				if err != nil {
+					return nil, fmt.Errorf("%q: %w", n, err)
+				}
+				m = m.Put(Str(n), v)
+			}
+			return m, nil
 		}
 		return nil, fmt.Errorf("%s cannot be decoded from a plain JSON value", t.String())
 	case types.Named:
@@ -252,6 +276,28 @@ func encodeJSON(v Value, body bool) any {
 			arr[i] = encodeJSON(e, body)
 		}
 		return arr
+	case Map:
+		// String keys make a JSON object, its members in the map's order;
+		// any other key type is a list of [key, value] pairs.
+		stringKeys := true
+		v.Each(func(k, _ Value) bool {
+			_, stringKeys = k.(Str)
+			return stringKeys
+		})
+		if stringKeys {
+			obj := orderedObject{}
+			v.Each(func(k, val Value) bool {
+				obj = append(obj, objectMember{string(k.(Str)), encodeJSON(val, body)})
+				return true
+			})
+			return obj
+		}
+		pairs := []any{}
+		v.Each(func(k, val Value) bool {
+			pairs = append(pairs, []any{encodeJSON(k, body), encodeJSON(val, body)})
+			return true
+		})
+		return pairs
 	case Record:
 		fields := make(map[string]any, len(v.Fields))
 		for k, fv := range v.Fields {
@@ -282,4 +328,36 @@ func encodeJSON(v Value, body bool) any {
 	default:
 		return nil
 	}
+}
+
+// orderedObject is a JSON object whose members keep their order, which
+// encoding/json's maps don't (it sorts their keys).
+type orderedObject []objectMember
+
+type objectMember struct {
+	name  string
+	value any
+}
+
+func (o orderedObject) MarshalJSON() ([]byte, error) {
+	var b bytes.Buffer
+	b.WriteByte('{')
+	for i, m := range o {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		name, err := json.Marshal(m.name)
+		if err != nil {
+			return nil, err
+		}
+		value, err := json.Marshal(m.value)
+		if err != nil {
+			return nil, err
+		}
+		b.Write(name)
+		b.WriteByte(':')
+		b.Write(value)
+	}
+	b.WriteByte('}')
+	return b.Bytes(), nil
 }

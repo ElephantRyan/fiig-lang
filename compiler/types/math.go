@@ -116,10 +116,16 @@ var mathFormulas = map[string][]MathForm{
 	"isZero": {{params(floatType, "x"), boolType}},
 
 	// ADR 0065 §1: where == is refused for floats, closeTo's rule over a
-	// list. allClose's map form arrives with Map.
+	// list or a map's values.
 	"containsClose": {{[]MathParam{{Name: "xs", Type: floatList}, {Name: "x", Type: floatType}, named("relative", floatType), named("absolute", floatType)}, boolType}},
-	"allClose":      {{[]MathParam{{Name: "a", Type: floatList}, {Name: "b", Type: floatList}, named("relative", floatType), named("absolute", floatType)}, boolType}},
+	"allClose": {
+		{[]MathParam{{Name: "a", Type: floatList}, {Name: "b", Type: floatList}, named("relative", floatType), named("absolute", floatType)}, boolType},
+		{[]MathParam{{Name: "a", Type: floatMap}, {Name: "b", Type: floatMap}, named("relative", floatType), named("absolute", floatType)}, boolType},
+	},
 }
+
+// floatMap is a map of floats with any key: Unknown matches every key type.
+var floatMap = Generic{Name: "Map", Args: []Type{Unknown{}, floatType}}
 
 var floatList = Generic{Name: "List", Args: []Type{floatType}}
 

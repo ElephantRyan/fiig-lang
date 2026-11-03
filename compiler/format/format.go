@@ -564,7 +564,11 @@ func (p *printer) printStmt(s syntax.Stmt) {
 		p.printValueLine(prefix, s.Value, startLine(s))
 	case *syntax.ForStmt:
 		line := startLine(s)
-		header := fmt.Sprintf("for %s in %s {", s.Var, printExpr(s.Iterable))
+		names := s.Var
+		if s.Value != "" {
+			names += ", " + s.Value
+		}
+		header := fmt.Sprintf("for %s in %s {", names, printExpr(s.Iterable))
 		if s.Label != "" {
 			header = s.Label + ": " + header
 		}
@@ -877,6 +881,15 @@ func printExpr(e syntax.Expr) string {
 		return "[" + strings.Join(parts, ", ") + "]"
 	case *syntax.ConcurrentExpr:
 		return printConcurrentExpr(e)
+	case *syntax.MapLit:
+		if len(e.Entries) == 0 {
+			return "[:]"
+		}
+		parts := make([]string, len(e.Entries))
+		for i, en := range e.Entries {
+			parts[i] = printExpr(en.Key) + ": " + printExpr(en.Value)
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
 	case *syntax.SortedExpr:
 		mod := ""
 		if e.Descending {
