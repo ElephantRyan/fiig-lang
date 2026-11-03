@@ -1,0 +1,4 @@
+model WebReply {
+    status: int
+    body: string
+}

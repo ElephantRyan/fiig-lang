@@ -1,0 +1,12 @@
+// File-structure error (fiig-lang.md §3.9): exactly one primary semantic
+// declaration is allowed per file. A second declaration here is rejected
+// regardless of how closely related the two are.
+model ShippingAddress {
+    line1: string
+    city: string
+}
+
+model BillingAddress { // rejected: second declaration in one file
+    line1: string
+    city: string
+}

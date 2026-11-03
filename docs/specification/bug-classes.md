@@ -1,0 +1,213 @@
+# Bug-class catalog
+
+Status: Milestone 0 complete (23/25 attested at close); 26/28 now, as
+Milestone 2+ work adds entries beyond Milestone 0's original pass — catalog
+stays open as new bug classes are identified in later milestones
+
+Delivers Milestone 0's last outstanding item (`fiig-lang.md` §5: "A catalog
+of bug classes the compiler must reject"). Built by walking every "must/
+cannot/may not/prohibited" statement in `fiig-lang.md` §3 and Milestone 2's
+own "Programs that must fail" list (`fiig-lang.md:298-307`), not just the
+ten required examples. Each entry is marked **attested** (an
+`invalid-programs/*.fiig` file shows it) or **deferred** (asserted by a
+design principle, but no example exists yet, for a stated reason).
+
+Milestone 2's exit criteria ("the checker rejects every invalid example with
+one focused diagnostic") already commits to catching the type/effect/
+transaction/concurrency categories at compile time — transaction-scope checking
+and effect propagation are Milestone 2 deliverables, not deferred to
+runtime. Retry legality is grouped here too even though it depends on a
+capability's declared idempotency (Milestone 5-era metadata) because
+Milestone 0's required example 10 explicitly groups it with the others.
+
+## A. Type errors
+
+| # | Bug class | Enforced by | Status |
+|---|---|---|---|
+| A1 | Passing a value of one type where another is required (e.g. an `int` to `getCustomer`, or a `Customer` where a `string` is expected); models are nominal, and there are no implicit conversions | §3.3 nominal typing | Attested — `type_error.fiig` (`lookupWrongId`). Also attested by `retrieveCustomersWrongError`, once concurrency result typing (`fiig-lang.md` line 361, `checker.inferConcurrent`) started inferring a `concurrent` block's real `BatchResult<Key, Success, Failure>` instead of leaving it `Unknown` — the same A1 check, just reachable in a shape it couldn't see before. Two numeric cases joined with `float` (ADR 0048): arithmetic mixing an `int` and a `float` (ADR 0019's addendum; `invalid-programs/float_error.fiig`), and a fractional constant landing as an `int`, such as `return 2.5` from an `int` rule (§2.4). Both are in `compiler/checker`'s `float_test.go`. A third joined with the prelude `math` group (ADR 0049 §2.4): a call matching none of a member's forms, such as `math.max(count, ratio)` with an `int` and a `float`, or `math.sqrt(n)` with an `int` (`invalid-programs/math_error.fiig`; `math_test.go`). Two more joined with `decimal` (ADR 0064): a constant with no exact decimal value landing as one (`1.0 / 3.0`, `math.pi`), and `/` on two decimals, which names `math.divide` (`invalid-programs/decimal_error.fiig`; `checker/decimal_test.go`). |
+| A2 | Returning `None` where a non-optional type is required | §3.4 | Attested — `type_error.fiig` (`returnAbsentCustomer`) |
+| A3 | Omitting a required model field | §3.5 | Attested — `type_error.fiig` (`buildIncompleteCustomer`) |
+| A4 | Relying on an implicit conversion between two distinct types | §3.3 "no implicit conversions" | Attested — `type_error.fiig` (`useEmailAsName`) |
+| A5 | Using `Any` or an unchecked cast | §3.3 | Deferred — the language has no surface syntax for a cast to misuse, so this is currently unrepresentable by construction rather than a checked rejection. Revisit only if a future milestone adds cast syntax. |
+| A6 | Two explicitly-named `conversion` declarations collide (same declared name, or otherwise indistinguishable canonical identity) | §3.3, ADR 0004 | Attested — `type_error.fiig` (two `orderToSummary` conversions). ADR 0006 already settled that error propagation never auto-selects a conversion by type, so the broader "ambiguous automatic selection" risk this entry used to name no longer applies anywhere in the language; what's checked now is the narrower remainder (a plain naming collision between two conversions). Built on the same cross-file duplicate-name detection every declaration kind already gets (`types.BuildUniverse`), tagged A6 specifically when both colliding declarations are conversions — any other kind of name collision stays untagged infrastructure, since the catalog has no numbered entry for those. |
+| A7 | Passing undecoded external/untyped data (e.g. raw HTTP body) directly into domain code | §3.3 "external untyped data must be decoded before entering domain code" | Attested — `type_error.fiig` (`customerEmailApiBroken`). `docs/decisions/0017-adapter-response-mapping.md` already confirmed path-segment binding into a `value` type is decoding, by construction; `docs/decisions/0021-adapter-request-binding.md` settled the request-body side by applying the same reasoning in reverse — a primitive type has no fields to decode a body against, so only a `model` is legal there. Checked by `checker.checkBodyBinding`. |
+| A8 | Using a structurally-typed anonymous record where a public declaration requires a named type | §3.3 (structural typing is "anonymous local" only) | Attested — `type_error.fiig` (`summarizeOrderShape`) |
+| A9 | A `match` doesn't cover every case of a type the checker can fully enumerate — a missing `Result` arm (`Ok`/`Err`), a missing `enum` variant (a typed error's or any other enum's, ADR 0040 — the check is the same either way), or (for a `T \| None` union) a missing `None` arm | `fiig-lang.md` line 286 ("Exhaustive pattern matching," a Milestone 2 deliverable in its own right — not a §3 "must/cannot" statement like every other entry here, since exhaustiveness is an inherent property of having sum types at all rather than a rule someone could violate by writing an escape hatch) | Attested — `type_error.fiig` (`describeCustomerError`, missing `CustomerError.Invalid`; `describeRegion`, missing `Region.APAC` — a non-error enum, added once ADR 0040 generalized `error` to `enum`). A bare binding name (`found`) or `_` is a catch-all covering every case *except* against a `T \| None` union, where grammar.md §5 documents it as covering only the non-None remainder — `None` still needs its own arm there, the one case this check treats specially. Checked by `checker.checkExhaustive`; no corpus example resolves a real `T \| None` match today (every one matches a capability call's result, which this checker can't type yet — Milestone 5), so that path is only covered by `compiler/checker/checker_test.go`'s `TestExhaustiveMatchNoneUnion`, not an `invalid-programs` fixture. |
+| A10 | A model's embedded models promote the same field name at the same depth (or the same model is embedded twice), and no explicit field of the outer model shadows it (ADR 0045 — reported at the embedding model's declaration whether or not the name is ever read, unlike Go, which errors only on use) | Attested — `compiler/checker`'s `TestEmbeddingShadowingAndSameDepthCollision`. No corpus model embeds anything (ADR 0045: additive, no migration), so there is no `invalid-programs` fixture. |
+| A12 | An empty list literal `[]` with no expected type to give it an element type (ADR 0057 §2) | Attested — `compiler/checker`'s `TestEmptyListTakesItsTypeFromContext`. Fix: a typed declaration, `names: List<string> = []` |
+| A13 | The result of `append` is discarded (ADR 0057 §3): `append` returns a new list and leaves its argument unchanged, so a bare `append(xs, x)` statement does nothing. Go makes the same call a compile error | Attested — `compiler/checker`'s `TestDiscardedAppendIsA13` |
+| A14 | A binary segment the compiler can reject before running (ADR 0058): an unknown or ill-formed encoding (`u32` without a byte order, `u8be`, `u64`, a signed sub-byte field), a `bytes`/`utf8` segment or the end of the segments not on a byte boundary, sizeless `bytes` before the last segment, `utf8` without a size in a pattern, a size using anything but literals and earlier segment names, a name bound twice, or a literal that cannot fit its width (`300: u8`) | Attested — `compiler/checker`'s `TestSegmentErrorsAreA14`, one source per rule. A match using a binary pattern with no catch-all arm is A9, since no set of binary patterns covers every `bytes` value |
+| A15 | A headed enum's variant does not supply exactly its header's fields as constants (ADR 0046 §4, §4a, §6): a field missing, unknown, supplied twice, or positional; a value that is a call, arithmetic, or an interpolated string; a payload (`A(id: string)`) on a headed enum; or a `key` field whose type is not `string`, `int`, or a list of one | Attested — `compiler/checker`'s `TestHeaderConstantErrorsAreA15`, one source per rule |
+| A16 | Two variants of a headed enum share a value in a `key` field, or share any element of a list-typed `key` field, so the derived lookup could not tell them apart (ADR 0046 §5, §7). Non-key fields may repeat | Attested — `compiler/checker`'s `TestDuplicateKeyValuesAreA16` |
+| A17 | A key lookup that is not exactly one named argument naming a `key` field (`DeductionSource(layout: x)`, `DeductionSource(raw)`), or a lookup on an enum with no header (ADR 0046 §5) | Attested — `compiler/checker`'s `TestKeyLookupMisuseIsA17` |
+| A11 | A model embeds itself, directly or through other models (ADR 0045 — a structural cycle on types, distinct from activity call cycles, B9) | Attested — `compiler/checker`'s `TestEmbeddingCycleIsA11AtEveryMember`, reported at every model on the cycle |
+
+## B. Effect errors (call-graph violations)
+
+The composition matrix (ADR 0029/0031/0044/0049): Formula→Formula only;
+Rule→Formula only; Conversion→Rule/Conversion; Activity→Rule/Conversion/
+Gateway/Activity; Gateway→Rule/Conversion only (never another Gateway);
+Workflow→Rule/Conversion/Activity/Gateway (nothing may call a Workflow);
+Adapter→Workflow only. Every kind may also call a formula.
+
+| # | Bug class | Status |
+|---|---|---|
+| B1 | A rule calls a gateway | Attested — `effect_error.fiig` (`summarizeCustomerName`) |
+| B2 | A rule calls a workflow | Attested — `effect_error.fiig` (`summarizeViaWorkflow`) |
+| B3 | A gateway calls another gateway directly ("gateways may not coordinate other application gateways," §3.2 — called out as its own bullet, separate from the general matrix, suggesting it's an easy mistake worth its own diagnostic) | Attested — `effect_error.fiig` (`insertAndNotify`) |
+| B4 | A gateway calls a workflow | Attested — `effect_error.fiig` (`notifyViaWorkflow`) |
+| B5 | A conversion calls a gateway, a workflow, or an activity | Attested — `effect_error.fiig` (`customerToSummaryWithLookup`) |
+| B6 | An adapter calls something other than an exported workflow (e.g. a gateway directly) | Attested — `effect_error.fiig` (`customerHttpApiBroken`) |
+| B7 | A rule calls another rule or a conversion (ADR 0029 — rules call nothing that carries judgment or effects, since ADR 0049 narrowed "nothing at all" to admit formulas; that composition is an `Activity`'s job) | Attested — `effect_error.fiig` (`computeDiscount`) |
+| B8 | An activity or workflow calls a workflow (ADR 0044 — a workflow is the adapter boundary and nothing in fiig may call one; this replaces ADR 0030's "an activity calls a gateway, another activity, or a workflow", which ADR 0044 made legal for the first two) | Attested — `effect_error.fiig` (`lookupViaWorkflow`). A workflow calling a workflow is covered by `compiler/checker`'s `TestWorkflowIsUncallableAndOnlyAdapterBoundary`. |
+| B9 | An activity is part of a call cycle through activities in other files (ADR 0044 — activities may now call each other, so recursion is expressible; the first call-graph cycle check in fiig, since rules call nothing and conversion recursion is structural). Since ADR 0054 §6 an activity calling itself, directly or through its own private helpers, is allowed and bounded by the runtime's call depth limit; only a cycle that leaves the file is B9 | Attested — `effect_error.fiig` (`pingCustomer`/`pongCustomer`, reported at both); `TestActivityCycleThroughHelpersIsStillB9` for a cycle through a helper |
+| B10 | A rule, conversion, activity or workflow calls a primitive capability directly (`Socket.connect(...)`). Only a gateway touches a capability (§3.1), and since ADR 0060 typed `Socket`'s operations the checker can see the call; before that, a direct capability call from any kind was unmodeled and passed silently | Attested — `socket_error.fiig` (`peekAtDatabase`); `TestSocketOutsideItsGatewayIsB10OrP7` for every kind |
+| B11 | A formula calls anything other than a formula: a rule, conversion, activity, gateway, workflow, or capability group (ADR 0049 §2.2 restriction 2). A formula is the bottom of the composition lattice, so it can't become a channel for reaching something a rule is forbidden to reach. A primitive capability call from a formula is B10, like any non-gateway | Attested — `formula_error.fiig` (`brokenChecks.shipsFree`); `compiler/checker`'s `TestFormulaCallsOnlyFormulasB11` for a capability group |
+
+## C. Transaction errors
+
+C3 is intentionally absent, not skipped by accident — it was dropped
+outright, not deferred. See "Explicitly out of scope" below for why.
+
+| # | Bug class | Status |
+|---|---|---|
+| C1 | A network-capability gateway is called inside a `transaction` block | Attested — `transaction_error.fiig` (`reserveAndCharge`) |
+| C2 | A `transaction` block nests inside another | Attested — `transaction_error.fiig` (`doubleReserve`) |
+| C4 | A gateway whose capability doesn't match the `transaction` block's named capability is called inside it (the general case C1 is one instance of — any gateway from a second capability, not just a network one) | §3.8 "one transaction block controls exactly one transactional capability" — Attested — `transaction_error.fiig` (`createAndEmailInTransaction`) |
+| C5 | A workflow or activity is called from inside a `transaction` block | §3.8 "general workflow calls are ... prohibited inside transaction blocks" — distinct from C1 (gateways). ADR 0044 made a workflow call illegal everywhere (B8), so the activity case is what keeps this class independently attested; an activity may *contain* a transaction block, so letting one be *called* inside another would nest one — Attested — `transaction_error.fiig` (`changeEmailAndReread`, calling `summarizeCustomer`) |
+
+## D. Concurrency errors
+
+| # | Bug class | Status |
+|---|---|---|
+| D1 | A `concurrent` block requests `limit: unbounded` (or otherwise opts out of bounding) | Attested — `concurrency_error.fiig` (`retrieveAllCustomers`) |
+| D2 | A nested `concurrent` block requests a limit that could multiply past its parent's budget | §3.7 "nested concurrency shares hierarchical budgets and cannot multiply without bound" — Attested — `concurrency_error.fiig` (`retrieveCustomersNested`) |
+
+## E. Retry errors
+
+| # | Bug class | Status |
+|---|---|---|
+| E1 | `retry(...)` wraps a gateway not declared idempotent | Attested — `retry_error.fiig` |
+
+## F. Error-handling errors
+
+| # | Bug class | Status |
+|---|---|---|
+| F1 | A typed error (`Result`'s `Err` case) is left unhandled — no `?`, no `match`, silently dropped | Milestone 2 list item — Attested — `error_handling_error.fiig`. Originally only checked a bare top-level statement; a dropped `Result` inside a non-producing `match` arm's bare-expression body escaped it entirely until the LLM composition trial (`docs/specification/llm-composition-trial.md`) found the gap by accident — a naive but plausible composition passed the checker only because of it. Fixed in `checkUnhandledResultExpr`, both call sites now share one check. **Known gap (found 2026-10-27, ADR 0052 review):** a `Result` bound to a name and never matched or propagated (`r = parse(s)` with `r` unused) still passes the checker; F1 sees only a bare statement. Unfixed. |
+
+## G. File and import errors
+
+| # | Bug class | Status |
+|---|---|---|
+| G1 | More than one primary semantic declaration in a single file | §3.9 | Attested — `module_structure_error.fiig`. Since ADR 0054 a parse error, reported at each extra declaration (the grammar allows one public declaration and at most one `private` block). Parse errors carry the G1 tag, so the checker's per-file counts still see it. |
+| G2 | A wildcard import | §3.10 "unqualified wildcard imports should be prohibited"; a parse error since ADR 0050 §2.4, which removed `.*` from the grammar | Attested — `wildcard_import_error.fiig`; `compiler/parser`'s `TestWildcardImportIsAParseError` |
+| G3 | Two imports in one file bound to the same alias | §3.10 — a qualified reference has to name exactly one package | Attested — `compiler/checker`'s `TestDuplicateImportAliasIsG3`. Found 2026-10-12 by asking how `createCustomer` resolves when two declarations claim it, and whether imported packages could collide the same way. They could, silently: the second import overwrote the first in `ResolveFileImports`, and the only symptom was an `unresolved type` on whichever package lost — a diagnostic pointing at code that was correct. Both forms count, and the implicit one is the dangerous half: `use company.time` and `use standard.time` both default their alias to `time` without either line mentioning the name they collide on. Checked in `CheckFile` next to G2 rather than where the overwrite happens, since `ResolveFileImports` is also the runtime's and returns early with no package context. |
+| G4 | An import alias shares a name with something else in its file's scope: a parameter or binding of a declaration in that file, a declaration in the package, or (ADR 0043 §6b) a capitalized binding sharing a declaration's name | ADR 0043 §3a — once a capability group is a value (`return Stripe`), a bare name must mean exactly one thing | Attested — `compiler/checker`'s `TestAliasCollisionsAreG4`. A collision never resolves by shadowing in either direction; the fix is always `use path as OtherName`. An alias meeting a local in the same file is reported at both sites; an alias meeting a declaration in another file is reported at the import, naming the declaration's kind. Fires on every import, provider or not: whether an import is a provider is a manifest question, and a naming rule shouldn't need the manifest. Without package context (the whole corpus checked as one universe) an unresolved group import is not compared against a same-named group, since it may be that very group. The prelude `math` group (ADR 0049 §2.5) is the one name every file sees without a `use`, so an import alias, parameter, binding, or loop or pattern variable named `math` is G4 too (`TestMathNameIsReserved`). |
+
+## N. Naming errors (ADR 0043 §5c, §6)
+
+Case in fiig is load-bearing where a reader relies on it: a lowercase dotted prefix never reaches the outside world, `Upper.lower(...)` may, and `Upper.Upper` is an enum variant. These keep that true. (ADR 0050's L1 named the first of them; that ID is taken by `break`/`continue` outside a loop, ADR 0053, so the case rules are numbered here.)
+
+| # | Bug class | Status |
+|---|---|---|
+| N1 | A name's case contradicts what it names: a capability group or interface not capitalized, a capability-group alias not keeping its group's case (`use acme.http.Client as client`), or a package alias capitalized (`use acme.http as Http` — a package is never itself a capability) | Attested — `capability_error.fiig` (`refundDesk`); `compiler/checker`'s `TestCapabilityGroupsAcrossPackages` for both alias forms |
+| N2 | A member's case contradicts its kind: an enum variant not capitalized, or a capability operation or interface member capitalized | Attested — `capability_error.fiig` (`refundDesk.Issue`); `TestCaseRulesAreN1N2N3` for the enum form. The corpus already conformed. |
+| N3 | A binding holding a capability (an interface, a capability group, or a list of either) is not capitalized, or a binding holding anything else is | Attested — `capability_error.fiig` (`refundLowercase`); `TestCaseRulesAreN1N2N3` for the second direction. A capitalized binding whose type the checker can't model (an opaque capability result) is left alone. |
+
+## M. Comparison errors (ADR 0052)
+
+`==` and `!=` take two operands of one type, and ordering takes `int` or `string` (and `float`, once ADR 0048 is implemented). These were unchecked until 2026-10-27: `1 == "hello"` type-checked and evaluated to a silent `false`, and ordering a model faulted at runtime.
+
+| # | Bug class | Status |
+|---|---|---|
+| M1 | A comparison on an operand that is not comparable: one holding a `Connection` at any depth (ADR 0060), a capability value (an interface-typed provider or a capability group; ADR 0052, 2026-10-27), a `Result` at any depth (ADR 0052, 2026-10-27), or, under `==` and `!=`, a `float` at any depth (ADR 0051 §2.3, ADR 0048), with the diagnostic naming the path to it (`Order.total.amount is float`) | Attested for handles and `Result` — `compiler/checker`'s `TestHandlesAreNotComparableM1`, `TestConnectionIsNotComparable`, and `TestResultsAreNotComparableM1`. Both walks are H5's (`types.Holds`, via `HoldsConnection` and `HoldsResult`). The float half is attested by `invalid-programs/float_error.fiig` and `TestFloatEqualityIsM1`, through models, lists, unions, and enum payloads; its walk (`checker.floatPath`) also enters enum payloads, which `types.Holds` doesn't. A `float` is still ordered (M3). |
+| M2 | `==`, `!=`, or an ordering operator on operands of different types | Attested — `compiler/checker`'s `TestComparisonOperandsAreM2AndM3`. One side being assignable to the other counts as the same type, so `x == None` stays legal for `x: T \| None`. Corpus migration was zero. |
+| M3 | `<`, `<=`, `>`, `>=` on an operand that is not `int`, `float` (ADR 0048), `decimal` (ADR 0064), or `string` (a model, enum, `bool`, list, or union) | Attested — same test. Replaces a runtime Fault (`"are not ordered"`), which stays in the interpreter for unchecked input. |
+
+## K. Formula and builtin errors (ADR 0049)
+
+| # | Bug class | Status |
+|---|---|---|
+| K1 | A method call whose receiver type has no such method in its builtin table (ADR 0049 §2.6): `42.isBlank()`, `name.trim()`, or any method on a model, enum, union, or other type with no table | Attested — `compiler/checker`'s `TestMethodNotInTableIsK1`. Was a runtime fault the checker never saw, and for a receiver that wasn't a bare name the checker didn't type the call at all. The table lives in `compiler/types` (`types.MethodsOf`) and the runtime dispatches through it (§2.8); `TestEveryBuiltinMethodIsImplemented` keeps the runtime's bodies and the declared signatures in step. No corpus migration. |
+| K2 | A declaration, public or private, named after something the prelude binds in every file: a primitive type (`int`, `string`, ...), a prelude type (`Result`, `List`, `BatchResult`, `None`, `Connection`, `SocketError`, `Rounding`), `Ok`/`Err`, or the `math` group. Type resolution and calls reach the prelude's meaning first, so the declaration was silently unreachable; a package's own `SocketError` instead silently replaced the prelude's | Attested — `math_error.fiig` (a private `model Result`); `compiler/checker`'s `TestDeclarationNamedAfterPrelude`. The list is `types.PreludeName`. No corpus migration. |
+| K3 | A `formula` that returns a `Result`, or a union holding one (ADR 0049 §2.2 restriction 3): a formula can only fault, never fail in domain terms, and a check with a reason to give is a rule | Attested — `formula_error.fiig` (`brokenChecks.parseEmail`); `compiler/checker`'s `TestFormulaRestrictionsAreK3K4K5` |
+| K4 | A `formula` with a `requires` clause (§2.2 restriction 1). Not in the grammar; the parser accepts it so the diagnostic can name the tier's purpose instead of reporting an unexpected token | Attested — `formula_error.fiig` (`brokenChecks.lookupDomain`) |
+| K5 | A bodiless `formula` (§2.1). Only the prelude `math` group's members have no body, and they are a compiler table rather than source, so every bodiless member in source is K5 | Attested — `formula_error.fiig` (`brokenChecks.normalize`) |
+
+## P. Capability and provider errors (ADR 0043)
+
+| # | Bug class | Status |
+|---|---|---|
+| P1 | A manifest's `provides` maps an interface to a capability group that lacks one of its operations | Attested — `compiler/checker`'s `TestProvidesCompletenessAndSignatureAreP1AndP2`. Checked by `types.BindProvides` when a package is checked or loaded; an entry that fails binds nothing, so the group is then not assignable to the interface either. |
+| P2 | A group's gateway differs from the interface member it fulfills: parameter count, a parameter's name, or a parameter or return type | Attested — same test. Types are compared by identity, each side resolved in its own package, so a same-shaped look-alike declared locally does not match. Names must match because a provider call binds arguments by the interface's names. |
+| P3 | A rule or conversion invokes a provider (`Provider.charge(...)`) | ADR 0043 §4 — selecting a provider is not an effect, invoking one is | Attested — `capability_error.fiig` (`refundInRule`). A rule calling a capability group directly is B1 (a conversion, B5), the same as calling any gateway. |
+| P4 | Another package references a gateway that is not in a capability group, by call (`http.loose(...)`) or by path-tail import (`use acme.http.loose`) | ADR 0043 §5 — a package's capability surface is exactly its groups | Attested — `TestCapabilityGroupsAcrossPackages`. Needs two packages, so no `invalid-programs/` fixture. No corpus package exported a loose gateway, so nothing migrated. |
+| P5 | Capability groups in one package whose gateways require each other in a cycle | Attested — `capability_error.fiig` (`RefundPing`/`RefundPong`, reported at both). Between packages the loader already rejects dependency cycles. |
+| P6 | A model or enum field holds a capability | ADR 0043 §6c — providers can use models, but models don't dictate how they are used | Attested — `capability_error.fiig` (`RefundPolicy.provider`) |
+| P7 | A gateway uses a capability other than the one it requires: another group, a provider value, or (ADR 0060) a primitive such as `Socket` | ADR 0010 + ADR 0043 §5 + ADR 0060 | Attested — `capability_error.fiig` (`refundDirect`); `compiler/checker`'s `TestSocketOutsideItsGatewayIsB10OrP7` for the primitive form |
+
+## H. Registry / capability errors
+
+| # | Bug class | Status |
+|---|---|---|
+| H1 | An imported gateway gains a capability its published contract didn't declare | `fiig-lang.md` line 433 (Milestone 6 exit criteria) | Attested — `compiler/loader`'s `TestLoadRejectsUndeclaredDependencyCapability`/`TestLoadRejectsUndeclaredOwnCapability` (docs/decisions/0035-capability-security-review.md). Inherently a cross-package, build-level scenario (an application's own manifest allowlist vs. its full resolved dependency closure's actual gateway requirements), so it's attested by a synthetic two-package workspace rather than a single `invalid-programs/*.fiig` file the way every other entry here is — the same reason this entry originally gave for deferring it. |
+| H2 | A resolved build requires a capability that is neither one of the closed primitives (`Socket`, `Clock`, `FileSystem`, `Random`; ADR 0060 folded `TlsSocket` into `Socket`) nor listed in the application manifest's `nativeCapabilities` (ADR 0042 — the floor is the socket, so a domain capability needs a fiig fulfiller; until ADR 0043 provides them, the grandfather list is the explicit, shrinking record of which ones are still Go-only) | Attested — `compiler/loader`'s `TestLoadRejectsDomainCapabilityWithoutNativeEntry`; the positive cases are `TestLoadAcceptsDeclaredDependencyCapability` and `TestLoadAcceptsPrimitiveCapabilityWithoutNativeEntry`. Enforced where H1 is, in the loader, because the manifest lives there: a loose directory with no manifest (the whole `examples/` corpus) is not a package build and is not checked. |
+
+| H4 | A private member escapes its file (ADR 0054 §3): named in its public entry's signature at any depth (a parameter, the return type, a generic argument, a union member), or referenced from another file | Attested — `compiler/checker`'s `TestPrivateTypeInPublicSignatureIsH4` and `TestPrivateMemberReferencedFromAnotherFileIsH4`. The transitive half needs no walk through other models: a public model lives in its own file and can't see the private type, so the only types that can hold one are the file's own, and the signature check reaches every one of those. A reference from another file would resolve to nothing anyway (private members are file-scoped); H4 replaces the "undefined name" it would otherwise get with a message naming the owning file. Like G3, no `invalid-programs/` fixture: it needs two files. |
+| H5 | A `Connection`, or a model holding one at any depth, appears in a workflow's signature (ADR 0060 §2): a workflow is the adapter boundary (ADR 0044), and a socket handle can be neither serialized nor handed in from outside | Attested — `socket_error.fiig` (`resumeSession`); `TestConnectionInWorkflowSignatureIsH5` for a nested model and a return type |
+
+## Explicitly out of scope (not statically checkable)
+
+Some §3 statements read like rules but aren't things a compiler can reject —
+worth naming so they aren't mistaken for missing catalog entries:
+
+- **No `null`** (§3.4) — there's no `null` keyword in the language to misuse;
+  this is true by construction, not by a check.
+- **No unchecked, Java-style exceptions** (§3.6) — same: nothing to reject
+  because the construct doesn't exist.
+- **Prefer separate lifecycle models over temporarily-invalid objects**
+  (§3.5, e.g. `NewCustomer` vs. `Customer`) — a style guideline, not a
+  checkable property; nothing stops a developer from modeling it differently.
+- **Failure after an earlier commit requires explicit compensation, not
+  rollback** (§3.8) — the *language* can make compensation easy to write
+  (`place_and_ship_order.fiig`), but whether a given compensation is
+  *correct* (actually undoes the right things) isn't something a compiler
+  can verify. This is a discipline the language supports, not a bug class it
+  rejects.
+- **Multiple operations against one capability staying consistent without a
+  `transaction` block** (§3.8; formerly numbered C3) — dropped outright, not
+  deferred. The semantic rule itself still stands (single writes are always
+  safe; `transaction` blocks are only needed when multiple operations must
+  stay consistent together), but no implementation was found that checks it
+  soundly. A real check needs two things: telling a mutating gateway call apart
+  from a non-mutating one (`StepDecl` has no such marker, and this part
+  genuinely is just missing infrastructure a future capability-contract
+  system could supply), and telling *related* operations apart from
+  *unrelated* ones on the same capability (two independent
+  `updateCustomerEmail` calls for different customers are not a hazard, and
+  nothing short of entity-level data-flow tracking — a much bigger feature
+  than capability contracts, and not on any roadmap — could tell them apart
+  from the real hazard this was meant to catch). That second gap is the same
+  kind of judgment call as compensation correctness above, not a temporary
+  blocker, so this is staying out of the numbered catalog rather than sitting
+  in it as a perpetual "deferred."
+
+## Coverage against Milestone 0 exit criteria
+
+`fiig-lang.md`'s exit criteria requires "at least five important bug classes
+... cannot be represented as valid programs" — comfortably satisfied: 24 of
+25 identified bug classes are now attested, 23 by a real `invalid-programs/`
+example across all eight categories plus H1 by `compiler/loader`'s own test
+suite (a build-level, cross-package scenario no single file can represent).
+The remaining one (A5) is deliberately deferred, for a stated structural
+reason rather than oversight — no syntax exists yet to misuse. Doesn't block
+Milestone 0's exit criteria. (C3 was dropped outright rather than counted
+here at all — see
+"Explicitly out of scope" above.)
+
+A9 was added afterward, during Milestone 2 itself rather than Milestone 0's
+original pass — it comes from `fiig-lang.md`'s Milestone 2 deliverable list
+(line 286), not a §3 "must/cannot" statement the way every other entry here
+does, since exhaustiveness is a property of having sum types at all, not a
+rule a §3 principle asserts. The catalog stands at 25/26 as a result, now
+only A5 deferred.

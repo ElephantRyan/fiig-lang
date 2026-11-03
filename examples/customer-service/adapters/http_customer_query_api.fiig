@@ -1,0 +1,7 @@
+// ADR 0021: QUERY (RFC 10008) carries a body like POST but stays safe and
+// idempotent like GET. `criteria` is unclaimed by the path, so it binds
+// from the request body — CustomerLookup is a model, so this is real
+// structural decoding.
+adapter http customerQueryApi {
+    QUERY "/customers/lookup" -> lookupCustomer(criteria: CustomerLookup)
+}

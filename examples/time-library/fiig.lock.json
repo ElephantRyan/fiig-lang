@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    {
+      "path": "company.time",
+      "version": "2.4.0",
+      "hash": "sha256:2e4f582d2388c5ea9b6a313911a612f2884d092daa95d4e25070285747d49415",
+      "source": "examples/company-time"
+    },
+    {
+      "path": "standard.time",
+      "version": "1.0.0",
+      "hash": "sha256:aba7a01a5ceebdec7b1e9e7b6d6506b5b47628ff58a7996f970a1989aef2e094",
+      "source": "examples/standard-time"
+    }
+  ]
+}

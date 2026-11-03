@@ -1,0 +1,13 @@
+// ADR 0043 §3: the imported group is the value. Selecting a provider is
+// not an effect, so this stays a pure rule; it may return one, never call
+// one (§4).
+use acme.payments
+use acme.square.Square
+use acme.stripe.Stripe
+
+rule choosePaymentProvider(merchant: PayingMerchant) -> payments.PaymentProvider {
+    if merchant.inEurope {
+        return Square
+    }
+    return Stripe
+}

@@ -1,0 +1,3 @@
+conversion customerToSummary(customer: Customer) -> CustomerSummary {
+    return CustomerSummary(id: customer.id, name: customer.name)
+}

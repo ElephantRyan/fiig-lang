@@ -1,0 +1,6 @@
+// What a client sends to rate an item.
+model NewRating {
+    item: string
+    score: int
+    note: string
+}

@@ -1,0 +1,10 @@
+gateway findRating(item: string) -> Result<Rating, RatingError>
+    requires Database
+    idempotent
+{
+    row = Database.queryOne("SELECT item, score, note FROM ratings WHERE item = ?", item)
+    match row {
+        found -> Ok(Rating(item: found.item, score: found.score, note: found.note))
+        None -> Err(RatingError.NotFound(item))
+    }
+}

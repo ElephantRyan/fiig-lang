@@ -1,0 +1,6 @@
+// ADR 0021: targeted by a QUERY route — reads data, like readCustomer, but
+// its parameter arrives as a decoded request body rather than a path
+// segment.
+workflow lookupCustomer(criteria: CustomerLookup) -> Result<Customer, CustomerError> {
+    return getCustomer(criteria.id)
+}

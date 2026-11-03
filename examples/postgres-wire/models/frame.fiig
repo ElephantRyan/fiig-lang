@@ -1,0 +1,7 @@
+// One Postgres backend message (ADR 0058): its type byte, its body, and
+// whatever bytes followed it in the buffer.
+model Frame {
+    kind: int
+    body: bytes
+    rest: bytes
+}

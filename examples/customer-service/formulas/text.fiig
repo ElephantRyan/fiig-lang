@@ -1,0 +1,13 @@
+// ADR 0049 §2.2: format checks. Whether a string is shaped like an email
+// address is something two companies would not disagree about, so it is a
+// formula, and any rule may call it. Whether a malformed address is an
+// error, and which one, stays a rule's decision (validateEmail).
+formulas text {
+    formula isEmailShaped(s: string) -> bool {
+        return s.contains("@") and not hasSpace(s)
+    }
+
+    formula hasSpace(s: string) -> bool {
+        return s.contains(" ")
+    }
+}

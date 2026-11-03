@@ -1,0 +1,12 @@
+use customer.service.text
+
+// A small validator extracted from validateNewCustomer, which composes it
+// (an activity, ADR 0030). The shape check is a shared formula; the reason
+// for rejecting is the rule's own (ADR 0049 §2.2). Takes and returns a plain
+// `string` (ADR 0055 removed the `EmailAddress` wrapper).
+rule validateEmail(email: string) -> Result<string, CustomerError> {
+    if not text.isEmailShaped(email) {
+        return Err(CustomerError.Invalid("email", "must be a valid address"))
+    }
+    return Ok(email)
+}

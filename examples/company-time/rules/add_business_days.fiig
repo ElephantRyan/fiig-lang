@@ -1,0 +1,10 @@
+use standard.time as time
+
+// Placeholder pure arithmetic, not real calendar math — this package
+// exists to give Milestone 6's package-resolution mechanism (ADR 0032) a
+// real cross-package rule to call. Deliberately uses its own "time" alias
+// for standard.time, distinct from whatever alias a consuming file uses,
+// to exercise resolving this rule's own signature in its own scope.
+rule addBusinessDays(from: time.Instant, days: int) -> time.Instant {
+    return time.Instant(days: from.days + days)
+}

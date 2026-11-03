@@ -1,0 +1,21 @@
+// Candidate 11th example: failure after an earlier commit requires explicit
+// compensation, not rollback (fiig-lang.md §3.8). By the time reserveShipping
+// fails, placeOrder's two transaction blocks have already committed — refundPayment
+// and releaseInventory are compensating actions, not part of any transaction.
+activity placeAndShipOrder(orderId: string, customerId: string, total: int) -> Result<Order, OrderError> {
+    order = placeOrder(orderId, customerId, total)?
+
+    shipped = reserveShipping(order.id)
+    match shipped {
+        Ok(_) -> Ok(order)
+        Err(_) -> {
+            // Best-effort compensation: its own outcome doesn't change the
+            // error already being returned below (F1 requires every Result
+            // to be propagated or matched, so it's bound rather than
+            // dropped as a bare statement).
+            refunded = refundPayment(order.paymentReference)
+            released = releaseInventory(order.id)
+            return Err(OrderError.ShippingUnavailable(order.id))
+        }
+    }
+}

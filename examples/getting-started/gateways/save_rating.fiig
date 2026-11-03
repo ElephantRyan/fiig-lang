@@ -1,0 +1,11 @@
+gateway saveRating(input: NewRating) -> Result<Rating, RatingError>
+    requires Database
+{
+    Database.execute(
+        "INSERT INTO ratings (item, score, note) VALUES (?, ?, ?) ON CONFLICT (item) DO UPDATE SET score = excluded.score, note = excluded.note",
+        input.item,
+        input.score,
+        input.note,
+    )
+    return Ok(Rating(item: input.item, score: input.score, note: input.note))
+}

@@ -1,0 +1,49 @@
+# A version tag (v0.1.0-alpha.1) builds the release: tests, the archives
+# for every platform with SHA256SUMS (tooling/release), a GitHub release
+# marked as a pre-release, and the fiig image for linux/amd64 and
+# linux/arm64 at ghcr.io/<owner>/fiig:<tag>.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test ./...
+      - run: go test ./...
+        working-directory: libraries/sql
+
+      - name: Build archives
+        run: go run ./tooling/release -version "${GITHUB_REF_NAME}" -out dist
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --prerelease --title "fiig ${GITHUB_REF_NAME}" --notes "Alpha toolchain. Start with docs/getting-started.md; see docs/known-limitations.md."
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/fiig" >> "$GITHUB_ENV"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          build-args: VERSION=${{ github.ref_name }}
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.ref_name }}

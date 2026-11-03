@@ -1,0 +1,21 @@
+// ADR 0043 §5a: a capability that starts life inside the application.
+// When a second application needs it, this file moves into a package and
+// each caller adds `use company.ledger.LedgerApi`; no call site changes.
+// ADR 0060: one line per entry over a plain connection to the ledger.
+capability LedgerApi {
+    gateway record(entry: string) -> Result<None, string>
+        requires Socket
+    {
+        match Socket.connect("ledger.internal", 7000) {
+            Ok(connection) -> {
+                sent = Socket.write(connection, "${entry}\n".utf8())
+                Socket.close(connection)
+                match sent {
+                    Ok(_) -> Ok(None)
+                    Err(_) -> Err("ledger write failed")
+                }
+            }
+            Err(_) -> Err("ledger unreachable")
+        }
+    }
+}

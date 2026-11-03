@@ -1,0 +1,8 @@
+// Header fields read off any value (ADR 0046 §4b): no match repeats the
+// table. A match on the enum is for per-client logic, not per-client facts.
+rule deductionFileName(source: DeductionSource, batch: int) -> string {
+    match source.layout {
+        FieldLayout.FixedWidth -> "${source.code}-${batch}.dat"
+        FieldLayout.Csv -> "${source.code}-${batch}.csv"
+    }
+}

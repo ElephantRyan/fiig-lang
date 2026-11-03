@@ -1,0 +1,11 @@
+// A rule is pure: no database, no network, so it can be tested with plain
+// values and called from anywhere.
+rule validateRating(input: NewRating) -> Result<NewRating, RatingError> {
+    if input.score < 1 or input.score > 10 {
+        return Err(RatingError.Invalid("score", "must be from 1 to 10"))
+    }
+    if input.item.isBlank() {
+        return Err(RatingError.Invalid("item", "must not be blank"))
+    }
+    return Ok(input)
+}

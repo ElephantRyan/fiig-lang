@@ -1,0 +1,12 @@
+// A whole HTTP/1.1 response: the status from the status line, and the
+// body after the blank line ending the headers. A response this cannot
+// read is status 0 with the raw bytes as its body.
+conversion webReply(response: bytes) -> WebReply {
+    match response {
+        <<"HTTP/1.1 ": utf8, hundreds: u8, tens: u8, ones: u8, rest: bytes>> -> {
+            status = (hundreds - 48) * 100 + (tens - 48) * 10 + (ones - 48)
+            return WebReply(status: status, body: textOf(bodyAfterHeaders(rest)))
+        }
+        _ -> WebReply(status: 0, body: textOf(response))
+    }
+}

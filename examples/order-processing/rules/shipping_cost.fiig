@@ -1,0 +1,26 @@
+// ADR 0054: a rule split into named steps. `rateFor` and `ShippingRate` are
+// private to this file: no other file can call or name them, and the
+// registry shows only `shippingCost`. A rule may call its own helpers, but
+// still nothing outside its file.
+rule shippingCost(total: int, region: Region) -> int {
+    rate = rateFor(region)
+    if total >= rate.freeAbove {
+        return 0
+    }
+    return rate.flat
+}
+
+private {
+    rateFor(region: Region) -> ShippingRate {
+        match region {
+            Region.US -> ShippingRate(flat: 500, freeAbove: 10000)
+            Region.EU -> ShippingRate(flat: 700, freeAbove: 10000)
+            Region.APAC -> ShippingRate(flat: 1200, freeAbove: 20000)
+        }
+    }
+
+    model ShippingRate {
+        flat: int
+        freeAbove: int
+    }
+}

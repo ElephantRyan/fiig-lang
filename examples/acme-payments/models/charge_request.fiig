@@ -1,0 +1,6 @@
+// Lives in its own package, not beside a provider: Stripe and Square are
+// released independently and must agree on it (ADR 0043 §2).
+model ChargeRequest {
+    orderId: string
+    amount: int
+}

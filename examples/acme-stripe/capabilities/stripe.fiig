@@ -1,0 +1,28 @@
+// Stripe chooses its own HTTP library, concretely: no gateway calls a
+// gateway here, charge uses the Client capability it requires, exactly as a
+// gateway would use Socket (ADR 0043 §5).
+use acme.http
+use acme.http.Client
+use acme.payments
+
+capability Stripe {
+    gateway charge(request: payments.ChargeRequest) -> Result<string, string>
+        requires Client
+    {
+        outbound = http.WebRequest(
+            host: "api.stripe.com",
+            path: "/v1/charges",
+            body: "${request.orderId}:${request.amount}",
+        )
+        reply = Client.send(outbound)
+        match reply {
+            Ok(sent) -> {
+                if sent.status != 200 {
+                    return Err("HTTP ${sent.status} from api.stripe.com")
+                }
+                return Ok("stripe:${sent.body}")
+            }
+            Err(failure) -> Err(http.describeSocketError(failure))
+        }
+    }
+}

@@ -1,0 +1,3 @@
+workflow rate(input: NewRating) -> Result<Rating, RatingError> {
+    return recordRating(input)
+}

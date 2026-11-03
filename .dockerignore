@@ -1,0 +1,7 @@
+.git
+.idea
+.claude
+*.exe
+*.db
+spikes
+dist

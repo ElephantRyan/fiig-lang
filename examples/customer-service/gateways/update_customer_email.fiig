@@ -1,0 +1,6 @@
+gateway updateCustomerEmail(id: string, email: string) -> Result<None, CustomerError>
+    requires Database
+{
+    Database.execute("UPDATE customers SET email = ? WHERE id = ?", email, id)
+    return Ok(None)
+}

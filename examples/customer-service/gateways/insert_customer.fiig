@@ -1,0 +1,7 @@
+gateway insertCustomer(input: NewCustomer) -> Result<Customer, CustomerError>
+    requires Database
+{
+    id = Database.nextId()
+    Database.execute("INSERT INTO customers (id, name, email) VALUES (?, ?, ?)", id, input.name, input.email)
+    return Ok(Customer(id: id, name: input.name, email: input.email))
+}

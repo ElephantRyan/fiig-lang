@@ -1,0 +1,10 @@
+// ADR 0058: the body of an 'R' message is an Int32 request code, then
+// whatever that request carries. Literal segments match the code.
+conversion readAuthentication(body: bytes) -> Authentication | None {
+    match body {
+        <<0: i32be>> -> Authentication.AuthenticationOk
+        <<3: i32be>> -> Authentication.CleartextPassword
+        <<5: i32be, salt: bytes(4)>> -> Authentication.Md5Password(salt: salt)
+        _ -> None
+    }
+}

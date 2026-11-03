@@ -1,0 +1,8 @@
+// A simplified instant — whole days since an arbitrary epoch, not a real
+// timestamp. This package exists to give Milestone 6's package-resolution
+// mechanism (ADR 0032) a real dependency to resolve against, not to model
+// actual time. A model rather than a bare `int` (ADR 0055) because that
+// mechanism needs a real imported type to resolve.
+model Instant {
+    days: int
+}

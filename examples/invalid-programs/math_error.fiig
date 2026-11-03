@@ -1,0 +1,19 @@
+// ADR 0049 §2.4: math's int and float forms never mix, and closeTo's two
+// tolerances are named so they can't be swapped (ADR 0051).
+rule withinBudget(spent: int, budget: float) -> bool {
+    // A1: math.max has an int form and a float form, and no (int, float)
+    // form; convert spent with math.toFloat.
+    worst = math.max(spent, budget)
+    // Untagged: relative passed by position, so 0.01 could be either
+    // tolerance.
+    return math.closeTo(worst, budget, 0.01, absolute: 0.5)
+}
+
+private {
+    // K2: the prelude's Result is what `Result` means in every file, so a
+    // model of that name could never be reached as a type.
+    model Result {
+        within: bool
+        margin: float
+    }
+}

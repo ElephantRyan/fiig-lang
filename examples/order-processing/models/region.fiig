@@ -1,0 +1,8 @@
+// A closed set of settlement regions (ADR 0040) — the first enum in the
+// corpus with no error-handling role at all, attesting that `enum` is a
+// general sum type, not special-cased syntax for typed errors.
+enum Region {
+    US
+    EU
+    APAC
+}

@@ -1,0 +1,6 @@
+// A stored rating.
+model Rating {
+    item: string
+    score: int
+    note: string
+}

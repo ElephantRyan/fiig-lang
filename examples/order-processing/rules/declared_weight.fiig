@@ -1,0 +1,8 @@
+use order.processing.shipping
+
+// A US warehouse weighs in pounds; the customs form records kilograms to a
+// tenth. The conversion is exact, and the one rounding is the form's, named
+// here rather than happening on the way (ADR 0064 §4).
+rule declaredWeightKg(pounds: decimal) -> decimal {
+    return math.round(shipping.poundsToKilograms(pounds), places: 1, rounding: Rounding.HalfUp)
+}

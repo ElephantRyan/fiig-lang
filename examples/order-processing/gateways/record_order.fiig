@@ -1,0 +1,9 @@
+gateway recordOrder(orderId: string, customerId: string, total: int, paymentReference: string) -> Result<Order, OrderError>
+    requires Database
+{
+    Database.execute(
+        "INSERT INTO orders (id, customer_id, total, payment_reference) VALUES (?, ?, ?, ?)",
+        orderId, customerId, total, paymentReference,
+    )
+    return Ok(Order(id: orderId, customerId: customerId, total: total, paymentReference: paymentReference))
+}

@@ -1,0 +1,15 @@
+// Required example 9: import two aliased time libraries. Both packages are
+// named "time"; the aliases are the only thing that make them referenceable
+// in the same file, and each keeps its own canonical registry identity.
+//
+// An activity, not a rule: once Milestone 6 (ADR 0032) made cross-package
+// calls real instead of opaque, this calls company.time's addBusinessDays
+// — a rule — which only an activity may do (ADR 0029: a rule calls nothing
+// at all, the same restriction regardless of which package the callee
+// lives in; ADR 0030: that composition is exactly Activity's job).
+use company.time as businessTime
+use standard.time as systemTime
+
+activity computeFollowUpDate(from: systemTime.Instant) -> systemTime.Instant {
+    return businessTime.addBusinessDays(from, 3)
+}
