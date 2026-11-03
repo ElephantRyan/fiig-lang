@@ -1,7 +1,8 @@
-# ADR 0067: String Methods, Counted in Code Points
+# ADR 0067: String Methods, with Every Count Named
 
-Status: Proposed (2026-11-03). Drafted for one-decision-at-a-time review;
-nothing here is decided.
+Status: Proposed (2026-11-03). Under one-decision-at-a-time review: §1 and
+§2 decided 2026-11-03 (`length()` counts graphemes, `codePointCount()`
+beside it, bytes through the encoding); the rest is not yet reviewed.
 Date: 2026-11-03
 Related: ADR 0048 (`char` rejected), ADR 0049 §2.6 (closed method tables;
 "further string methods are additive"), ADR 0050 (naming), ADR 0057 (no `+`
@@ -36,62 +37,79 @@ The method table is closed (ADR 0049 §2.6), so a library can't add these.
 
 ## Decision
 
-### 1. `length()` counts code points
+### 1. Three counts, each named: `length()`, `codePointCount()`, `utf8().length()`
 
 The one question every later decision depends on is what a "character" is.
 For `"Zoë 👍🏽"` (a thumbs-up with a skin-tone modifier):
 
 | Unit | Count | Who counts this way |
 |---|---|---|
-| UTF-8 bytes | 13 | Go `len`, Rust `.len()`, fiig `s.utf8().length()` |
-| UTF-16 code units | 8 | Java and JavaScript `.length`, C# `.Length` |
-| Code points | 6 | Python `len`, Go `utf8.RuneCountInString`, Postgres `char_length`, MySQL `CHAR_LENGTH`, SQLite `length()` |
-| Grapheme clusters (what a reader sees) | 5 | Swift `count`, JavaScript `Intl.Segmenter` |
+| UTF-8 bytes | 13 | Go `len`, Rust `.len()`, PHP `strlen` |
+| UTF-16 code units | 8 | Java and JavaScript `.length`, C# `.Length`, Kotlin, Dart |
+| Code points | 6 | Python `len`, Ruby `length`, Postgres `char_length`, MySQL `CHAR_LENGTH`, SQLite `length()` |
+| Grapheme clusters (what a reader sees) | 5 | Swift `count`, Elixir `String.length`, Raku `.chars` |
 
-**Proposed: code points.** `s.length()` is 6 here.
-
-- **It agrees with the databases.** A Postgres `VARCHAR(280)`, a SQLite
-  `length(note) <= 280` check, and MySQL's `CHAR_LENGTH` all count code
-  points. A service that checks a limit and then stores the value should
-  get the same answer as the column that holds it.
-- **It doesn't change with the Unicode version.** Grapheme boundaries come
-  from rules (UAX #29) and tables that change with each Unicode release, so
-  the same string's length could change when the toolchain upgrades. A
-  code point count never does.
-- **It needs no tables.** Fiig's core module has no dependencies; grapheme
-  segmentation would mean carrying and updating the Unicode tables.
-- **UTF-16 is the one choice with no merit of its own.** Java and
-  JavaScript count it for historical reasons, and it splits an emoji into
-  two "characters".
-
-**What it gives up.** A reader sees `👍🏽` as one character and code points
-count two; a family emoji (`👨‍👩‍👧`) counts five. `e` followed by a
-combining diaeresis is two code points, where `ë` precomposed is one. No
-choice agrees with every boundary: a browser's `.length` counts 8 for the
-string above. The frontend and the service have to agree on a unit, and code
-points are the one the database also uses.
-
-`length()` is the name `List`, `bytes`, and `Map` already use. The bytes stay
-one call away: `s.utf8().length()`.
-
-### 2. `slice(from, to)` cuts by code point; there is no `at`
+No answer is the majority's, so a bare `length()` means a different number
+to a reader from each column. Fiig follows Swift: the plain count is what a
+person sees, and every other unit is named where it's used.
 
 ```
-s.slice(0, 40)     // the first 40 code points; faults if s is shorter
+s.length()            // 5: grapheme clusters, what a reader sees
+s.codePointCount()    // 6: code points, what a database column counts
+s.utf8().length()     // 13: bytes, in the encoding the call names
 ```
 
-The arguments are code point positions, as `length()` counts, so a slice
-never cuts a character's bytes in half. Out of range faults, as `List.slice`
-and `bytes.slice` do.
+- **`length()` counts grapheme clusters** (Unicode's extended grapheme
+  clusters, UAX #29). `👍🏽` is one, a family emoji (`👨‍👩‍👧`) is one, and `ë`
+  is one whether it's precomposed or `e` plus a combining diaeresis. It's
+  the count a person would give, so a limit shown to a user ("at most 40
+  characters") and a display truncation use it.
+- **`codePointCount()` is the database's count.** Postgres `VARCHAR(n)`,
+  SQLite's `length()`, and MySQL's `CHAR_LENGTH` count code points, and the
+  two counts disagree: 280 `👍🏽` are 280 graphemes and 560 code points, so a
+  check written with `length()` passes a value a `VARCHAR(280)` rejects. A
+  limit a column enforces is checked with `codePointCount()`.
+- **Bytes go through the encoding: `s.utf8().length()`.** There is no
+  `byteCount()`. A byte count only means something for an encoding, and
+  `utf8()` names it at the call site; if fiig ever reads or writes another
+  (Latin-1, UTF-16), it would be another method beside `utf8()`, and its
+  byte count would come the same way, with no question which one a bare
+  `byteCount()` meant. This already works today.
+- **No UTF-16 count.** It's the one unit with no merit of its own; Java and
+  JavaScript count it for historical reasons. A boundary that needs it
+  (a browser's `maxlength`) is a reason for an encoding method later, not
+  for a count now.
+
+**Graphemes change with the Unicode version.** Segmentation is rules plus
+property tables, and a Unicode release can join a sequence that used to be
+two clusters into one (new emoji sequences do). So `length()` can differ
+between toolchains on the same string. Swift and Elixir accept this; fiig
+pins one Unicode version per toolchain release, names it in the release
+notes, and the lockfile's `toolchain` field records which toolchain built a
+program. `codePointCount()` and `utf8().length()` never change.
+
+### 2. `slice(from, to)` cuts by grapheme; there is no `at`
+
+```
+s.slice(0, 40)     // the first 40 grapheme clusters; faults if s is shorter
+```
+
+The arguments are positions in `length()`'s unit, so
+`s.slice(0, s.length())` is `s`, and a slice never cuts an emoji, a
+skin-tone modifier, or a combining mark away from its base. Out of range
+faults, as `List.slice` and `bytes.slice` do. There is no code-point slice;
+a value cut to fit a column is cut by `slice` and then checked with
+`codePointCount()`.
 
 There is no `s.at(i)`: it would return a one-code-point string, which is a
 `char` by another name (ADR 0048 rejected `char`), and indexing by position
 is rarely what text processing needs. Rust and Swift leave out integer
 indexing on strings for the same reason.
 
-**Cost.** UTF-8 doesn't index by code point, so `length()` and `slice` are
-O(n) in the string's length. Python makes them O(1) by storing each string
-at a fixed width per code point; fiig keeps UTF-8, which every boundary
+**Cost.** `length()`, `slice`, and `codePointCount()` are O(n) in the
+string's length: UTF-8 doesn't index by code point, and grapheme
+boundaries are only found by walking the segmentation rules. Swift's
+`count` is O(n) for the same reason. Fiig keeps UTF-8, which every boundary
 speaks. The strings a service handles are short; the cost is stated here
 so no one assumes O(1).
 
@@ -132,7 +150,7 @@ default, and fiig takes Kotlin's names for that reason.
 
 **Per code point.** Each code point maps to one code point (Unicode's
 simple case mapping, which Go's `strings.ToLower` uses), so the result has
-the same length as the input. The visible difference from full mapping is
+the same code point count as the input. The visible difference from full mapping is
 `"ß".uppercase()`, which stays `"ß"` where Python gives `"SS"`.
 
 **Comparing without case uses `equalsIgnoringCase`, not lowercasing.**
@@ -199,8 +217,9 @@ here except Swift. There is no locale collation. Both are open questions.
 
 | Method | Result |
 |---|---|
-| `length()` | `int`, code points |
-| `slice(from, to)` | `string`, by code point; faults out of range |
+| `length()` | `int`, grapheme clusters |
+| `codePointCount()` | `int`, code points |
+| `slice(from, to)` | `string`, by grapheme cluster; faults out of range |
 | `startsWith(s)`, `endsWith(s)` | `bool` |
 | `removePrefix(s)`, `removeSuffix(s)` | `string` |
 | `trim()`, `trimStart()`, `trimEnd()` | `string` |
@@ -211,25 +230,30 @@ here except Swift. There is no locale collation. Both are open questions.
 | `toIntOrNone()`, `toFloatOrNone()` | `int \| None`, `float \| None` |
 | `List<string>.join(sep)` | `string` |
 
-Existing: `isBlank()`, `contains(s)`, `utf8()`, `toDecimalOrNone()`. Every
-method returns a value, so a bare call is A13 (ADR 0065 §6).
+Existing: `isBlank()`, `contains(s)`, `utf8()` (whose `length()` is the
+byte count), `toDecimalOrNone()`. Every method returns a value, so a bare
+call is A13 (ADR 0065 §6).
 
 ## Alternatives considered
 
-**A. Grapheme clusters for `length()` (Swift).** The count a person would
-give. Rejected for §1's reasons: it disagrees with the database, changes
-across Unicode versions, and needs tables. Kept as an open question under
-its own name.
+**A. Code points for `length()` (Python, the databases).** The first
+draft's choice: it agrees with `VARCHAR(n)`, never changes across Unicode
+versions, and needs no tables. Rejected in review because it isn't the
+count a person gives (`👍🏽` is two), and a bare `length()` in code points
+reads as a different number to readers from Java, JavaScript, Go, and
+Swift alike. Kept under its own name, `codePointCount()`, for the
+database case.
 
 **B. Bytes for `length()` (Go, Rust).** Cheap and exact, and wrong for
 every limit written in characters. `utf8().length()` already gives it.
 
-**C. No `length()`; name the unit (`codePointCount()`, Swift's
-`unicodeScalars.count`).** Unambiguous, and the safest for readers coming
-from Java or JavaScript. Rejected in the draft because `length()` is
-already the name on every other sized type, and code points are the count
-most languages that read the way fiig does (Python) give. Worth revisiting
-in review: it is the conservative choice.
+**C. A `byteCount()` method.** Considered in review and rejected: bytes
+are only defined for an encoding, and `utf8().length()` names it, so a
+second encoding later can't make the count ambiguous.
+
+**C2. No `length()` at all; every count named.** Unambiguous, but a
+string's count a person sees is the one most code wants, and `length()` is
+already the name on every other sized type.
 
 **D. `+` for concatenation.** ADR 0057 rejected it; `join` and
 interpolation cover the cases.
@@ -243,14 +267,19 @@ with their own syntax and performance traps, and nothing above needs one.
   gains `join`, A1 on a non-string element (as `contains` checks its
   element).
 - `compiler/runtime/methods.go`: bodies, with the faults named above.
+- Grapheme segmentation (UAX #29) in the core module, which has no
+  dependencies and Go's standard library doesn't provide: the property
+  tables are generated from the Unicode data files by a `go generate`
+  step, checked in, and tested against Unicode's
+  `GraphemeBreakTest.txt`. The Unicode version is a constant the release
+  notes name.
 - `docs/known-limitations.md` drops "strings have few methods".
 - Corpus: validating a note's length and normalizing an email address.
 
 ## Open questions
 
-1. **Grapheme count.** If a real case needs what a reader sees, it would be
-   a separately named method (`graphemeCount()`), never a change to
-   `length()`.
+1. **Other encodings.** `latin1()` or `utf16()` beside `utf8()`, each
+   with its byte count through `length()`, when a boundary needs one.
 2. **Truncation.** `s.slice(0, math.min(40, s.length()))` is clumsy for
    "at most 40 characters". A `truncate(n)` that never faults would be
    small; it waits for the corpus to show it.
