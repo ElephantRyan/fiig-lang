@@ -1,0 +1,15 @@
+// Concurrency error (fiig-lang.md §3.7): concurrency is always bounded, so an
+// explicit unbounded request must be rejected rather than silently capped.
+workflow retrieveAllCustomers(customerIds: List<string>) -> BatchResult<string, Customer, CustomerError> {
+    concurrent(customerId in customerIds, limit: unbounded): // rejected: no unbounded concurrency
+        getCustomer(customerId)
+}
+
+// Concurrency error: nested concurrency shares its parent's budget and
+// cannot multiply past it — an inner limit larger than the outer one is
+// exactly the multiplication the budget hierarchy exists to prevent.
+workflow retrieveCustomersNested(customerIds: List<string>) -> BatchResult<string, Customer, CustomerError> {
+    concurrent(customerId in customerIds, limit: 5):
+        concurrent(innerId in customerIds, limit: 50): // rejected: inner limit (50) exceeds the outer budget (5)
+            getCustomer(innerId)
+}

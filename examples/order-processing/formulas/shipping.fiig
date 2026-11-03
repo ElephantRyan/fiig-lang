@@ -1,0 +1,17 @@
+// Arithmetic carriers share, with no judgment in it: a rule decides what to
+// bill, and these say how big a box is (ADR 0049 §2.2).
+formulas shipping {
+    // A box's dimensional weight: its volume over a divisor standing for how
+    // dense a typical parcel is. 5000 is an untyped constant, so it divides a
+    // float volume as a float without a conversion (ADR 0048 §2.4).
+    formula dimensionalWeightKg(lengthCm: float, widthCm: float, heightCm: float) -> float {
+        return lengthCm * widthCm * heightCm / 5000
+    }
+
+    // The international pound is defined as exactly 0.45359237 kg, so the
+    // product is exact as a decimal, where a float would already be off in
+    // its seventeenth digit (ADR 0064 §2).
+    formula poundsToKilograms(pounds: decimal) -> decimal {
+        return pounds * 0.45359237
+    }
+}

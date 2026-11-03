@@ -1,0 +1,4 @@
+// Child activity used by required example 7 (onboardCustomer).
+activity sendWelcomeEmail(customer: Customer) -> Result<None, CustomerError> {
+    return sendEmail(customer.email, "Welcome!", "Thanks for joining, ${customer.name}.")
+}

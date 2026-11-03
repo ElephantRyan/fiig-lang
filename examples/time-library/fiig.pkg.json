@@ -1,0 +1,9 @@
+{
+    "path": "time.library",
+    "kind": "library",
+    "version": "1.0.0",
+    "dependencies": {
+        "company.time": "2.4.0",
+        "standard.time": "1.0.0"
+    }
+}

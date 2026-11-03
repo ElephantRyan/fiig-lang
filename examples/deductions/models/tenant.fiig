@@ -1,0 +1,4 @@
+model Tenant {
+    id: string
+    defaultSource: DeductionSource
+}

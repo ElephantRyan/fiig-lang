@@ -1,0 +1,8 @@
+// Required example 4: create a customer using pure validation and an external
+// uniqueness check. The reusable unit (ADR 0044); createCustomer, the workflow
+// an adapter attaches to, is a thin boundary over it.
+activity registerCustomer(input: NewCustomer) -> Result<Customer, CustomerError> {
+    validated = validateNewCustomer(input)?
+    checkEmailUnique(validated.email)?
+    return insertCustomer(validated)
+}

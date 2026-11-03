@@ -1,0 +1,6 @@
+// Retry error: retry is only valid on operations whose contract declares
+// idempotency; chargePayment does not, so retrying it must be rejected.
+workflow chargeWithRetry(orderId: string, amount: int) -> Result<string, OrderError> {
+    return retry(attempts: 3):
+        chargePayment(orderId, amount) // rejected: chargePayment is not declared idempotent
+}

@@ -1,0 +1,19 @@
+// ADR 0059 §1: read until the buffer holds one whole backend message.
+// `pending` is what an earlier read left over; the frame's own `rest` is
+// what this one leaves for the next.
+gateway readMessage(connection: Connection, pending: bytes) -> Result<Frame, SocketError>
+    requires Socket
+{
+    buffer: bytes = pending
+    while true {
+        match readFrame(buffer) {
+            None -> {
+                chunk = Socket.read(connection)?
+                buffer = <<buffer: bytes, chunk: bytes>>
+            }
+            frame -> {
+                return Ok(frame)
+            }
+        }
+    }
+}

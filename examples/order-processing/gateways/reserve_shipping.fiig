@@ -1,0 +1,11 @@
+// Network gateway used only by the candidate 11th example, deliberately placed
+// after the order is already committed so its failure needs compensation.
+gateway reserveShipping(orderId: string) -> Result<None, OrderError>
+    requires ShippingProvider
+{
+    reserved = ShippingProvider.reserve(orderId)
+    if not reserved {
+        return Err(OrderError.ShippingUnavailable(orderId))
+    }
+    return Ok(None)
+}

@@ -1,0 +1,10 @@
+{
+  "dependencies": [
+    {
+      "path": "standard.time",
+      "version": "1.0.0",
+      "hash": "sha256:aba7a01a5ceebdec7b1e9e7b6d6506b5b47628ff58a7996f970a1989aef2e094",
+      "source": "examples/standard-time"
+    }
+  ]
+}

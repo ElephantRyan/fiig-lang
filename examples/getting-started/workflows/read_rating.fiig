@@ -1,0 +1,3 @@
+workflow readRating(item: string) -> Result<Rating, RatingError> {
+    return findRating(item)
+}

@@ -1,0 +1,7 @@
+// ADR 0021: a minimal model for the QUERY adapter example — a single
+// field is enough to demonstrate body binding into a model, without
+// inventing search/filter semantics the compiler has no capability to
+// actually execute yet.
+model CustomerLookup {
+    id: string
+}

@@ -1,0 +1,19 @@
+// LLM composition benchmark trial (docs/specification/llm-composition-trial.md):
+// composed using only `catalog-cli find`/`explain` output, never reading
+// any other file in this directory. Notifying the customer is best-effort
+// — a failed lookup or send doesn't undo a successful, already-shipped
+// order, the same compensation philosophy place_and_ship_order.fiig
+// already uses for its own best-effort refund/release.
+workflow placeShipAndNotifyCustomer(orderId: string, customerId: string, total: int) -> Result<Order, OrderError> {
+    order = placeAndShipOrder(orderId, customerId, total)?
+
+    customer = getCustomer(customerId)
+    match customer {
+        Ok(found) -> {
+            notified = sendEmail(to: found.email, subject: "Your order has shipped", body: "Order ${order.id} has shipped.")
+        }
+        Err(_) -> None
+    }
+
+    return Ok(order)
+}

@@ -1,0 +1,9 @@
+// ADR 0017: explicit per-route response mapping. The Ok arm uses the bare
+// status-code shorthand; the Err arm reuses customerErrorToHttpResponse
+// instead of repeating its mapping inline.
+adapter http customerHttpApiWithMapping {
+    GET "/customers/{id}" -> readCustomer(id: string) {
+        Ok(customer) -> 200 customer
+        Err(error) -> customerErrorToHttpResponse(error)
+    }
+}

@@ -1,0 +1,11 @@
+# Build output
+*.exe
+/dist/
+/spikes/dist/
+fiig
+!cmd/fiig/
+
+# Local databases and editor/agent state
+*.db
+.idea/
+.claude/settings.local.json

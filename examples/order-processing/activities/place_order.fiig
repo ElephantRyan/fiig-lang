@@ -1,0 +1,14 @@
+// Required example 6: two sequential transaction blocks around a network gateway.
+// reserveInventory commits before chargePayment ever runs, and chargePayment
+// itself cannot run inside transaction Database — it's a network gateway.
+activity placeOrder(orderId: string, customerId: string, total: int) -> Result<Order, OrderError> {
+    transaction Database {
+        reserveInventory(orderId)?
+    }
+
+    paymentReference = chargePayment(orderId, total)?
+
+    transaction Database {
+        return recordOrder(orderId, customerId, total, paymentReference)
+    }
+}

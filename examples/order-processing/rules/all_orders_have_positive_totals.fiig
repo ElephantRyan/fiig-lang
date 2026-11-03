@@ -1,0 +1,10 @@
+// ADR 0053: validating every item — `return` inside the `for` exits the rule
+// on the first failing order; reaching the end means every order passed.
+rule allOrdersHavePositiveTotals(orders: List<Order>) -> bool {
+    for order in orders {
+        if order.total <= 0 {
+            return false
+        }
+    }
+    return true
+}

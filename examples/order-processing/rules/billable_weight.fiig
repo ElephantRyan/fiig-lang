@@ -1,0 +1,10 @@
+use order.processing.shipping
+
+// A carrier bills the greater of a parcel's actual weight and its
+// dimensional weight, so a large light box costs what a dense one of its
+// size would. math needs no `use`: it is the prelude's one group (ADR 0049
+// §2.5).
+rule billableWeightKg(parcel: Parcel) -> float {
+    dimensional = shipping.dimensionalWeightKg(parcel.lengthCm, parcel.widthCm, parcel.heightCm)
+    return math.max(dimensional, parcel.weightKg)
+}

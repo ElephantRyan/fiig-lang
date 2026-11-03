@@ -1,0 +1,14 @@
+// Import error (fiig-lang.md §3.10, ADR 0050 §2.4): there is no wildcard
+// import. Every cross-package reference is qualified through its package
+// alias, so the grammar has no `.*` form and this line is a parse error,
+// G2, tagged like G1's second public declaration.
+use standard.time.* // rejected: parse error G2
+
+// Bare `Instant` is what a wildcard import would have brought into scope.
+// The correct spelling is `use standard.time` and `time.Instant`. Whether
+// the bare name also reports as unresolved depends on how CheckDir's flat
+// walk of examples/ sees standard.time's real Instant
+// (examples/standard-time/models/instant.fiig); G2 is this file's point.
+rule describeInstant(moment: Instant) -> string {
+    return "instant"
+}

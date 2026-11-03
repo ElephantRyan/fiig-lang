@@ -1,0 +1,19 @@
+// ADR 0059: one socket read can deliver several backend messages, and the
+// last may be cut short. Split off every complete frame; whatever is left
+// waits for the next read.
+conversion readFrames(buffer: bytes) -> Frames {
+    frames: List<Frame> = []
+    rest: bytes = buffer
+    while true {
+        match readFrame(rest) {
+            None -> {
+                break
+            }
+            frame -> {
+                frames = append(frames, frame)
+                rest = frame.rest
+            }
+        }
+    }
+    return Frames(frames: frames, rest: rest)
+}

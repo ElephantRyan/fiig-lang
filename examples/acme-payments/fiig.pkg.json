@@ -1,0 +1,5 @@
+{
+    "path": "acme.payments",
+    "kind": "library",
+    "version": "1.0.0"
+}

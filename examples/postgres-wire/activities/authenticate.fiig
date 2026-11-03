@@ -1,0 +1,14 @@
+// Open a TLS session and read the server's first answer to the startup
+// message: which authentication it wants ('R', 82), or None for anything
+// else. The connection is left open for the caller's next step; if nothing
+// closes it, the call that opened it does when it ends (ADR 0060 §5).
+activity authenticate(host: string, port: int, user: string, database: string) -> Result<Authentication | None, SocketError> {
+    connection = openSecure(host, port)?
+    sendStartup(connection, user, database)?
+    empty: bytes = <<>>
+    frame = readMessage(connection, empty)?
+    if frame.kind != 82 {
+        return Ok(None)
+    }
+    return Ok(readAuthentication(frame.body))
+}

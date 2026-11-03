@@ -1,0 +1,31 @@
+{
+  "dependencies": [
+    {
+      "path": "acme.http",
+      "version": "1.0.0",
+      "hash": "sha256:4d9cb44591d50b3f0a72bd70e9e1ef4bc8e49e7259b111f08edbad50f9a78953",
+      "source": "examples/acme-http",
+      "capabilities": [
+        "Socket"
+      ]
+    },
+    {
+      "path": "acme.payments",
+      "version": "1.0.0",
+      "hash": "sha256:68b721cfbd54ecd05d55fd44006723c33ffc4847ad654c99f4a5ac5d28a44651",
+      "source": "examples/acme-payments"
+    },
+    {
+      "path": "acme.square",
+      "version": "1.0.0",
+      "hash": "sha256:e9abdf2ceaf075682dd53fe7a8863babc10156d0fa3f60efd137bc8ed563fd55",
+      "source": "examples/acme-square"
+    },
+    {
+      "path": "acme.stripe",
+      "version": "1.0.0",
+      "hash": "sha256:e04bacc1eafe15f0c682a05614ac59ec28489b91d46e77ed427dd7e047d96361",
+      "source": "examples/acme-stripe"
+    }
+  ]
+}

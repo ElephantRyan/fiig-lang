@@ -1,0 +1,6 @@
+// Rough sketch only — ADR 0017 explicitly leaves the real shape (body
+// serialization in particular) as unresolved follow-up work.
+model HttpResponse {
+    status: int
+    body: string | None
+}

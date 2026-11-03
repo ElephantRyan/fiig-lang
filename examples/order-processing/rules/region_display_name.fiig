@@ -1,0 +1,10 @@
+// Exhaustive match over an enum with no error-handling role at all (ADR
+// 0040) — every Region variant is zero-field, matched bare with no call
+// parens, exactly like constructing one (CheckoutError.OutOfStock).
+rule regionDisplayName(region: Region) -> string {
+    match region {
+        Region.US -> "United States"
+        Region.EU -> "Europe"
+        Region.APAC -> "Asia-Pacific"
+    }
+}

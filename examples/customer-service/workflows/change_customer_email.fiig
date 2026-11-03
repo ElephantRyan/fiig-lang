@@ -1,0 +1,7 @@
+// Required example 5: update and reread data inside one transaction block.
+workflow changeCustomerEmail(id: string, newEmail: string) -> Result<Customer, CustomerError> {
+    transaction Database {
+        updateCustomerEmail(id, newEmail)?
+        return getCustomer(id)
+    }
+}

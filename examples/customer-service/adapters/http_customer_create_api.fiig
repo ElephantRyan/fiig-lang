@@ -1,0 +1,6 @@
+// ADR 0021: POST binds its one unclaimed parameter from the request body.
+// `input` isn't claimed by any path or query placeholder, and NewCustomer
+// is a model, so this is real structural decoding, not a raw pass-through.
+adapter http customerCreateApi {
+    POST "/customers" -> createCustomer(input: NewCustomer)
+}

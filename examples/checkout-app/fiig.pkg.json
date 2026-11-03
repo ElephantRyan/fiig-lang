@@ -1,0 +1,11 @@
+{
+    "path": "checkout.app",
+    "kind": "application",
+    "version": "1.0.0",
+    "dependencies": {
+        "acme.payments": "1.0.0",
+        "acme.square": "1.0.0",
+        "acme.stripe": "1.0.0"
+    },
+    "capabilities": ["Socket"]
+}

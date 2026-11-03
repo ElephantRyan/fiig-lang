@@ -1,0 +1,5 @@
+// Required example 3 (scalar half): convert one customer to a summary.
+activity summarizeCustomer(id: string) -> Result<CustomerSummary, CustomerError> {
+    customer = getCustomer(id)?
+    return Ok(customerToSummary(customer))
+}

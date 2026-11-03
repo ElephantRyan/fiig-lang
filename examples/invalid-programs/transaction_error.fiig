@@ -1,0 +1,39 @@
+// Transaction errors (fiig-lang.md §3.8): a network gateway inside transaction
+// Database, and a transaction block nested inside another.
+workflow reserveAndCharge(orderId: string, amount: int) -> Result<None, OrderError> {
+    transaction Database {
+        reserveInventory(orderId)?
+        chargePayment(orderId, amount)? // rejected: network gateway inside transaction Database
+    }
+}
+
+workflow doubleReserve(orderId: string) -> Result<None, OrderError> {
+    transaction Database {
+        reserveInventory(orderId)?
+        transaction Database {               // rejected: transaction blocks may not nest
+            releaseInventory(orderId)?
+        }
+    }
+}
+
+// Transaction error: one transaction block controls exactly one transactional
+// capability — a gateway from a second capability inside it is rejected even
+// when (unlike chargePayment above) it isn't a network call.
+workflow createAndEmailInTransaction(input: NewCustomer) -> Result<Customer, CustomerError> {
+    transaction Database {
+        customer = insertCustomer(input)?
+        sendEmail(customer.email, "Welcome!", "Hi!")? // rejected: sendEmail requires EmailSender, not Database
+        return Ok(customer)
+    }
+}
+
+// Transaction error: general activity calls are prohibited inside transaction
+// blocks, distinct from the network-gateway case above. (A workflow call is
+// rejected everywhere, ADR 0044; an activity is the next-most-composite thing
+// that could still appear here.)
+workflow changeEmailAndReread(id: string, newEmail: string) -> Result<CustomerSummary, CustomerError> {
+    transaction Database {
+        updateCustomerEmail(id, newEmail)?
+        return summarizeCustomer(id) // rejected: summarizeCustomer is an activity call inside transaction
+    }
+}

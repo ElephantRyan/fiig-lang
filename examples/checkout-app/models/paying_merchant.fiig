@@ -1,0 +1,6 @@
+// Data only: a model never carries a provider (ADR 0043 §6c). Which
+// provider a merchant uses is a rule's decision, made from this.
+model PayingMerchant {
+    id: string
+    inEurope: bool
+}

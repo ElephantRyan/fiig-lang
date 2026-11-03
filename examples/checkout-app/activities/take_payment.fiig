@@ -1,0 +1,11 @@
+// ADR 0043 §4 and §6: `Provider` is capitalized because it holds a
+// capability, so every `Upper.lower(...)` line below may reach the outside
+// world and nothing lowercase does.
+use acme.payments
+
+activity takePayment(merchant: PayingMerchant, request: payments.ChargeRequest) -> Result<string, string> {
+    Provider = choosePaymentProvider(merchant)
+    reference = Provider.charge(request)?
+    recorded = LedgerApi.record("charged ${request.orderId} as ${reference}")?
+    return Ok(reference)
+}

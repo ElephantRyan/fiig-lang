@@ -1,0 +1,9 @@
+// A gateway is the only kind that touches the outside world, and its
+// `requires` line says what it touches.
+gateway createSchema() -> int
+    requires Database
+{
+    return Database.execute(
+        "CREATE TABLE IF NOT EXISTS ratings (item TEXT PRIMARY KEY, score INTEGER NOT NULL, note TEXT NOT NULL)",
+    )
+}

@@ -1,0 +1,28 @@
+// ADR 0043 §5: a capability written in fiig. Client is the only thing in
+// this example that touches a host primitive; everything above it reaches
+// the network through it. ADR 0060: an HTTP/1.1 POST over a TLS connection,
+// read until the server closes it (`Connection: close`).
+capability Client {
+    gateway send(request: WebRequest) -> Result<WebReply, SocketError>
+        requires Socket
+    {
+        connection = Socket.connectTls(request.host, 443)?
+        Socket.write(connection, httpRequest(request))?
+        response: bytes = <<>>
+        while true {
+            match Socket.read(connection) {
+                Ok(chunk) -> {
+                    response = <<response: bytes, chunk: bytes>>
+                }
+                Err(SocketError.Closed) -> {
+                    break
+                }
+                Err(failure) -> {
+                    return Err(failure)
+                }
+            }
+        }
+        Socket.close(connection)
+        return Ok(webReply(response))
+    }
+}

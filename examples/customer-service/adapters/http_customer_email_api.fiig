@@ -1,0 +1,6 @@
+// ADR 0021: a path placeholder and a query placeholder bound on the same
+// route, both by name match exactly like ADR 0009's path-only case —
+// nothing is left unclaimed, so this route has no body.
+adapter http customerEmailApi {
+    PATCH "/customers/{id}?newEmail={newEmail}" -> changeCustomerEmail(id: string, newEmail: string)
+}

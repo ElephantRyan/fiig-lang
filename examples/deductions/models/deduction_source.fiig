@@ -1,0 +1,8 @@
+// An owned implementation set as a headed enum (ADR 0046): the header is
+// the column list, each row one client. `key` fields get a compiler-derived
+// lookup, DeductionSource(code: raw), and duplicate key values are A16.
+enum DeductionSource(key code: string, key aliases: List<string>, layout: FieldLayout) {
+    Acme(   code: "ACME", aliases: ["ACMEINC", "ACME-INC"], layout: FieldLayout.FixedWidth)
+    Globex( code: "GLBX", aliases: [],                      layout: FieldLayout.Csv)
+    Initech(code: "INIT", aliases: ["INITECH"],             layout: FieldLayout.Csv)
+}

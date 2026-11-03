@@ -1,0 +1,9 @@
+// ADR 0048: a float never mixes with an int, and == on floats is a type
+// error (ADR 0051, ADR 0052). Each statement breaks one of the two.
+rule averageMatches(total: float, count: int, expected: float) -> bool {
+    // A1: no implicit widening (ADR 0019's addendum); the int count has to
+    // be converted by name, with math.toFloat.
+    average = total / count
+    // M1: two floats that should agree can differ in the last bit.
+    return average == expected
+}

@@ -1,0 +1,19 @@
+// ADR 0058 §4: building bytes with the same segments a pattern matches.
+// The startup message has no type byte: an Int32 length counting itself,
+// protocol version 3.0, then name/value pairs as null-terminated strings,
+// ended by one more null.
+conversion startupMessage(user: string, database: string) -> bytes {
+    body = <<
+        0x00030000: i32be,
+        "user": utf8,
+        0: u8,
+        user: utf8,
+        0: u8,
+        "database": utf8,
+        0: u8,
+        database: utf8,
+        0: u8,
+        0: u8,
+    >>
+    return <<body.length() + 4: i32be, body: bytes>>
+}

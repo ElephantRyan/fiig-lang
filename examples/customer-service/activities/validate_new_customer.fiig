@@ -1,0 +1,10 @@
+// ADR 0030: an activity — pure coordination of rules, never a capability.
+// Moved here from rules/ (ADR 0029 made Rule fully isolated again; this
+// coordinates validateEmail, which is exactly Activity's job).
+activity validateNewCustomer(input: NewCustomer) -> Result<NewCustomer, CustomerError> {
+    if input.name.isBlank() {
+        return Err(CustomerError.Invalid("name", "must not be blank"))
+    }
+    validateEmail(input.email)?
+    return Ok(input)
+}

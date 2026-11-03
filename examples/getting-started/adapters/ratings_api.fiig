@@ -1,0 +1,11 @@
+// The HTTP surface: fiig serve -caps caps.json . ratingsApi
+adapter http ratingsApi {
+    POST "/ratings" -> rate(input: NewRating) {
+        Ok(rating) -> 200 rating
+        Err(error) -> 400 describeRatingError(error)
+    }
+    GET "/ratings/{item}" -> readRating(item: string) {
+        Ok(rating) -> 200 rating
+        Err(error) -> 404 describeRatingError(error)
+    }
+}

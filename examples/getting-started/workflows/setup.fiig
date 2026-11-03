@@ -1,0 +1,4 @@
+// Run once to create the table: fiig run -caps caps.json . setup
+workflow setup() -> int {
+    return createSchema()
+}

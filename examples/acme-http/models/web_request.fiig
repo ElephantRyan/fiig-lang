@@ -1,0 +1,7 @@
+// Kept beside Client, the one capability that uses it: the two version in
+// lockstep, since changing the type breaks the capability (ADR 0043 §2).
+model WebRequest {
+    host: string
+    path: string
+    body: string
+}

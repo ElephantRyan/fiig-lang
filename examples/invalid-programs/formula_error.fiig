@@ -1,0 +1,23 @@
+// ADR 0049 §2.2: the three restrictions that make a formula a formula, and
+// the closed native set (§2.1). Each member breaks exactly one.
+formulas brokenChecks {
+    // K3: a formula may fault but never fail in domain terms; a check
+    // with a reason to give is a rule.
+    formula parseEmail(s: string) -> Result<string, CustomerError> {
+        return Ok(s)
+    }
+
+    // K4: a formula is pure, so it reaches nothing outside the program.
+    formula lookupDomain(s: string) -> string requires Socket {
+        return s
+    }
+
+    // K5: only the prelude math group's members, which the compiler supplies, have no body.
+    formula normalize(s: string) -> string
+
+    // B11: a formula calls only formulas. Whether an order ships free is
+    // policy, so it is a rule, and a formula may not reach it.
+    formula shipsFree(total: int) -> bool {
+        return qualifiesForFreeShipping(total, Region.US)
+    }
+}

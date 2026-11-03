@@ -1,0 +1,7 @@
+// Each package of a consignment carries its share of the declared weight,
+// and the shares must add back to exactly the declared total. Dividing
+// 10.0 kg three ways gives 3.3 three times, which adds to 9.9;
+// math.allocate gives 3.4, 3.3, 3.3 (ADR 0064 §3a).
+rule packageWeightsKg(declaredKg: decimal, packages: int) -> List<decimal> {
+    return math.allocate(declaredKg, parts: packages, places: 1)
+}

@@ -1,0 +1,5 @@
+// Required example 8 (CLI half): expose the same readCustomer workflow over
+// a CLI adapter — no logic is duplicated between the two adapters.
+adapter cli customerCli {
+    command "customer get {id}" -> readCustomer(id: string)
+}

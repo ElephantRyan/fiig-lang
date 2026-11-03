@@ -1,0 +1,4 @@
+model CustomerSummary {
+    id: string
+    name: string
+}
