@@ -383,6 +383,9 @@ rule largeOrderIds(orders: List<Order>, threshold: int) -> List<string> {
 best = scores.sortedDescending()   // stable; sorted() ascends
 top = best.firstOrNone()           // int | None; first() faults when empty
 seen = best.contains(10)           // ==, so floats use math.containsClose
+// Sorting records needs a key: evaluated once per element, stable, and
+// limited to what a rule may call. Ties keep their order.
+ranked = sorted(book in books, descending): book.score
 ```
 
 ## 7. Concurrency, retry, transactions

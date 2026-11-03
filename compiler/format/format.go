@@ -877,6 +877,12 @@ func printExpr(e syntax.Expr) string {
 		return "[" + strings.Join(parts, ", ") + "]"
 	case *syntax.ConcurrentExpr:
 		return printConcurrentExpr(e)
+	case *syntax.SortedExpr:
+		mod := ""
+		if e.Descending {
+			mod = ", descending"
+		}
+		return fmt.Sprintf("sorted(%s in %s%s): %s", e.Var, printExpr(e.Iterable), mod, printExpr(e.Key))
 	case *syntax.RetryExpr:
 		return fmt.Sprintf("retry(attempts: %s): %s", printExpr(e.Attempts), printBodyInline(e.Body))
 	default:

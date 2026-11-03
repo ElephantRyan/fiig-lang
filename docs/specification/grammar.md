@@ -486,7 +486,7 @@ unary           ::= '-' unary | postfix-expression
 postfix-expression ::= primary { '.' identifier | '(' [ arguments ] ')' }
 arguments  ::= argument { ',' argument } [ ',' ]
 argument   ::= [ identifier ':' ] expression
-primary    ::= identifier | literal | list-literal | '(' expression ')' | 'not' primary
+primary    ::= identifier | literal | list-literal | sorted-expr | '(' expression ')' | 'not' primary
 literal    ::= string-literal | integer-literal | float-literal
 list-literal ::= '[' [ expression { ',' expression } [ ',' ] ] ']'
 binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } [ ',' ] ] '>' '>'
@@ -593,6 +593,23 @@ limit-value     ::= integer-literal | 'unbounded'
 
 retry-expr ::= 'retry' '(' 'attempts' ':' integer-literal ')' ':' ( expression | block )
 ```
+
+### Keyed sort
+
+```ebnf
+sorted-expr ::= 'sorted' '(' identifier 'in' expression [ ',' 'descending' ] ')' ':' expression
+```
+
+ADR 0065 §3: a new list of the iterable's elements, stably ordered by the
+key, which is evaluated once per element and must be `int`, `float`,
+`decimal`, or `string` (M3; a `T | None` key is M3 with a pointer to
+`match`). `concurrent`'s header shape, with an expression for a body. The
+key may call only what a rule may (formulas and methods) in any kind of
+declaration, so a sort never reaches a gateway; a bare `sorted(...)`
+statement is A13. `sorted` and `descending` are contextual, not reserved:
+the form starts only at `sorted ( identifier in`, so `xs.sorted()`, a local
+named `sorted`, and a call to a declaration named `sorted` keep their
+meaning.
 
 Attested: the bare form `concurrent(customerId in customerIds): getCustomer(customerId)`
 (`retrieve_customers.fiig`, matching the snippet already in `fiig-lang.md`

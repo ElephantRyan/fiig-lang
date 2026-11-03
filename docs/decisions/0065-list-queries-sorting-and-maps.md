@@ -1,8 +1,8 @@
 # ADR 0065: List Queries, Sorting, and `Map`
 
 Status: Accepted (2026-10-29, one-decision-at-a-time review). Being
-implemented in four steps (2026-11-03): step 1 (§1, §2, §6's A13) done;
-the keyed sort (§3), `Map` (§4-§9), and the corpus remain. See
+implemented in four steps (2026-11-03): steps 1 (§1, §2, §6's A13) and 2
+(§3, the keyed sort) done; `Map` (§4-§9) and the corpus remain. See
 Implementation notes.
 Date: 2026-10-28
 Amends: `grammar.md` (map literals, `sorted` form, two-name `for`), ADR 0057
@@ -454,3 +454,24 @@ catches the misreading they guarded against (§6).
 - Also fixed: M3's message omitted `decimal` from the ordered types.
 - Tests: `compiler/checker/list_query_test.go`,
   `compiler/runtime/list_query_test.go`.
+
+**Step 2, 2026-11-03: `sorted(x in xs): key` (§3).**
+
+- `syntax.SortedExpr`, parsed in `parsePrimary`, formatted, and walked by
+  `callnames.go` (so B9 sees calls in a key).
+- **Where the form starts differs from §3's text.** §3 argues that
+  `sorted` followed by `(` can't be ambiguous because no value named
+  `sorted` can be called. A declaration named `sorted` can be, by its bare
+  name, so `sorted(x)` would have parsed as the form. The parser starts the
+  form only at `sorted ( name in`; since `in` is a keyword, no call begins
+  that way. `TestSortedFormCheck` calls a rule named `sorted`.
+- The key is checked with the caller kind set to rule, so a call a rule
+  can't make is reported with the key's own message ("a sorted key may not
+  call gateway ..."), and same-file private helpers get no exemption there.
+- M3 for a key that isn't ordered, with a `T | None` key told to decide
+  where `None` goes. A non-list iterable is A1.
+- A bare `sorted(...)` statement is A13, as a bare method call is (§6).
+- Runtime: each key is evaluated once into a slice, then indices are
+  sorted stably by key, descending as its own stable sort.
+- Tests: `compiler/checker/sorted_test.go`,
+  `compiler/runtime/sorted_test.go`, `compiler/format/sorted_format_test.go`.

@@ -837,6 +837,17 @@ type ConcurrentExpr struct {
 	Body          Body
 }
 
+// SortedExpr is ADR 0065 §3's keyed sort, `sorted(x in xs): key` or
+// `sorted(x in xs, descending): key`: a new list of xs's elements, stably
+// ordered by Key, which is evaluated once per element with Var bound to it.
+type SortedExpr struct {
+	Span
+	Var        string
+	Iterable   Expr
+	Descending bool
+	Key        Expr
+}
+
 type RetryExpr struct {
 	Span
 	Attempts Expr
@@ -858,3 +869,4 @@ func (*ListLit) exprNode()        {}
 func (*BytesLit) exprNode()       {}
 func (*ConcurrentExpr) exprNode() {}
 func (*RetryExpr) exprNode()      {}
+func (*SortedExpr) exprNode()     {}
