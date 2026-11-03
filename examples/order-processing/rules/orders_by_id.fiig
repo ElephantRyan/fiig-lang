@@ -1,0 +1,9 @@
+// ADR 0065 §4: an index built once from a list, so later lookups by id
+// don't scan it. Ids are unique, so put never replaces an entry here.
+rule ordersById(orders: List<Order>) -> Map<string, Order> {
+    index: Map<string, Order> = [:]
+    for order in orders {
+        index = index.put(order.id, order)
+    }
+    return index
+}
