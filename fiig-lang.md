@@ -467,8 +467,10 @@ Exit criteria:
 
 ### Alpha release: downloadable toolchain
 
-Status: done 2026-11-03, `v0.1.0-alpha.1`. Both exit criteria verified
-against the published Windows archive with no Go on `PATH`.
+Status: the toolchain is done (2026-11-03, `v0.1.0-alpha.1`; both exit
+criteria verified against the published Windows archive with no Go on
+`PATH`). The alpha also includes the language features in the next
+section, owner's decision 2026-11-03.
 
 Objective: Let someone without this repo or a Go toolchain download fiig and
 build a program. This is a cross-cutting goal, not a milestone: it does not
@@ -540,40 +542,49 @@ Candidate exit criteria, to be fixed when this becomes a milestone:
   written in fiig and checked against NumPy's results.
 - Performance on those workloads within a stated factor of NumPy.
 
-### First application: abs-recommendations
+### Alpha release: language features
 
-Objective: Build and deploy abs-recommendations (an Audiobookshelf ratings
-sidecar; its own repo's PLAN.md) in fiig, on the owner's server. Like the
-alpha release, this is cross-cutting and ahead of Milestone 7's remaining
-work: a gap the app hits is prioritized over roadmap order. Gaps the app
-finds are logged in its GAPS.md.
+Objective: The language features a small real web service needs, so the
+first application (abs-recommendations, an Audiobookshelf ratings sidecar)
+can be written entirely in fiig. Owner's decision 2026-11-03: these are part
+of the alpha and are finished before work on that application starts, not
+in parallel with it. A feature is listed because a service like that one
+needs it, and each is built through its ADR as usual.
 
-Priorities (set 2026-11-03), deploy path first, then the app's blockers in
-the order its milestones meet them:
+Done before this list: `fiig serve`, the container image, and HTTP bodies
+writing a model as a plain object (2026-11-03).
 
-1. `fiig-serve`: one binary that checks a program and serves an `http`
-   adapter with the real SQLite, Socket, and Clock capabilities, configured
-   by environment variables, plus a container image. Done 2026-11-03
-   (`docs/deploying.md`); the image build is not yet verified. It also
-   fixed HTTP bodies, which wrote models in run-cli's tagged form instead
-   of the plain object the OpenAPI document describes.
-2. Release builds: the repo under version control, version flags, Linux
-   builds and an image (overlaps the alpha release).
-3. ADR 0065 collections: sorting for the app's ranking.
-4. A runtime `Random` provider, for session tokens.
-5. Request headers in `http` routes (needs an ADR): bearer tokens.
-6. Configuration values reachable from fiig code (needs an ADR): the ABS
-   URL and service token.
-7. An HTTP client package written in fiig: every verb, request headers,
-   `http` and `https`, any port.
-8. JSON decoding in fiig (ADR 0062's library, or an interim decision).
-9. ADR 0066 declared SQL row types: not blocking, but every query reads
-   untyped rows until it lands.
+Designed, build only:
+
+1. ADR 0065 collections: `first`, `last`, `contains`, `sorted` with a key,
+   and `Map`.
+
+Need an ADR first, in build order:
+
+2. String methods: `length` (and what a character is), trimming, case,
+   splitting, prefixes.
+3. `Random`'s operations and runtime provider (ADR 0042 names the primitive
+   but not its operations): random bytes and tokens.
+4. Request headers and cookies in `http` routes, read and set: bearer
+   tokens and sessions.
+5. Configuration values reachable from fiig code, from the environment:
+   service URLs and secrets.
+6. The JSON shape of an enum and a `Result` in an HTTP body (today the
+   tagged form `fiig run -json` uses).
+7. JSON decoding in fiig code (ADR 0062's library).
+8. An HTTP client package written in fiig over `Socket`: every verb,
+   request headers, `http` and `https`, any port, `Content-Length` and
+   chunked replies.
+9. A checked `Database` capability: its calls typed and its use held to a
+   gateway's `requires`, as P7 does for capability groups written in fiig.
+10. ADR 0066 declared SQL row types.
+11. Model invariants (§3.5), or a recorded decision that rules cover them.
 
 Exit criteria:
 
-- The app's M1-M4 run on the owner's server from a released build, with no
-  application logic in Go.
+- Each feature is implemented, tested, and documented, with a corpus
+  example.
+- `docs/known-limitations.md` no longer lists anything above.
 
 ### Milestone 7: Self-hosted protocol and provider layer
 
