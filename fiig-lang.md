@@ -467,6 +467,9 @@ Exit criteria:
 
 ### Alpha release: downloadable toolchain
 
+Status: done 2026-11-03, `v0.1.0-alpha.1`. Both exit criteria verified
+against the published Windows archive with no Go on `PATH`.
+
 Objective: Let someone without this repo or a Go toolchain download fiig and
 build a program. This is a cross-cutting goal, not a milestone: it does not
 wait for Milestone 7, and it carries no stability promise. It distributes the
@@ -495,11 +498,12 @@ Deliverables:
   2026-11-03 (`docs/known-limitations.md`; decimal and list literals have
   since shipped)
 - Repo under version control, with stray build artifacts removed — `git
-  init` and `.gitignore` done 2026-11-03; first commit and the private
-  GitHub repository wait on the owner
+  init` and `.gitignore` done 2026-11-03; private repository
+  github.com/ElephantRyan/fiig-lang
 - Release pipeline that builds and attaches artifacts from a version tag —
   written 2026-11-03 (`.github/workflows/release.yml`, `tooling/release`,
-  `docs/releasing.md`); first run waits on the repository
+  `docs/releasing.md`); first release `v0.1.0-alpha.1` published
+  2026-11-03 with archives and `ghcr.io/elephantryan/fiig`
 
 Exit criteria:
 
