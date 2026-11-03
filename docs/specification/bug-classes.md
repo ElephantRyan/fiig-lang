@@ -52,7 +52,7 @@ Adapter→Workflow only. Every kind may also call a formula.
 
 | # | Bug class | Status |
 |---|---|---|
-| B1 | A rule calls a gateway | Attested — `effect_error.fiig` (`summarizeCustomerName`) |
+| B1 | A rule calls a gateway. A `sorted(x in xs): key` key is held to a rule's calls in every kind of declaration (ADR 0065 §3), so a key that calls a gateway is B1 with its own message | Attested — `effect_error.fiig` (`summarizeCustomerName`); the key case by `TestSortedFormMisuse` |
 | B2 | A rule calls a workflow | Attested — `effect_error.fiig` (`summarizeViaWorkflow`) |
 | B3 | A gateway calls another gateway directly ("gateways may not coordinate other application gateways," §3.2 — called out as its own bullet, separate from the general matrix, suggesting it's an easy mistake worth its own diagnostic) | Attested — `effect_error.fiig` (`insertAndNotify`) |
 | B4 | A gateway calls a workflow | Attested — `effect_error.fiig` (`notifyViaWorkflow`) |

@@ -599,6 +599,10 @@ type checker struct {
 	// method (ADR 0049 §2.6). Those are pure, so discarding one's result
 	// is A13 (ADR 0065 §6).
 	methodCalls map[*syntax.FieldAccess]bool
+	// inSortKey is true while checking a sorted form's key (ADR 0065 §3),
+	// which may call only what a rule may: callerKind is rule meanwhile,
+	// and report notes why on an effect diagnostic.
+	inSortKey bool
 }
 
 // lookup resolves a bare name against the universe for the purpose of
@@ -628,7 +632,11 @@ func (c *checker) ambiguous(name string) bool {
 }
 
 func (c *checker) report(at lexer.Pos, rule, format string, args ...any) {
-	c.diags = append(c.diags, Diagnostic{Msg: fmt.Sprintf(format, args...), At: at, Rule: rule})
+	msg := fmt.Sprintf(format, args...)
+	if c.inSortKey && rule != "" && (rule[0] == 'B' || rule[0] == 'P') {
+		msg += " (a sorted key may call only what a rule may: formulas and methods, ADR 0065 §3)"
+	}
+	c.diags = append(c.diags, Diagnostic{Msg: msg, At: at, Rule: rule})
 }
 
 // resolve wraps types.Resolve, reporting an unresolved name as a
@@ -886,11 +894,17 @@ func bugClassForEffect(caller, callee declKind) string {
 // that kind (§6): an activity or conversion may call itself, but a rule
 // may not (B7), nor a gateway (B3) or a workflow (B8).
 func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeName string, at lexer.Pos) {
-	if callee != c.entry && c.sameFile(callee) {
+	if !c.inSortKey && callee != c.entry && c.sameFile(callee) {
 		return
 	}
 	allowed, tracked := allowedCallees[c.callerKind]
 	if !tracked || allowed[calleeKind] {
+		return
+	}
+	if c.inSortKey {
+		c.inSortKey = false
+		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "a sorted key may not call %s %q; it may call only what a rule may, formulas and methods, so the order can't depend on outside state (ADR 0065 §3)", calleeKind, calleeName)
+		c.inSortKey = true
 		return
 	}
 	c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s may not call %s %q", c.callerKind, calleeKind, calleeName)

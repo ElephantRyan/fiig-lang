@@ -1259,6 +1259,9 @@ func (p *Parser) parseArgument() syntax.Arg {
 
 func (p *Parser) parsePrimary() syntax.Expr {
 	start := p.cur().Start
+	if p.atSortedForm() {
+		return p.parseSortedExpr()
+	}
 	if p.atName() {
 		tok := p.advance()
 		return &syntax.Ident{Span: syntax.Span{Start: tok.Start, End: tok.End}, Name: tok.Text}
@@ -1435,6 +1438,39 @@ func (p *Parser) parseConcurrentExpr() *syntax.ConcurrentExpr {
 	p.expect(lexer.Colon)
 	body := p.parseBody()
 	return &syntax.ConcurrentExpr{Span: syntax.Span{Start: start, End: p.cur().Start}, Var: varTok.Text, Iterable: iterable, Limit: limit, PreserveOrder: preserveOrder, Body: body}
+}
+
+// atSortedForm reports whether the parser is at ADR 0065 §3's keyed sort.
+// `sorted` is contextual, not reserved, so `xs.sorted()`, a local named
+// sorted, and a call to a declaration named sorted all stay legal: the form
+// starts only at `sorted ( name in`, which no call can begin with, since
+// `in` is a keyword.
+func (p *Parser) atSortedForm() bool {
+	return p.cur().Text == "sorted" && p.peek(1).Kind == lexer.LParen && isNameToken(p.peek(2).Kind) && p.peek(3).Kind == lexer.KwIn
+}
+
+// parseSortedExpr parses `sorted(x in xs [, descending]): key`, the shape
+// of concurrent's header with one modifier and an expression for a body.
+func (p *Parser) parseSortedExpr() *syntax.SortedExpr {
+	start := p.advance().Start // 'sorted'
+	p.expect(lexer.LParen)
+	varTok := p.expectName()
+	p.expect(lexer.KwIn)
+	iterable := p.parseExpression()
+	descending := false
+	if p.at(lexer.Comma) {
+		p.advance()
+		mod := p.expectName()
+		if mod.Text == "descending" {
+			descending = true
+		} else {
+			p.errorf(mod.Start, "sorted takes one modifier, descending; got %q", mod.Text)
+		}
+	}
+	p.expect(lexer.RParen)
+	p.expect(lexer.Colon)
+	key := p.parseExpression()
+	return &syntax.SortedExpr{Span: syntax.Span{Start: start, End: p.cur().Start}, Var: varTok.Text, Iterable: iterable, Descending: descending, Key: key}
 }
 
 func (p *Parser) parseRetryExpr() *syntax.RetryExpr {
