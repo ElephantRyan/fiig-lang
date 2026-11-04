@@ -4,7 +4,8 @@ Status: Proposed (2026-11-04). Under one-decision-at-a-time review: §1
 and §2 accepted as drafted; §3 revised to a builtin `HttpResponse<B>`;
 §4 accepted as drafted; §5 (content types declared on the route, with
 `produces` and `consumes`) added in review and accepted; §6 accepted with
-eight refusals added in review; the rest is not yet reviewed.
+eight refusals added in review; §7 accepted with its decoding details
+settled in review; §8 is not yet reviewed.
 Date: 2026-11-04
 Related: ADR 0009 and ADR 0021 (route binding by name), ADR 0017 (response
 mapping), ADR 0026 (default response, which assumed JSON), ADR 0044 (a workflow is the adapter
@@ -324,9 +325,23 @@ s.fromBase64Url() -> bytes | None
 ```
 
 `None` when the text isn't valid in that alphabet. Following ADR 0062's
-"play nice with foreign data", each reads what real producers send: hex in
-either case, and base64 with or without its `=` padding. A Basic auth
-header is then a rule:
+"play nice with foreign data", each reads what real producers send:
+
+- **Hex in either case.** Odd-length hex is `None`.
+- **Base64 with or without its `=` padding**, and with CR and LF skipped
+  anywhere, since MIME and PEM wrap base64 every 64 or 76 characters. Any
+  other whitespace is `None`: a stray space means the text was damaged,
+  not wrapped.
+- **Each method reads only its own alphabet.** `-` or `_` in `fromBase64`,
+  or `+` or `/` in `fromBase64Url`, is `None`: text in the other alphabet
+  usually means something upstream is mislabeled, and the two methods
+  mirror the two encoders.
+- **Leftover bits are ignored.** Base64 that doesn't end on a byte
+  boundary should zero its last few bits, and loose encoders don't; `"QQ"`
+  and `"QR"` both decode to `"A"`, as Go's default decoder reads them. The
+  bits carry no data.
+
+With `bytes.utf8() -> string | None`, a Basic auth header is then a rule:
 
 ```
 rule basicCredentials(header: string) -> Credentials | None {
