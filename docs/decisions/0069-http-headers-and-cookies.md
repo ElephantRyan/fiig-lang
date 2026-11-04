@@ -1,11 +1,11 @@
 # ADR 0069: HTTP Headers, Cookies, and Content Types
 
-Status: Proposed (2026-11-04). Under one-decision-at-a-time review: §1
-and §2 accepted as drafted; §3 revised to a builtin `HttpResponse<B>`;
-§4 accepted as drafted; §5 (content types declared on the route, with
-`produces` and `consumes`) added in review and accepted; §6 accepted with
-eight refusals added in review; §7 accepted with its decoding details
-settled in review; §8 is not yet reviewed.
+Status: Accepted (2026-11-04), after one-decision-at-a-time review: §1,
+§2, and §4 accepted as drafted; §3 revised to a builtin `HttpResponse<B>`;
+§5 (content types declared on the route, with `produces` and `consumes`)
+added in review; §6 gained eight refusals; §7's decoding details settled;
+§8 gained the localhost note, and CORS moved to its own ADR (open
+question 6). Not yet implemented.
 Date: 2026-11-04
 Related: ADR 0009 and ADR 0021 (route binding by name), ADR 0017 (response
 mapping), ADR 0026 (default response, which assumed JSON), ADR 0044 (a workflow is the adapter
@@ -365,8 +365,14 @@ rule basicCredentials(header: string) -> Credentials | None {
   `in: header` and `in: cookie`, and each operation's request and
   response `content` under the declared types, all of which it supports
   natively.
-- Not in this ADR: reading all headers as a map, CORS, `Vary`, and response
-  headers listed in OpenAPI.
+- **Secure cookies in development.** §4's `Secure` default doesn't need
+  `sentOverPlainHttp: true` to try a service locally: Chrome and Firefox
+  treat `http://localhost` as secure and keep the cookie. An opt-out
+  written for development is one that ships.
+- Not in this ADR: reading all headers as a map, `Vary`, and response
+  headers listed in OpenAPI (they come from a run-time `Map`, so the
+  generator can't see their names). CORS is needed, and gets its own ADR
+  (open question 6).
 
 ## Alternatives considered
 
@@ -450,3 +456,9 @@ is, and an implicit default is how "always JSON" came to look like a rule.
    either.
 5. **An XML library**, so a SOAP or XML route encodes and parses models
    rather than text; the HTTP client (alpha item 8) may need it first.
+6. **CORS.** A browser front end on another origin can't call the service
+   until it answers preflight `OPTIONS` requests and sends
+   `Access-Control-Allow-*` headers, and nothing here lets a program do
+   either. Owner's decision in review: fiig needs it, as its own ADR and
+   alpha item 4a, rather than leaving it to a same-origin deployment or a
+   reverse proxy.
