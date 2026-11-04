@@ -141,3 +141,47 @@ func TestResponseArmsAreChecked(t *testing.T) {
 		wantDiag(t, checkSrc(t, responseRouteSrc(c.adapter)...), c.rule, c.fragment)
 	}
 }
+
+// ADR 0069 §6: what the adapter would refuse, reported when it is constant.
+func TestWireConstantsAreChecked(t *testing.T) {
+	cases := []struct{ build, rule, fragment string }{
+		{`HttpResponse(status: 99)`, "W1", "response status 99 is outside 200 to 599"},
+		{`HttpResponse(status: 204, body: user)`, "W1", "a 204 response can't carry a body"},
+		{`HttpResponse(status: 200, headers: ["X Name": "v"])`, "W1", `response header name "X Name" isn't an HTTP token`},
+		{`HttpResponse(status: 200, headers: ["set-cookie": "v"])`, "W1", `response header "set-cookie" is the adapter's`},
+		{`HttpResponse(status: 200, headers: ["X-Id": "1", "x-id": "2"])`, "W1", `response headers "X-Id" and "x-id" differ only by case`},
+		{`HttpResponse(status: 200, headers: ["X-Id": "1\r\nX-Evil: 2"])`, "W1", "response header value contains control character a carriage return"},
+		{`HttpResponse(status: 200, cookies: [Cookie(name: "s;id", value: "v")])`, "W2", `cookie name "s;id" isn't an HTTP token`},
+		{`HttpResponse(status: 200, cookies: [Cookie(name: "sid", value: "a b")])`, "W2", "cookie value contains a space"},
+		{`HttpResponse(status: 200, cookies: [Cookie(name: "sid", value: "v", path: "/; Domain=evil.com")])`, "W2", `cookie path contains ";"`},
+		{`HttpResponse(status: 200, cookies: [Cookie(name: "sid", value: "v", domain: "evil.com; x")])`, "W2", "isn't a hostname"},
+		{`HttpResponse(status: 200, cookies: [Cookie(name: "sid", value: "v", maxAge: -1)])`, "W2", "cookie maxAge -1 is negative"},
+		{`HttpResponse(status: 200, cookies: [Cookie(name: "sid", value: "v", sameSite: SameSite.AnySite, sentOverPlainHttp: true)])`, "W2", "browsers refuse SameSite=None without Secure"},
+		{`HttpResponse(status: 200, cookies: [Cookie(name: "__Secure-sid", value: "v", sentOverPlainHttp: true)])`, "W2", "__Secure- prefix"},
+		{`HttpResponse(status: 200, cookies: [Cookie(name: "__Host-sid", value: "v", domain: "example.com")])`, "W2", "__Host- prefix, which browsers refuse with a domain"},
+	}
+	for _, c := range cases {
+		src := "conversion respond(user: User) -> HttpResponse<User> {\n    return " + c.build + "\n}"
+		wantDiag(t, checkSrc(t, responseModels, src), c.rule, c.fragment)
+	}
+	// What the checker can't see is the adapter's to refuse (§6), so a
+	// computed value draws nothing here.
+	diags := checkSrc(t, responseModels, `conversion respond(user: User, status: int, token: string) -> HttpResponse<User> {
+    return HttpResponse(
+        status: status,
+        headers: ["X-User": user.name],
+        cookies: [Cookie(name: "__Host-sid", value: token, sameSite: SameSite.AnySite)],
+    )
+}`)
+	if len(diags) != 0 {
+		t.Fatalf("diags = %v, want none", diags)
+	}
+	wantDiag(t, checkSrc(t, responseRouteSrc(`adapter http users {
+    GET "/users/{name}" -> readUser(name: string)
+        produces "application/json"
+    {
+        Ok(user) -> 304 user
+        Err(error) -> 404
+    }
+}`)...), "W1", "a 304 response can't carry a body")
+}

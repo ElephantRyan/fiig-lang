@@ -158,6 +158,20 @@ Case in fiig is load-bearing where a reader relies on it: a lowercase dotted pre
 | H4 | A private member escapes its file (ADR 0054 §3): named in its public entry's signature at any depth (a parameter, the return type, a generic argument, a union member), or referenced from another file | Attested — `compiler/checker`'s `TestPrivateTypeInPublicSignatureIsH4` and `TestPrivateMemberReferencedFromAnotherFileIsH4`. The transitive half needs no walk through other models: a public model lives in its own file and can't see the private type, so the only types that can hold one are the file's own, and the signature check reaches every one of those. A reference from another file would resolve to nothing anyway (private members are file-scoped); H4 replaces the "undefined name" it would otherwise get with a message naming the owning file. Like G3, no `invalid-programs/` fixture: it needs two files. |
 | H5 | A `Connection`, or a model holding one at any depth, appears in a workflow's signature (ADR 0060 §2): a workflow is the adapter boundary (ADR 0044), and a socket handle can be neither serialized nor handed in from outside | Attested — `socket_error.fiig` (`resumeSession`); `TestConnectionInWorkflowSignatureIsH5` for a nested model and a return type |
 
+## W. Wire errors (ADR 0069 §6)
+
+What the HTTP adapter refuses to write. Each is a fault at run time (a 500,
+with the reason in the trace, and nothing of the response sent), because
+Go's `net/http` would otherwise quietly change or drop the value and hide
+the bug that produced it; the checker reports the ones it can see in
+constants. They live in `compiler/httpspec`, shared by the checker and the
+adapter.
+
+| # | Bug class | Status |
+|---|---|---|
+| W1 | A response HTTP can't carry: a status outside 200 to 599, a body on a 204 or 304, a header name that isn't an RFC 9110 token, a header the adapter owns (`Content-Type` from `produces`, `Content-Length`, `Set-Cookie` from `cookies`), two header names that differ only by case, or a header value with a control character other than tab (CR and LF are header injection, CWE-113) | Attested — `compiler/checker`'s `TestWireConstantsAreChecked`; the run-time faults in `compiler/adapter`'s `TestTheAdapterRefusesWhatHTTPCantCarry` |
+| W2 | A cookie a browser would refuse or read as more than it says: a name that isn't a token, a value outside RFC 6265's cookie-octets, a `path` with `;` or a control character, a `domain` that isn't a hostname, a negative `maxAge`, `sameSite: AnySite` with `sentOverPlainHttp: true`, a `__Secure-` name without `Secure`, a `__Host-` name without `Secure` or with a `domain` or a `path` other than `/`, or two cookies in one response with the same name, path, and domain | Attested — the same two tests. The checker checks each field it can see, and the browser rules only when every field they read is known (a left-out field is its known default) |
+
 ## Explicitly out of scope (not statically checkable)
 
 Some §3 statements read like rules but aren't things a compiler can reject —
