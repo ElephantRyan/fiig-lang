@@ -102,8 +102,8 @@ func TestSocketOutsideItsGatewayIsB10OrP7(t *testing.T) {
 			t.Errorf("%s calling Socket: got %d B10, want 1", kind, got)
 		}
 	}
-	other := "gateway now(host: string) -> Result<Connection, SocketError>\n\trequires Clock\n{\n\treturn Socket.connect(host, 1)\n}"
+	other := "gateway now(host: string) -> Result<Connection, SocketError>\n\trequires FileSystem\n{\n\treturn Socket.connect(host, 1)\n}"
 	if got := rules(checkSources(t, other))["P7"]; got != 1 {
-		t.Errorf("gateway requiring Clock calling Socket: got %d P7, want 1", got)
+		t.Errorf("gateway requiring FileSystem calling Socket: got %d P7, want 1", got)
 	}
 }

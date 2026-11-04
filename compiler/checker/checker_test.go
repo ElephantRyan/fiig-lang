@@ -121,6 +121,11 @@ func TestInvalidProgramsCatchEveryAttestedBugClass(t *testing.T) {
 			"H5":  1, // resumeSession: a Connection as a workflow parameter
 			"G1":  1, // two declarations packed into one file, incidental but real
 		}},
+		{"invalid-programs/random_error.fiig", map[string]int{
+			"B10": 1, // rollDie: a rule drawing a random number
+			"P8":  1, // newSessionToken: requires Random
+			"G1":  1, // two declarations packed into one file, incidental but real
+		}},
 		{"invalid-programs/capability_error.fiig", map[string]int{
 			"P3": 1, // refundInRule: a rule invoking a provider
 			"P5": 2, // RefundPing/RefundPong require each other, reported at both

@@ -24,6 +24,17 @@ var primitives = map[string]bool{
 // IsPrimitive reports whether name is one of the closed primitive set.
 func IsPrimitive(name string) bool { return primitives[name] }
 
+// localEffects are the primitives that read the machine the program runs
+// on instead of reaching another system (ADR 0068 §4). An activity or a
+// gateway calls them directly; none is a capability a gateway requires.
+var localEffects = map[string]bool{
+	"Clock":  true,
+	"Random": true,
+}
+
+// IsLocalEffect reports whether name is a local-effect primitive.
+func IsLocalEffect(name string) bool { return localEffects[name] }
+
 // Primitives lists the closed set, sorted.
 func Primitives() []string {
 	out := make([]string, 0, len(primitives))

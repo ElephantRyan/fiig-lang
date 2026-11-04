@@ -203,6 +203,10 @@ func (c *checker) groupValue(name string) (types.Type, bool) {
 // declaration of another kind is not one.
 func (c *checker) checkRequires(g *syntax.GatewayDecl) {
 	name := g.Requires
+	if capability.IsLocalEffect(name) {
+		c.report(g.Start, "P8", "gateway %q requires %s, which is a local effect, not a capability to require; drop the clause and call %s directly (ADR 0068 §4)", g.Name, name, name)
+		return
+	}
 	if name == "" || capability.IsPrimitive(name) {
 		return
 	}
