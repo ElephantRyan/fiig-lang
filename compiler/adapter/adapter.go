@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"fiig-lang/compiler/decimal"
 	"fiig-lang/compiler/runtime"
@@ -43,15 +44,16 @@ func extractPlaceholders(s string) []string {
 }
 
 // routePlan is computed once per route (not per request): which call
-// argument is claimed by which path/query placeholder, and which single
-// argument (if any) is body-bound. compiler/checker.checkRouteBinding
-// already guarantees this is well-formed for a checked program — this
-// package trusts that rather than re-validating it.
+// argument is claimed by which path/query placeholder, header, or cookie,
+// and which single argument (if any) is body-bound. compiler/checker's
+// checkRouteBinding already guarantees this is well-formed for a checked
+// program — this package trusts that rather than re-validating it.
 type routePlan struct {
 	pathNames  []string
 	queryNames []string
 	bodyArg    string // "" if this route has no body-bound argument
 	bodyType   types.Type
+	paramTypes map[string]types.Type
 }
 
 func planRoute(route *syntax.Route, isHTTP bool, u *types.Universe) (routePlan, error) {
@@ -66,6 +68,19 @@ func planRoute(route *syntax.Route, isHTTP bool, u *types.Universe) (routePlan, 
 		plan.pathNames = extractPlaceholders(route.Path)
 	}
 
+	wd, err := routeWorkflow(route, u)
+	if err != nil {
+		return plan, err
+	}
+	plan.paramTypes = make(map[string]types.Type, len(wd.Params))
+	for _, p := range wd.Params {
+		pt, ok := types.Resolve(p.Type, u)
+		if !ok {
+			return plan, fmt.Errorf("parameter %q has an unresolvable type", p.Name)
+		}
+		plan.paramTypes[p.Name] = pt
+	}
+
 	claimed := make(map[string]bool, len(plan.pathNames)+len(plan.queryNames))
 	for _, n := range plan.pathNames {
 		claimed[n] = true
@@ -73,72 +88,53 @@ func planRoute(route *syntax.Route, isHTTP bool, u *types.Universe) (routePlan, 
 	for _, n := range plan.queryNames {
 		claimed[n] = true
 	}
-	for _, arg := range route.Target.Args {
-		if arg.Name != "" && !claimed[arg.Name] {
+	for _, arg := range route.Args {
+		if !claimed[arg.Name] && arg.Source == "" {
 			plan.bodyArg = arg.Name
+			plan.bodyType = plan.paramTypes[arg.Name]
 			break
-		}
-	}
-	if plan.bodyArg != "" {
-		target, found := u.Lookup(workflowName(route))
-		if !found {
-			return plan, fmt.Errorf("route target %q not found", workflowName(route))
-		}
-		wd, ok := target.(*syntax.WorkflowDecl)
-		if !ok {
-			return plan, fmt.Errorf("route target %q is not a workflow", workflowName(route))
-		}
-		for _, p := range wd.Params {
-			if p.Name == plan.bodyArg {
-				bt, ok := types.Resolve(p.Type, u)
-				if !ok {
-					return plan, fmt.Errorf("parameter %q has an unresolvable type", p.Name)
-				}
-				plan.bodyType = bt
-				break
-			}
 		}
 	}
 	return plan, nil
 }
 
-func workflowName(route *syntax.Route) string {
-	ident, ok := route.Target.Callee.(*syntax.Ident)
-	if !ok {
-		return ""
-	}
-	return ident.Name
-}
-
-// valueSource supplies a path or query placeholder's raw string value by
-// name — http.go and cli.go each implement this against their own request
-// shape (an *http.Request, or a parsed command line).
-type valueSource func(name string) (string, bool)
-
-// buildArgs resolves every one of route's call arguments into a
-// runtime.Value: path/query placeholders decode from pathVal/queryVal
-// (plain strings — ADR 0009/0021: always a primitive,
-// never a model), and the one body-bound argument (if any) decodes from
-// bodyJSON via runtime.DecodeJSON.
-func buildArgs(route *syntax.Route, plan routePlan, pathVal, queryVal valueSource, bodyJSON any, u *types.Universe) (map[string]runtime.Value, error) {
-	target, found := u.Lookup(workflowName(route))
+func routeWorkflow(route *syntax.Route, u *types.Universe) (*syntax.WorkflowDecl, error) {
+	target, found := u.Lookup(route.Workflow.Name)
 	if !found {
-		return nil, fmt.Errorf("route target %q not found", workflowName(route))
+		return nil, fmt.Errorf("route target %q not found", route.Workflow.Name)
 	}
 	wd, ok := target.(*syntax.WorkflowDecl)
 	if !ok {
-		return nil, fmt.Errorf("route target %q is not a workflow", workflowName(route))
+		return nil, fmt.Errorf("route target %q is not a workflow", route.Workflow.Name)
 	}
-	paramType := make(map[string]types.Type, len(wd.Params))
-	for _, p := range wd.Params {
-		pt, ok := types.Resolve(p.Type, u)
-		if !ok {
-			return nil, fmt.Errorf("parameter %q has an unresolvable type", p.Name)
-		}
-		paramType[p.Name] = pt
-	}
+	return wd, nil
+}
 
-	args := make(map[string]runtime.Value, len(route.Target.Args))
+func workflowName(route *syntax.Route) string { return route.Workflow.Name }
+
+// valueSource supplies a path, query, header, or cookie value by name —
+// http.go and cli.go each implement this against their own request shape
+// (an *http.Request, or a parsed command line).
+type valueSource func(name string) (string, bool)
+
+func noValues(string) (string, bool) { return "", false }
+
+// request is where a route's arguments come from. The body is bodyJSON for
+// a route that consumes JSON, and bodyRaw for any other type (ADR 0069 §5).
+type request struct {
+	path, query, header, cookie valueSource
+	bodyJSON                    any
+	bodyRaw                     []byte
+	bodyIsJSON                  bool
+}
+
+// buildArgs resolves every one of route's arguments into a runtime.Value:
+// path, query, header, and cookie values decode from their text (always a
+// primitive, ADR 0009/0021, ADR 0069 §2), and the one body-bound argument
+// (if any) decodes from the JSON body via runtime.DecodeJSON, or binds the
+// raw body as a string or bytes. A missing value is None for an argument
+// typed `T | None`, and an error otherwise.
+func buildArgs(route *syntax.Route, plan routePlan, req request, u *types.Universe) (map[string]runtime.Value, error) {
 	pathSet := make(map[string]bool, len(plan.pathNames))
 	for _, n := range plan.pathNames {
 		pathSet[n] = true
@@ -147,44 +143,64 @@ func buildArgs(route *syntax.Route, plan routePlan, pathVal, queryVal valueSourc
 	for _, n := range plan.queryNames {
 		querySet[n] = true
 	}
-	for _, arg := range route.Target.Args {
+	args := make(map[string]runtime.Value, len(route.Args))
+	for _, arg := range route.Args {
 		name := arg.Name
-		pt, ok := paramType[name]
+		pt, ok := plan.paramTypes[name]
 		if !ok {
 			return nil, fmt.Errorf("no parameter named %q", name)
 		}
+		var src valueSource
+		var what, key string
 		switch {
+		case arg.Source == "header":
+			src, what, key = req.header, "header", arg.SourceName
+		case arg.Source == "cookie":
+			src, what, key = req.cookie, "cookie", arg.SourceName
 		case pathSet[name]:
-			raw, ok := pathVal(name)
-			if !ok {
-				return nil, fmt.Errorf("missing path value %q", name)
-			}
-			v, err := decodeString(raw, pt, u)
-			if err != nil {
-				return nil, fmt.Errorf("path %q: %w", name, err)
-			}
-			args[name] = v
+			src, what, key = req.path, "path value", name
 		case querySet[name]:
-			raw, ok := queryVal(name)
-			if !ok {
-				return nil, fmt.Errorf("missing query value %q", name)
-			}
-			v, err := decodeString(raw, pt, u)
-			if err != nil {
-				return nil, fmt.Errorf("query %q: %w", name, err)
-			}
-			args[name] = v
+			src, what, key = req.query, "query value", name
 		case name == plan.bodyArg:
-			v, err := runtime.DecodeJSON(bodyJSON, pt, u)
+			v, err := decodeBody(req, pt, u)
 			if err != nil {
 				return nil, fmt.Errorf("body %q: %w", name, err)
 			}
 			args[name] = v
+			continue
 		default:
-			return nil, fmt.Errorf("argument %q is claimed by neither a placeholder nor the body", name)
+			return nil, fmt.Errorf("argument %q is claimed by neither a placeholder, a header, a cookie, nor the body", name)
 		}
+		raw, ok := src(key)
+		if !ok {
+			if runtime.IsOptional(pt) {
+				args[name] = runtime.None{}
+				continue
+			}
+			return nil, fmt.Errorf("missing %s %q", what, key)
+		}
+		v, err := decodeString(raw, pt, u)
+		if err != nil {
+			return nil, fmt.Errorf("%s %q: %w", what, key, err)
+		}
+		args[name] = v
 	}
 	return args, nil
+}
+
+// decodeBody binds the request body to the body-bound argument: decoded as
+// JSON for a JSON route, and raw, as a string or bytes, for any other.
+func decodeBody(req request, t types.Type, u *types.Universe) (runtime.Value, error) {
+	if req.bodyIsJSON {
+		return runtime.DecodeJSON(req.bodyJSON, t, u)
+	}
+	if p, ok := t.(types.Primitive); ok && p.Name == "bytes" {
+		return runtime.Bytes{B: req.bodyRaw}, nil
+	}
+	if !utf8.Valid(req.bodyRaw) {
+		return nil, fmt.Errorf("the body isn't UTF-8 text")
+	}
+	return runtime.Str(req.bodyRaw), nil
 }
 
 // decodeString decodes a single path/query placeholder's raw string value
@@ -192,6 +208,9 @@ func buildArgs(route *syntax.Route, plan routePlan, pathVal, queryVal valueSourc
 // this is deliberately narrower than runtime.DecodeJSON, which also
 // handles models, lists, and unions that never appear in this position.
 func decodeString(raw string, t types.Type, u *types.Universe) (runtime.Value, error) {
+	if runtime.IsOptional(t) {
+		t = nonNone(t)
+	}
 	switch t := t.(type) {
 	case types.Primitive:
 		switch t.Name {
@@ -315,4 +334,22 @@ func evalCodeAndBody(ctx context.Context, in *runtime.Interp, code, body syntax.
 		return Response{}, fault
 	}
 	return Response{Status: int(n), Body: bodyVal}, nil
+}
+
+// nonNone is `T | None` without its None.
+func nonNone(t types.Type) types.Type {
+	u, ok := t.(types.Union)
+	if !ok {
+		return t
+	}
+	var rest []types.Type
+	for _, m := range u.Members {
+		if _, isNone := m.(types.NoneType); !isNone {
+			rest = append(rest, m)
+		}
+	}
+	if len(rest) == 1 {
+		return rest[0]
+	}
+	return types.Union{Members: rest}
 }

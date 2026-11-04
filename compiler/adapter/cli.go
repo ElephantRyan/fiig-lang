@@ -35,8 +35,8 @@ func Dispatch(ctx context.Context, d *syntax.AdapterDecl, u *types.Universe, in 
 			v, ok := captured[name]
 			return v, ok
 		}
-		noQuery := func(string) (string, bool) { return "", false }
-		routeArgs, err := buildArgs(route, plan, pathVal, noQuery, nil, u)
+		req := request{path: pathVal, query: noValues, header: noValues, cookie: noValues}
+		routeArgs, err := buildArgs(route, plan, req, u)
 		if err != nil {
 			return Response{}, err
 		}

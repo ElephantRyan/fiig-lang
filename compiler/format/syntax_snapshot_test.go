@@ -182,6 +182,7 @@ rule addMoney(a: Money, b: Money) -> Money {
 			src: `// Required example 8 (HTTP half): expose readCustomer over HTTP.
 adapter http customerHttpApi {
     GET "/customers/{id}" -> readCustomer(id: CustomerId)
+        produces "application/json"
 }
 `,
 		},
@@ -191,7 +192,11 @@ adapter http customerHttpApi {
 // route, both by name match exactly like ADR 0009's path-only case —
 // nothing is left unclaimed, so this route has no body.
 adapter http customerEmailApi {
-    PATCH "/customers/{id}?newEmail={newEmail}" -> changeCustomerEmail(id: CustomerId, newEmail: EmailAddress)
+    PATCH "/customers/{id}?newEmail={newEmail}" -> changeCustomerEmail(
+        id: CustomerId,
+        newEmail: EmailAddress,
+    )
+        produces "application/json"
 }
 `,
 		},
@@ -202,6 +207,8 @@ adapter http customerEmailApi {
 // is a model, so this is real structural decoding, not a raw pass-through.
 adapter http customerCreateApi {
     POST "/customers" -> createCustomer(input: NewCustomer)
+        consumes "application/json"
+        produces "application/json"
 }
 `,
 		},
@@ -213,6 +220,24 @@ adapter http customerCreateApi {
 // structural decoding.
 adapter http customerQueryApi {
     QUERY "/customers/lookup" -> lookupCustomer(criteria: CustomerLookup)
+        consumes "application/json"
+        produces "application/json"
+}
+`,
+		},
+		{
+			name: "adapter http route, header and cookie arguments, non-JSON body",
+			src: `// ADR 0069: arguments read from a header or cookie, and a raw text body.
+adapter http importApi {
+    POST "/imports" -> importOrders(
+        csv: string,
+        token: string from header "Authorization",
+        session: string | None from cookie "sid",
+    )
+        consumes "text/csv"
+        produces "application/json"
+    GET "/exports" -> exportOrders()
+        produces "text/csv"
 }
 `,
 		},
@@ -231,7 +256,9 @@ adapter cli customerCli {
 // status-code shorthand; the Err arm reuses customerErrorToHttpResponse
 // instead of repeating its mapping inline.
 adapter http customerHttpApiWithMapping {
-    GET "/customers/{id}" -> readCustomer(id: CustomerId) {
+    GET "/customers/{id}" -> readCustomer(id: CustomerId)
+        produces "application/json"
+    {
         Ok(customer) -> 200 customer
         Err(error) -> customerErrorToHttpResponse(error)
     }

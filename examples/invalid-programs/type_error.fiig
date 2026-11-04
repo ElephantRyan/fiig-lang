@@ -46,6 +46,8 @@ conversion orderToSummary(customer: Customer) -> CustomerSummary { // rejected: 
 // decoding instead of performing it.
 adapter http customerEmailApiBroken {
     PATCH "/customers/{id}" -> changeCustomerEmail(id: string, newEmail: string) // rejected: newEmail is body-bound but string isn't a model
+        consumes "application/json"
+        produces "application/json"
 }
 
 // Type error (bug class A9): a match over a fully known type must cover

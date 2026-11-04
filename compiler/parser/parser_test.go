@@ -369,8 +369,8 @@ adapter http customerHttpApiWithMapping {
 	if route.Verb != "GET" || route.Path != "/customers/{id}" {
 		t.Fatalf("route = %+v", route)
 	}
-	if route.Target.Callee.(*syntax.Ident).Name != "readCustomer" {
-		t.Fatalf("target = %+v", route.Target)
+	if route.Workflow.Name != "readCustomer" || len(route.Args) != 1 || route.Args[0].Name != "id" {
+		t.Fatalf("workflow = %+v, args = %+v", route.Workflow, route.Args)
 	}
 	if len(route.Mapping) != 2 {
 		t.Fatalf("got %d response arms, want 2", len(route.Mapping))
@@ -431,6 +431,65 @@ adapter http api {
 	inner, ok := pat.Args[0].(*syntax.ConstructorPattern)
 	if !ok || inner.Path[0] != "CustomerError" || inner.Path[1] != "NotFound" {
 		t.Fatalf("inner pattern = %#v", pat.Args[0])
+	}
+}
+
+// ADR 0069 §1 and §5: a route argument's type may be any type, read from a
+// header or cookie, and the route declares its content types.
+func TestParseRouteSourcesAndMediaTypes(t *testing.T) {
+	f := mustParse(t, `
+adapter http accountApi {
+    POST "/orders/{id}" -> placeOrder(
+        id: string,
+        authorization: string from header "Authorization",
+        requestId: string | None from header "X-Request-Id",
+        session: string from cookie "sid",
+        input: NewOrder,
+    )
+        consumes "application/json"
+        produces "application/json"
+    {
+        Ok(order) -> 200 order
+    }
+    GET "/export" -> exportOrders() produces "text/csv"
+}`)
+	ad := f.Decls[0].(*syntax.AdapterDecl)
+	route := ad.Routes[0]
+	if len(route.Args) != 5 {
+		t.Fatalf("got %d args, want 5", len(route.Args))
+	}
+	auth := route.Args[1]
+	if auth.Source != "header" || auth.SourceName != "Authorization" {
+		t.Fatalf("authorization = %+v", auth)
+	}
+	if _, ok := route.Args[2].Type.(*syntax.UnionType); !ok {
+		t.Fatalf("requestId type = %#v, want a union", route.Args[2].Type)
+	}
+	if route.Args[3].Source != "cookie" || route.Args[3].SourceName != "sid" {
+		t.Fatalf("session = %+v", route.Args[3])
+	}
+	if route.Args[4].Source != "" {
+		t.Fatalf("input = %+v, want no source", route.Args[4])
+	}
+	if route.Consumes == nil || route.Consumes.Text != "application/json" || route.Produces == nil || route.Produces.Text != "application/json" {
+		t.Fatalf("consumes = %+v, produces = %+v", route.Consumes, route.Produces)
+	}
+	if len(route.Mapping) != 1 {
+		t.Fatalf("got %d arms, want 1", len(route.Mapping))
+	}
+	export := ad.Routes[1]
+	if len(export.Args) != 0 || export.Produces == nil || export.Produces.Text != "text/csv" || export.Consumes != nil {
+		t.Fatalf("export = %+v", export)
+	}
+}
+
+func TestParseRouteBadSource(t *testing.T) {
+	_, errs := Parse(`
+adapter http api {
+    GET "/x" -> f(a: string from query "a") produces "application/json"
+}`)
+	if len(errs) == 0 {
+		t.Fatal("expected a parse error for `from query`")
 	}
 }
 

@@ -58,14 +58,15 @@ fiig serve -caps caps.json . ratingsApi
 From another terminal:
 
 ```
-curl -X POST localhost:8080/ratings -d '{"item": "hyperion", "score": 8, "note": "dense"}'
+curl -X POST localhost:8080/ratings -H 'Content-Type: application/json' -d '{"item": "hyperion", "score": 8, "note": "dense"}'
 curl localhost:8080/ratings/hyperion
 curl localhost:8080/ratings/nope
 ```
 
 The first two return the rating with status 200; the last returns `"no
 rating for nope"` with status 404, the mapping written in
-`adapters/ratings_api.fiig`.
+`adapters/ratings_api.fiig`. The route declares `consumes
+"application/json"`, so a POST without that `Content-Type` is a 415.
 
 ## 5. See an error
 

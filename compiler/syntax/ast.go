@@ -317,10 +317,32 @@ type AdapterDecl struct {
 // covers both rather than duplicating it.
 type Route struct {
 	Span
-	Verb    string
-	Path    string // the route's string-literal content
-	Target  *CallExpr
-	Mapping []ResponseArm // nil if the route has no response-mapping block (ADR 0017)
+	Verb     string
+	Path     string // the route's string-literal content
+	Workflow *Ident // the workflow the route calls
+	Args     []RouteArg
+	Consumes *MediaType    // nil if the route has no `consumes` clause (ADR 0069 §5)
+	Produces *MediaType    // nil if the route has no `produces` clause
+	Mapping  []ResponseArm // nil if the route has no response-mapping block (ADR 0017)
+}
+
+// RouteArg is one argument of a route's call: the workflow parameter it
+// binds, that parameter's type, and, for an argument read from a header or
+// cookie (ADR 0069 §1), where it comes from. A route argument holds a type,
+// not a value, so it is not an ordinary call argument.
+type RouteArg struct {
+	Span
+	Name       string
+	Type       Type
+	Source     string // "", "header", or "cookie"
+	SourceName string // the header or cookie name as it appears on the wire
+}
+
+// MediaType is a route's `consumes` or `produces` type, such as
+// "application/json" (ADR 0069 §5).
+type MediaType struct {
+	Span
+	Text string
 }
 
 // ResponseArm is one arm of a route's response-mapping block.

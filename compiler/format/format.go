@@ -467,12 +467,53 @@ func (p *printer) printAdapterDecl(d *syntax.AdapterDecl) {
 
 func (p *printer) printRoute(r *syntax.Route) {
 	line := startLine(r)
-	head := fmt.Sprintf("%s %s -> %s", r.Verb, strconv.Quote(r.Path), printExpr(r.Target))
+	args := make([]string, len(r.Args))
+	for i, a := range r.Args {
+		args[i] = printRouteArg(a)
+	}
+	head := fmt.Sprintf("%s %s -> %s", r.Verb, strconv.Quote(r.Path), r.Workflow.Name)
+	var clauses []*syntax.MediaType
+	if r.Consumes != nil {
+		clauses = append(clauses, r.Consumes)
+	}
+	if r.Produces != nil {
+		clauses = append(clauses, r.Produces)
+	}
+	brace := ""
+	if len(r.Mapping) > 0 && len(clauses) == 0 {
+		brace = " {"
+	}
+	oneLine := head + "(" + strings.Join(args, ", ") + ")" + brace
+	if len(args) == 0 || len(strings.Repeat("    ", p.indent))+len(oneLine) <= maxLineWidth {
+		p.emitLine(oneLine, line, line)
+	} else {
+		// Too long: one argument per line with a trailing comma, as a
+		// long call is wrapped.
+		p.emitLine(head+"(", line, line)
+		p.indent++
+		for i, a := range r.Args {
+			al := startLine(a)
+			p.emitLine(args[i]+",", al, al)
+		}
+		p.indent--
+		p.emitLine(")"+brace, line, line)
+	}
+	p.indent++
+	for _, c := range clauses {
+		cl := startLine(c)
+		word := "consumes"
+		if c == r.Produces {
+			word = "produces"
+		}
+		p.emitLine(word+" "+strconv.Quote(c.Text), cl, cl)
+	}
+	p.indent--
 	if len(r.Mapping) == 0 {
-		p.emitLine(head, line, line)
 		return
 	}
-	p.emitLine(head+" {", line, line)
+	if len(clauses) > 0 {
+		p.emitLine("{", line, line)
+	}
 	p.indent++
 	for _, arm := range r.Mapping {
 		al := startLine(arm)
@@ -483,6 +524,14 @@ func (p *printer) printRoute(r *syntax.Route) {
 	p.indent--
 	p.writeIndent()
 	p.out.WriteString("}\n")
+}
+
+func printRouteArg(a syntax.RouteArg) string {
+	s := a.Name + ": " + printType(a.Type)
+	if a.Source != "" {
+		s += " from " + a.Source + " " + strconv.Quote(a.SourceName)
+	}
+	return s
 }
 
 func printResponseValue(v syntax.ResponseValue) string {

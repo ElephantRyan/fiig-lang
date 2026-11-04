@@ -316,9 +316,12 @@ capability, full stop. The optional `idempotent` modifier
 adapter-decl  ::= 'adapter' adapter-kind identifier '{' { route } '}'
 adapter-kind  ::= 'http' | 'cli'
 route         ::= http-route | cli-route
-http-route    ::= http-method string-literal '->' call [ response-mapping ]
+http-route    ::= http-method string-literal '->' route-call { media-clause } [ response-mapping ]
 http-method   ::= 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'QUERY'
-cli-route     ::= 'command' string-literal '->' call [ response-mapping ]
+cli-route     ::= 'command' string-literal '->' route-call [ response-mapping ]
+route-call    ::= identifier '(' [ route-arg { ',' route-arg } [ ',' ] ] ')'
+route-arg     ::= identifier ':' type [ 'from' ( 'header' | 'cookie' ) string-literal ]   -- ADR 0069 §1
+media-clause  ::= ( 'consumes' | 'produces' ) string-literal                              -- ADR 0069 §5
 
 response-mapping ::= '{' response-arm { response-arm } '}'
 response-arm     ::= pattern '->' response-value
@@ -358,6 +361,28 @@ route are all compile errors. A body-bound argument must also be typed as a
 (`docs/specification/bug-classes.md`), since a primitive has no fields
 to structurally decode against; see `invalid-programs/type_error.fiig`
 (`customerEmailApiBroken`).
+
+A route argument may instead name the header or cookie it is read from
+(ADR 0069 §1): `token: string from header "Authorization"`, `session:
+string | None from cookie "sid"`. Such an argument is never the body. It
+has a path or query value's types (`string`, `int`, `float`, `decimal`,
+`bool`), optionally `| None`, which receives `None` when the header or
+cookie is absent; a required one that is absent is a 400. A repeated
+header is read as its values joined by `", "`, a repeated cookie as the
+first. Header names match case-insensitively, cookie names exactly. `from`,
+`header`, and `cookie` are contextual here only. Each argument's written
+type must be its workflow parameter's type.
+
+Every HTTP route declares the content type it sends with `produces`, and a
+route that binds a body declares the type it reads with `consumes` (ADR
+0069 §5); a request with another `Content-Type` is a 415. A JSON type
+(`application/json`, or any `+json`) encodes any body as JSON. Any other
+type sends a `string` (as UTF-8, with `; charset=utf-8` for `text/*`) or
+`bytes` body, and a route that consumes one binds the body raw as a
+`string` or `bytes` argument, so A7 applies only to JSON bodies. The
+formatter puts each clause on its own line under the route, consumes
+first, and the response mapping's `{` on its own line after them. CLI
+routes have neither clause.
 
 `response-mapping` (`docs/decisions/0017-adapter-response-mapping.md`) is
 attested by `adapters/http_customer_api_with_mapping.fiig`. It reuses

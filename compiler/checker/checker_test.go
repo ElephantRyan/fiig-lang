@@ -426,7 +426,7 @@ func TestDuplicateDeclNameReportsBothSitesAndSuppressesCascade(t *testing.T) {
 	model := mustParse(t, "model NewCustomer {\n\tname: string\n}")
 	activity := mustParse(t, "activity createCustomer(input: NewCustomer) -> NewCustomer {\n\treturn input\n}")
 	workflow := mustParse(t, "workflow createCustomer(input: NewCustomer) -> NewCustomer {\n\treturn input\n}")
-	adapter := mustParse(t, "adapter http CustomerApi {\n\tPOST \"/customers\" -> createCustomer(input: NewCustomer)\n}")
+	adapter := mustParse(t, "adapter http CustomerApi {\n\tPOST \"/customers\" -> createCustomer(input: NewCustomer)\n\t\tconsumes \"application/json\"\n\t\tproduces \"application/json\"\n}")
 
 	// Both orderings: the result must not depend on which one is seen first.
 	for _, order := range [][]*syntax.File{

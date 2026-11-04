@@ -249,6 +249,7 @@ func TestHTTPRequestBodyBinding(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/customers", strings.NewReader(`{"name": "Ada", "email": "ada@example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
 	h.ServeHTTP(rec, req)
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body)
@@ -270,6 +271,7 @@ func TestHTTPRequestBodyDuplicateNameIs400(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/customers", strings.NewReader(`{"name": "Ada", "name": "Eve", "email": "ada@example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
 	h.ServeHTTP(rec, req)
 	if rec.Code != 400 || !strings.Contains(rec.Body.String(), "duplicate member name") {
 		t.Fatalf("status = %d, body %s; want 400 naming the duplicate", rec.Code, rec.Body)
@@ -291,6 +293,7 @@ func TestHTTPQueryMethodRequestBodyBinding(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("QUERY", "/customers/lookup", strings.NewReader(`{"id": "c1"}`))
+	req.Header.Set("Content-Type", "application/json")
 	h.ServeHTTP(rec, req)
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body)
