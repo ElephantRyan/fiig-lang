@@ -16,8 +16,9 @@
 //	Database.queryOne(sql, args...)  -> an anonymous record, or None if no row matched
 //	Database.queryMany(sql, args...) -> a List of anonymous records
 //	Database.execute(sql, args...)   -> an int (rows affected)
-//	Database.nextId()                -> a string (a generated UUID — not database-generated,
-//	                                     since fiig IDs are opaque strings, not auto-increment columns)
+//
+// A new row's ID is the program's to make, with Random.uuid() (ADR 0068
+// §4), not this provider's.
 //
 // A result column decodes to the obvious fiig Value: SQL integers become
 // Int, floating-point columns Float (ADR 0048), text becomes Str, NULL
@@ -102,8 +103,6 @@ func dispatch(ctx context.Context, e execer, method string, args []runtime.Value
 		return queryMany(ctx, e, args)
 	case "execute":
 		return execute(ctx, e, args)
-	case "nextId":
-		return nextID(args)
 	default:
 		return nil, runtime.Faultf("Database has no method %q", method)
 	}
@@ -189,17 +188,6 @@ func execute(ctx context.Context, e execer, args []runtime.Value) (runtime.Value
 		return nil, runtime.Faultf("execute: %v", err)
 	}
 	return runtime.Int(affected), nil
-}
-
-func nextID(args []runtime.Value) (runtime.Value, *runtime.Fault) {
-	if len(args) != 0 {
-		return nil, runtime.Faultf("nextId() takes no arguments")
-	}
-	id, err := newUUID()
-	if err != nil {
-		return nil, runtime.Faultf("nextId: %v", err)
-	}
-	return runtime.Str(id), nil
 }
 
 // toDriverValue converts a fiig argument into whatever database/sql
