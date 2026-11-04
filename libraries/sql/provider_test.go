@@ -108,24 +108,6 @@ func TestExecuteReturnsRowsAffected(t *testing.T) {
 	}
 }
 
-func TestNextIDGeneratesDistinctStrings(t *testing.T) {
-	p := New(openTestDB(t))
-	a, fault := p.Call(context.Background(), "nextId", nil)
-	if fault != nil {
-		t.Fatalf("Call: %v", fault)
-	}
-	b, fault := p.Call(context.Background(), "nextId", nil)
-	if fault != nil {
-		t.Fatalf("Call: %v", fault)
-	}
-	if a == b {
-		t.Fatalf("got the same id twice: %s", a)
-	}
-	if _, ok := a.(runtime.Str); !ok {
-		t.Fatalf("got %T, want Str", a)
-	}
-}
-
 func TestValueWrapperArgumentUnwraps(t *testing.T) {
 	db := openTestDB(t)
 	p := New(db)

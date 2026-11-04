@@ -436,8 +436,10 @@ expiry checks) take a date anyway.
   Go: randomness hidden inside the Database capability. It now calls
   `Random.uuid()` beside `Database`, the case §4 was revised for. The
   runtime and adapter tests' fake databases lost their `nextId` and
-  register a seeded `Random` instead. `libraries/sql` still provides
-  `nextId` (ADR 0025); whether to drop it is left open.
+  register a seeded `Random` instead. `libraries/sql`'s `nextId` is
+  removed, by the user's decision (ADR 0025 amended): a program calling it
+  faults with "Database has no method", so code written against
+  v0.1.0-alpha.1 replaces it with `Random.uuid()`.
 - New: `activities/new_session_token.fiig` (§3's token),
   `rules/backoff_delay.fiig` (pure: the jitter is a parameter), and
   `activities/next_retry_delay.fiig` (draws the jitter and calls it).
