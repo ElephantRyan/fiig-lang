@@ -238,10 +238,11 @@ func DeclKindName(d syntax.Decl) string { return syntax.DeclKindName(d) }
 // Arity isn't enforced here — Resolve just maps however many args were
 // written; the checker reports a mismatch separately if it matters.
 var preludeGenerics = map[string]bool{
-	"List":        true,
-	"Result":      true,
-	"BatchResult": true,
-	"Map":         true, // ADR 0065 §4
+	"List":         true,
+	"Result":       true,
+	"BatchResult":  true,
+	"Map":          true, // ADR 0065 §4
+	"HttpResponse": true, // ADR 0069 §3
 }
 
 // Resolve converts a parsed syntax.Type into a semantic Type, looking up

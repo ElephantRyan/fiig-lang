@@ -29,6 +29,7 @@ func (c *checker) checkAdapterRoutes(d *syntax.AdapterDecl) {
 			continue
 		}
 		c.checkRouteBinding(route, wd, isHTTP)
+		c.checkResponseArms(route, wd, isHTTP)
 	}
 }
 

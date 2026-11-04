@@ -29,6 +29,14 @@ func (c *checker) checkExpected(e syntax.Expr, expected types.Type, env map[stri
 			c.checkOkErr(call, ident.Name, expected, env)
 			return
 		}
+		if ident, ok := call.Callee.(*syntax.Ident); ok && ident.Name == types.HttpResponseName {
+			got := c.checkHttpResponse(call, expected, env)
+			if expected != nil && !types.AssignableTo(got, expected) {
+				start, _ := call.Bounds()
+				c.report(start, "A1", "type mismatch: got %s, expected %s", got, expected)
+			}
+			return
+		}
 	}
 	got, isConst := c.landConstant(e, expected)
 	if !isConst {
@@ -222,6 +230,14 @@ func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.T
 	}
 
 	target := c.inferExpr(e.Target, env)
+	if body, ok := types.IsHttpResponse(target); ok {
+		if t, ok := httpResponseField(body, e.Field); ok {
+			return t
+		}
+		start, _ := e.Bounds()
+		c.report(start, "", "%s has no field %q", target, e.Field)
+		return types.Unknown{}
+	}
 	named, ok := target.(types.Named)
 	if !ok {
 		// Unknown target (capability result, unresolved name) — nothing to
@@ -394,6 +410,9 @@ func (c *checker) inferCall(e *syntax.CallExpr, env map[string]types.Type) types
 
 	if ident, ok := e.Callee.(*syntax.Ident); ok && ident.Name == "copy" {
 		return c.checkCopy(e, env)
+	}
+	if ident, ok := e.Callee.(*syntax.Ident); ok && ident.Name == types.HttpResponseName {
+		return c.checkHttpResponse(e, nil, env)
 	}
 	if ident, ok := e.Callee.(*syntax.Ident); ok && ident.Name == "append" {
 		return c.checkAppend(e, env)

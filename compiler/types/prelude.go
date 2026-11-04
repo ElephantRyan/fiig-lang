@@ -40,6 +40,21 @@ var preludeSources = []string{`enum SocketError {
     Ceiling
     Floor
 }
+`, `model Cookie {
+    name: string
+    value: string
+    maxAge: int | None
+    path: string | None
+    domain: string | None
+    sameSite: SameSite | None
+    readableByScripts: bool | None
+    sentOverPlainHttp: bool | None
+}
+`, `enum SameSite {
+    Strict
+    Lax
+    AnySite
+}
 `}
 
 // preludeDecls holds the prelude's declarations, found by every Universe's
@@ -67,6 +82,57 @@ var SocketErrorType = Named{Name: "SocketError", Decl: SocketErrorDecl}
 // RoundingType is the prelude's `Rounding` enum (ADR 0064 §4), whose
 // variants are in compiler/decimal's Rounding order.
 var RoundingType = Named{Name: "Rounding", Decl: preludeDecls["Rounding"]}
+
+// CookieType is the prelude's `Cookie` model (ADR 0069 §4), whose left-out
+// fields take the secure defaults.
+var CookieType = Named{Name: "Cookie", Decl: preludeDecls["Cookie"]}
+
+// SameSiteType is the prelude's `SameSite` enum (ADR 0069 §4).
+var SameSiteType = Named{Name: "SameSite", Decl: preludeDecls["SameSite"]}
+
+// HttpResponseName is the prelude generic HttpResponse<B> (ADR 0069 §3),
+// the envelope a response-mapping arm produces.
+const HttpResponseName = "HttpResponse"
+
+// HttpResponseFieldNames are HttpResponse's fields in declaration order,
+// the order a positional construction binds.
+var HttpResponseFieldNames = []string{"status", "body", "headers", "cookies"}
+
+// HttpResponseFields is HttpResponse<B>'s fields: every one but status
+// may be left out, and is then None.
+func HttpResponseFields(body Type) map[string]Type {
+	return map[string]Type{
+		"status":  Primitive{Name: "int"},
+		"body":    optional(body),
+		"headers": Union{Members: []Type{Generic{Name: "Map", Args: []Type{Primitive{Name: "string"}, Primitive{Name: "string"}}}, NoneType{}}},
+		"cookies": Union{Members: []Type{Generic{Name: "List", Args: []Type{CookieType}}, NoneType{}}},
+	}
+}
+
+// IsHttpResponse reports whether t is HttpResponse<B>, and its B.
+func IsHttpResponse(t Type) (Type, bool) {
+	g, ok := t.(Generic)
+	if !ok || g.Name != HttpResponseName || len(g.Args) != 1 {
+		return nil, false
+	}
+	return g.Args[0], true
+}
+
+// optional is `t | None`, or None itself when t is None.
+func optional(t Type) Type {
+	switch t := t.(type) {
+	case NoneType, Unknown:
+		return t
+	case Union:
+		for _, m := range t.Members {
+			if _, ok := m.(NoneType); ok {
+				return t
+			}
+		}
+		return Union{Members: append(append([]Type{}, t.Members...), NoneType{})}
+	}
+	return Union{Members: []Type{t, NoneType{}}}
+}
 
 // HoldsConnection reports whether a value of type t is, or contains at any
 // depth, a Connection: directly, inside a generic, a union or a record, or in

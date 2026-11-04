@@ -84,7 +84,9 @@ interpreters" as their own concept.
 - `HttpResponse` (and an analogous CLI response shape) is an implied new
   type this introduces — whether it's a genuine built-in or just an ordinary
   model applications define for themselves isn't resolved here, flagged as
-  follow-up.
+  follow-up. Settled by ADR 0069 §3 (2026-11-04): a builtin generic
+  `HttpResponse<B>` in the prelude, checked as a type, with optional
+  `headers` and `cookies`.
 - The bug-class catalog's A7 entry can be updated: path-parameter decoding is
   now settled (decode-by-construction via `value` types); only structural
   body decoding remains genuinely open.
