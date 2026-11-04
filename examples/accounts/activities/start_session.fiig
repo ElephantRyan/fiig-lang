@@ -1,0 +1,22 @@
+// Checks a Basic auth header and opens a session with a fresh 256-bit
+// token (ADR 0068), which the route sends back as a cookie. No header is
+// its own error, so the route can answer with a challenge.
+activity startSession(authorization: string | None) -> Result<Session, AccountError> {
+    match authorization {
+        None -> {
+            return Err(AccountError.NoCredentials)
+        }
+        header -> {
+            match basicCredentials(header) {
+                None -> {
+                    return Err(AccountError.BadCredentials)
+                }
+                credentials -> {
+                    account = findAccountByKey(credentials)?
+                    token = Random.bytes(count: 32).toBase64Url()
+                    return Ok(saveSession(token: token, account: account))
+                }
+            }
+        }
+    }
+}

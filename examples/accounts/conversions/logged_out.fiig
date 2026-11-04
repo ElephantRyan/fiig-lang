@@ -1,0 +1,4 @@
+// Logout deletes the cookie: the same name and path, with maxAge 0.
+conversion loggedOut() -> HttpResponse<None> {
+    return HttpResponse(status: 204, cookies: [Cookie(name: "sid", value: "", maxAge: 0)])
+}

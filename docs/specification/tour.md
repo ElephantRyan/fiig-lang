@@ -461,23 +461,45 @@ rejected by the checker.
 
 ```fiig
 // HTTP. Methods: GET POST PUT PATCH DELETE QUERY. Every argument of the
-// target call must bind from a path placeholder, a query placeholder, or
-// (POST/PUT/PATCH/QUERY only) the request body — checker-enforced.    [built]
+// target call binds from a path placeholder, a query placeholder, a header
+// or cookie (`from`), or (POST/PUT/PATCH/QUERY only) the request body —
+// checker-enforced. Every route says what it sends (`produces`), and a body
+// route what it reads (`consumes`); another Content-Type is a 415.   [built]
 adapter http customerHttpApi {
-    GET   "/customers/{id}"                  -> readCustomer(id: string)
-    POST  "/customers"                       -> createCustomer(input: NewCustomer)
-    PATCH "/customers/{id}?newEmail={newEmail}" -> changeCustomerEmail(id: string, newEmail: string)
+    GET "/customers/{id}" -> readCustomer(id: string)
+        produces "application/json"
+    POST "/customers" -> createCustomer(input: NewCustomer)
+        consumes "application/json"
+        produces "application/json"
+    GET "/me" -> currentAccount(session: string | None from cookie "sid")
+        produces "application/json"
+    GET "/accounts.csv" -> exportAccounts(authorization: string from header "Authorization")
+        produces "text/csv"           // a non-JSON type sends a string or bytes
 }
 ```
 
 ```fiig
-// Optional per-route response mapping (ADR 0017). `200 customer` is bespoke
-// shorthand: a status code juxtaposed with a body expression.         [built]
+// Optional per-route response mapping (ADR 0017). `200 customer` is
+// shorthand for HttpResponse(status: 200, body: customer); any other arm
+// produces the prelude HttpResponse<B> (ADR 0069 §3).                [built]
 adapter http customerHttpApiWithMapping {
-    GET "/customers/{id}" -> readCustomer(id: string) {
+    GET "/customers/{id}" -> readCustomer(id: string)
+        produces "application/json"
+    {
         Ok(customer) -> 200 customer
         Err(error) -> customerErrorToHttpResponse(error)
     }
+}
+
+// Headers and cookies a response sets. A Cookie's left-out fields are the
+// secure answer: HttpOnly, Secure, SameSite=Lax, Path=/, this host only.
+conversion loggedIn(session: Session) -> HttpResponse<Account> {
+    return HttpResponse(
+        status: 200,
+        body: session.account,
+        headers: ["Cache-Control": "no-store"],
+        cookies: [Cookie(name: "sid", value: session.token, maxAge: 86400)],
+    )
 }
 ```
 

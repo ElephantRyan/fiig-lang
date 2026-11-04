@@ -1,0 +1,6 @@
+gateway deleteSession(token: string) -> int
+    requires Database
+    idempotent
+{
+    return Database.execute("DELETE FROM sessions WHERE token = ?", token)
+}

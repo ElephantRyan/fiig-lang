@@ -1,0 +1,11 @@
+// Login answers with the account and sets the session cookie. Leaving out
+// every attribute but maxAge gives the secure ones: HttpOnly, Secure,
+// SameSite=Lax, Path=/, and no Domain (ADR 0069 §4).
+conversion loggedIn(session: Session) -> HttpResponse<Account> {
+    return HttpResponse(
+        status: 200,
+        body: session.account,
+        headers: ["Cache-Control": "no-store"],
+        cookies: [Cookie(name: "sid", value: session.token, maxAge: 86400)],
+    )
+}

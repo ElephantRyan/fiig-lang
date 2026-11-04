@@ -1,11 +1,12 @@
 # ADR 0069: HTTP Headers, Cookies, and Content Types
 
-Status: Accepted (2026-11-04), after one-decision-at-a-time review: §1,
+Status: Accepted and implemented (2026-11-04; see Implementation notes),
+after one-decision-at-a-time review: §1,
 §2, and §4 accepted as drafted; §3 revised to a builtin `HttpResponse<B>`;
 §5 (content types declared on the route, with `produces` and `consumes`)
 added in review; §6 gained eight refusals; §7's decoding details settled;
 §8 gained the localhost note, and CORS moved to its own ADR (open
-question 6). Not yet implemented.
+question 6).
 Date: 2026-11-04
 Related: ADR 0009 and ADR 0021 (route binding by name), ADR 0017 (response
 mapping), ADR 0026 (default response, which assumed JSON), ADR 0044 (a workflow is the adapter
@@ -462,3 +463,41 @@ is, and an implicit default is how "always JSON" came to look like a rule.
    either. Owner's decision in review: fiig needs it, as its own ADR and
    alpha item 4a, rather than leaving it to a same-origin deployment or a
    reverse proxy.
+
+## Implementation notes (2026-11-04)
+
+Built in six steps: route syntax and binding, the prelude types, writing
+headers and cookies with §6's refusals, the string decoders, OpenAPI, and
+`examples/accounts` (a login cookie, `/me`, logout, a 401 challenge, a
+bearer-token CSV export, and a Basic auth rule), dogfooded with `fiig
+serve` against SQLite. Decisions made while building, beyond the text
+above:
+
+- **A route's `RouteArg` replaced its call expression** in the AST: an
+  argument holds a type and a source, never a value. The checker now also
+  reports a route argument that isn't a workflow parameter, one given
+  twice, one whose written type isn't its parameter's (A1), and a route
+  naming an undefined workflow, none of which it checked before.
+- **Response arms are type-checked.** Each arm's pattern binds against the
+  workflow's return type, as a `match` arm's does; calls inside an arm
+  aren't held to a declaration kind's composition rules, as before.
+- **§6's refusals are bug classes W1 (a response) and W2 (a cookie)**, in
+  `compiler/httpspec`, which the checker applies to constants and the
+  adapter to every response before writing any of it. The checker checks a
+  cookie's browser rules only when every field they read is known; a
+  left-out field is its known default.
+- **A media type is written without parameters**; the adapter adds
+  `; charset=utf-8` to a `text/*` string body itself.
+- **A body that is `None`** (no body field, or ADR 0026's default mapping
+  of `Ok(None)`) is sent as no body, with no `Content-Type`, where it was
+  JSON `null`.
+- **Header names go out as the program spelled them**
+  (`WWW-Authenticate`), not as Go canonicalizes them.
+- **A latent runtime bug fixed:** constructing a model without one of its
+  optional fields faulted, though the checker allowed it; the field is now
+  `None`. `Cookie(name:, value:)` depends on it.
+- **A `POST` without the declared `Content-Type` is a 415**, so
+  `docs/getting-started.md`'s `curl` now sends the header.
+- **OpenAPI** is still reachable only from Go (`adapter.GenerateOpenAPI`);
+  no `fiig` command prints it, which was already so.
+

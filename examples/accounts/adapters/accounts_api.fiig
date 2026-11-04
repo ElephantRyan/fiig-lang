@@ -1,0 +1,30 @@
+// ADR 0069: a login that sets a session cookie, a route that reads it, a
+// logout that deletes it, and a CSV export for an API client that sends
+// the token as a bearer header instead.
+// fiig serve -caps caps.json . accountsApi
+adapter http accountsApi {
+    POST "/sessions" -> logIn(authorization: string | None from header "Authorization")
+        produces "application/json"
+    {
+        Ok(session) -> loggedIn(session)
+        Err(error) -> challenge(error)
+    }
+    GET "/me" -> currentAccount(session: string | None from cookie "sid")
+        produces "application/json"
+    {
+        Ok(account) -> 200 account
+        Err(error) -> challenge(error)
+    }
+    DELETE "/sessions" -> logOut(session: string | None from cookie "sid")
+        produces "application/json"
+    {
+        Ok(_) -> loggedOut()
+        Err(error) -> challenge(error)
+    }
+    GET "/accounts.csv" -> exportAccounts(authorization: string from header "Authorization")
+        produces "text/csv"
+    {
+        Ok(csv) -> 200 csv
+        Err(error) -> challenge(error)
+    }
+}

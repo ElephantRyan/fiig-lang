@@ -28,8 +28,18 @@ doesn't have to discover them.
 
 ## HTTP
 
-- **Routes can't read request headers**, so there's no bearer-token or
-  cookie authentication yet.
+- **No CORS** (ADR 0069 open question 6, its own ADR next): a browser
+  front end on another origin can't call a fiig service, since nothing
+  answers a preflight `OPTIONS` request. Serve both from one origin, or put
+  a reverse proxy in front, for now.
+- **One content type per route**, and no `Accept` negotiation (ADR 0069
+  open question 4). A non-JSON body is a `string` or `bytes` the program
+  parses or writes itself; there's no XML library (open question 5).
+- **No signed cookies or password hashing:** fiig has no hash functions
+  yet, so a session cookie should carry a random token the service looks
+  up (ADR 0069 §4), and `examples/accounts` stores its keys as given.
+- **`GenerateOpenAPI` isn't on the command line.** The adapter package
+  builds the document; no `fiig` command prints it yet.
 - **An enum or `Result` in a response body** is written in the tagged form
   `fiig run -json` uses (`{"$enum": ...}`); a model is a plain object.
   Map errors to a status and a message, as the getting-started adapter does.

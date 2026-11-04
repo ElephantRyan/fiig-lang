@@ -1,0 +1,6 @@
+gateway saveSession(token: string, account: Account) -> Session
+    requires Database
+{
+    Database.execute("INSERT INTO sessions (token, name) VALUES (?, ?)", token, account.name)
+    return Session(token: token, account: account)
+}

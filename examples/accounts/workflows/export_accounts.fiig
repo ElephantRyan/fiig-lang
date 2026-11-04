@@ -1,0 +1,6 @@
+// An API client's export, authenticated with the session token as a bearer
+// token rather than a cookie.
+workflow exportAccounts(authorization: string) -> Result<string, AccountError> {
+    sessionAccount(bearerToken(authorization))?
+    return Ok(accountsCsv(listAccounts()))
+}

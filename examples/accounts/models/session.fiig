@@ -1,0 +1,6 @@
+// A logged-in session: a random token the service looks up, so the cookie
+// that carries it has nothing to protect but its secrecy (ADR 0069 §4).
+model Session {
+    token: string
+    account: Account
+}

@@ -1,0 +1,1 @@
+{"Database": {"type": "sql", "driver": "sqlite", "dsn": "file:accounts.db"}}
