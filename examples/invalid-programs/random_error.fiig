@@ -8,7 +8,7 @@ rule rollDie() -> int {
 
 // P8: there is nothing to require. An activity or a gateway calls Random
 // directly.
-gateway newSessionToken() -> string
+gateway newApiKey() -> string
     requires Random
 {
     return Random.uuid()

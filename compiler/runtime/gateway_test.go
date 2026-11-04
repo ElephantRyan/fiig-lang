@@ -18,7 +18,6 @@ import (
 type fakeDatabase struct {
 	rowsByID    map[string]Value
 	rowsByEmail map[string]Value
-	nextID      int64
 
 	// executeRowsAffected is what every "execute" call reports — 1 ("always
 	// succeeds") unless a test overrides it to exercise the 0-rows-affected
@@ -50,9 +49,6 @@ func (db *fakeDatabase) Call(ctx context.Context, method string, args []Value) (
 		return None{}, nil
 	case "execute":
 		return Int(db.executeRowsAffected), nil // rows affected
-	case "nextId":
-		db.nextID++
-		return Str(itoa(db.nextID)), nil
 	default:
 		return nil, Faultf("fakeDatabase has no method %q", method)
 	}
@@ -88,25 +84,6 @@ func keyString(v Value) string {
 	return v.String()
 }
 
-func itoa(n int64) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var digits []byte
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	if neg {
-		return "-" + string(digits)
-	}
-	return string(digits)
-}
-
 func customerID(s string) Value {
 	return Str(s)
 }
@@ -121,6 +98,7 @@ func TestGetCustomerStepViaSimulatedCapability(t *testing.T) {
 	db.insert("c1", "Ada", "ada@example.com")
 	caps := NewCapabilityRegistry()
 	caps.Register("Database", db)
+	caps.Register("Random", NewSeededRandomProvider(1))
 	in := newTestInterp(u, caps)
 
 	v, fault := in.Call(context.Background(), "getCustomer", map[string]Value{"id": customerID("c1")})
@@ -160,6 +138,7 @@ func TestCreateCustomerWorkflowComposesGatewaysAndRules(t *testing.T) {
 	db.insert("existing", "Taken", "taken@example.com")
 	caps := NewCapabilityRegistry()
 	caps.Register("Database", db)
+	caps.Register("Random", NewSeededRandomProvider(1))
 	in := newTestInterp(u, caps)
 
 	newCustomer := Record{TypeName: "NewCustomer", Fields: map[string]Value{
@@ -224,6 +203,7 @@ func TestCheckoutWorkflowNestedMatchAndCatchAllResultBinding(t *testing.T) {
 	db := newFakeDatabase()
 	caps := NewCapabilityRegistry()
 	caps.Register("Database", db)
+	caps.Register("Random", NewSeededRandomProvider(1))
 	caps.Register("PaymentGateway", FuncProvider{
 		"charge": func(_ context.Context, args []Value) (Value, *Fault) {
 			return Result{Ok: true, Value: Str("ref-1")}, nil
@@ -266,6 +246,7 @@ func TestCheckoutWorkflowReinterpretsOutOfStock(t *testing.T) {
 	db.executeRowsAffected = 0 // reserveInventory's insert never "succeeds"
 	caps := NewCapabilityRegistry()
 	caps.Register("Database", db)
+	caps.Register("Random", NewSeededRandomProvider(1))
 	in := newTestInterp(u, caps)
 
 	newCustomer := Record{TypeName: "NewCustomer", Fields: map[string]Value{

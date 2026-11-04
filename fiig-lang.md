@@ -564,7 +564,9 @@ Need an ADR first, in build order:
 2. String methods: `length` (and what a character is), trimming, case,
    splitting, prefixes. Done 2026-11-03 (ADR 0067).
 3. `Random`'s operations and runtime provider (ADR 0042 names the primitive
-   but not its operations): random bytes and tokens.
+   but not its operations): random bytes and tokens. Done 2026-11-04 (ADR
+   0068), with named arguments on every builtin, and `Clock` and `Random`
+   as local effects that activities and gateways call directly.
 4. Request headers and cookies in `http` routes, read and set: bearer
    tokens and sessions.
 5. Configuration values reachable from fiig code, from the environment:

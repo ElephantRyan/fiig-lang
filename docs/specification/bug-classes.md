@@ -146,7 +146,7 @@ Case in fiig is load-bearing where a reader relies on it: a lowercase dotted pre
 | P5 | Capability groups in one package whose gateways require each other in a cycle | Attested — `capability_error.fiig` (`RefundPing`/`RefundPong`, reported at both). Between packages the loader already rejects dependency cycles. |
 | P6 | A model or enum field holds a capability | ADR 0043 §6c — providers can use models, but models don't dictate how they are used | Attested — `capability_error.fiig` (`RefundPolicy.provider`) |
 | P7 | A gateway uses a capability other than the one it requires: another group, a provider value, or (ADR 0060) a primitive such as `Socket`. Not `Clock` or `Random`, which are local effects any gateway may read (ADR 0068 §4) | ADR 0010 + ADR 0043 §5 + ADR 0060 | Attested — `capability_error.fiig` (`refundDirect`); `compiler/checker`'s `TestSocketOutsideItsGatewayIsB10OrP7` for the primitive form |
-| P8 | A gateway `requires Clock` or `requires Random` | ADR 0068 §4 — a local effect reads the program's own machine, so it isn't a capability to require; the clause would do nothing and tell a reader the gateway reaches another system | Attested — `random_error.fiig` (`newSessionToken`); `TestRequiringALocalEffectIsP8`. No corpus gateway required either, so nothing migrated. |
+| P8 | A gateway `requires Clock` or `requires Random` | ADR 0068 §4 — a local effect reads the program's own machine, so it isn't a capability to require; the clause would do nothing and tell a reader the gateway reaches another system | Attested — `random_error.fiig` (`newApiKey`); `TestRequiringALocalEffectIsP8`. No corpus gateway required either, so nothing migrated. |
 
 ## H. Registry / capability errors
 

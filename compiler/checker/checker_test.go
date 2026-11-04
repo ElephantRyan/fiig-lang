@@ -123,7 +123,7 @@ func TestInvalidProgramsCatchEveryAttestedBugClass(t *testing.T) {
 		}},
 		{"invalid-programs/random_error.fiig", map[string]int{
 			"B10": 1, // rollDie: a rule drawing a random number
-			"P8":  1, // newSessionToken: requires Random
+			"P8":  1, // newApiKey: requires Random
 			"G1":  1, // two declarations packed into one file, incidental but real
 		}},
 		{"invalid-programs/capability_error.fiig", map[string]int{

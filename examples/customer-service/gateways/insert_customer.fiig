@@ -1,7 +1,10 @@
+// ADR 0068 §4: the ID is a fresh UUID drawn right here. Random is a local
+// effect, so this gateway calls it beside Database, the one other system
+// it reaches (ADR 0010), with no second gateway for the draw.
 gateway insertCustomer(input: NewCustomer) -> Result<Customer, CustomerError>
     requires Database
 {
-    id = Database.nextId()
+    id = Random.uuid()
     Database.execute("INSERT INTO customers (id, name, email) VALUES (?, ?, ?)", id, input.name, input.email)
     return Ok(Customer(id: id, name: input.name, email: input.email))
 }
