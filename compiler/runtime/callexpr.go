@@ -26,6 +26,8 @@ func (in *Interp) evalCall(ctx context.Context, e *syntax.CallExpr, env *Env) (V
 
 func (in *Interp) evalIdentCall(ctx context.Context, e *syntax.CallExpr, ident *syntax.Ident, env *Env) (Value, bool, *Fault) {
 	switch ident.Name {
+	case types.HttpResponseName:
+		return in.evalHttpResponse(ctx, e, env)
 	case "Ok", "Err":
 		if len(e.Args) != 1 {
 			return nil, false, Faultf("%s(...) takes exactly one argument", ident.Name)
@@ -63,6 +65,27 @@ func (in *Interp) evalIdentCall(ctx context.Context, e *syntax.CallExpr, ident *
 	// not the caller's: in the root package two files may import different
 	// things (localScope).
 	return in.evalDeclCall(ctx, in.localScope(sc, ident.Name), ident.Name, decl, e.Args, env)
+}
+
+// evalHttpResponse builds the prelude's HttpResponse<B> (ADR 0069 §3): a
+// record whose left-out fields are None.
+func (in *Interp) evalHttpResponse(ctx context.Context, e *syntax.CallExpr, env *Env) (Value, bool, *Fault) {
+	supplied, earlyReturn, fault := in.evalArgs(ctx, env, e.Args, types.HttpResponseFieldNames)
+	if fault != nil || earlyReturn {
+		return nil, earlyReturn, fault
+	}
+	fields := make(map[string]Value, len(types.HttpResponseFieldNames))
+	for _, n := range types.HttpResponseFieldNames {
+		v, ok := supplied[n]
+		if !ok {
+			if n == "status" {
+				return nil, false, Faultf("HttpResponse requires field \"status\"")
+			}
+			v = None{}
+		}
+		fields[n] = v
+	}
+	return Record{TypeName: types.HttpResponseName, Fields: fields}, false, nil
 }
 
 // constructible reports whether decl is a model, constructed
@@ -116,7 +139,12 @@ func (in *Interp) constructDecl(ctx context.Context, decl syntax.Decl, displayNa
 			}
 			v, ok := supplied[f.Name]
 			if !ok {
-				return nil, false, Faultf("%s requires field %q", decl.Name, f.Name)
+				// The checker lets an optional field be left out (A3 is
+				// only for required ones); it is None.
+				if !syntax.AdmitsNone(f.Type) {
+					return nil, false, Faultf("%s requires field %q", decl.Name, f.Name)
+				}
+				v = None{}
 			}
 			fields[f.Name] = v
 		}

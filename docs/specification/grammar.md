@@ -390,11 +390,16 @@ attested by `adapters/http_customer_api_with_mapping.fiig`. It reuses
 but `response-value`'s first two alternatives (`200 customer`,
 `exit 0 customer`) are bespoke shorthand, not ordinary `expression`s —
 juxtaposing a literal and an expression with no operator between them
-doesn't fit the `expression` grammar below. Whether that shorthand is worth
-keeping as its own syntax, versus always requiring an ordinary expression
-(e.g. a constructor call `Http(200, customer)`), is genuinely open —
-flagged rather than settled, since ADR 0017 itself left the `HttpResponse`
-shape undecided.
+doesn't fit the `expression` grammar below. ADR 0069 §3 kept the
+shorthand: `200 customer` means `HttpResponse(status: 200, body:
+customer)`, where `HttpResponse<B>` is a prelude generic (`status: int`,
+`body: B | None`, `headers: Map<string, string> | None`, `cookies:
+List<Cookie> | None`), constructed like a model with every field but
+`status` optional, and `B` inferred from `body` or taken from the expected
+type. An `expression` arm must produce an `HttpResponse`, checked as a
+type. `Cookie` (with secure defaults for every left-out field) and `enum
+SameSite { Strict, Lax, AnySite }` are prelude declarations too, so a
+program can't declare any of the three names (K2).
 
 ## 5. Statements and expressions
 

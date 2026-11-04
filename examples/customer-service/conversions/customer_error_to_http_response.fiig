@@ -2,10 +2,12 @@
 // route, instead of repeating the same status-code mapping per route
 // (ADR 0017). An ordinary conversion, not a language feature — a route that
 // needs different behavior can skip it and write its own mapping inline.
-conversion customerErrorToHttpResponse(error: CustomerError) -> HttpResponse {
+// HttpResponse is the prelude's envelope (ADR 0069 §3): a conflict carries
+// the error as its body, the other responses carry none.
+conversion customerErrorToHttpResponse(error: CustomerError) -> HttpResponse<CustomerError> {
     match error {
-        CustomerError.NotFound(_) -> HttpResponse(status: 404, body: None)
-        CustomerError.EmailAlreadyInUse(_) -> HttpResponse(status: 409, body: None)
-        error -> HttpResponse(status: 500, body: None)
+        CustomerError.NotFound(_) -> HttpResponse(status: 404)
+        CustomerError.EmailAlreadyInUse(_) -> HttpResponse(status: 409, body: error)
+        error -> HttpResponse(status: 500)
     }
 }

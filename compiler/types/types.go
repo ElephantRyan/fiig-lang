@@ -192,6 +192,15 @@ func AssignableTo(value, target Type) bool {
 			}
 		}
 	}
+	// A response with no body fits any HttpResponse<B> (ADR 0069 §3), as
+	// None fits B | None.
+	if vb, ok := IsHttpResponse(value); ok {
+		if _, isNone := vb.(NoneType); isNone {
+			if _, ok := IsHttpResponse(target); ok {
+				return true
+			}
+		}
+	}
 	if v, ok := value.(Generic); ok && v.Name == "List" && len(v.Args) == 1 {
 		// A list of groups is a list of an interface they all provide; lists
 		// are values here, never mutated through an alias, so this is sound.

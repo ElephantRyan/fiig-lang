@@ -907,3 +907,19 @@ func (*ConcurrentExpr) exprNode() {}
 func (*RetryExpr) exprNode()      {}
 func (*SortedExpr) exprNode()     {}
 func (*MapLit) exprNode()         {}
+
+// AdmitsNone reports whether a written type is None or a union with None
+// among its members, so a value of it may be left out of a construction.
+func AdmitsNone(t Type) bool {
+	switch t := t.(type) {
+	case *QualifiedType:
+		return len(t.Path) == 1 && t.Path[0] == "None" && len(t.Args) == 0
+	case *UnionType:
+		for _, m := range t.Members {
+			if AdmitsNone(m) {
+				return true
+			}
+		}
+	}
+	return false
+}
