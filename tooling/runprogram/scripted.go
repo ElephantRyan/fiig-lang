@@ -117,7 +117,7 @@ func LoadCapabilitiesFile(path string, extraFactories runtime.FactoryRegistry) (
 		config[capability] = cfg
 	}
 
-	factories := runtime.FactoryRegistry{"scripted": ScriptedFactory, "socket": SocketFactory, "socket-script": SocketScriptFactory}
+	factories := runtime.FactoryRegistry{"scripted": ScriptedFactory, "socket": SocketFactory, "socket-script": SocketScriptFactory, "random-seeded": RandomSeededFactory}
 	for name, f := range extraFactories {
 		factories[name] = f
 	}

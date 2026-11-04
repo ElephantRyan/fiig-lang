@@ -19,8 +19,12 @@ doesn't have to discover them.
   0066, proposed.
 - **No migrations.** Create tables from a gateway, as the getting-started
   example does.
-- **`Random` and `FileSystem` have no runtime provider.** `Socket` and
-  `Clock` do.
+- **`FileSystem` has no runtime provider.** `Socket`, `Clock`, and
+  `Random` do; `Clock` and `Random` need no capabilities-file entry (ADR
+  0068 §4, §6).
+- **`Clock` is untyped:** `Clock.now()` is Unix milliseconds as an `int`,
+  and the checker doesn't type its calls (ADR 0068 §5). A time type is
+  open.
 
 ## HTTP
 

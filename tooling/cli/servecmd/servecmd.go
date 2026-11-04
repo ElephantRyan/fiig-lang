@@ -120,6 +120,10 @@ func load(root, name, capsPath string, workspaces []string, factories runtime.Fa
 	if err != nil {
 		return nil, fmt.Errorf("-caps: %w", err)
 	}
+	if err := runprogram.RefuseSeededRandom(caps); err != nil {
+		return nil, err
+	}
+	runprogram.RegisterDefaults(caps)
 	in := runtime.New(universe, caps)
 	in.Imports = runprogram.BuildImports(files, packages)
 	in.Groups = runprogram.BuildGroups(files, packages)

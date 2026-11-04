@@ -147,6 +147,7 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	if _, configured := caps.Lookup("Socket"); !configured {
 		caps.Register("Socket", runtime.NewSocketProvider())
 	}
+	runprogram.RegisterDefaults(caps)
 
 	in := runtime.New(universe, caps)
 	in.Imports = imports
