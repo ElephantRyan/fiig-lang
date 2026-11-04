@@ -1,10 +1,12 @@
 # ADR 0068: Random Operations, One Secure Source
 
-Status: Accepted (2026-11-03, one-decision-at-a-time review). §1, §3,
+Status: Accepted (2026-11-03, one-decision-at-a-time review). §5's named
+arguments implemented 2026-11-04 (see Implementation notes); the rest is
+not yet implemented. §1, §3,
 and §6 accepted as drafted; §2 revised to an inclusive `Random.int(min,
 max)`, with named arguments on every builtin (§5); §4 revised: `Clock`
 and `Random` are local effects, called directly from activities and
-gateways, never from rules (amends ADR 0042). Not yet implemented.
+gateways, never from rules (amends ADR 0042).
 Date: 2026-11-03
 Related: ADR 0010 (one capability per gateway), ADR 0029 (rule
 isolation), ADR 0042 (`Random` is in the closed primitive set; amended by
@@ -337,3 +339,32 @@ expiry checks) take a date anyway.
    generic capability operation (`Random.shuffle(xs: List<T>)`) would be
    the first generic one.
 4. **Decoding** hex and base64 back to `bytes`: with item 4 (Basic auth).
+
+## Implementation notes
+
+**2026-11-04, §5 named arguments.**
+
+- `types.Method`'s parameters are now `Param{Name, Type}`, so every
+  builtin method has names: `slice(from, to)`, `replaceAll(old, new)`,
+  `split(separator)`, `join(separator)`, `contains(text)` on a string and
+  `contains(element)` on a list, `at(index)`, `put(key, value)`, and so
+  on. `Socket`'s operations moved from the checker into the same package
+  (`types.PrimitiveOps`), named `host`, `port`, `connection`,
+  `serverName`, and `data`, so the runtime can place them too. `append`'s
+  are `list` and `element` (`types.AppendParams`).
+- One binder, `types.BindArgs`, is shared by builtins and `math` (whose
+  `BindMathArgs` now calls it). The checker reports each way a call can
+  fail to bind (a name that isn't a parameter, listing the parameters; one
+  given twice; a positional argument after a named one; too many; a
+  missing one, only when nothing else was wrong, since a wrong name is
+  usually the missing one misspelled). The runtime evaluates arguments
+  left to right as written, then places them by name.
+- The two ordering rules §5 calls "a declaration call's" weren't enforced
+  for declaration calls either: `add(a: 1, a: 2)` silently took the last
+  value, and `add(a: 1, 2)` filled the next free parameter. Both are now
+  errors there too. No corpus program did either.
+- `Ok`, `Err`, and `copy` are unchanged: `copy`'s overrides were already
+  named, and `Ok(x)`/`Err(e)` are constructors with one argument.
+- Tests: `compiler/checker/builtin_args_test.go`,
+  `compiler/runtime/builtin_args_test.go` (including `Socket.startTls`
+  with its arguments named in the other order).

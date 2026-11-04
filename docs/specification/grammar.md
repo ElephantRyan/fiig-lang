@@ -519,8 +519,12 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
   list (params, fields, type args, pattern args) has needed one yet.
 - `arguments` supports both positional (`CustomerError.NotFound(id)`) and
   named (`Customer(id: found.id, name: found.name, email: found.email)`)
-  forms — never mixed in one call in the corpus, but nothing forbids it in
-  this sketch; whether mixing should be disallowed is open.
+  forms, and may mix them: positional arguments come first, then named
+  ones, and no parameter is given twice (ADR 0068 §5). Builtins take named
+  arguments too: a method (`s.replaceAll(old: "-", new: "/")`), a typed
+  primitive operation (`Socket.connect(host: h, port: 5432)`), `append`
+  (`list`, `element`), and `math` (ADR 0049). Their parameter names are in
+  `compiler/types`'s tables.
 - `not` and unary `-` are the only unary operators. `not` wraps a bare
   `primary` only, not a full `postfix-expression` (`validate_new_customer.fiig`,
   `reserve_inventory.fiig`); unary `-` wraps a full `unary` so it binds

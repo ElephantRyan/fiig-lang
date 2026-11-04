@@ -129,32 +129,48 @@ var floatMap = Generic{Name: "Map", Args: []Type{Unknown{}, floatType}}
 
 var floatList = Generic{Name: "List", Args: []Type{floatType}}
 
-// BindMathArgs binds a call's arguments to ps: argNames holds each
-// argument's name, "" for a positional one. It returns, for each parameter,
-// the index of the argument that supplies it, and false when the arguments
-// don't fit ps: too many, a name ps doesn't have, a name given twice, or a
-// parameter left without one. An argument passed by position to a
-// parameter that must be named still binds; the checker reports it.
+// BindMathArgs is BindArgs over a math form's parameters. An argument
+// passed by position to a parameter that must be named still binds; the
+// checker reports it.
 func BindMathArgs(ps []MathParam, argNames []string) ([]int, bool) {
-	at := make([]int, len(ps))
+	names := make([]string, len(ps))
+	for i, p := range ps {
+		names[i] = p.Name
+	}
+	return BindArgs(names, argNames)
+}
+
+// BindArgs binds a builtin call's arguments to its parameters, named
+// params: argNames holds each argument's name, "" for a positional one,
+// which takes the first parameter not yet bound. It returns, for each
+// parameter, the index of the argument that supplies it, and false when
+// the arguments don't fit: too many, a name the builtin doesn't have, a
+// name given twice, a positional argument after a named one, or a
+// parameter left without one.
+func BindArgs(params []string, argNames []string) ([]int, bool) {
+	at := make([]int, len(params))
 	for i := range at {
 		at[i] = -1
 	}
-	next := 0
+	next, named := 0, false
 	for ai, name := range argNames {
 		if name == "" {
-			for next < len(ps) && at[next] >= 0 {
+			if named {
+				return nil, false
+			}
+			for next < len(params) && at[next] >= 0 {
 				next++
 			}
-			if next == len(ps) {
+			if next == len(params) {
 				return nil, false
 			}
 			at[next] = ai
 			continue
 		}
+		named = true
 		pi := -1
-		for i, p := range ps {
-			if p.Name == name {
+		for i, p := range params {
+			if p == name {
 				pi = i
 			}
 		}

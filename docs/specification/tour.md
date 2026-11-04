@@ -338,6 +338,8 @@ math.roundToInt(price)       // the *ToInt crossings take decimals too
 // Calls take positional or named arguments; a trailing comma is allowed.
 Customer(id: found.id, name: found.name, email: found.email)   // named
 CustomerError.NotFound(id)                                     // positional
+s.replaceAll(old: "-", new: "/")      // builtins take names too (ADR 0068 §5)
+xs = append(xs, element: x)          // positional first, then named
 Database.queryOne("SELECT ...", id)   // capability call = ordinary postfix
 
 // `copy` produces a new value of the same model, changing only what's named.

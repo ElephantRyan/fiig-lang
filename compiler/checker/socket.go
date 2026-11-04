@@ -7,27 +7,15 @@ import (
 )
 
 // ADR 0060: the Socket primitive's operations, the first typed primitive
-// capability calls. They come from this table, not from fiig source.
+// capability calls. Their table is types.PrimitiveOps("Socket").
 
-func socketResult(ok types.Type) types.Type {
-	return types.Generic{Name: "Result", Args: []types.Type{ok, types.SocketErrorType}}
-}
-
-var socketOps = map[string]method{
-	"connect":    {Params: []types.Type{stringType, intType}, Result: socketResult(types.ConnectionType)},
-	"connectTls": {Params: []types.Type{stringType, intType}, Result: socketResult(types.ConnectionType)},
-	"startTls":   {Params: []types.Type{types.ConnectionType, stringType}, Result: socketResult(types.ConnectionType)},
-	"read":       {Params: []types.Type{types.ConnectionType}, Result: socketResult(bytesType)},
-	"write":      {Params: []types.Type{types.ConnectionType, bytesType}, Result: socketResult(types.NoneType{})},
-	"close":      {Params: []types.Type{types.ConnectionType}, Result: types.NoneType{}},
-}
-
-// callSocket types `Socket.op(args)` against socketOps. Only a gateway
+// callSocket types `Socket.op(args)` against its table. Only a gateway
 // that requires Socket may make the call: B10 for any other kind, P7 for a
 // gateway that requires something else.
 func (c *checker) callSocket(op string, args []syntax.Arg, start lexer.Pos, env map[string]types.Type) types.Type {
 	c.checkPrimitiveCaller("Socket", op, start)
-	m, ok := socketOps[op]
+	ops, _ := types.PrimitiveOps("Socket")
+	m, ok := ops[op]
 	if !ok {
 		c.report(start, "", "Socket has no operation %q; it has connect, connectTls, startTls, read, write, and close (ADR 0060)", op)
 		for _, a := range args {
