@@ -400,6 +400,7 @@ for size, limit in limits {                 // two names; _ discards one
 "Zoë 👍🏽".length()                  // 5, what a reader sees
 "Zoë 👍🏽".codePointCount()          // 6, what a VARCHAR column counts
 "Zoë 👍🏽".utf8().length()           // 13 bytes
+"hi".utf8().toHex()                 // "6869"; also toBase64(), toBase64Url()
 email = input.email.trim().lowercase()
 token = header.removePrefix("Bearer ")
 tags = "a,b,,c".split(",")          // ["a", "b", "", "c"]

@@ -44,6 +44,10 @@ var primitiveMethods = map[string]map[string]Method{
 		"at":     {[]Param{p("index", intType)}, intType},
 		"slice":  {[]Param{p("from", intType), p("to", intType)}, bytesType},
 		"utf8":   {nil, Union{Members: []Type{stringType, NoneType{}}}},
+		// ADR 0068 §3: bytes written as text.
+		"toHex":       {nil, stringType},
+		"toBase64":    {nil, stringType},
+		"toBase64Url": {nil, stringType},
 	},
 	"string": {
 		"utf8":     {nil, bytesType},
