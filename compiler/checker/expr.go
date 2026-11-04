@@ -459,6 +459,9 @@ func (c *checker) callDecl(decl syntax.Decl, name string, args []syntax.Arg, sta
 	switch decl := decl.(type) {
 	case *syntax.ModelDecl:
 		c.checkFieldArgs(decl.Fields, args, name, start, env, true)
+		if syntax.Decl(decl) == types.CookieType.Decl {
+			c.checkCookieConstants(args, start)
+		}
 		return types.Named{Name: name, Decl: decl}
 	case *syntax.EnumDecl:
 		return c.checkKeyLookup(decl, name, args, start, env)

@@ -26,8 +26,10 @@ import (
 // HTTP handler turns this into a status code + JSON body; the CLI
 // dispatcher turns it into an exit code + printed JSON body.
 type Response struct {
-	Status int
-	Body   runtime.Value
+	Status  int
+	Body    runtime.Value
+	Headers []Header         // HTTP only: the HttpResponse's headers (ADR 0069 §3)
+	Cookies []runtime.Record // HTTP only: its prelude Cookie values
 }
 
 // placeholderPattern mirrors compiler/checker's own (unexported) version —
@@ -301,17 +303,9 @@ func evalResponseValue(ctx context.Context, in *runtime.Interp, rv syntax.Respon
 		}
 		rec, ok := val.(runtime.Record)
 		if !ok {
-			return Response{}, runtime.Faultf("response-mapping expression produced %s, want a record with a status field", val)
+			return Response{}, runtime.Faultf("response-mapping expression produced %s, want an HttpResponse", val)
 		}
-		statusVal, ok := rec.Fields["status"].(runtime.Int)
-		if !ok {
-			return Response{}, runtime.Faultf("response-mapping expression's record has no int \"status\" field")
-		}
-		body := rec.Fields["body"]
-		if body == nil {
-			body = runtime.None{}
-		}
-		return Response{Status: int(statusVal), Body: body}, nil
+		return readHttpResponse(rec)
 	default:
 		return Response{}, runtime.Faultf("unsupported response value %T", rv)
 	}

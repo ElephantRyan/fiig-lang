@@ -157,3 +157,26 @@ func describeByte(b byte) string {
 	}
 	return fmt.Sprintf("%q", string(b))
 }
+
+// CookieRuleProblem describes a cookie a browser would ignore without a
+// word (ADR 0069 §6), or "": SameSite=None without Secure (RFC 6265bis),
+// and the __Secure- and __Host- name prefixes' requirements.
+func CookieRuleProblem(name string, sameSiteNone, secure, hasDomain bool, path string) string {
+	if sameSiteNone && !secure {
+		return "is sameSite AnySite and sentOverPlainHttp, and browsers refuse SameSite=None without Secure"
+	}
+	if strings.HasPrefix(name, "__Secure-") && !secure {
+		return "has the __Secure- prefix, which browsers refuse without Secure; drop sentOverPlainHttp"
+	}
+	if strings.HasPrefix(name, "__Host-") {
+		switch {
+		case !secure:
+			return "has the __Host- prefix, which browsers refuse without Secure; drop sentOverPlainHttp"
+		case hasDomain:
+			return "has the __Host- prefix, which browsers refuse with a domain"
+		case path != "/":
+			return "has the __Host- prefix, which browsers refuse with a path other than \"/\""
+		}
+	}
+	return ""
+}

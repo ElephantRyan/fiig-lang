@@ -122,8 +122,11 @@ func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in
 // content type (ADR 0069 §5): JSON for a JSON type, and the text or bytes
 // as they are for any other. A response with no body has no Content-Type.
 // It returns a fault, having written nothing, when the response can't be
-// sent.
+// sent (§6).
 func writeResponse(w http.ResponseWriter, resp Response, produces string) *runtime.Fault {
+	if fault := checkWire(resp); fault != nil {
+		return fault
+	}
 	var body []byte
 	contentType := ""
 	if _, none := resp.Body.(runtime.None); !none && resp.Body != nil {
@@ -148,6 +151,7 @@ func writeResponse(w http.ResponseWriter, resp Response, produces string) *runti
 			}
 		}
 	}
+	writeHeaders(w.Header(), resp)
 	if contentType != "" {
 		w.Header().Set("Content-Type", contentType)
 	}
