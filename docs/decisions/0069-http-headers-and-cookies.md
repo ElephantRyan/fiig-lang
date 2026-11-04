@@ -3,7 +3,8 @@
 Status: Proposed (2026-11-04). Under one-decision-at-a-time review: §1
 and §2 accepted as drafted; §3 revised to a builtin `HttpResponse<B>`;
 §4 accepted as drafted; §5 (content types declared on the route, with
-`produces` and `consumes`) added in review; the rest is not yet reviewed.
+`produces` and `consumes`) added in review and accepted; §6 accepted with
+eight refusals added in review; the rest is not yet reviewed.
 Date: 2026-11-04
 Related: ADR 0009 and ADR 0021 (route binding by name), ADR 0017 (response
 mapping), ADR 0026 (default response, which assumed JSON), ADR 0044 (a workflow is the adapter
@@ -272,18 +273,44 @@ carry. Each
 is a fault (a 500, with the reason in the trace), and the checker reports
 the ones it can see in constants:
 
-- **A header value or cookie value with CR or LF.** That is header
-  injection (CWE-113): a value from user input could add headers of its
-  own. Go's `net/http` quietly turns the line break into a space;
-  fiig faults, since quietly changing a value hides the bug that put it
-  there.
-- **A cookie value outside RFC 6265's cookie-octets** (no space, comma,
-  semicolon, double quote, or backslash). Go's `http.SetCookie` drops such
-  a cookie and logs it; fiig faults. A base64url token always fits.
+- **A header value with a control character other than tab** (RFC 9110
+  §5.5). CR and LF are header injection (CWE-113): a value from user input
+  could add headers of its own. Go's `net/http` quietly turns the line
+  break into a space; fiig faults, since quietly changing a value hides
+  the bug that put it there. Non-ASCII text is allowed and written as
+  UTF-8.
 - **A header name that isn't an RFC 9110 token**, or one the adapter owns:
   `Content-Type` (the route's `produces`, §5), `Content-Length` (the
   adapter writes the body), and `Set-Cookie` (through `cookies`, so a
   cookie can't skip §4's defaults).
+- **Two header names that differ only by case** (`"X-Id"` and `"x-id"`),
+  since HTTP reads them as one header.
+- **A status outside 200 to 599.** Go panics below 100 and above 999, and
+  sends the 1xx responses itself; none is a program's final answer.
+- **A body on a status that can't carry one** (204, 304). Go returns an
+  error that is easy to drop.
+- **A cookie name that isn't an RFC 9110 token.** A name such as
+  `"sid; Domain=evil.com"` would write attributes of its own.
+- **A cookie value outside RFC 6265's cookie-octets** (no space, comma,
+  semicolon, double quote, backslash, or control character). Go's
+  `http.SetCookie` drops such a cookie and logs it; fiig faults. A
+  base64url token always fits.
+- **A cookie `path` with a `;` or a control character, or a `domain` that
+  isn't a hostname.** Go drops the bad bytes of a path, and a bad domain
+  attribute, both quietly.
+- **A negative `maxAge`.** §4 gives 0 as delete, so a negative age means
+  nothing.
+- **A cookie browsers would ignore**: `sameSite: AnySite` with
+  `sentOverPlainHttp: true` (`SameSite=None` requires `Secure`); a
+  `__Secure-` name without `Secure`; a `__Host-` name without `Secure`,
+  with a `domain`, or with a `path` other than `/`. The browser drops it
+  without a word, and the bug surfaces later as a login that doesn't
+  stick.
+- **Two cookies in one response with the same name, path, and domain**,
+  since the browser keeps only one.
+
+These are program bugs, not client errors, so each is a 500 rather than a
+check that picks some other response.
 
 ### 7. Decoding text back to bytes
 
