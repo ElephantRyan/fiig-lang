@@ -1,8 +1,8 @@
 # ADR 0068: Random Operations, One Secure Source
 
 Status: Accepted (2026-11-03, one-decision-at-a-time review). §5's named
-arguments and §4's checker rules implemented 2026-11-04 (see
-Implementation notes); §3's encodings and §6's providers are not yet. §1, §3,
+arguments, §4's checker rules, and §3's encodings implemented 2026-11-04 (see
+Implementation notes); §6's providers are not yet. §1, §3,
 and §6 accepted as drafted; §2 revised to an inclusive `Random.int(min,
 max)`, with named arguments on every builtin (§5); §4 revised: `Clock`
 and `Random` are local effects, called directly from activities and
@@ -391,3 +391,13 @@ expiry checks) take a date anyway.
   nothing migrated. `invalid-programs/random_error.fiig` attests B10
   (`rollDie`) and P8 (`newSessionToken`).
 - Tests: `compiler/checker/random_test.go`.
+
+**2026-11-04, §3 encodings.**
+
+- `bytes` gains `toHex`, `toBase64`, and `toBase64Url` in the shared table;
+  the bodies are Go's `encoding/hex` and `encoding/base64` (`StdEncoding`
+  and `RawURLEncoding`). Pure, so a rule may call them.
+- Tests: `compiler/runtime/encoding_test.go` (RFC 4648 §10's vectors and
+  §3's `<<0xfb, 0xff>>` table), `TestBytesEncodingsCheck`. Dogfooded with
+  `fiig run`: a rule building a Basic auth header gives RFC 7617's own
+  example, `QWxhZGRpbjpvcGVuIHNlc2FtZQ==`.

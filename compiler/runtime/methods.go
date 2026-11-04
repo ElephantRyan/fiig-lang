@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"sort"
 	"strconv"
 	"strings"
@@ -142,6 +144,16 @@ var builtinMethods = map[string]map[string]builtinFunc{
 				return None{}, nil
 			}
 			return Str(b), nil
+		},
+		// ADR 0068 §3: lowercase hex; RFC 4648 §4 padded; §5 unpadded.
+		"toHex": func(recv Value, _ []Value) (Value, *Fault) {
+			return Str(hex.EncodeToString(recv.(Bytes).B)), nil
+		},
+		"toBase64": func(recv Value, _ []Value) (Value, *Fault) {
+			return Str(base64.StdEncoding.EncodeToString(recv.(Bytes).B)), nil
+		},
+		"toBase64Url": func(recv Value, _ []Value) (Value, *Fault) {
+			return Str(base64.RawURLEncoding.EncodeToString(recv.(Bytes).B)), nil
 		},
 	},
 	// ADR 0049 §2.6.

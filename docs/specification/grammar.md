@@ -583,7 +583,8 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
   `removePrefix`, `removeSuffix`, `trim`, `trimStart`, `trimEnd`,
   `lowercase`, `uppercase`, `equalsIgnoringCase`, `split`, `replaceAll`,
   `toIntOrNone`, `toFloatOrNone`), `bytes` (`length`,
-  `at`, `slice`, `utf8`; ADR 0058), and `List<T>` (`length`, `at`,
+  `at`, `slice`, `utf8`; ADR 0058; and ADR 0068's `toHex`, `toBase64`,
+  `toBase64Url`), and `List<T>` (`length`, `at`,
   `atOrNone`, `slice`, and ADR 0065's `first`, `firstOrNone`, `last`,
   `lastOrNone`, `contains`, `sorted`, `sortedDescending`, and `join` on a
   `List<string>`). Anything else is K1. A string's `length` and `slice`

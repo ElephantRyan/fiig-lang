@@ -130,3 +130,15 @@ func TestBinaryPatternNeedsBytes(t *testing.T) {
 		t.Fatalf("want A1 for a binary pattern over an int, got %v", got)
 	}
 }
+
+// ADR 0068 §3: the encodings are pure bytes methods, usable in a rule, and
+// take no argument.
+func TestBytesEncodingsCheck(t *testing.T) {
+	if diags := checkSrc(t, `rule r(b: bytes) -> string {
+    return "${b.toHex()} ${b.toBase64()} ${b.toBase64Url()}"
+}`); len(diags) != 0 {
+		t.Fatalf("diags = %v, want none", diags)
+	}
+	wantDiag(t, checkSrc(t, "rule r(b: bytes) -> string {\n    return b.toHex(2)\n}"), "", "bytes.toHex takes 0 argument(s), got 1")
+	wantDiag(t, checkSrc(t, "rule r(s: string) -> string {\n    return s.toHex()\n}"), "K1", `string has no method "toHex"`)
+}
