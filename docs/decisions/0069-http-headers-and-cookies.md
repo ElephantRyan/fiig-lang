@@ -1,9 +1,12 @@
-# ADR 0069: HTTP Headers and Cookies, Read and Set
+# ADR 0069: HTTP Headers, Cookies, and Content Types
 
-Status: Proposed (2026-11-04). To be reviewed one decision at a time.
+Status: Proposed (2026-11-04). Under one-decision-at-a-time review: §1
+and §2 accepted as drafted; §3 revised to a builtin `HttpResponse<B>`;
+§4 accepted as drafted; §5 (content types declared on the route, with
+`produces` and `consumes`) added in review; the rest is not yet reviewed.
 Date: 2026-11-04
 Related: ADR 0009 and ADR 0021 (route binding by name), ADR 0017 (response
-mapping), ADR 0026 (default response), ADR 0044 (a workflow is the adapter
+mapping), ADR 0026 (default response, which assumed JSON), ADR 0044 (a workflow is the adapter
 boundary), ADR 0051 (no warnings), ADR 0062 (play nice with foreign data),
 ADR 0065 (`Map`), ADR 0068 (session tokens, and decoding deferred to here).
 
@@ -64,12 +67,14 @@ cookie` and the name as it appears on the wire:
 ```
 adapter http accountApi {
     GET "/me" -> currentUser(session: string from cookie "sid")
+        produces "application/json"
 
     GET "/orders/{id}" -> readOrder(
         id: string,
         authorization: string from header "Authorization",
         requestId: string | None from header "X-Request-Id",
     )
+        produces "application/json"
 }
 ```
 
@@ -101,25 +106,29 @@ as an argument (ADR 0044).
 - **Header names match case-insensitively** (RFC 9110 §5.1); cookie names
   match exactly (RFC 6265).
 
-### 3. A response sets headers and cookies through two more fields
+### 3. A response is a builtin `HttpResponse<B>`
 
-A response-mapping arm's expression form (ADR 0017) already produces a
-record with a `status` and an optional `body`, read by field name. It gains
-two optional fields:
-
-- **`headers: Map<string, string>`**: each entry becomes a response
-  header.
-- **`cookies: List<Cookie>`**: each becomes a `Set-Cookie` header.
+The adapter turns a workflow's result into a response, and that mapping
+stays the adapter's job (ADR 0017). What changes is the envelope around
+the body. Until now a response-mapping arm's expression produced a model
+the program declared, read by its `status` and `body` field names, so a
+route that sets a cookie would need its own model (`LoginResponse`,
+`LogoutResponse`, ...) repeating the same envelope fields. Instead the
+envelope is one builtin generic, beside `Result<T, E>`, `List<T>`, and
+`Map<K, V>`:
 
 ```
-model LoginResponse {
+HttpResponse<B> {
     status: int
-    body: User
-    cookies: List<Cookie>
+    body: B | None                       // omitted: no body
+    headers: Map<string, string> | None  // omitted: none
+    cookies: List<Cookie> | None         // omitted: none
 }
+```
 
-conversion loggedIn(session: Session) -> LoginResponse {
-    return LoginResponse(
+```
+conversion loggedIn(session: Session) -> HttpResponse<User> {
+    return HttpResponse(
         status: 200,
         body: session.user,
         cookies: [Cookie(name: "sid", value: session.token, maxAge: 86400)],
@@ -127,23 +136,39 @@ conversion loggedIn(session: Session) -> LoginResponse {
 }
 
 adapter http accountApi {
-    POST "/login" -> logIn(credentials: Credentials) {
+    POST "/login" -> logIn(credentials: Credentials)
+        consumes "application/json"
+        produces "application/json"
+    {
         Ok(session) -> loggedIn(session)
         Err(error) -> 401
     }
 }
 ```
 
-The response stays an ordinary model the program declares, as ADR 0017
-left it, rather than a builtin `HttpResponse`: a body's type differs per
-route, and fiig has no generic models a program can declare. The checker
-now types the four field names wherever a response arm's expression
-produces a record: `status` must be an `int`, `headers` a
-`Map<string, string>`, `cookies` a `List<Cookie>`, and any other field is
-an error, since the adapter would ignore it.
+- **`B` is the body's type**, inferred from `body` as `Ok(x)` infers a
+  `Result`'s, or taken from the expected type (a conversion's declared
+  return type). A body type of its own (`PublicUser` rather than `User`)
+  is the API's choice, the same under any envelope.
+- **Every field but `status` may be left out.** A response with no body
+  and no expected type is `HttpResponse<None>`; one conversion can return
+  `HttpResponse<CustomerError>` with a body on some arms and none on
+  others, as `customerErrorToHttpResponse` does.
+- **A response arm's expression must produce an `HttpResponse`**, checked
+  by the checker as a type, where until now the adapter read any record's
+  fields by name at run time and ignored the rest.
+- **The `200 customer` shorthand stays** for a response with no headers or
+  cookies, and means `HttpResponse(status: 200, body: customer)`.
+- **An `HttpResponse` has no content type.** The route declares it (§5),
+  so a conversion that builds a response, such as
+  `customerErrorToHttpResponse`, says what to send and not how to encode
+  it, and serves a JSON route and an XML route alike.
+- **`HttpResponse` becomes a prelude name**, so a program may no longer
+  declare its own; `customer-service`'s model of that name, the one
+  attested, migrates.
 
-The `200 customer` shorthand stays for the common case with no headers or
-cookies.
+This settles what ADR 0017's Consequences left open ("whether it's a
+genuine built-in or just an ordinary model").
 
 ### 4. `Cookie` is a prelude model whose defaults are the secure ones
 
@@ -180,9 +205,70 @@ enum SameSite { Strict, Lax, AnySite }
   its secrecy. A cookie that carries data and must not be tampered with
   needs an HMAC, and fiig has no hash functions yet.
 
-### 5. What the adapter refuses to write
+### 5. Content types are declared on the route: `produces` and `consumes`
 
-A response the program builds can be wrong in ways HTTP can't carry. Each
+Until now every response was JSON and every request body was read as JSON,
+because the adapter had only a JSON encoder and ADR 0026's default
+response assumed it. Nothing decided that a fiig service speaks only JSON;
+a SOAP endpoint, a CSV export, or an HTML page is an ordinary HTTP route.
+So a route says what it sends and what it takes, as OpenAPI declares
+`content` per operation and Spring writes `produces` and `consumes`:
+
+```
+adapter http customerApi {
+    GET "/customers/{id}" -> readCustomer(id: string)
+        produces "application/json"
+    {
+        Ok(customer) -> 200 customer
+        Err(error) -> customerErrorToHttpResponse(error)
+    }
+
+    POST "/customers" -> createCustomer(input: NewCustomer)
+        consumes "application/json"
+        produces "application/json"
+
+    GET "/customers/export" -> exportCustomers()
+        produces "text/csv"
+}
+```
+
+- **`produces` is required on every HTTP route.** The adapter encodes
+  every response the route gives, from any arm or from ADR 0026's default
+  mapping, to that type, and writes the `Content-Type` header. A response
+  with no body (a 204, or `Err(error) -> 401`) has no `Content-Type`.
+- **`consumes` is required on a route that binds a body** (ADR 0021 §3),
+  and an error on one that doesn't. A request whose `Content-Type` is a
+  different type is a 415 (Unsupported Media Type) before the workflow
+  runs. Parameters such as `charset` aren't compared.
+- **The type decides the encoding, and the checker checks the body
+  against it**, since the route states the type where the checker can see
+  it:
+
+| Declared type | Body type (`B`, or the bound argument) | On the wire |
+|---|---|---|
+| `application/json`, or any `+json` type (`application/problem+json`) | any type JSON can carry: a model, enum, `List`, `Map`, or primitive | JSON, as ADR 0026 and ADR 0062 encode and decode it |
+| any other type (`text/xml`, `application/soap+xml`, `text/csv`, `text/html`, `application/pdf`) | `string` or `bytes` | the text as UTF-8 (a `text/*` type gets `; charset=utf-8`), or the bytes as they are |
+
+- **A non-JSON `consumes` binds the body raw**, as a `string` or `bytes`
+  argument. That narrows A7 (ADR 0021 §4): a body read as JSON must still
+  bind a model, since JSON into a primitive skips decoding, but a body
+  declared as XML or CSV is text for a rule to parse, and there is nothing
+  for the adapter to decode it into. Until fiig has an XML library, that
+  parse is the program's.
+- **One type per route.** OpenAPI allows a type per status (errors as
+  `application/problem+json`); a route that needs it can wait for a real
+  case (open question 4). A route doesn't look at the request's `Accept`
+  header: it produces what it declares.
+- **The type is a constant string the checker validates** as a media type
+  (`type/subtype`, RFC 9110 §8.3.1).
+- **The adapter's own responses** (a 400 for a missing header, a 415) are
+  `application/json`, as today, since the program never shaped them.
+- CLI routes have neither clause.
+
+### 6. What the adapter refuses to write
+
+An `HttpResponse` the program builds can be wrong in ways HTTP can't
+carry. Each
 is a fault (a 500, with the reason in the trace), and the checker reports
 the ones it can see in constants:
 
@@ -195,11 +281,11 @@ the ones it can see in constants:
   semicolon, double quote, or backslash). Go's `http.SetCookie` drops such
   a cookie and logs it; fiig faults. A base64url token always fits.
 - **A header name that isn't an RFC 9110 token**, or one the adapter owns:
-  `Content-Type` and `Content-Length` (the adapter writes JSON), and
-  `Set-Cookie` (through `cookies`, so a cookie can't skip §4's
-  defaults).
+  `Content-Type` (the route's `produces`, §5), `Content-Length` (the
+  adapter writes the body), and `Set-Cookie` (through `cookies`, so a
+  cookie can't skip §4's defaults).
 
-### 6. Decoding text back to bytes
+### 7. Decoding text back to bytes
 
 ADR 0068 §3 left decoding for here, because Basic auth is the first thing
 that needs it. `string` gains three methods, the inverses of `bytes`'s:
@@ -225,16 +311,18 @@ rule basicCredentials(header: string) -> Credentials | None {
 }
 ```
 
-### 7. Scope
+### 8. Scope
 
-- **HTTP routes only.** `from header` or `from cookie` on a CLI route is an
-  error.
+- **HTTP routes only.** `from header`, `from cookie`, `produces`, and
+  `consumes` on a CLI route are errors.
 - **No middleware.** Each route names its own credentials, and the
   workflow calls an activity that checks them. That repeats one argument
   per route, and in return a reader sees from each route what it
   authenticates with, as ADR 0017 chose composition over a `using` clause.
 - **OpenAPI** (`compiler/adapter/openapi.go`) lists the new arguments with
-  `in: header` and `in: cookie`, which it supports natively.
+  `in: header` and `in: cookie`, and each operation's request and
+  response `content` under the declared types, all of which it supports
+  natively.
 - Not in this ADR: reading all headers as a map, CORS, `Vary`, and response
   headers listed in OpenAPI.
 
@@ -250,9 +338,12 @@ and the route string would mix the URL with things that aren't in it.
 depend on HTTP, which ADR 0044 keeps out of it, and the checker couldn't
 tell which headers a route needs.
 
-**C. A builtin `HttpResponse` with fixed fields.** One shape to learn.
-Rejected for now: its `body` would need a type parameter fiig only gives
-its builtin generics; it can be added if user-declared generics arrive.
+**C. Response models the program declares, read by field name.** The
+first draft's §3, extending ADR 0017's convention with `headers` and
+`cookies` fields: no new builtin. Rejected in review: every response
+shape with a cookie or a header needs a model of its own repeating the
+envelope fields, and the shape is a naming convention rather than a type.
+The body's type is a separate choice that neither option removes.
 
 **D. Cookie attributes named after the RFC** (`httpOnly: bool`, `secure:
 bool`), defaulting to true. Familiar. Rejected in favour of §4's names:
@@ -263,22 +354,46 @@ says what it costs.
 token`). Shorter. Rejected: it would be the adapter's third response
 syntax, and the attributes in §4 don't fit on one line.
 
+**F. A content type on each `HttpResponse`.** Considered in review as the
+first way to make the type explicit: a field the response carries, so
+each arm could send its own type. Rejected: the format would live in
+whatever builds the response, so a shared conversion such as
+`customerErrorToHttpResponse` would fix its routes' wire format, and as a
+run-time string the checker couldn't match it against the body's type.
+
+**G. JSON unless declared otherwise.** Shorter for the common case.
+Rejected: what a route sends should be stated, as everything else about it
+is, and an implicit default is how "always JSON" came to look like a rule.
+
 ## Consequences
 
 - Parser: a route argument's type may be any type (today the parser reads
   it as an expression, so `string | None` doesn't parse), followed by an
-  optional `from header|cookie string-literal`. `header`, `cookie`, and
-  `from` are contextual there only.
+  optional `from header|cookie string-literal`; after the call, optional
+  `consumes string-literal` and `produces string-literal` clauses.
+  `header`, `cookie`, `from`, `consumes`, and `produces` are contextual
+  there only.
 - Checker: §1's binding joins `checkRouteBinding` (a name given twice,
-  `from` on a CLI route, a non-primitive type); §3's typing of the
-  response fields; §5's constant checks.
+  `from` on a CLI route, a non-primitive type); a response arm's
+  expression must be an `HttpResponse` (§3); §5's required clauses,
+  media-type validity, and body types against the declared type, with A7
+  narrowed for non-JSON bodies; §6's constant checks.
 - Runtime and adapter: header and cookie reading in `http.go`; writing
-  headers and `Set-Cookie` with §4's defaults; §5's faults.
-- `compiler/types`: the prelude `Cookie` model and `SameSite` enum; the
-  three `string` decoders.
+  headers and `Set-Cookie` with §4's defaults; encoding by the declared
+  type and the 415 (§5); §6's faults.
+- `compiler/types`: the builtin generic `HttpResponse<B>` (§3), the
+  prelude `Cookie` model and `SameSite` enum, and the three `string`
+  decoders.
+- Corpus migration: every HTTP route (nine, in eight adapters) gains
+  `produces "application/json"`, and each body-binding route `consumes
+  "application/json"`. `customer-service/models/http_response.fiig` is
+  deleted, and `customerErrorToHttpResponse` returns
+  `HttpResponse<CustomerError>`. ADR 0017 gets a note that §3 settles its
+  open question.
 - OpenAPI output; grammar, tour, bug classes.
 - Corpus: a login that sets a session cookie, a route that reads it, a
-  logout that clears it, a bearer-token route, and a Basic auth rule.
+  logout that clears it, a bearer-token route, a Basic auth rule, and a
+  route producing a non-JSON type (a CSV export).
 
 ## Open questions
 
@@ -288,3 +403,8 @@ syntax, and the attributes in §4 don't fit on one line.
    parameter is possible later.
 2. **Signed cookies**, once fiig has HMAC.
 3. **Reading every header**, for a proxy or a request log.
+4. **A content type per status**, such as `application/problem+json` for
+   errors, and **content negotiation** on `Accept`, if a real route needs
+   either.
+5. **An XML library**, so a SOAP or XML route encodes and parses models
+   rather than text; the HTTP client (alpha item 8) may need it first.
