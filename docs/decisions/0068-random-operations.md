@@ -1,10 +1,14 @@
 # ADR 0068: Random Operations, One Secure Source
 
-Status: Proposed (2026-11-03). Drafted for one-decision-at-a-time review;
-nothing here is decided.
+Status: Accepted (2026-11-03, one-decision-at-a-time review). §1, §3,
+and §6 accepted as drafted; §2 revised to an inclusive `Random.int(min,
+max)`, with named arguments on every builtin (§5); §4 revised: `Clock`
+and `Random` are local effects, called directly from activities and
+gateways, never from rules (amends ADR 0042). Not yet implemented.
 Date: 2026-11-03
-Related: ADR 0010 (one capability per gateway), ADR 0042 (`Random` is in
-the closed primitive set), ADR 0048 (float), ADR 0051 (no warnings), ADR
+Related: ADR 0010 (one capability per gateway), ADR 0029 (rule
+isolation), ADR 0042 (`Random` is in the closed primitive set; amended by
+§4), ADR 0048 (float), ADR 0051 (no warnings), ADR
 0055 (no newtypes), ADR 0058 (`bytes`), ADR 0060 (`Socket`: the pattern of
 typed primitive operations and B10), ADR 0067 (`slice(from, to)` is
 half-open).
@@ -47,10 +51,15 @@ its own CWE (338).
 | Swift | `SystemRandomNumberGenerator` | the same | **yes** |
 | Ruby | `rand` | `SecureRandom` | no |
 
-**Randomness is an effect.** A rule that calls a random function gives a
-different answer for the same input, which ADR 0029's isolation exists to
-rule out. ADR 0042 already settled this by making `Random` a capability:
-only a gateway touches it (B10).
+**Randomness is an effect, but not a trip outside.** A rule that calls a
+random function gives a different answer for the same input, which ADR
+0029's isolation exists to rule out. But a gateway, in the
+ports-and-adapters sense fiig took it from, is where the program reaches
+another system: a database, a payment service, a file. Drawing a number
+from the machine's own generator, or reading its own clock, isn't that.
+ADR 0042 put `Random` and `Clock` in the primitive set beside `Socket`
+and `FileSystem`, so B10 sends all four through a gateway; §4 separates
+them.
 
 ## Decision
 
@@ -71,29 +80,36 @@ the numerics work, not to the capability; see open question 1.
 ### 2. Four operations
 
 ```
-Random.bytes(count: int) -> bytes      // count unpredictable bytes
-Random.int(from: int, to: int) -> int  // uniform, from <= n < to
-Random.float() -> float                // uniform, 0.0 <= f < 1.0
-Random.uuid() -> string                // version 4, "8-4-4-4-12" lowercase hex
+Random.bytes(count: int) -> bytes     // count unpredictable bytes
+Random.int(min: int, max: int) -> int // uniform, min <= n <= max
+Random.float() -> float               // uniform, 0.0 <= f < 1.0
+Random.uuid() -> string               // version 4, "8-4-4-4-12" lowercase hex
 ```
 
-- **`int` is half-open**, as `slice(from, to)` is, so `Random.int(from: 0,
-  to: xs.length())` is always a valid index. A die is `Random.int(from: 1,
-  to: 7)`. Uniform with no modulo bias (rejection sampling, as Go's
-  `crypto/rand.Int`). `to <= from` faults: an empty range has no value to
-  give. Go's `rand.IntN(n)` and Kotlin's `nextInt(from, until)` are
-  half-open; Python has both, a closed `randint(a, b)` and a half-open
-  `randrange(a, b)`.
+- **`int` includes both ends, and says so with `min` and `max`.** A die is
+  `Random.int(min: 1, max: 6)`. A closed range is how Python's
+  `randint(1, 6)`, Kotlin's `(1..6).random()`, Rust's `gen_range(1..=6)`,
+  Swift's `random(in: 1...6)`, and Ruby's `rand(1..6)` read; Go's
+  `rand.IntN(n)` and Kotlin's `nextInt(from, until)` are half-open.
+  `slice(from, to)` stays half-open, as slicing is in nearly every
+  language, so the two use different names and no name has two meanings:
+  `min` and `max` read as inclusive in plain English (C#'s
+  `Next(minValue, maxValue)`, whose `maxValue` is excluded, is the
+  well-known trap this avoids). Picking an element is
+  `Random.int(min: 0, max: xs.length() - 1)`; on an empty list `max` is
+  -1, and `max < min` faults: an empty range has no value to give.
+  `min == max` gives that value. Uniform with no modulo bias (rejection
+  sampling, as Go's `crypto/rand.Int`).
 - **`float`** has 53 random bits, so every value is a multiple of 2⁻⁵³ and
-  1.0 never appears.
+  1.0 never appears. It stays below 1.0, as in every language here, so
+  `Random.float() < 0.3` is exactly a 30% chance.
 - **`bytes`** faults below 0 or above 65,536, the same ceiling as
   `Socket.read` (ADR 0060 §3): a program asking for more is a bug, not a
   token.
 - **`uuid`** is version 4 (122 random bits, RFC 9562), as text, since fiig
   has no newtypes (ADR 0055) and every boundary (JSON, SQL, URLs) carries a
   UUID as text. Version 7, which starts with a timestamp so that new IDs
-  sort together in a database index, is open question 2: it needs the
-  clock as well, and ADR 0010 gives a gateway one capability.
+  sort together in a database index, is open question 2.
 
 **None of them returns a `Result`.** The operating system's generator
 doesn't fail in any way a program could handle; Go 1.24 made
@@ -103,9 +119,7 @@ it ever did fail, that would be a fault.
 ### 3. Tokens are bytes, encoded: `bytes.toHex()`, `toBase64()`, `toBase64Url()`
 
 ```
-gateway newSessionToken() -> string
-    requires Random
-{
+activity newSessionToken() -> string {
     return Random.bytes(32).toBase64Url()   // 43 characters, 256 bits
 }
 ```
@@ -128,44 +142,116 @@ it without. Decoding (`string` to `bytes`) waits for item 4, where Basic
 auth is the first thing that needs it.
 
 There is no `Random.token()`: it would join two jobs that each stand on
-their own, and the size and encoding are what a reader of the gateway
+their own, and the size and encoding are what a reader of the call
 should see.
 
-### 4. Only a gateway draws; rules take randomness as an argument
+### 4. `Clock` and `Random` are local effects: activities and gateways use them, rules take their values as arguments
 
-`Random` is a primitive capability, so B10 already applies: a rule,
-conversion, activity, or workflow that calls `Random.int` directly is B10,
-and a gateway that requires something else and calls it is P7. The B10
-message names `Random` the way it names `Socket`.
+The four primitives (ADR 0042) split in two:
 
-A rule that needs a random choice takes the drawn value as a parameter:
+| Kind | Primitives | What a call does | Who may call it |
+|---|---|---|---|
+| Leaves the program | `Socket`, `FileSystem` | reaches another system | a gateway that requires it (B10, P7) |
+| Local effect | `Clock`, `Random` | reads the machine the program runs on | an activity or a gateway, directly |
+
+A gateway is where the domain reaches another system, the port in ports
+and adapters. Reading the program's own clock or drawing from its own
+generator isn't a trip anywhere, so it doesn't take a gateway. It is still
+an effect: the same call gives a different answer each time.
+
+- **Rules, conversions, and formulas may not call `Clock` or `Random`**
+  (B10, as for every primitive). They stay deterministic (ADR 0029): the
+  same arguments give the same answer, so a test passes values and
+  expects a result, with no fake clock or generator. A rule that needs
+  the time or a draw takes it as a parameter.
+- **Activities and gateways call them directly**, with no `requires` and
+  no gateway in between. They are the program's shell, which coordinates
+  effects.
+- **A local effect doesn't count as a gateway's capability.** ADR 0010's
+  one capability is the one other system a gateway reaches. A gateway
+  that requires `Database` may also stamp the row with `Clock.now()` and
+  `Random.uuid()`, and P7 doesn't apply to them.
+- **Workflows may not call them directly** (B10). A workflow calls an
+  activity that does. A workflow coordinates long-running steps, and if
+  workflows are ever replayed after a crash, a clock read in workflow code
+  would give a different answer on replay. Temporal forbids `time.Now()`
+  and random numbers in workflow code for that reason.
+- **`requires Clock` or `requires Random` is an error** (P8): there is
+  nothing to require. ADR 0051 gives no warnings, and a clause that does
+  nothing would mislead a reader into thinking the gateway reaches
+  another system.
 
 ```
+rule isExpired(token: Session, now: Instant) -> bool {
+    return token.expiresAt < now
+}
+
 rule pickServer(servers: List<string>, draw: int) -> string {
     return servers.at(draw)
 }
+
+activity routeRequest(servers: List<string>) -> string {
+    return pickServer(servers, Random.int(min: 0, max: servers.length() - 1))
+}
+
+gateway saveRating(input: NewRating) -> Result<Rating, RatingError>
+    requires Database
+{
+    id = Random.uuid()
+    createdAt = Clock.now()
+    ...
+}
 ```
 
-and an activity draws it through a gateway and passes it in. The rule stays
-deterministic, so its test passes a value instead of faking a generator.
+Most time rules don't need the clock at all: `addBusinessDays(start,
+days)` takes a date, and only a caller that means "from today" reads
+`now`, once, and passes it in. Taking the time as an argument also makes
+"is it overdue on February 29?" a one-line test.
 
-### 5. Operations are typed in the checker
+This amends ADR 0042: `Clock` and `Random` stay in the closed primitive
+set, since neither can be written in fiig and both need a provider (§6),
+but they are no longer capabilities a declaration requires. The registry
+still sees every call, so `fiig catalog` can list the declarations that
+read the clock or draw.
+
+### 5. Operations are typed in the checker, with named parameters
 
 `Random`'s four signatures join a compiler-known table beside `Socket`'s
 (ADR 0060 §3), so `Random.int("a", 2)` is A1 and `Random.choose(xs)` is K1
 with the four names listed. `Clock` stays the one untyped primitive.
 
+**Every builtin takes named arguments.** Until now a builtin method or
+primitive operation took positional arguments only (`checkMethodArgs`
+rejected a name), so `Random.int(min: 1, max: 6)` couldn't be written. The
+builtin tables (ADR 0049 §2.6 methods, ADR 0060's `Socket`, and these)
+gain parameter names, and a call to any builtin may name its arguments as
+a call to a declaration does (ADR 0055: preferred, not required):
+
+```
+Random.int(min: 1, max: 6)        // named
+Random.int(max: 6, min: 1)        // the names place the arguments
+Random.int(1, 6)                  // positional, still legal
+Random.int(low: 1, high: 6)       // error: Random.int's parameters are min and max
+s.replaceAll(old: "-", new: "/")
+Socket.connect(host: h, port: 5432)
+```
+
+The rules are a declaration call's: each name must be a parameter, none
+twice, and positional arguments come before named ones. Names matter most
+where two arguments share a type and could be swapped: `min` and `max`,
+`slice`'s `from` and `to`, `replaceAll`'s `old` and `new`.
+
 ### 6. Providers: secure by default, seeded for tests
 
 - **`RandomProvider`** in `compiler/runtime`, over `crypto/rand`. It needs
   no configuration, so `fiig run` and `fiig serve` register it whenever a
-  program requires `Random`, without a capabilities-file entry. A
+  program uses `Random`, without a capabilities-file entry. A
   capabilities file may still name a provider for it, which replaces the
   default.
 - **A seeded provider**, `random-seeded` in the capabilities file
   (`{"Random": {"provider": "random-seeded", "seed": 42}}`), for tests and
-  `fiig run` demos: the same seed gives the same draws, so a test of a
-  gateway that makes tokens can assert the exact token. It is
+  `fiig run` demos: the same seed gives the same draws, so a test of an
+  activity that makes tokens can assert the exact token. It is
   deterministic within one toolchain version, not across versions (Go
   makes the same promise for `math/rand/v2`'s seeded sources). `fiig
   serve` refuses it, so a seeded generator can't reach production by a
@@ -192,19 +278,44 @@ unpredictable as the seed, so the seed would itself have to come from
 **D. A `Uuid` type.** Type-checks that an ID is a UUID. Rejected by ADR
 0055's reasoning: no newtypes; validation belongs in a rule.
 
-**E. A closed range for `int` (Python's `randint`).** Reads naturally for
-dice; half-open matches `slice` and indexes, and off-by-one in the closed
-form (`randint(0, len(xs))`) is a classic IndexError.
+**E. A half-open `Random.int(from, to)`, matching `slice`.** The first
+draft's choice: `Random.int(from: 0, to: xs.length())` is always a valid
+index. Rejected in review: a die written `Random.int(from: 1, to: 7)`
+misleads anyone who doesn't know the convention, and the languages that
+avoid the confusion make the end visible (Kotlin's `until`, Rust's `..=`,
+Swift's `...`). `min` and `max` make it visible by name. The closed form's
+own off-by-one (`max: xs.length()`) faults on the last draw's index rather
+than passing silently, since `at` faults out of range.
+
+**F.`Random` and `Clock` as capabilities a gateway requires (ADR 0042
+as written).** The first draft's §4. Consistent across all four primitives,
+but it made a gateway out of every UUID and timestamp, and since ADR 0010
+gives a gateway one capability, inserting a row with a fresh ID took two
+gateways and an activity. Rejected in review: a gateway marks leaving the
+domain, and these don't.
+
+**G. Rules may read `Clock` and `Random` too.** No ceremony anywhere.
+Rejected: rules would stop being repeatable, which is what makes them
+testable by value, and the corpus's time rules (`addBusinessDays`,
+expiry checks) take a date anyway.
 
 ## Consequences
 
-- `compiler/checker`: a `randomOps` table beside `socketOps`; B10's
-  message covers `Random`.
+- `compiler/checker`: a `randomOps` table beside `socketOps`. B10 lets
+  activities and gateways call `Clock` and `Random`, and its message for
+  a rule says to pass the value in; P7 skips local effects; new P8 for
+  `requires Clock` or `requires Random`. The corpus has no `Clock` call
+  or `requires Clock` to migrate. Every builtin table entry gains parameter
+  names, and `checkMethodArgs` places named arguments by them;
+  `compiler/runtime` reorders named arguments the same way before a
+  builtin body runs.
 - `compiler/types`: `bytes` gains `toHex`, `toBase64`, `toBase64Url`.
 - `compiler/runtime`: `RandomProvider` (crypto/rand), the seeded provider
   (`math/rand/v2`'s ChaCha8 with a fixed seed), the faults in §2.
 - `tooling/runprogram`, `servecmd`: the default registration and the
-  `random-seeded` factory; `serve` refuses the seeded one.
+  `random-seeded` factory; `serve` refuses the seeded one. Registration
+  follows use, not `requires`.
+- ADR 0042: a note that `Clock` and `Random` are local effects (§4).
 - `docs/known-limitations.md`, grammar, tour, bug-classes.
 - Corpus: a session-token gateway and a retry with jitter, or a shuffle.
 
@@ -219,10 +330,10 @@ form (`randint(0, len(xs))`) is a classic IndexError.
    SQLite. It needs both clock and randomness: either the `Random`
    provider reads the clock itself (a hidden effect, and it breaks the
    seeded provider's repeatability unless that also fixes the time) or a
-   rule assembles it from `Clock.now()` and `Random.bytes(10)`, which
-   needs bit operations fiig lacks.
+   rule assembles it from a timestamp and `Random.bytes(10)` passed in,
+   which needs bit operations fiig lacks.
 3. **`shuffle` and `choose`.** Fisher-Yates is a short loop over
-   `Random.int` in a gateway, and the corpus may show it's enough. A
+   `Random.int` in an activity, and the corpus may show it's enough. A
    generic capability operation (`Random.shuffle(xs: List<T>)`) would be
    the first generic one.
 4. **Decoding** hex and base64 back to `bytes`: with item 4 (Basic auth).
