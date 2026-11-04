@@ -18,8 +18,8 @@ func bodyCallNames(body *syntax.Block) []string { return syntax.BodyCallNames(bo
 func adapterCallNames(d *syntax.AdapterDecl) []string {
 	names := map[string]bool{}
 	for _, route := range d.Routes {
-		if ident, ok := route.Target.Callee.(*syntax.Ident); ok && !syntax.PreludeCallForms[ident.Name] {
-			names[ident.Name] = true
+		if !syntax.PreludeCallForms[route.Workflow.Name] {
+			names[route.Workflow.Name] = true
 		}
 		for _, arm := range route.Mapping {
 			switch v := arm.Value.(type) {

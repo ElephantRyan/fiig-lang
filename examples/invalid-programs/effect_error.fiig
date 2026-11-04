@@ -67,4 +67,5 @@ activity pongCustomer(id: string) -> Result<Customer, CustomerError> {
 // directly.
 adapter http customerHttpApiBroken {
     GET "/customers/{id}" -> getCustomer(id: string) // rejected: getCustomer is a gateway, not a workflow
+        produces "application/json"
 }

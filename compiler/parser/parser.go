@@ -691,16 +691,99 @@ func (p *Parser) parseRoute(kind syntax.AdapterKind) *syntax.Route {
 	}
 	path := p.parsePlainString()
 	p.expect(lexer.Arrow)
-	targetExpr := p.parseExpression()
-	call, ok := targetExpr.(*syntax.CallExpr)
-	if !ok {
-		p.errorf(start, "adapter route target must be a call expression")
+	route := &syntax.Route{Verb: verb, Path: path}
+	nameTok := p.expectName()
+	route.Workflow = &syntax.Ident{Span: syntax.Span{Start: nameTok.Start, End: nameTok.End}, Name: nameTok.Text}
+	route.Args = p.parseRouteArgs()
+	// `consumes` and `produces` are contextual (ADR 0069 §5), in either
+	// order; the checker reports a repeated or misplaced clause.
+	for p.atContextual("consumes") || p.atContextual("produces") {
+		word := p.advance()
+		lit := p.parseStringLit()
+		mt := &syntax.MediaType{Span: syntax.Span{Start: word.Start, End: lit.End}, Text: plainText(lit)}
+		if hasInterp(lit) {
+			p.errorf(lit.Start, "interpolation is not allowed in a media type")
+		}
+		if word.Text == "consumes" {
+			if route.Consumes != nil {
+				p.errorf(word.Start, "route has two consumes clauses")
+			}
+			route.Consumes = mt
+		} else {
+			if route.Produces != nil {
+				p.errorf(word.Start, "route has two produces clauses")
+			}
+			route.Produces = mt
+		}
 	}
-	var mapping []syntax.ResponseArm
 	if p.at(lexer.LBrace) {
-		mapping = p.parseResponseMapping()
+		route.Mapping = p.parseResponseMapping()
 	}
-	return &syntax.Route{Span: syntax.Span{Start: start, End: p.cur().Start}, Verb: verb, Path: path, Target: call, Mapping: mapping}
+	route.Span = syntax.Span{Start: start, End: p.cur().Start}
+	return route
+}
+
+// parseRouteArgs parses a route's argument list: `name: Type`, optionally
+// followed by `from header "Name"` or `from cookie "name"` (ADR 0069 §1).
+// `from`, `header`, and `cookie` are contextual here only.
+func (p *Parser) parseRouteArgs() []syntax.RouteArg {
+	p.expect(lexer.LParen)
+	var args []syntax.RouteArg
+	for !p.at(lexer.RParen) && !p.at(lexer.EOF) {
+		start := p.cur().Start
+		name := p.expectName()
+		p.expect(lexer.Colon)
+		arg := syntax.RouteArg{Name: name.Text, Type: p.parseType()}
+		if p.atContextual("from") {
+			p.advance()
+			switch {
+			case p.atContextual("header"), p.atContextual("cookie"):
+				arg.Source = p.advance().Text
+			default:
+				p.errorf(p.cur().Start, "expected 'header' or 'cookie' after 'from', got %s", p.cur().Kind)
+			}
+			lit := p.parseStringLit()
+			arg.SourceName = plainText(lit)
+			if hasInterp(lit) {
+				p.errorf(lit.Start, "interpolation is not allowed in a %s name", arg.Source)
+			}
+		}
+		arg.Span = syntax.Span{Start: start, End: p.cur().Start}
+		args = append(args, arg)
+		if !p.at(lexer.Comma) {
+			break
+		}
+		p.advance()
+	}
+	p.expect(lexer.RParen)
+	return args
+}
+
+// atContextual reports whether the current token is the identifier word,
+// a keyword only where the caller expects it.
+func (p *Parser) atContextual(word string) bool {
+	return p.at(lexer.Ident) && p.cur().Text == word
+}
+
+// plainText is a string literal's text parts, ignoring interpolations.
+func plainText(lit *syntax.StringLit) string {
+	s := ""
+	for _, part := range lit.Parts {
+		if part.Interp == nil {
+			s += part.Text
+		}
+	}
+	return s
+}
+
+// hasInterp reports whether a string literal interpolates.
+func hasInterp(lit *syntax.StringLit) bool {
+	for _, part := range lit.Parts {
+		if part.Interp != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // parsePlainString parses a string literal that must contain no
