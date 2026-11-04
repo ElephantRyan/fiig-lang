@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"hash/maphash"
 	"math/rand"
 	"testing"
 )
@@ -76,6 +77,34 @@ func TestMapMatchesReference(t *testing.T) {
 	for i := 0; i < len(maps); i += 97 {
 		if maps[i].String() != refs[i].String() {
 			t.Fatalf("version %d changed: %s, want %s", i, maps[i], refs[i])
+		}
+	}
+}
+
+// TestMapAcrossSeeds runs remove and re-add under many hash seeds. A
+// lookup once returned the bucket of another key sharing the hash's top
+// bits, so a new key joined that bucket and a removed key survived in it
+// (1 run in 16 for two keys); one process has one seed, so only a loop over
+// seeds sees it.
+func TestMapAcrossSeeds(t *testing.T) {
+	saved := hashSeed
+	defer func() { hashSeed = saved }()
+	for i := 0; i < 500; i++ {
+		hashSeed = maphash.MakeSeed()
+		m := Map{}
+		for j := 0; j < 20; j++ {
+			m = m.Put(Int(j), Int(j))
+		}
+		for j := 0; j < 20; j += 2 {
+			m = m.Remove(Int(j))
+		}
+		for j := 0; j < 20; j++ {
+			if _, ok := m.Get(Int(j)); ok != (j%2 == 1) {
+				t.Fatalf("seed %d: key %d present = %v after removing the even keys", i, j, ok)
+			}
+		}
+		if got := m.Put(Int(0), Int(0)).String(); got != "[1: 1, 3: 3, 5: 5, 7: 7, 9: 9, 11: 11, 13: 13, 15: 15, 17: 17, 19: 19, 0: 0]" {
+			t.Fatalf("seed %d: a removed key re-added goes last: %s", i, got)
 		}
 	}
 }

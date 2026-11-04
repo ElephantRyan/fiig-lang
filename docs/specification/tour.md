@@ -393,6 +393,16 @@ limits = limits.put("medium", 50)           // a new map; assign it
 for size, limit in limits {                 // two names; _ discards one
     total = total + limit
 }
+
+// Strings (ADR 0067): every count is named.
+"Zoë 👍🏽".length()                  // 5, what a reader sees
+"Zoë 👍🏽".codePointCount()          // 6, what a VARCHAR column counts
+"Zoë 👍🏽".utf8().length()           // 13 bytes
+email = input.email.trim().lowercase()
+token = header.removePrefix("Bearer ")
+tags = "a,b,,c".split(",")          // ["a", "b", "", "c"]
+line = tags.join(", ")
+page = query.toIntOrNone()          // int | None
 ```
 
 ## 7. Concurrency, retry, transactions

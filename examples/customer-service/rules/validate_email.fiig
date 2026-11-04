@@ -2,11 +2,18 @@ use customer.service.text
 
 // A small validator extracted from validateNewCustomer, which composes it
 // (an activity, ADR 0030). The shape check is a shared formula; the reason
-// for rejecting is the rule's own (ADR 0049 §2.2). Takes and returns a plain
-// `string` (ADR 0055 removed the `EmailAddress` wrapper).
+// for rejecting is the rule's own (ADR 0049 §2.2). Takes a plain `string`
+// (ADR 0055 removed the `EmailAddress` wrapper) and returns it normalized,
+// so " Ada@Example.com " is stored as "ada@example.com".
 rule validateEmail(email: string) -> Result<string, CustomerError> {
-    if not text.isEmailShaped(email) {
+    normalized = text.normalizeEmail(email)
+    if not text.isEmailShaped(normalized) {
         return Err(CustomerError.Invalid("email", "must be a valid address"))
     }
-    return Ok(email)
+    // RFC 5321 limits an address to 254 octets, so this limit counts bytes
+    // (ADR 0067 §1), in the encoding the call names.
+    if normalized.utf8().length() > 254 {
+        return Err(CustomerError.Invalid("email", "must be at most 254 bytes"))
+    }
+    return Ok(normalized)
 }

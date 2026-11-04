@@ -562,7 +562,7 @@ Designed, build only:
 Need an ADR first, in build order:
 
 2. String methods: `length` (and what a character is), trimming, case,
-   splitting, prefixes.
+   splitting, prefixes. Done 2026-11-03 (ADR 0067).
 3. `Random`'s operations and runtime provider (ADR 0042 names the primitive
    but not its operations): random bytes and tokens.
 4. Request headers and cookies in `http` routes, read and set: bearer

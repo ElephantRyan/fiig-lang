@@ -336,7 +336,10 @@ decimal is expected means something upstream stored the value as a float.
 Converting it would hide that, so it is reported instead.
 
 `toDecimalOrNone` uses JSON's grammar so there is one decimal text grammar to
-learn, at both of fiig's text boundaries.
+learn, at both of fiig's text boundaries. (ADR 0067 §7, 2026-11-03, widened
+the text grammar to also read a `+` sign, `.5`, and `5.`, for
+`toDecimalOrNone` and decimal route parameters; JSON decoding keeps JSON's
+grammar.)
 
 Postgres's binary `numeric` format is part of the Postgres wire work, not this
 ADR.

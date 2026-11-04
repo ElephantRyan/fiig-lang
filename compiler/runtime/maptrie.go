@@ -36,7 +36,12 @@ func (t *trie) get(key uint64) (any, bool) {
 		}
 		switch kid := n.kids[n.index(bit)].(type) {
 		case trieLeaf:
-			return kid.val, kid.key == key
+			// The slot can hold another key's leaf: a key that shares
+			// this prefix but isn't stored.
+			if kid.key != key {
+				return nil, false
+			}
+			return kid.val, true
 		case *trie:
 			n, shift = kid, shift-5
 		}

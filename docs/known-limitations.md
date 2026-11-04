@@ -40,8 +40,9 @@ doesn't have to discover them.
 
 - **A JSON object decoded into a `Map` takes its members in name order**,
   not the order they arrived in (ADR 0062 decides that).
-- **Strings have few methods:** `contains`, `isBlank`, `utf8`, and
-  `toDecimalOrNone`. No `length`, `split`, `trim`, or case conversion.
+- **Strings aren't normalized** (ADR 0067 §8): `é` as one code point and
+  as `e` plus a combining accent are different strings. No locale-aware
+  sorting, and no regular expressions.
 - **No user-defined generics** and no lambdas (ADR 0056).
 - **No model invariants:** validate in a rule.
 - **Streams and queue consumers** (ADR 0047) are designed, not built.
