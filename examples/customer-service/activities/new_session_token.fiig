@@ -1,0 +1,6 @@
+// ADR 0068 §3-§4: a session token is 32 unpredictable bytes written as
+// URL-safe text (43 characters, 256 bits), fit for a cookie. An activity
+// draws directly: Random is a local effect, not another system.
+activity newSessionToken() -> string {
+    return Random.bytes(count: 32).toBase64Url()
+}

@@ -1,0 +1,15 @@
+// ADR 0068 §4: a rule never draws; it takes the draw as a parameter, so
+// the same attempt and jitter always give the same delay and a test passes
+// both. Doubles from 100 ms per attempt, capped at 10 s, plus the jitter.
+rule backoffDelay(attempt: int, jitter: int) -> int {
+    delay: int = 100
+    n: int = 0
+    while n < attempt and delay < 10000 {
+        delay = delay * 2
+        n = n + 1
+    }
+    if delay > 10000 {
+        delay = 10000
+    }
+    return delay + jitter
+}

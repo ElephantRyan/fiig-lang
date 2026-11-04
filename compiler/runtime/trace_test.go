@@ -25,6 +25,7 @@ func TestTracingRecordsNestedCallSpans(t *testing.T) {
 	db := newFakeDatabase()
 	caps := NewCapabilityRegistry()
 	caps.Register("Database", db)
+	caps.Register("Random", NewSeededRandomProvider(1))
 	in := newTestInterp(u, caps)
 	rec := &Recorder{}
 	in.Tracer = rec
@@ -85,6 +86,7 @@ func TestTracingRecordsErrAndFaultOutcomes(t *testing.T) {
 	db := newFakeDatabase()
 	caps := NewCapabilityRegistry()
 	caps.Register("Database", db)
+	caps.Register("Random", NewSeededRandomProvider(1))
 	in := newTestInterp(u, caps)
 	rec := &Recorder{}
 	in.Tracer = rec
@@ -132,6 +134,7 @@ func TestTracingConcurrentBlockSpanParentsChildren(t *testing.T) {
 	db.insert("c2", "Grace", "grace@example.com")
 	caps := NewCapabilityRegistry()
 	caps.Register("Database", db)
+	caps.Register("Random", NewSeededRandomProvider(1))
 	in := newTestInterp(u, caps)
 	rec := &Recorder{}
 	in.Tracer = rec

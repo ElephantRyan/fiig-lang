@@ -408,6 +408,20 @@ line = tags.join(", ")
 page = query.toIntOrNone()          // int | None
 ```
 
+```fiig
+// Clock and Random are local effects (ADR 0068): an activity or a gateway
+// reads them directly, and a rule takes the value as a parameter.
+activity newSessionToken() -> string {
+    return Random.bytes(count: 32).toBase64Url()   // 256 bits, cookie-safe
+}
+
+activity nextRetryDelay(attempt: int) -> int {
+    return backoffDelay(attempt: attempt, jitter: Random.int(min: 0, max: 99))
+}
+// Random.int includes both ends; Random.float() is in [0, 1);
+// Random.uuid() is a version 4 UUID; Clock.now() is Unix milliseconds.
+```
+
 ## 7. Concurrency, retry, transactions
 
 ```fiig

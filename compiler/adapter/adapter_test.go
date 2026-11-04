@@ -89,6 +89,7 @@ func newFakeDatabaseForAdapter() (*runtime.CapabilityRegistry, *adapterFakeDB) {
 	db := &adapterFakeDB{rows: map[string]runtime.Value{}}
 	caps := runtime.NewCapabilityRegistry()
 	caps.Register("Database", db)
+	caps.Register("Random", runtime.NewSeededRandomProvider(1))
 	return caps, db
 }
 
@@ -97,20 +98,7 @@ func newFakeDatabaseForAdapter() (*runtime.CapabilityRegistry, *adapterFakeDB) {
 // implement runtime.TransactionalProvider for change_customer_email.fiig's
 // `transaction Database { ... }`.
 type adapterFakeDB struct {
-	rows   map[string]runtime.Value
-	nextID int64
-}
-
-func itoaAdapter(n int64) string {
-	if n == 0 {
-		return "0"
-	}
-	var digits []byte
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	return string(digits)
+	rows map[string]runtime.Value
 }
 
 func (db *adapterFakeDB) Call(_ context.Context, method string, args []runtime.Value) (runtime.Value, *runtime.Fault) {
@@ -132,9 +120,6 @@ func (db *adapterFakeDB) Call(_ context.Context, method string, args []runtime.V
 			}
 		}
 		return runtime.Int(1), nil
-	case "nextId":
-		db.nextID++
-		return runtime.Str(itoaAdapter(db.nextID)), nil
 	default:
 		return nil, runtime.Faultf("adapterFakeDB has no method %q", method)
 	}

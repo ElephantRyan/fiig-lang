@@ -1,0 +1,5 @@
+// ADR 0068 §4: the activity draws the jitter, so retries from many clients
+// spread out instead of arriving together, and hands it to the pure rule.
+activity nextRetryDelay(attempt: int) -> int {
+    return backoffDelay(attempt: attempt, jitter: Random.int(min: 0, max: 99))
+}

@@ -1,9 +1,7 @@
 # ADR 0068: Random Operations, One Secure Source
 
-Status: Accepted (2026-11-03, one-decision-at-a-time review). §5's named
-arguments, §4's checker rules, §3's encodings, and §6's providers
-implemented 2026-11-04 (see Implementation notes); the corpus example is
-not yet written. §1, §3,
+Status: Accepted (2026-11-03, one-decision-at-a-time review) and
+implemented (2026-11-04; see Implementation notes). §1, §3,
 and §6 accepted as drafted; §2 revised to an inclusive `Random.int(min,
 max)`, with named arguments on every builtin (§5); §4 revised: `Clock`
 and `Random` are local effects, called directly from activities and
@@ -390,7 +388,7 @@ expiry checks) take a date anyway.
   (ADR 0044) and `fiig catalog` shows the call.
 - No corpus program called `Clock` or `Random`, or required either, so
   nothing migrated. `invalid-programs/random_error.fiig` attests B10
-  (`rollDie`) and P8 (`newSessionToken`).
+  (`rollDie`) and P8 (`newApiKey`).
 - Tests: `compiler/checker/random_test.go`.
 
 **2026-11-04, §3 encodings.**
@@ -430,3 +428,22 @@ expiry checks) take a date anyway.
   defaults, the refusal). Dogfooded: two `fiig run`s draw different values,
   two with seed 42 the same, and `fiig serve` with the seeded file exits
   with the refusal.
+
+**2026-11-04, corpus.**
+
+- `customer-service`'s `insertCustomer` drew its ID from
+  `Database.nextId()`, which `libraries/sql` implements as a UUID made in
+  Go: randomness hidden inside the Database capability. It now calls
+  `Random.uuid()` beside `Database`, the case §4 was revised for. The
+  runtime and adapter tests' fake databases lost their `nextId` and
+  register a seeded `Random` instead. `libraries/sql` still provides
+  `nextId` (ADR 0025); whether to drop it is left open.
+- New: `activities/new_session_token.fiig` (§3's token),
+  `rules/backoff_delay.fiig` (pure: the jitter is a parameter), and
+  `activities/next_retry_delay.fiig` (draws the jitter and calls it).
+  examples/README row 23. `fiig catalog` marks `backoffDelay` pure and
+  `nextRetryDelay` not, with `uses: Random.int`.
+- Dogfooded with `fiig run`: delays of 140, 807, and 10093 for attempts 0,
+  3, and 20 (the cap), `backoffDelay(3, 7)` is 807 every time, and
+  `newSessionToken` gives a 43-character token, the same one twice under
+  seed 42.
