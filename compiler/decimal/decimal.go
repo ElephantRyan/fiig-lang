@@ -230,6 +230,71 @@ func Parse(text string) (Decimal, bool) {
 
 func isDigit(b byte) bool { return b >= '0' && b <= '9' }
 
+// NormalizeText rewrites a number in the text grammar (ADR 0067 §7) into
+// JSON's: an optional `-` or `+`, digits with an optional `.` where either
+// side may be empty but not both, leading zeros allowed, and an optional
+// exponent. false means text isn't in the grammar. "+.5" becomes "0.5",
+// "007" becomes "7", and "5." becomes "5".
+func NormalizeText(text string) (string, bool) {
+	i, sign := 0, ""
+	if i < len(text) && (text[i] == '-' || text[i] == '+') {
+		if text[i] == '-' {
+			sign = "-"
+		}
+		i++
+	}
+	start := i
+	for i < len(text) && isDigit(text[i]) {
+		i++
+	}
+	intPart := strings.TrimLeft(text[start:i], "0")
+	if intPart == "" {
+		intPart = "0"
+	}
+	digits := i - start
+	frac := ""
+	if i < len(text) && text[i] == '.' {
+		i++
+		fs := i
+		for i < len(text) && isDigit(text[i]) {
+			i++
+		}
+		frac = text[fs:i]
+		digits += i - fs
+	}
+	if digits == 0 {
+		return "", false
+	}
+	exp := text[i:]
+	if exp != "" {
+		e := exp[1:]
+		if exp[0] != 'e' && exp[0] != 'E' {
+			return "", false
+		}
+		if e != "" && (e[0] == '+' || e[0] == '-') {
+			e = e[1:]
+		}
+		if e == "" || strings.TrimLeft(e, "0123456789") != "" {
+			return "", false
+		}
+	}
+	out := sign + intPart
+	if frac != "" {
+		out += "." + frac
+	}
+	return out + exp, true
+}
+
+// ParseText is Parse over the text grammar (ADR 0067 §7), for a string's
+// toDecimalOrNone and other text that isn't JSON.
+func ParseText(text string) (Decimal, bool) {
+	norm, ok := NormalizeText(text)
+	if !ok {
+		return Decimal{}, false
+	}
+	return Parse(norm)
+}
+
 // FromFloat is the shortest decimal that converts back to the same float
 // (ADR 0064 §6), so FromFloat(0.1) is 0.1, not the binary value's 55-digit
 // expansion. false means f is outside the decimal range.

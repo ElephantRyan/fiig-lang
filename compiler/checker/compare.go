@@ -82,6 +82,12 @@ func (c *checker) checkListElement(elem types.Type, method string, start lexer.P
 		if !ordered(elem) {
 			c.report(start, "M3", "List<%s>.%s needs an ordered element type: int, float, decimal, or string", elem, method)
 		}
+	case "join": // ADR 0067 §5
+		if p, ok := elem.(types.Primitive); !ok || p.Name != "string" {
+			if _, unknown := elem.(types.Unknown); !unknown {
+				c.report(start, "A1", "List<%s>.join joins strings; interpolate each element into a string first", elem)
+			}
+		}
 	}
 }
 

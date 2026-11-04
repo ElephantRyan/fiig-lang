@@ -2,10 +2,13 @@ package runtime
 
 import (
 	"sort"
+	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"fiig-lang/compiler/decimal"
+	"fiig-lang/compiler/text"
 	"fiig-lang/compiler/types"
 )
 
@@ -32,10 +35,83 @@ var builtinMethods = map[string]map[string]builtinFunc{
 			return Bool(strings.Contains(string(recv.(Str)), string(sub))), nil
 		},
 		"toDecimalOrNone": func(recv Value, _ []Value) (Value, *Fault) {
-			if d, ok := decimal.Parse(string(recv.(Str))); ok {
+			if d, ok := decimal.ParseText(string(recv.(Str))); ok {
 				return Decimal{d}, nil
 			}
 			return None{}, nil
+		},
+		// ADR 0067 §1-§2: length and slice count grapheme clusters.
+		"length": func(recv Value, _ []Value) (Value, *Fault) {
+			return Int(text.GraphemeCount(string(recv.(Str)))), nil
+		},
+		"codePointCount": func(recv Value, _ []Value) (Value, *Fault) {
+			return Int(utf8.RuneCountInString(string(recv.(Str)))), nil
+		},
+		"slice": func(recv Value, args []Value) (Value, *Fault) {
+			s := string(recv.(Str))
+			offsets := text.GraphemeOffsets(s)
+			from, to, f := sliceArgs("string", args, len(offsets)-1)
+			if f != nil {
+				return nil, f
+			}
+			return Str(s[offsets[from]:offsets[to]]), nil
+		},
+		// §3, §5: searching matches code points.
+		"startsWith":   stringTest(strings.HasPrefix),
+		"endsWith":     stringTest(strings.HasSuffix),
+		"removePrefix": stringOp(strings.TrimPrefix),
+		"removeSuffix": stringOp(strings.TrimSuffix),
+		// White_Space, as isBlank.
+		"trim":      stringMap(strings.TrimSpace),
+		"trimStart": stringMap(func(s string) string { return strings.TrimLeftFunc(s, unicode.IsSpace) }),
+		"trimEnd":   stringMap(func(s string) string { return strings.TrimRightFunc(s, unicode.IsSpace) }),
+		// §4: full mapping and folding, no locale.
+		"lowercase":          stringMap(text.Lower),
+		"uppercase":          stringMap(text.Upper),
+		"equalsIgnoringCase": stringTest(text.EqualFold),
+		"split": func(recv Value, args []Value) (Value, *Fault) {
+			sep := string(args[0].(Str))
+			if sep == "" {
+				return nil, Faultf("split(\"\"): the separator is empty")
+			}
+			parts := strings.Split(string(recv.(Str)), sep)
+			elems := make([]Value, len(parts))
+			for i, p := range parts {
+				elems[i] = Str(p)
+			}
+			return List{Elems: elems}, nil
+		},
+		"replaceAll": func(recv Value, args []Value) (Value, *Fault) {
+			old := string(args[0].(Str))
+			if old == "" {
+				return nil, Faultf("replaceAll(\"\", ...): the text to replace is empty")
+			}
+			return Str(strings.ReplaceAll(string(recv.(Str)), old, string(args[1].(Str)))), nil
+		},
+		// §7: an optional sign and digits; None when out of range.
+		"toIntOrNone": func(recv Value, _ []Value) (Value, *Fault) {
+			s := string(recv.(Str))
+			digits := strings.TrimLeft(s, "+-")
+			if len(s)-len(digits) > 1 || digits == "" || strings.TrimLeft(digits, "0123456789") != "" {
+				return None{}, nil
+			}
+			n, err := strconv.ParseInt(s, 10, 64)
+			if err != nil {
+				return None{}, nil
+			}
+			return Int(n), nil
+		},
+		"toFloatOrNone": func(recv Value, _ []Value) (Value, *Fault) {
+			norm, ok := decimal.NormalizeText(string(recv.(Str)))
+			if !ok {
+				return None{}, nil
+			}
+			f, err := strconv.ParseFloat(norm, 64)
+			v, ok := NewFloat(f)
+			if err != nil || !ok {
+				return None{}, nil // out of range: no text produces an infinity
+			}
+			return v, nil
 		},
 	},
 	// ADR 0058 §1. at and slice out of range fault: a pattern is the tool
@@ -123,6 +199,15 @@ var builtinMethods = map[string]map[string]builtinFunc{
 		// ties (1.5 and 1.50 print differently).
 		"sorted":           func(recv Value, _ []Value) (Value, *Fault) { return sortedList(recv.(List).Elems, false) },
 		"sortedDescending": func(recv Value, _ []Value) (Value, *Fault) { return sortedList(recv.(List).Elems, true) },
+		// ADR 0067 §5: the checker allows it on List<string> only.
+		"join": func(recv Value, args []Value) (Value, *Fault) {
+			elems := recv.(List).Elems
+			parts := make([]string, len(elems))
+			for i, e := range elems {
+				parts[i] = string(e.(Str))
+			}
+			return Str(strings.Join(parts, string(args[0].(Str)))), nil
+		},
 	},
 	"Map": mapMethods,
 }
@@ -171,6 +256,26 @@ var mapMethods = map[string]builtinFunc{
 }
 
 // listEnd is first/last and their OrNone forms.
+// stringTest, stringOp, and stringMap adapt a Go string function to a
+// string method's body.
+func stringTest(f func(s, arg string) bool) builtinFunc {
+	return func(recv Value, args []Value) (Value, *Fault) {
+		return Bool(f(string(recv.(Str)), string(args[0].(Str)))), nil
+	}
+}
+
+func stringOp(f func(s, arg string) string) builtinFunc {
+	return func(recv Value, args []Value) (Value, *Fault) {
+		return Str(f(string(recv.(Str)), string(args[0].(Str)))), nil
+	}
+}
+
+func stringMap(f func(string) string) builtinFunc {
+	return func(recv Value, _ []Value) (Value, *Fault) {
+		return Str(f(string(recv.(Str)))), nil
+	}
+}
+
 func listEnd(name string, first, orNone bool) builtinFunc {
 	return func(recv Value, _ []Value) (Value, *Fault) {
 		elems := recv.(List).Elems

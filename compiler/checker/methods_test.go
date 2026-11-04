@@ -50,7 +50,7 @@ func TestListMethodsAreTyped(t *testing.T) {
 func TestMethodNotInTableIsK1(t *testing.T) {
 	cases := map[string]string{
 		`42.isBlank()`:         `int has no methods`,
-		`name.trim()`:          `string has no method "trim"`,
+		`name.reverse()`:       `string has no method "reverse"`,
 		`customer.name.size()`: `string has no method "size"`,
 		`xs.reversed()`:        `List has no method "reversed"`,
 		`customer.isValid()`:   `Customer has no methods`,

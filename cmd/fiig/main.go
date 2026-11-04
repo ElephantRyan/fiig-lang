@@ -23,6 +23,7 @@ import (
 	_ "modernc.org/sqlite" // pure-Go driver, registered under "sqlite": no cgo, so the binary is static
 
 	"fiig-lang/compiler/runtime"
+	"fiig-lang/compiler/text"
 	"fiig-lang/compiler/version"
 	fiigsql "fiig-lang/libraries/sql"
 	"fiig-lang/tooling/cli/catalogcmd"
@@ -63,7 +64,7 @@ func main() {
 	case "catalog":
 		catalogcmd.Main("fiig catalog", args)
 	case "version", "-version", "--version":
-		fmt.Println("fiig", version.Version)
+		fmt.Printf("fiig %s (Unicode %s)\n", version.Version, text.UnicodeVersion)
 	case "help", "-h", "--help":
 		fmt.Println(usage)
 	default:

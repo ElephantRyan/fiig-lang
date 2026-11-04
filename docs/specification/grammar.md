@@ -574,11 +574,17 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
   structural is ordered.
 - A method call (`name.isBlank()`, `xs.at(0)`) is legal only when the
   receiver's type is in the closed builtin table of ADR 0049 §2.6: `string`
-  (`isBlank`, `contains`, `utf8`, `toDecimalOrNone`), `bytes` (`length`,
+  (`isBlank`, `contains`, `utf8`, `toDecimalOrNone`, and ADR 0067's
+  `length`, `codePointCount`, `slice`, `startsWith`, `endsWith`,
+  `removePrefix`, `removeSuffix`, `trim`, `trimStart`, `trimEnd`,
+  `lowercase`, `uppercase`, `equalsIgnoringCase`, `split`, `replaceAll`,
+  `toIntOrNone`, `toFloatOrNone`), `bytes` (`length`,
   `at`, `slice`, `utf8`; ADR 0058), and `List<T>` (`length`, `at`,
   `atOrNone`, `slice`, and ADR 0065's `first`, `firstOrNone`, `last`,
-  `lastOrNone`, `contains`, `sorted`, `sortedDescending`). Anything else is
-  K1. Models and enums have no methods. `contains` needs a comparable
+  `lastOrNone`, `contains`, `sorted`, `sortedDescending`, and `join` on a
+  `List<string>`). Anything else is K1. A string's `length` and `slice`
+  count grapheme clusters, `codePointCount` code points, and its bytes are
+  `utf8().length()`; searching matches code points (ADR 0067 §1, §5). Models and enums have no methods. `contains` needs a comparable
   element (M1; floats use `math.containsClose`) and the sorts an ordered one
   (M3); both sorts are stable and return a new list. Every method is pure,
   so a bare method-call statement is A13. `Map<K, V>` (ADR 0065 §4-§9)

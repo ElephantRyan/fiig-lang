@@ -210,8 +210,9 @@ func decodeString(raw string, t types.Type, u *types.Universe) (runtime.Value, e
 			}
 			return v, nil
 		case "decimal":
-			// JSON's number grammar, the one decimal text grammar (ADR 0064 §8).
-			d, ok := decimal.Parse(raw)
+			// The text number grammar a string's toDecimalOrNone reads (ADR
+			// 0064 §8, widened by ADR 0067 §7).
+			d, ok := decimal.ParseText(raw)
 			if !ok {
 				return nil, fmt.Errorf("expected a decimal of at most 34 digits written in full, got %q", raw)
 			}

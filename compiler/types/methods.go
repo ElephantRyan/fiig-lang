@@ -30,8 +30,28 @@ var primitiveMethods = map[string]map[string]Method{
 		"utf8":     {nil, bytesType},
 		"isBlank":  {nil, boolType},
 		"contains": {[]Type{stringType}, boolType},
-		// ADR 0064 §8: JSON's number grammar, with §7's scale.
+		// ADR 0064 §8, widened by ADR 0067 §7: the text number grammar,
+		// with §7's scale.
 		"toDecimalOrNone": {nil, Union{Members: []Type{Primitive{Name: "decimal"}, NoneType{}}}},
+		// ADR 0067. length and slice count grapheme clusters; the bytes
+		// are utf8().length().
+		"length":             {nil, intType},
+		"codePointCount":     {nil, intType},
+		"slice":              {[]Type{intType, intType}, stringType},
+		"startsWith":         {[]Type{stringType}, boolType},
+		"endsWith":           {[]Type{stringType}, boolType},
+		"removePrefix":       {[]Type{stringType}, stringType},
+		"removeSuffix":       {[]Type{stringType}, stringType},
+		"trim":               {nil, stringType},
+		"trimStart":          {nil, stringType},
+		"trimEnd":            {nil, stringType},
+		"lowercase":          {nil, stringType},
+		"uppercase":          {nil, stringType},
+		"equalsIgnoringCase": {[]Type{stringType}, boolType},
+		"split":              {[]Type{stringType}, Generic{Name: "List", Args: []Type{stringType}}},
+		"replaceAll":         {[]Type{stringType, stringType}, stringType},
+		"toIntOrNone":        {nil, Union{Members: []Type{intType, NoneType{}}}},
+		"toFloatOrNone":      {nil, Union{Members: []Type{Primitive{Name: "float"}, NoneType{}}}},
 	},
 }
 
@@ -54,6 +74,8 @@ func listMethods(elem Type) map[string]Method {
 		"contains":         {[]Type{elem}, boolType},
 		"sorted":           {nil, list},
 		"sortedDescending": {nil, list},
+		// ADR 0067 §5: on List<string> only, which the checker enforces.
+		"join": {[]Type{stringType}, stringType},
 	}
 }
 

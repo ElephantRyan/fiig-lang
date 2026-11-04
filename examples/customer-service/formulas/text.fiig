@@ -10,4 +10,10 @@ formulas text {
     formula hasSpace(s: string) -> bool {
         return s.contains(" ")
     }
+
+    // ADR 0067 §3-§4: surrounding whitespace dropped and case mapped
+    // without a locale, so the same address typed two ways is one value.
+    formula normalizeEmail(s: string) -> string {
+        return s.trim().lowercase()
+    }
 }

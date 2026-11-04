@@ -357,13 +357,15 @@ func TestDecodeStringFloat(t *testing.T) {
 }
 
 // TestDecodeStringDecimal is ADR 0064 §8: a path or query decimal reads
-// JSON's number grammar exactly, keeping its scale.
+// the text number grammar (widened by ADR 0067 §7), keeping its scale.
 func TestDecodeStringDecimal(t *testing.T) {
 	decT := types.Primitive{Name: "decimal"}
-	if v, err := decodeString("19.90", decT, nil); err != nil || v.String() != "19.90" {
-		t.Fatalf("decode 19.90 = %v, %v", v, err)
+	for raw, want := range map[string]string{"19.90": "19.90", "+1": "1", "1.": "1", ".50": "0.50"} {
+		if v, err := decodeString(raw, decT, nil); err != nil || v.String() != want {
+			t.Errorf("decode %q = %v, %v; want %s", raw, v, err, want)
+		}
 	}
-	for _, raw := range []string{"NaN", "Infinity", "+1", "1e34", "abc", "1."} {
+	for _, raw := range []string{"NaN", "Infinity", "1e34", "abc", ".", "1,5"} {
 		if v, err := decodeString(raw, decT, nil); err == nil {
 			t.Errorf("decode %q = %v, want an error", raw, v)
 		}
