@@ -1,8 +1,9 @@
 # ADR 0068: Random Operations, One Secure Source
 
 Status: Accepted (2026-11-03, one-decision-at-a-time review). §5's named
-arguments, §4's checker rules, and §3's encodings implemented 2026-11-04 (see
-Implementation notes); §6's providers are not yet. §1, §3,
+arguments, §4's checker rules, §3's encodings, and §6's providers
+implemented 2026-11-04 (see Implementation notes); the corpus example is
+not yet written. §1, §3,
 and §6 accepted as drafted; §2 revised to an inclusive `Random.int(min,
 max)`, with named arguments on every builtin (§5); §4 revised: `Clock`
 and `Random` are local effects, called directly from activities and
@@ -251,7 +252,7 @@ where two arguments share a type and could be swapped: `min` and `max`,
   capabilities file may still name a provider for it, which replaces the
   default.
 - **A seeded provider**, `random-seeded` in the capabilities file
-  (`{"Random": {"provider": "random-seeded", "seed": 42}}`), for tests and
+  (`{"Random": {"type": "random-seeded", "seed": 42}}`), for tests and
   `fiig run` demos: the same seed gives the same draws, so a test of an
   activity that makes tokens can assert the exact token. It is
   deterministic within one toolchain version, not across versions (Go
@@ -401,3 +402,31 @@ expiry checks) take a date anyway.
   §3's `<<0xfb, 0xff>>` table), `TestBytesEncodingsCheck`. Dogfooded with
   `fiig run`: a rule building a Basic auth header gives RFC 7617's own
   example, `QWxhZGRpbjpvcGVuIHNlc2FtZQ==`.
+
+**2026-11-04, §6 providers.**
+
+- `runtime.RandomProvider` draws every operation from one byte source:
+  `crypto/rand.Reader`, or for `NewSeededRandomProvider` a ChaCha8
+  (`math/rand/v2`) keyed by the seed. `int` is uniform by rejection: a
+  draw in the last, partial copy of the range is redrawn, and a range as
+  wide as `int` itself takes a draw as is. `float` is the top 53 bits of a
+  draw over 2⁵³. `uuid` sets RFC 9562's version and variant bits on 16
+  bytes. §2's faults: `max < min`, and `count` outside 0 to 65,536.
+- The capabilities-file key is `type`, not the `provider` §6 first
+  wrote, since every other entry uses `type` (ADR 0027):
+  `{"Random": {"type": "random-seeded", "seed": 42}}`. The seed is a
+  non-negative integer; anything else is a load error.
+- `runprogram.RegisterDefaults` registers the secure `Random` in `fiig
+  run` and `fiig serve` when the file has no entry. It also registers
+  `Clock` (the existing `ClockProvider` over the wall clock): it too needs
+  no configuration (§4), `docs/known-limitations.md` said it had a
+  provider, and it had none: `Clock.now()` faulted in `fiig run` with "no
+  provider registered".
+- `fiig serve` refuses a seeded `Random` before it listens
+  (`RefuseSeededRandom`), naming the fix.
+- Tests: `compiler/runtime/random_test.go` (the four operations from an
+  activity, a 6,000-roll spread, both ends of `int`'s range, faults, seeds
+  repeating), `tooling/runprogram/random_test.go` (the factory, bad seeds,
+  defaults, the refusal). Dogfooded: two `fiig run`s draw different values,
+  two with seed 42 the same, and `fiig serve` with the seeded file exits
+  with the refusal.
