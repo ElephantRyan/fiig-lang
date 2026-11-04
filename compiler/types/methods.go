@@ -56,8 +56,8 @@ var primitiveMethods = map[string]map[string]Method{
 		"fromHex":       {nil, Union{Members: []Type{bytesType, NoneType{}}}},
 		"fromBase64":    {nil, Union{Members: []Type{bytesType, NoneType{}}}},
 		"fromBase64Url": {nil, Union{Members: []Type{bytesType, NoneType{}}}},
-		"isBlank":  {nil, boolType},
-		"contains": {[]Param{p("text", stringType)}, boolType},
+		"isBlank":       {nil, boolType},
+		"contains":      {[]Param{p("text", stringType)}, boolType},
 		// ADR 0064 §8, widened by ADR 0067 §7: the text number grammar,
 		// with §7's scale.
 		"toDecimalOrNone": {nil, Union{Members: []Type{Primitive{Name: "decimal"}, NoneType{}}}},
