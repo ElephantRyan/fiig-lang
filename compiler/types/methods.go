@@ -50,7 +50,12 @@ var primitiveMethods = map[string]map[string]Method{
 		"toBase64Url": {nil, stringType},
 	},
 	"string": {
-		"utf8":     {nil, bytesType},
+		"utf8": {nil, bytesType},
+		// ADR 0069 §7: the inverses of bytes's toHex, toBase64, and
+		// toBase64Url; None when the text isn't in that alphabet.
+		"fromHex":       {nil, Union{Members: []Type{bytesType, NoneType{}}}},
+		"fromBase64":    {nil, Union{Members: []Type{bytesType, NoneType{}}}},
+		"fromBase64Url": {nil, Union{Members: []Type{bytesType, NoneType{}}}},
 		"isBlank":  {nil, boolType},
 		"contains": {[]Param{p("text", stringType)}, boolType},
 		// ADR 0064 §8, widened by ADR 0067 §7: the text number grammar,
