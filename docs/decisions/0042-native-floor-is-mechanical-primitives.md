@@ -1,6 +1,9 @@
 # ADR 0042: The Native Floor Is the Socket; Protocols and Domain Capabilities Are Written in Fiig
 
-Status: Accepted. Floor and transitional enforcement implemented 2026-10-14;
+Status: Accepted. Amended by ADR 0068 §4 (2026-11-03): `Clock` and
+`Random` stay in the primitive set but are local effects, called directly
+from activities and gateways, not capabilities a gateway requires.
+Floor and transitional enforcement implemented 2026-10-14;
 the strict form of the rule waits on ADR 0043's fiig fulfillers (see
 "Implementation notes"). This record fixes the floor and the enforceable
 rule; the contract/provider declarations it depends on are specified in
