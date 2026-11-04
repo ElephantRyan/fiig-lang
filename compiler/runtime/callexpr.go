@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"strings"
 
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
@@ -231,6 +232,13 @@ func (in *Interp) evalQualifiedCall(ctx context.Context, fa *syntax.FieldAccess,
 		// inside a `transaction <targetIdent.Name> { ... }` block, it joins
 		// that transaction instead of going through the plain provider, so
 		// it sees the transaction's own uncommitted writes.
+		if ops, typed := types.PrimitiveOps(targetIdent.Name); typed {
+			if m, found := ops[fa.Field]; found {
+				if argVals, fault = placeArgs(targetIdent.Name+"."+fa.Field, m.ParamNames(), args, argVals); fault != nil {
+					return nil, false, fault
+				}
+			}
+		}
 		var v Value
 		var f *Fault
 		if tx, ok := lookupActiveTx(ctx, targetIdent.Name); ok {
@@ -256,6 +264,13 @@ func (in *Interp) evalQualifiedCall(ctx context.Context, fa *syntax.FieldAccess,
 	argVals, earlyReturn, fault := in.evalArgsPositional(ctx, args, env)
 	if fault != nil || earlyReturn {
 		return nil, earlyReturn, fault
+	}
+	if sigs, ok := types.MethodsOfKind(methodKind(target)); ok {
+		if m, found := sigs[fa.Field]; found {
+			if argVals, fault = placeArgs(methodKind(target)+"."+fa.Field, m.ParamNames(), args, argVals); fault != nil {
+				return nil, false, fault
+			}
+		}
 	}
 	v, f := evalBuiltinMethod(target, fa.Field, argVals)
 	if f != nil {
@@ -373,6 +388,30 @@ func (in *Interp) evalArgsPositional(ctx context.Context, args []syntax.Arg, env
 		vals[i] = v
 	}
 	return vals, false, nil
+}
+
+// placeArgs orders a builtin call's argument values, which are in source
+// order, by the builtin's parameters when any argument is named (ADR 0068
+// §5). The checker reports arguments that don't bind before a run.
+func placeArgs(subject string, params []string, args []syntax.Arg, vals []Value) ([]Value, *Fault) {
+	argNames := make([]string, len(args))
+	named := false
+	for i, a := range args {
+		argNames[i] = a.Name
+		named = named || a.Name != ""
+	}
+	if !named {
+		return vals, nil
+	}
+	at, ok := types.BindArgs(params, argNames)
+	if !ok {
+		return nil, Faultf("%s's arguments don't bind to its parameters (%s)", subject, strings.Join(params, ", "))
+	}
+	placed := make([]Value, len(at))
+	for i, ai := range at {
+		placed[i] = vals[ai]
+	}
+	return placed, nil
 }
 
 func fieldNames(fields []syntax.Field) []string {

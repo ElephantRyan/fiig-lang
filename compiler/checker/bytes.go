@@ -67,21 +67,109 @@ func methodList(table map[string]method) string {
 	return strings.Join(names, ", ")
 }
 
+// checkMethodArgs binds a builtin call's arguments to m's parameters, by
+// position or by name (ADR 0068 §5), and checks each against its type.
 func (c *checker) checkMethodArgs(recv, name string, m method, args []syntax.Arg, start lexer.Pos, env map[string]types.Type) types.Type {
-	if len(args) != len(m.Params) {
-		c.report(start, "", "%s.%s takes %d argument(s), got %d", recv, name, len(m.Params), len(args))
-		for _, a := range args {
-			c.inferExpr(a.Value, env)
+	if param, ok := c.bindBuiltinArgs(recv+"."+name, m.ParamNames(), args, start, env); ok {
+		for i, a := range args {
+			c.checkExpected(a.Value, m.Params[param[i]].Type, env)
 		}
-		return m.Result
-	}
-	for i, a := range args {
-		if a.Name != "" {
-			c.report(start, "", "%s.%s takes positional arguments", recv, name)
-		}
-		c.checkExpected(a.Value, m.Params[i], env)
 	}
 	return m.Result
+}
+
+// bindBuiltinArgs binds a builtin's arguments to its parameters (named
+// params) as types.BindArgs does, and returns each argument's parameter
+// index. When they don't bind it reports why, types every argument, and
+// returns false.
+func (c *checker) bindBuiltinArgs(subject string, params []string, args []syntax.Arg, start lexer.Pos, env map[string]types.Type) ([]int, bool) {
+	argNames := make([]string, len(args))
+	named := false
+	for i, a := range args {
+		argNames[i] = a.Name
+		named = named || a.Name != ""
+	}
+	at, ok := types.BindArgs(params, argNames)
+	if ok {
+		param := make([]int, len(args))
+		for pi, ai := range at {
+			param[ai] = pi
+		}
+		return param, true
+	}
+	if !named {
+		c.report(start, "", "%s takes %d argument(s), got %d", subject, len(params), len(args))
+	} else {
+		c.reportBuiltinArgs(subject, params, args, start)
+	}
+	for _, a := range args {
+		c.inferExpr(a.Value, env)
+	}
+	return nil, false
+}
+
+// reportBuiltinArgs says why named arguments don't bind to params: a name
+// that isn't a parameter, a parameter given twice, one argument too many,
+// a positional argument after a named one, or a parameter left without
+// one.
+func (c *checker) reportBuiltinArgs(subject string, params []string, args []syntax.Arg, start lexer.Pos) {
+	bound := map[string]bool{}
+	next, named, reported := 0, false, false
+	for _, a := range args {
+		argStart, _ := a.Value.(syntax.Spanned).Bounds()
+		if a.Name == "" {
+			if named {
+				reported = true
+				c.report(argStart, "", "a positional argument to %s follows a named one; name it, or move it before the named arguments", subject)
+				continue
+			}
+			for next < len(params) && bound[params[next]] {
+				next++
+			}
+			if next == len(params) {
+				reported = true
+				c.report(argStart, "", "too many arguments to %s, whose parameters are %s", subject, joinNames(params))
+				continue
+			}
+			bound[params[next]] = true
+			continue
+		}
+		named = true
+		known := false
+		for _, p := range params {
+			known = known || p == a.Name
+		}
+		switch {
+		case !known:
+			reported = true
+			c.report(argStart, "", "%s has no parameter %q; its parameters are %s", subject, a.Name, joinNames(params))
+		case bound[a.Name]:
+			reported = true
+			c.report(argStart, "", "%s's %q is given twice", subject, a.Name)
+		default:
+			bound[a.Name] = true
+		}
+	}
+	// A name that isn't a parameter, or one given twice, is usually the
+	// missing one reported, so it's the one error.
+	for _, p := range params {
+		if !bound[p] && !reported {
+			c.report(start, "", "%s is missing argument %q", subject, p)
+		}
+	}
+}
+
+// joinNames is "a", "a and b", or "a, b, and c".
+func joinNames(names []string) string {
+	switch len(names) {
+	case 0:
+		return "none"
+	case 1:
+		return names[0]
+	case 2:
+		return names[0] + " and " + names[1]
+	}
+	return strings.Join(names[:len(names)-1], ", ") + ", and " + names[len(names)-1]
 }
 
 func encodingType(enc syntax.Encoding) types.Type {

@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"fiig-lang/compiler/syntax"
+	"fiig-lang/compiler/types"
 )
 
 // listCopies counts the times appendList had to copy into a new buffer.
@@ -41,22 +42,21 @@ func appendList(l List, v Value) List {
 }
 
 func (in *Interp) evalAppend(ctx context.Context, e *syntax.CallExpr, env *Env) (Value, bool, *Fault) {
-	if len(e.Args) != 2 {
+	vals, earlyReturn, fault := in.evalArgsPositional(ctx, e.Args, env)
+	if fault != nil || earlyReturn {
+		return nil, earlyReturn, fault
+	}
+	if len(vals) != 2 {
 		return nil, false, Faultf("append(list, element) takes exactly two arguments")
 	}
-	lv, earlyReturn, fault := in.evalExpr(ctx, e.Args[0].Value, env)
-	if fault != nil || earlyReturn {
-		return lv, earlyReturn, fault
+	if vals, fault = placeArgs("append", types.AppendParams, e.Args, vals); fault != nil {
+		return nil, false, fault
 	}
-	list, ok := lv.(List)
+	list, ok := vals[0].(List)
 	if !ok {
-		return nil, false, Faultf("append's first argument is not a list (got %s)", lv)
+		return nil, false, Faultf("append's first argument is not a list (got %s)", vals[0])
 	}
-	v, earlyReturn, fault := in.evalExpr(ctx, e.Args[1].Value, env)
-	if fault != nil || earlyReturn {
-		return v, earlyReturn, fault
-	}
-	return appendList(list, v), false, nil
+	return appendList(list, vals[1]), false, nil
 }
 
 // sameMap reports whether two records share one field map, so Equal can

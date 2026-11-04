@@ -134,18 +134,21 @@ func listInterface(elems []types.Type) (*syntax.InterfaceDecl, bool) {
 }
 
 // checkAppend types `append(list, element)` as (List<T>, T) -> List<T>.
-// An empty literal as the first argument takes its element type from the
-// second.
+// An empty literal as the list takes its element type from the element.
 func (c *checker) checkAppend(e *syntax.CallExpr, env map[string]types.Type) types.Type {
-	if len(e.Args) != 2 || e.Args[0].Name != "" || e.Args[1].Name != "" {
-		start, _ := e.Bounds()
-		c.report(start, "", "append(list, element) takes exactly two positional arguments")
-		for _, a := range e.Args {
-			c.inferExpr(a.Value, env)
-		}
+	start, _ := e.Bounds()
+	param, ok := c.bindBuiltinArgs("append", types.AppendParams, e.Args, start, env)
+	if !ok {
 		return types.Unknown{}
 	}
-	list, elem := e.Args[0].Value, e.Args[1].Value
+	var list, elem syntax.Expr
+	for i, a := range e.Args {
+		if param[i] == 0 {
+			list = a.Value
+		} else {
+			elem = a.Value
+		}
+	}
 	if lit, ok := list.(*syntax.ListLit); ok && len(lit.Elems) == 0 {
 		return listOf(c.inferExpr(elem, env))
 	}

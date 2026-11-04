@@ -694,15 +694,25 @@ func (c *checker) matchArgs(names []string, args []syntax.Arg, subject string, a
 	for _, n := range names {
 		nameSet[n] = true
 	}
-	posIdx := 0
+	posIdx, named := 0, false
 	for _, a := range args {
 		if a.Name != "" {
+			named = true
+			start, _ := a.Value.(syntax.Spanned).Bounds()
 			if !nameSet[a.Name] {
-				start, _ := a.Value.(syntax.Spanned).Bounds()
 				c.report(start, "", "%s has no parameter named %q", subject, a.Name)
 				continue
 			}
+			if _, dup := supplied[a.Name]; dup {
+				c.report(start, "", "%s's %q is given twice", subject, a.Name)
+				continue
+			}
 			supplied[a.Name] = a.Value
+			continue
+		}
+		if named {
+			start, _ := a.Value.(syntax.Spanned).Bounds()
+			c.report(start, "", "a positional argument to %s follows a named one; name it, or move it before the named arguments", subject)
 			continue
 		}
 		for posIdx < len(names) {
