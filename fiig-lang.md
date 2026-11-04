@@ -568,7 +568,11 @@ Need an ADR first, in build order:
    0068), with named arguments on every builtin, and `Clock` and `Random`
    as local effects that activities and gateways call directly.
 4. Request headers and cookies in `http` routes, read and set: bearer
-   tokens and sessions.
+   tokens and sessions. ADR 0069 accepted 2026-11-04, with content types
+   declared on each route (`produces`, `consumes`); not yet built.
+4a. CORS for `http` adapters, so a browser front end on another origin
+   can call the service (owner's decision 2026-11-04, deferred out of
+   ADR 0069 into its own ADR).
 5. Configuration values reachable from fiig code, from the environment:
    service URLs and secrets.
 6. The JSON shape of an enum and a `Result` in an HTTP body (today the
