@@ -1,39 +1,55 @@
 package checker
 
 import (
+	"fiig-lang/compiler/capability"
 	"fiig-lang/compiler/lexer"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
 )
 
-// ADR 0060: the Socket primitive's operations, the first typed primitive
-// capability calls. Their table is types.PrimitiveOps("Socket").
+// ADR 0060: the primitives' operations, typed from types.PrimitiveOps:
+// Socket's (ADR 0060 §3) and Random's (ADR 0068 §2). Clock and FileSystem
+// aren't typed yet, so their arguments are checked and the result is
+// Unknown.
 
-// callSocket types `Socket.op(args)` against its table. Only a gateway
-// that requires Socket may make the call: B10 for any other kind, P7 for a
-// gateway that requires something else.
-func (c *checker) callSocket(op string, args []syntax.Arg, start lexer.Pos, env map[string]types.Type) types.Type {
-	c.checkPrimitiveCaller("Socket", op, start)
-	ops, _ := types.PrimitiveOps("Socket")
+// callPrimitive types `Primitive.op(args)` against its table, after
+// checking that the caller may use the primitive at all.
+func (c *checker) callPrimitive(name, op string, args []syntax.Arg, start lexer.Pos, env map[string]types.Type) types.Type {
+	c.checkPrimitiveCaller(name, op, start)
+	ops, typed := types.PrimitiveOps(name)
 	m, ok := ops[op]
 	if !ok {
-		c.report(start, "", "Socket has no operation %q; it has connect, connectTls, startTls, read, write, and close (ADR 0060)", op)
+		if typed {
+			c.report(start, "K1", "%s has no operation %q; its operations are %s", name, op, methodList(ops))
+		}
 		for _, a := range args {
 			c.inferExpr(a.Value, env)
 		}
 		return types.Unknown{}
 	}
-	return c.checkMethodArgs("Socket", op, m, args, start, env)
+	return c.checkMethodArgs(name, op, m, args, start, env)
 }
 
-// checkPrimitiveCaller is where a primitive capability may be called: only
-// in a gateway, and only the one that gateway requires (ADR 0010).
-func (c *checker) checkPrimitiveCaller(capabilityName, op string, start lexer.Pos) {
+// checkPrimitiveCaller is where a primitive may be called. A local effect
+// (Clock, Random) is read directly by an activity or a gateway, and by no
+// other kind (ADR 0068 §4). Any other primitive is touched only by a
+// gateway that requires it (ADR 0010).
+func (c *checker) checkPrimitiveCaller(name, op string, start lexer.Pos) {
+	if capability.IsLocalEffect(name) {
+		switch c.callerKind {
+		case kindActivity, kindGateway:
+		case kindWorkflow:
+			c.report(start, "B10", "a workflow may not call %s.%s; call an activity that does, so the workflow stays repeatable (ADR 0068 §4)", name, op)
+		default:
+			c.report(start, "B10", "a %s may not call %s.%s; its result would change from call to call, so take the value as a parameter, read by the activity or gateway that calls this %s (ADR 0068 §4)", c.callerKind, name, op, c.callerKind)
+		}
+		return
+	}
 	switch {
-	case c.callerKind == kindGateway && c.requires != capabilityName:
-		c.report(start, "P7", "this gateway requires %s, so it may not use %s; a gateway uses exactly the one capability it requires (ADR 0010)", c.requires, capabilityName)
+	case c.callerKind == kindGateway && c.requires != name:
+		c.report(start, "P7", "this gateway requires %s, so it may not use %s; a gateway uses exactly the one capability it requires (ADR 0010)", c.requires, name)
 	case c.callerKind != kindGateway:
-		c.report(start, "B10", "a %s may not call %s.%s; only a gateway that requires %s touches it (§3.1)", c.callerKind, capabilityName, op, capabilityName)
+		c.report(start, "B10", "a %s may not call %s.%s; only a gateway that requires %s touches it (§3.1)", c.callerKind, name, op, name)
 	}
 }
 

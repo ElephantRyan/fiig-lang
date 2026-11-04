@@ -79,7 +79,8 @@ var primitiveMethods = map[string]map[string]Method{
 var AppendParams = []string{"list", "element"}
 
 // primitiveOps is the operations of each primitive whose calls the checker
-// types (ADR 0060 §3). They come from this table, not from fiig source.
+// types (ADR 0060 §3, ADR 0068 §5). They come from this table, not from
+// fiig source. Clock and FileSystem aren't typed yet.
 var primitiveOps = map[string]map[string]Method{
 	"Socket": {
 		"connect":    {[]Param{p("host", stringType), p("port", intType)}, socketResult(ConnectionType)},
@@ -88,6 +89,12 @@ var primitiveOps = map[string]map[string]Method{
 		"read":       {[]Param{p("connection", ConnectionType)}, socketResult(bytesType)},
 		"write":      {[]Param{p("connection", ConnectionType), p("data", bytesType)}, socketResult(NoneType{})},
 		"close":      {[]Param{p("connection", ConnectionType)}, NoneType{}},
+	},
+	"Random": { // ADR 0068 §2
+		"bytes": {[]Param{p("count", intType)}, bytesType},
+		"int":   {[]Param{p("min", intType), p("max", intType)}, intType},
+		"float": {nil, Primitive{Name: "float"}},
+		"uuid":  {nil, stringType},
 	},
 }
 

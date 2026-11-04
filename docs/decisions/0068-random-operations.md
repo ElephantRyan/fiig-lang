@@ -1,8 +1,8 @@
 # ADR 0068: Random Operations, One Secure Source
 
 Status: Accepted (2026-11-03, one-decision-at-a-time review). §5's named
-arguments implemented 2026-11-04 (see Implementation notes); the rest is
-not yet implemented. §1, §3,
+arguments and §4's checker rules implemented 2026-11-04 (see
+Implementation notes); §3's encodings and §6's providers are not yet. §1, §3,
 and §6 accepted as drafted; §2 revised to an inclusive `Random.int(min,
 max)`, with named arguments on every builtin (§5); §4 revised: `Clock`
 and `Random` are local effects, called directly from activities and
@@ -368,3 +368,26 @@ expiry checks) take a date anyway.
 - Tests: `compiler/checker/builtin_args_test.go`,
   `compiler/runtime/builtin_args_test.go` (including `Socket.startTls`
   with its arguments named in the other order).
+
+**2026-11-04, §4 and the `Random` table.**
+
+- `compiler/capability` gains `IsLocalEffect` (`Clock`, `Random`). Every
+  primitive call now goes through one checker path (`callPrimitive`):
+  a local effect is legal in an activity or a gateway and B10 anywhere
+  else, with one message for rules, conversions, and formulas (take the
+  value as a parameter) and another for workflows (call an activity);
+  `Socket` and `FileSystem` keep B10 and P7 as before.
+- `types.PrimitiveOps("Random")` holds §2's four operations, so
+  `Random.int("a", 2)` is A1, a wrong name lists `min` and `max`, and an
+  unknown operation is K1 listing the four (`Socket`'s unknown operation is
+  K1 now too, where it had no class). `Clock` stays untyped (§5).
+- P8 is new: `requires Clock` or `requires Random`. The manifest
+  capability allowlist (ADR 0035) is built from `requires` clauses, so a
+  package that reads the clock or draws needs no manifest entry, which is
+  §4's point: neither reaches another system. The registry still records
+  every call in a card's `Uses`, so an activity that draws is not pure
+  (ADR 0044) and `fiig catalog` shows the call.
+- No corpus program called `Clock` or `Random`, or required either, so
+  nothing migrated. `invalid-programs/random_error.fiig` attests B10
+  (`rollDie`) and P8 (`newSessionToken`).
+- Tests: `compiler/checker/random_test.go`.

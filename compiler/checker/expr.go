@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"fiig-lang/compiler/capability"
 	"fiig-lang/compiler/lexer"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
@@ -547,8 +548,8 @@ func (c *checker) inferQualifiedCall(fa *syntax.FieldAccess, args []syntax.Arg, 
 		}
 		return c.inferMethodCall(c.inferExpr(fa.Target, env), fa, args, start, env)
 	}
-	if targetIdent.Name == "Socket" {
-		return c.callSocket(fa.Field, args, start, env)
+	if capability.IsPrimitive(targetIdent.Name) {
+		return c.callPrimitive(targetIdent.Name, fa.Field, args, start, env)
 	}
 	if decl, found := c.lookup(targetIdent.Name); found {
 		if g, ok := decl.(*syntax.FormulasDecl); ok {

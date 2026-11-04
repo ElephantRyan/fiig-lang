@@ -1,0 +1,15 @@
+// ADR 0068 §4: Clock and Random are local effects. B10: a rule may not
+// draw, since its answer would change from call to call; it takes the draw
+// as a parameter. Two declarations in one file, so G1 also fires,
+// incidentally but correctly.
+rule rollDie() -> int {
+    return Random.int(min: 1, max: 6)
+}
+
+// P8: there is nothing to require. An activity or a gateway calls Random
+// directly.
+gateway newSessionToken() -> string
+    requires Random
+{
+    return Random.uuid()
+}
