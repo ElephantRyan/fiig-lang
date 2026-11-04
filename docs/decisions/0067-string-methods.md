@@ -1,8 +1,11 @@
 # ADR 0067: String Methods, with Every Count Named
 
-Status: Proposed (2026-11-03). Under one-decision-at-a-time review: §1 and
-§2 decided 2026-11-03 (`length()` counts graphemes, `codePointCount()`
-beside it, bytes through the encoding); the rest is not yet reviewed.
+Status: Accepted (2026-11-03, one-decision-at-a-time review). Changed in
+review: `length()` and `slice` count graphemes, with `codePointCount()`
+beside them and bytes through `utf8().length()` (§1-§2); full case mapping
+and folding (§4); searching by code point, with a rule for any future
+position-returning method (§5); the number grammar widened, including
+`toDecimalOrNone` (§7). §3, §6, and §8 accepted as drafted.
 Date: 2026-11-03
 Related: ADR 0048 (`char` rejected), ADR 0049 §2.6 (closed method tables;
 "further string methods are additive"), ADR 0050 (naming), ADR 0057 (no `+`
@@ -148,17 +151,29 @@ lowercases to `"tıtle"` with a dotless `ı`; Kotlin 1.5 replaced
 `toLowerCase()` with `lowercase()` to make the locale-free mapping the
 default, and fiig takes Kotlin's names for that reason.
 
-**Per code point.** Each code point maps to one code point (Unicode's
-simple case mapping, which Go's `strings.ToLower` uses), so the result has
-the same code point count as the input. The visible difference from full mapping is
-`"ß".uppercase()`, which stays `"ß"` where Python gives `"SS"`.
+**Full mapping.** Case conversion uses Unicode's full case mapping
+(`UnicodeData.txt` plus the unconditional entries of `SpecialCasing.txt`),
+as Python, JavaScript, Java, Kotlin, Swift, and Rust do:
+`"straße".uppercase()` is `"STRASSE"`. Go and C#'s invariant culture use
+simple mapping, one code point to one, and leave `ß` as it is; the first
+draft did too, because simple mapping needed no tables, a reason §1's
+grapheme tables removed. The language-specific entries of
+`SpecialCasing.txt` (Turkish, Lithuanian) are left out, being locale
+rules.
+
+**The result can be longer.** `"ß"` is one grapheme and `"SS"` two, so a
+value whose length was checked before `uppercase()` can exceed the limit
+after it. Check the length of what is stored.
 
 **Comparing without case uses `equalsIgnoringCase`, not lowercasing.**
 `a.lowercase() == b.lowercase()` is the common idiom and is wrong for a few
 scripts: Greek sigma has two lowercase forms, so `"ΟΔΟΣ"` lowercases to
 `"οδοσ"` while the word is written `"οδος"`, and the two don't match.
-Unicode case folding (Go's `strings.EqualFold`) puts `Σ`, `σ`, and `ς`
-together. The method gives the right answer a name.
+`equalsIgnoringCase` compares the full case folding of both strings
+(`CaseFolding.txt`, statuses C and F, as Python's `casefold()`): `Σ`, `σ`,
+and `ς` fold together, and `"straße".equalsIgnoringCase("STRASSE")` is
+true. Go's `strings.EqualFold` and Java's `equalsIgnoreCase` use simple
+folding and say false there. The method gives the right answer a name.
 
 ### 5. `split(separator)` and `join(separator)`
 
@@ -180,6 +195,26 @@ as Python's `", ".join(parts)` and Java's `String.join(", ", parts)` do.
 On any other element type it's A1; interpolate first. Since there is no `+`
 on strings (ADR 0057), `join` and interpolation are how text is assembled.
 
+**Searching matches code points, not graphemes.** `split`, `contains`,
+`startsWith`, `endsWith`, `removePrefix`, `removeSuffix`, and §6's
+`replaceAll` find their argument wherever its code points occur, as Go,
+Python, JavaScript, and Java do. Only `length()` and `slice` work in
+graphemes. So `"é".contains("e")` (an `é` written as `e` and a
+combining accent) is true, `"👍🏽".startsWith("👍")` is true, and splitting a
+family emoji on the zero-width joiner gives three pieces; Swift, which
+matches only on grapheme boundaries, says false, false, and one. A
+separator or prefix a service uses (`,`, `/`, `Bearer `) never falls inside
+a grapheme, so the rules only differ when a search names part of one, and
+code-point matching is the one every reader already expects.
+
+**Why the two units don't meet.** The methods that take or give a position
+(`length()`, `slice`) count graphemes; the methods that search return a
+`bool`, a string, or a list of strings, never a position. A code-point match
+can't be handed to `slice`, so nothing cuts a character in half. To keep it
+that way: **a future method that returns a position (an `indexOfOrNone`)
+counts in graphemes and matches only on grapheme boundaries**, so its
+result is always a valid `slice` argument.
+
 ### 6. `replaceAll(old, new)`
 
 Every occurrence, left to right, without overlap. The name says "all"
@@ -192,19 +227,40 @@ empty `old` faults.
 
 ```
 "42".toIntOrNone()       // 42
-" 42".toIntOrNone()      // None: no surrounding whitespace
+"+42".toIntOrNone()      // 42
+"007".toIntOrNone()      // 7
+" 42".toIntOrNone()      // None: no surrounding whitespace; trim() first
+"3.0".toIntOrNone()      // None
 "1e3".toIntOrNone()      // None
 "9223372036854775808".toIntOrNone()   // None: out of range
 "2.5".toFloatOrNone()    // 2.5
+".5".toFloatOrNone()     // 0.5
+"5.".toFloatOrNone()     // 5.0
+"NaN".toFloatOrNone()    // None
 ```
 
-Beside `toDecimalOrNone()` (ADR 0064 §8). An int is an optional `-` and
-decimal digits, nothing else: no `+`, no underscores, no whitespace, and
-`None` when out of range. A float uses JSON's number grammar, the one
-`toDecimalOrNone` reads, so `NaN`, `Infinity`, and hex are `None`. Values
-from headers, query strings, environment variables, and files arrive as
-text, and the program decides what a bad one means; there is no faulting
-`toInt()`.
+Beside `toDecimalOrNone()` (ADR 0064 §8). Values from headers, query
+strings, environment variables, and files arrive as text, and the program
+decides what a bad one means; there is no faulting `toInt()`. The grammar
+accepts what real producers write (Python, Go, and Java all read `+42` and
+`.5`), and no more:
+
+- **An int** is an optional sign (`-` or `+`) and decimal digits; leading
+  zeros are fine. No underscores, no whitespace, no fraction (`3.0` is
+  `None`: ADR 0062 accepts it from JSON only because JSON has no separate
+  integer type, and a header meant to hold an int that says `3.0` is
+  wrong), `None` when out of range.
+- **A float or a decimal** is an optional sign, digits with an optional
+  `.` where either side may be empty but not both (`.5`, `5.`, `5.5`), and
+  an optional exponent (`e` or `E`, an optional sign, digits). `NaN`,
+  `Infinity`, hex, underscores, and whitespace are `None`; NaN and
+  infinities are faults in fiig (ADR 0048), so no text produces one.
+
+**`toDecimalOrNone` widens to the same grammar.** ADR 0064 §8 gave it
+JSON's number grammar; it now also reads `+`, `.5`, and `5.`, so the three
+conversions read numbers alike. Every string it accepted before it still
+accepts, with the same value. JSON decoding itself (ADR 0062) keeps JSON's
+grammar; this is text conversion only.
 
 ### 8. Equality and ordering stay as they are
 
@@ -266,12 +322,15 @@ with their own syntax and performance traps, and nothing above needs one.
 - `compiler/types/methods.go`: the `string` table gains §1-§7; `List`'s
   gains `join`, A1 on a non-string element (as `contains` checks its
   element).
-- `compiler/runtime/methods.go`: bodies, with the faults named above.
+- `compiler/runtime/methods.go`: bodies, with the faults named above;
+  `toDecimalOrNone` widened to §7's grammar, and ADR 0064 §8 given a note
+  pointing here.
 - Grapheme segmentation (UAX #29) in the core module, which has no
   dependencies and Go's standard library doesn't provide: the property
   tables are generated from the Unicode data files by a `go generate`
   step, checked in, and tested against Unicode's
-  `GraphemeBreakTest.txt`. The Unicode version is a constant the release
+  `GraphemeBreakTest.txt`. The same step generates §4's full case mapping
+  (`SpecialCasing.txt`) and full folding (`CaseFolding.txt`) tables. The Unicode version is a constant the release
   notes name.
 - `docs/known-limitations.md` drops "strings have few methods".
 - Corpus: validating a note's length and normalizing an email address.
@@ -284,7 +343,14 @@ with their own syntax and performance traps, and nothing above needs one.
    "at most 40 characters". A `truncate(n)` that never faults would be
    small; it waits for the corpus to show it.
 3. **`indexOfOrNone`.** Nothing above needs a position; `split`,
-   `startsWith`, and `removePrefix` cover the cases. Waits for a real case.
-4. **Normalization (NFC).** Comparing user-entered text across devices
-   sometimes needs it, and it needs Unicode tables.
-5. **Locale-aware collation** for sorting names for display.
+   `startsWith`, and `removePrefix` cover the cases. Waits for a real case,
+   and is bound by §5's rule: grapheme positions, grapheme-boundary
+   matches.
+4. **`graphemes()`.** `s.graphemes()` as a `List<string>` of one-grapheme
+   strings, for work done a character at a time (reversing, per-character
+   rendering). `slice` covers initials and masking, but walking every
+   character with it is O(n²). Waits for the corpus to show the need.
+5. **Normalization (NFC).** Comparing user-entered text across devices
+   sometimes needs it, and it needs Unicode tables. It is also the answer
+   to `"café".contains("e")` when the `é` arrived decomposed.
+6. **Locale-aware collation** for sorting names for display.
