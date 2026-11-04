@@ -59,22 +59,11 @@ func buildOperation(route *syntax.Route, u *types.Universe) (map[string]any, err
 	if err != nil {
 		return nil, err
 	}
-	target, found := u.Lookup(workflowName(route))
-	if !found {
-		return nil, fmt.Errorf("route target %q not found", workflowName(route))
+	wd, err := routeWorkflow(route, u)
+	if err != nil {
+		return nil, err
 	}
-	wd, ok := target.(*syntax.WorkflowDecl)
-	if !ok {
-		return nil, fmt.Errorf("route target %q is not a workflow", workflowName(route))
-	}
-	paramType := make(map[string]types.Type, len(wd.Params))
-	for _, p := range wd.Params {
-		pt, ok := types.Resolve(p.Type, u)
-		if !ok {
-			return nil, fmt.Errorf("parameter %q has an unresolvable type", p.Name)
-		}
-		paramType[p.Name] = pt
-	}
+	paramType := plan.paramTypes
 
 	op := map[string]any{"operationId": workflowName(route)}
 
@@ -85,13 +74,22 @@ func buildOperation(route *syntax.Route, u *types.Universe) (map[string]any, err
 	for _, n := range plan.queryNames {
 		params = append(params, map[string]any{"name": n, "in": "query", "required": true, "schema": schemaFor(paramType[n], u)})
 	}
+	// ADR 0069 §1: header and cookie arguments, which OpenAPI has its own
+	// `in` for. A `T | None` argument is optional.
+	for _, arg := range route.Args {
+		if arg.Source == "" {
+			continue
+		}
+		pt := paramType[arg.Name]
+		params = append(params, map[string]any{"name": arg.SourceName, "in": arg.Source, "required": !runtime.IsOptional(pt), "schema": schemaFor(nonNone(pt), u)})
+	}
 	if len(params) > 0 {
 		op["parameters"] = params
 	}
 	if plan.bodyArg != "" {
 		op["requestBody"] = map[string]any{
 			"required": true,
-			"content":  map[string]any{"application/json": map[string]any{"schema": schemaFor(paramType[plan.bodyArg], u)}},
+			"content":  map[string]any{consumesOf(route): map[string]any{"schema": schemaFor(paramType[plan.bodyArg], u)}},
 		}
 	}
 
@@ -114,13 +112,14 @@ func buildResponses(route *syntax.Route, wd *syntax.WorkflowDecl, u *types.Unive
 	}
 	okType, errType, isResult := resultMembers(retType)
 
+	media := producesOf(route)
 	responses := map[string]any{}
 	if route.Mapping == nil {
 		if isResult {
-			responses["200"] = responseObject(okType, u)
-			responses["500"] = responseObject(errType, u)
+			responses["200"] = responseObject(okType, media, u)
+			responses["500"] = responseObject(errType, media, u)
 		} else {
-			responses["200"] = responseObject(retType, u)
+			responses["200"] = responseObject(retType, media, u)
 		}
 		return responses, nil
 	}
@@ -135,18 +134,26 @@ func buildResponses(route *syntax.Route, wd *syntax.WorkflowDecl, u *types.Unive
 		}
 		switch v := arm.Value.(type) {
 		case *syntax.StatusResponse, *syntax.ExitResponse:
-			code, _, hasBody := statusAndBody(v)
+			code, body, hasBody := statusAndBody(v)
 			if hasBody {
-				responses[code] = responseObject(bodyType, u)
+				// A body that is a call has that call's type; a bare name
+				// is the value the arm's pattern bound.
+				if t, ok := resolveExprType(body, u); ok {
+					bodyType = t
+				}
+				responses[code] = responseObject(bodyType, media, u)
 			} else {
 				responses[code] = map[string]any{"description": ""}
 			}
 		case *syntax.ExprResponse:
 			// The actual status is only known dynamically (inside whatever
 			// this expression calls) — described under "default" rather
-			// than guessed at.
+			// than guessed at. Its body is HttpResponse<B>'s B (ADR 0069 §3).
 			exprType, _ := resolveExprType(v.Value, u)
-			responses["default"] = responseObject(exprType, u)
+			if b, ok := types.IsHttpResponse(exprType); ok {
+				exprType = b
+			}
+			responses["default"] = responseObject(exprType, media, u)
 		}
 	}
 	return responses, nil
@@ -234,11 +241,34 @@ func resolveExprType(e syntax.Expr, u *types.Universe) (types.Type, bool) {
 	return types.Resolve(rt, u)
 }
 
-func responseObject(t types.Type, u *types.Universe) map[string]any {
+// responseObject describes a response whose body is t, sent as media (the
+// route's `produces`, ADR 0069 §5). A body that is only ever None is no
+// content at all.
+func responseObject(t types.Type, media string, u *types.Universe) map[string]any {
+	if _, none := t.(types.NoneType); none {
+		return map[string]any{"description": ""}
+	}
 	return map[string]any{
 		"description": "",
-		"content":     map[string]any{"application/json": map[string]any{"schema": schemaFor(t, u)}},
+		"content":     map[string]any{media: map[string]any{"schema": schemaFor(t, u)}},
 	}
+}
+
+// producesOf and consumesOf are a route's declared content types, or JSON
+// for a route that hasn't declared one (the checker requires both where
+// they apply).
+func producesOf(route *syntax.Route) string {
+	if route.Produces != nil {
+		return route.Produces.Text
+	}
+	return "application/json"
+}
+
+func consumesOf(route *syntax.Route) string {
+	if route.Consumes != nil {
+		return route.Consumes.Text
+	}
+	return "application/json"
 }
 
 // schemaFor renders t as a JSON Schema fragment. Enum types collapse to a generic object rather than a discriminated
@@ -257,6 +287,8 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 			return map[string]any{"type": "number", "format": "decimal"}
 		case "string":
 			return map[string]any{"type": "string"}
+		case "bytes":
+			return map[string]any{"type": "string", "format": "binary"}
 		case "bool":
 			return map[string]any{"type": "boolean"}
 		}

@@ -2,7 +2,12 @@ package adapter
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
+
+	"fiig-lang/compiler/parser"
+	"fiig-lang/compiler/syntax"
+	"fiig-lang/compiler/types"
 )
 
 func TestOpenAPIDefaultMappingRoute(t *testing.T) {
@@ -119,5 +124,51 @@ func TestOpenAPIDocumentIsValidJSON(t *testing.T) {
 		if _, err := json.MarshalIndent(doc, "", "  "); err != nil {
 			t.Fatalf("MarshalIndent(%s): %v", name, err)
 		}
+	}
+}
+
+// ADR 0069: header and cookie parameters, and request and response content
+// under each route's declared types.
+func TestOpenAPIHeadersCookiesAndMediaTypes(t *testing.T) {
+	var files []*syntax.File
+	for _, src := range sourcesProgram {
+		f, errs := parser.Parse(src)
+		if len(errs) > 0 {
+			t.Fatalf("parse: %v", errs)
+		}
+		files = append(files, f)
+	}
+	u, _ := types.BuildUniverse(files)
+	doc, err := GenerateOpenAPI(findAdapter(t, files, "api"), u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := doc["paths"].(map[string]any)
+	me := paths["/me"].(map[string]any)["get"].(map[string]any)
+	got, _ := json.Marshal(me["parameters"])
+	want := `[{"in":"header","name":"Authorization","required":true,"schema":{"type":"string"}},` +
+		`{"in":"header","name":"X-Request-Id","required":false,"schema":{"type":"string"}},` +
+		`{"in":"cookie","name":"sid","required":false,"schema":{"type":"string"}},` +
+		`{"in":"header","name":"X-Page","required":false,"schema":{"type":"integer"}}]`
+	if string(got) != want {
+		t.Fatalf("parameters = %s\nwant %s", got, want)
+	}
+
+	csv := paths["/csv"].(map[string]any)["post"].(map[string]any)
+	body, _ := json.Marshal(csv["requestBody"])
+	if string(body) != `{"content":{"text/csv":{"schema":{"type":"string"}}},"required":true}` {
+		t.Fatalf("requestBody = %s", body)
+	}
+	resp, _ := json.Marshal(csv["responses"].(map[string]any)["200"])
+	if string(resp) != `{"content":{"text/csv":{"schema":{"type":"string"}}},"description":""}` {
+		t.Fatalf("200 = %s", resp)
+	}
+	bin, _ := json.Marshal(paths["/bin"].(map[string]any)["post"].(map[string]any)["requestBody"])
+	if !strings.Contains(string(bin), `"application/octet-stream":{"schema":{"format":"binary","type":"string"}}`) {
+		t.Fatalf("bytes requestBody = %s", bin)
+	}
+	nothing, _ := json.Marshal(paths["/nothing"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)["200"])
+	if string(nothing) != `{"description":""}` {
+		t.Fatalf("a None body = %s, want no content", nothing)
 	}
 }
