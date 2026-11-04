@@ -29,6 +29,17 @@ var builtinMethods = map[string]map[string]builtinFunc{
 		"utf8": func(recv Value, _ []Value) (Value, *Fault) {
 			return Bytes{B: []byte(recv.(Str))}, nil
 		},
+		// ADR 0069 §7: decoding text back to bytes, reading what real
+		// producers send.
+		"fromHex": func(recv Value, _ []Value) (Value, *Fault) {
+			return decodedOrNone(hex.DecodeString(string(recv.(Str))))
+		},
+		"fromBase64": func(recv Value, _ []Value) (Value, *Fault) {
+			return decodedOrNone(decodeBase64(string(recv.(Str)), base64.StdEncoding))
+		},
+		"fromBase64Url": func(recv Value, _ []Value) (Value, *Fault) {
+			return decodedOrNone(decodeBase64(string(recv.(Str)), base64.URLEncoding))
+		},
 		"contains": func(recv Value, args []Value) (Value, *Fault) {
 			sub, ok := args[0].(Str)
 			if !ok {
@@ -382,4 +393,24 @@ func sliceArgs(kind string, args []Value, length int) (int, int, *Fault) {
 		return 0, 0, Faultf("slice(%d, %d) out of range for %s of length %d", from, to, kind, length)
 	}
 	return int(from), int(to), nil
+}
+
+func decodedOrNone(b []byte, err error) (Value, *Fault) {
+	if err != nil {
+		return None{}, nil
+	}
+	return Bytes{B: b}, nil
+}
+
+// decodeBase64 reads base64 in padded's alphabet (ADR 0069 §7): CR and LF
+// are skipped anywhere, since MIME and PEM wrap it; the = padding is
+// optional, but if present must be complete; and leftover bits in the
+// last symbol are ignored, as Go's non-strict decoder ignores them. Any
+// other character, a space or the other alphabet's, is an error.
+func decodeBase64(s string, padded *base64.Encoding) ([]byte, error) {
+	s = strings.NewReplacer("\r", "", "\n", "").Replace(s)
+	if strings.HasSuffix(s, "=") {
+		return padded.DecodeString(s)
+	}
+	return padded.WithPadding(base64.NoPadding).DecodeString(s)
 }
