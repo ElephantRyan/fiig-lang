@@ -1,0 +1,13 @@
+// Logging out without a session is still logged out, so it always
+// succeeds.
+workflow logOut(session: string | None) -> Result<None, AccountError> {
+    match session {
+        None -> {
+            return Ok(None)
+        }
+        token -> {
+            deleteSession(token)
+            return Ok(None)
+        }
+    }
+}

@@ -1,0 +1,12 @@
+// An API client sends its session token as `Authorization: Bearer <token>`
+// (RFC 6750) instead of a cookie.
+rule bearerToken(header: string) -> string | None {
+    if not header.startsWith(prefix: "Bearer ") {
+        return None
+    }
+    token = header.removePrefix(prefix: "Bearer ").trim()
+    if token.isBlank() {
+        return None
+    }
+    return token
+}

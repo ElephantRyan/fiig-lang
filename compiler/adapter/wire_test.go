@@ -35,7 +35,7 @@ func TestCookiesAndHeadersAreWritten(t *testing.T) {
     return HttpResponse(
         status: 200,
         body: user,
-        headers: ["Cache-Control": "no-store", "X-Trace": "a\tb ünï"],
+        headers: ["Cache-Control": "no-store", "WWW-Authenticate": "Basic", "X-Trace":"a\tb ünï"],
         cookies: [
             Cookie(name: "sid", value: "tok_en-1"),
             Cookie(
@@ -57,6 +57,9 @@ func TestCookiesAndHeadersAreWritten(t *testing.T) {
 	}
 	if hdr.Get("Cache-Control") != "no-store" || hdr.Get("X-Trace") != "a\tb ünï" || hdr.Get("Content-Type") != "application/json" {
 		t.Fatalf("headers = %v", hdr)
+	}
+	if len(hdr["WWW-Authenticate"]) != 1 {
+		t.Fatalf("headers = %v, want WWW-Authenticate spelled as written", hdr)
 	}
 	want := []string{
 		"sid=tok_en-1; Path=/; Secure; HttpOnly; SameSite=Lax",

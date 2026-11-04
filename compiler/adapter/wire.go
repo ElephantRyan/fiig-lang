@@ -183,10 +183,13 @@ func setCookie(c cookie) string {
 	return b.String()
 }
 
-// writeHeaders writes a checked response's own headers and cookies.
+// writeHeaders writes a checked response's own headers and cookies. A
+// header name goes out as the program spelled it (`WWW-Authenticate`, not
+// Go's canonical `Www-Authenticate`); checkWire has already refused two
+// spellings of one name.
 func writeHeaders(h http.Header, resp Response) {
 	for _, hd := range resp.Headers {
-		h.Add(hd.Name, hd.Value)
+		h[hd.Name] = append(h[hd.Name], hd.Value)
 	}
 	for _, rec := range resp.Cookies {
 		h.Add("Set-Cookie", setCookie(readCookie(rec)))

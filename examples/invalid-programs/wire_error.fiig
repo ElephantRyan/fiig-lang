@@ -1,0 +1,16 @@
+// ADR 0069 §6: what the HTTP adapter refuses to write, reported by the
+// checker when it can see the value. W1: a header the adapter owns, since
+// Content-Type comes from the route's produces. Two declarations in one
+// file, so G1 also fires, incidentally but correctly.
+conversion htmlPage(page: string) -> HttpResponse<string> {
+    return HttpResponse(status: 200, body: page, headers: ["Content-Type": "text/html"])
+}
+
+// W2: a cookie sent to any site must be Secure, and browsers drop this one
+// without a word, so the bug would surface as an embed that never logs in.
+conversion embedCookie(token: string) -> HttpResponse<None> {
+    return HttpResponse(
+        status: 204,
+        cookies: [Cookie(name: "embed", value: token, sameSite: SameSite.AnySite, sentOverPlainHttp: true)],
+    )
+}

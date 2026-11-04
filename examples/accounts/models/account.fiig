@@ -1,0 +1,5 @@
+// An account as a client sees it: never its key.
+model Account {
+    name: string
+    email: string
+}

@@ -121,6 +121,11 @@ func TestInvalidProgramsCatchEveryAttestedBugClass(t *testing.T) {
 			"H5":  1, // resumeSession: a Connection as a workflow parameter
 			"G1":  1, // two declarations packed into one file, incidental but real
 		}},
+		{"invalid-programs/wire_error.fiig", map[string]int{
+			"W1": 1, // htmlPage: sets Content-Type, which produces owns
+			"W2": 1, // embedCookie: SameSite=None over plain HTTP
+			"G1": 1, // two declarations packed into one file, incidental but real
+		}},
 		{"invalid-programs/random_error.fiig", map[string]int{
 			"B10": 1, // rollDie: a rule drawing a random number
 			"P8":  1, // newApiKey: requires Random

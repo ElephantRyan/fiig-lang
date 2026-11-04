@@ -1,0 +1,14 @@
+gateway findAccountByKey(credentials: Credentials) -> Result<Account, AccountError>
+    requires Database
+    idempotent
+{
+    row = Database.queryOne(
+        "SELECT name, email FROM accounts WHERE name = ? AND key = ?",
+        credentials.name,
+        credentials.key,
+    )
+    match row {
+        found -> Ok(Account(name: found.name, email: found.email))
+        None -> Err(AccountError.BadCredentials)
+    }
+}
