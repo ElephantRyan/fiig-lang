@@ -462,7 +462,7 @@ is, and an implicit default is how "always JSON" came to look like a rule.
    `Access-Control-Allow-*` headers, and nothing here lets a program do
    either. Owner's decision in review: fiig needs it, as its own ADR and
    alpha item 4a, rather than leaving it to a same-origin deployment or a
-   reverse proxy.
+   reverse proxy. Settled by ADR 0070.
 
 ## Implementation notes (2026-11-04)
 

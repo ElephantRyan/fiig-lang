@@ -573,9 +573,11 @@ Need an ADR first, in build order:
    `HttpResponse<B>` and `Cookie`, and `examples/accounts`.
 4a. CORS for `http` adapters, so a browser front end on another origin
    can call the service (owner's decision 2026-11-04, deferred out of
-   ADR 0069 into its own ADR).
+   ADR 0069 into its own ADR). Designed in ADR 0070 (accepted
+   2026-11-04); build pending.
 5. Configuration values reachable from fiig code, from the environment:
-   service URLs and secrets.
+   service URLs and secrets. Revisit then where CORS origins live
+   (ADR 0070 §1, which reads them from `fiig serve` flags until then).
 6. The JSON shape of an enum and a `Result` in an HTTP body (today the
    tagged form `fiig run -json` uses).
 7. JSON decoding in fiig code (ADR 0062's library).
