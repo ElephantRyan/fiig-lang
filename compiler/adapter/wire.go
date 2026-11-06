@@ -113,8 +113,8 @@ func checkWire(resp Response) *runtime.Fault {
 		if !httpspec.IsToken(h.Name) {
 			return runtime.Faultf("response header name %q isn't an HTTP token", h.Name)
 		}
-		if httpspec.AdapterOwnedHeader(h.Name) {
-			return runtime.Faultf("response header %q is the adapter's: Content-Type comes from produces, Content-Length from the body, and Set-Cookie from cookies", h.Name)
+		if from := httpspec.AdapterOwnedHeader(h.Name); from != "" {
+			return runtime.Faultf("response header %q is the adapter's: %s", h.Name, from)
 		}
 		lower := strings.ToLower(h.Name)
 		if other, dup := seen[lower]; dup {

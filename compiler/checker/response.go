@@ -192,8 +192,8 @@ func (c *checker) checkHeaderConstants(e syntax.Expr) {
 			switch {
 			case !httpspec.IsToken(name):
 				c.report(start, "W1", "response header name %q isn't an HTTP token", name)
-			case httpspec.AdapterOwnedHeader(name):
-				c.report(start, "W1", "response header %q is the adapter's: Content-Type comes from produces, Content-Length from the body, and Set-Cookie from cookies", name)
+			case httpspec.AdapterOwnedHeader(name) != "":
+				c.report(start, "W1", "response header %q is the adapter's: %s", name, httpspec.AdapterOwnedHeader(name))
 			case seen[lower] != "":
 				c.report(start, "W1", "response headers %q and %q differ only by case, and HTTP reads them as one header", seen[lower], name)
 			}
