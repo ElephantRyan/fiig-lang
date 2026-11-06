@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -53,12 +54,22 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	shutdown := fs.Duration("shutdown", 10*time.Second, "how long in-flight requests may run after SIGINT/SIGTERM")
 	var workspaces stringList
 	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable")
+	var origins stringList
+	fs.Var(&origins, "allow-origin", "an origin a browser front end may call from, as scheme://host[:port], or * for any (ADR 0070); repeatable; default $ALLOW_ORIGINS, comma-separated; none means CORS off")
 	fs.Parse(args)
 	if fs.NArg() != 2 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-addr ADDR] [-caps FILE] [-workspace DIR]... <root> <adapterName>")
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-addr ADDR] [-caps FILE] [-allow-origin ORIGIN]... [-workspace DIR]... <root> <adapterName>")
 		os.Exit(2)
 	}
-	handler, err := load(fs.Arg(0), fs.Arg(1), *capsPath, workspaces, factories)
+	if len(origins) == 0 {
+		origins = strings.Split(os.Getenv("ALLOW_ORIGINS"), ",")
+	}
+	cors, err := adapter.ParseOrigins(origins)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error: -allow-origin:", err)
+		os.Exit(1)
+	}
+	handler, err := load(fs.Arg(0), fs.Arg(1), *capsPath, workspaces, factories, cors)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -74,6 +85,9 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 		srv.Shutdown(done)
 	}()
 	log.Printf("fiig %s: serving %s on %s", version.Version, fs.Arg(1), *addr)
+	if cors != nil {
+		log.Printf("fiig: allowing cross-origin calls from %s", strings.Join(cors.Origins(), ", "))
+	}
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -82,7 +96,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 }
 
 // load checks root and builds the handler for its http adapter named name.
-func load(root, name, capsPath string, workspaces []string, factories runtime.FactoryRegistry) (http.Handler, error) {
+func load(root, name, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS) (http.Handler, error) {
 	files, diags, err := runprogram.LoadFiles(root)
 	if err != nil {
 		return nil, err
@@ -127,7 +141,11 @@ func load(root, name, capsPath string, workspaces []string, factories runtime.Fa
 	in := runtime.New(universe, caps)
 	in.Imports = runprogram.BuildImports(files, packages)
 	in.Groups = runprogram.BuildGroups(files, packages)
-	return adapter.HTTPHandler(decl, universe, in)
+	h, err := adapter.HTTPHandler(decl, universe, in)
+	if err != nil {
+		return nil, err
+	}
+	return adapter.WithCORS(h, decl, cors)
 }
 
 func envOr(name, fallback string) string {
