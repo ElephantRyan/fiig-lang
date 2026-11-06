@@ -28,10 +28,8 @@ doesn't have to discover them.
 
 ## HTTP
 
-- **No CORS** (ADR 0069 open question 6, its own ADR next): a browser
-  front end on another origin can't call a fiig service, since nothing
-  answers a preflight `OPTIONS` request. Serve both from one origin, or put
-  a reverse proxy in front, for now.
+- **CORS origins are listed exactly** (ADR 0070 §9): no wildcard
+  subdomains for per-tenant front ends, and one policy per adapter.
 - **One content type per route**, and no `Accept` negotiation (ADR 0069
   open question 4). A non-JSON body is a `string` or `bytes` the program
   parses or writes itself; there's no XML library (open question 5).
