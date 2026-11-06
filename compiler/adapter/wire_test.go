@@ -77,6 +77,7 @@ func TestTheAdapterRefusesWhatHTTPCantCarry(t *testing.T) {
 		{`HttpResponse(status: 200, headers: ["X-Name": "a${user.name}\r\nX-Evil: 1"])`, `response header "X-Name"'s value contains control character a carriage return`},
 		{`HttpResponse(status: 200, headers: ["X-${user.name} y": "v"])`, `isn't an HTTP token`},
 		{`HttpResponse(status: 200, headers: ["Content-Type": "text/html${user.name}"])`, `response header "Content-Type" is the adapter's`},
+		{`HttpResponse(status: 200, headers: ["Access-Control-${user.name}": "*"])`, `response header "Access-Control-ada" is the adapter's: the adapter writes CORS headers`},
 		{`HttpResponse(status: 200, headers: ["X-Id": "1", "x-id": "${user.name}"])`, `response headers "X-Id" and "x-id" differ only by case`},
 		{`HttpResponse(status: 100 + user.name.length())`, `response status 103 is outside 200 to 599`},
 		{`HttpResponse(status: 204, body: user)`, `a 204 response can't carry a body`},

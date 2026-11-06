@@ -129,15 +129,23 @@ func BodyForbidden(status int64) bool {
 	return status == 204 || status == 304
 }
 
-// AdapterOwnedHeader reports whether name is a header the adapter writes
-// itself (ADR 0069 §6): Content-Type from `produces`, Content-Length from
-// the body, and Set-Cookie from `cookies`.
-func AdapterOwnedHeader(name string) bool {
-	switch strings.ToLower(name) {
-	case "content-type", "content-length", "set-cookie":
-		return true
+// AdapterOwnedHeader says where the adapter takes name from when it is a
+// header the adapter writes itself (ADR 0069 §6, ADR 0070 §7), or "" when
+// a program may set it.
+func AdapterOwnedHeader(name string) string {
+	lower := strings.ToLower(name)
+	switch lower {
+	case "content-type":
+		return "the adapter writes it from produces"
+	case "content-length":
+		return "the adapter writes it from the body"
+	case "set-cookie":
+		return "the adapter writes it from cookies"
 	}
-	return false
+	if strings.HasPrefix(lower, "access-control-") {
+		return "the adapter writes CORS headers from fiig serve -allow-origin"
+	}
+	return ""
 }
 
 func describeByte(b byte) string {
