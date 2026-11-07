@@ -42,11 +42,23 @@ doesn't have to discover them.
   `fiig run -json` uses (`{"$enum": ...}`); a model is a plain object.
   Map errors to a status and a message, as the getting-started adapter does.
 - **No HTTP client library.** `examples/acme-http` shows one written in fiig
-  over `Socket`, but it only sends POST over TLS to port 443 with no custom
-  headers.
+  over `Socket`, but it only sends POST over TLS to port 443, with an
+  `Authorization` header and no others.
 - **No JSON parsing in fiig code.** Request bodies decode into declared
   types at the adapter, but a program can't parse JSON it received some
   other way (ADR 0062's library).
+
+## Configuration
+
+- **The environment is the only source** (ADR 0071 §8): no YAML, TOML, or
+  properties files, no remote secret stores (inject them into the
+  environment), and no reloading while running.
+- **No lists in config.** Read a `string` and split it in a rule.
+- **One account per provider.** A package's config has one value per
+  program, so two Stripe accounts in one program need ADR 0043's
+  parameterized providers, which aren't designed.
+- **No `fiig test`** to set config per test; run an activity with `fiig run
+  -env-file test.env`.
 
 ## Language
 

@@ -56,7 +56,7 @@ Structural keywords — reserved, part of the grammar below:
 
 ```
 model  enum  rule  conversion  activity  gateway  workflow  adapter
-interface  capability  formulas  formula
+interface  capability  formulas  formula  config
 requires  use  as  return  if  not  match  transaction  concurrent  retry
 in  limit  attempts  command  preserveOrder  private
 ```
@@ -64,7 +64,8 @@ in  limit  attempts  command  preserveOrder  private
 `interface` and `capability` (ADR 0043) join the declaration-start keywords
 below: reserved only where a declaration begins, ordinary names elsewhere.
 So do `formulas` and `formula` (ADR 0049); `formula` opens a member inside a
-`formulas` group, and is a name everywhere else.
+`formulas` group, and is a name everywhere else. So does `config` (ADR
+0071), so `config` stays usable as a parameter or binding name.
 So do the adapter kinds `http` and `cli`, which are reserved only right after
 `adapter` — a package alias needs them as names, since `use acme.http`
 binds `http`. Any keyword is also accepted as one segment of a `use` path,
@@ -150,6 +151,7 @@ declaration ::= model-decl | enum-decl
               | rule-decl | conversion-decl | activity-decl | gateway-decl
               | workflow-decl | adapter-decl
               | interface-decl | capability-decl | formulas-decl
+              | config-decl
 
 private-block  ::= 'private' '{' { private-member } '}'
 private-member ::= helper-decl | model-decl
@@ -247,7 +249,31 @@ capability-decl  ::= 'capability' identifier '{' { gateway-decl } '}'
 
 formulas-decl  ::= 'formulas' identifier '{' { formula-member } '}'
 formula-member ::= 'formula' identifier params '->' type [ block ]
+
+config-decl  ::= 'config' identifier '{' { config-field } '}'
+config-field ::= identifier ':' type 'from' 'env' string [ '=' expression ]   // `from` and `env` are contextual
 ```
+
+`config-decl` is ADR 0071's: values a deployment supplies through the
+environment, each read and checked once, before the program starts, and
+fixed for the life of the process. A config is capitalized and read as
+`Name.field`, only in an activity or a gateway; a rule, conversion,
+formula, or workflow takes the value as a parameter (B10). A field is
+`string`, `int`, `float`, `decimal`, `bool`, an enum (read by variant
+name), or `Secret`, optionally `| None` (V1). The variable's name is a
+string with no interpolation. A default is a constant, constant arithmetic
+included (`= 24 * 60 * 60`), and used when the variable is unset or empty;
+a `Secret` has none, since it would put the secret in the source. A field
+with neither a default nor `| None` is required. Another package's config
+is imported by path tail, like a capability group: `use
+acme.postgres.Postgres`. Attested: `accounts/config/sessions.fiig`,
+`acme-stripe/config/stripe_account.fiig`.
+
+`Secret` (ADR 0071 §4) is a prelude type only config produces. It can't be
+interpolated (S1), compared with `==` (M1), or reach a workflow's
+signature or a response body (S1). It prints as `Secret(NAME)`, naming its
+variable. `.matches(candidate: string) -> bool` compares in constant time,
+anywhere; `.reveal() -> string` gives the text, only in a gateway (S2).
 
 `formulas-decl` is ADR 0049's: a group of pure formulas, which §3.9 counts as
 its file's one declaration. Every kind may call a formula, a rule included,

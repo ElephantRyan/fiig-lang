@@ -121,7 +121,11 @@ type Card struct {
 	Pure       bool   `json:"pure,omitempty"`
 	// Environment is a config card's variables (ADR 0071 §5), so a reader
 	// knows what a package needs from a deployment before using it.
-	Environment []EnvVar `json:"environment,omitempty"` // rule/conversion always; an activity when everything it reaches is pure (ADR 0044, derived in Generate) — §3.11 lists purity as its own contract-card field
+	Environment []EnvVar `json:"environment,omitempty"`
+	// BrowserCalls is, on an http adapter's card, where the origins allowed
+	// to call it from a browser come from (ADR 0071 §7): the deployment,
+	// never the source.
+	BrowserCalls string `json:"browserCalls,omitempty"` // rule/conversion always; an activity when everything it reaches is pure (ADR 0044, derived in Generate) — §3.11 lists purity as its own contract-card field
 
 	Fields   []Param   `json:"fields,omitempty"`   // model fields
 	Header   []Param   `json:"header,omitempty"`   // enum header fields (ADR 0046 §4)
@@ -245,7 +249,11 @@ func BuildCard(decl syntax.Decl, source string) *Card {
 	case *syntax.WorkflowDecl:
 		return &Card{Name: d.Name, Kind: "workflow", Catalog: Composition, Source: source, Params: paramParams(d.Params), Returns: typeString(d.ReturnType), Error: errorTypeOf(d.ReturnType), Dependencies: bodyCallNames(d.Body), Uses: syntax.BodyCapabilityCalls(d.Body)}
 	case *syntax.AdapterDecl:
-		return &Card{Name: d.Name, Kind: "adapter", Catalog: Composition, Source: source, AdapterKind: string(d.Kind), Routes: routeSummaries(d.Routes), Dependencies: adapterCallNames(d)}
+		card := &Card{Name: d.Name, Kind: "adapter", Catalog: Composition, Source: source, AdapterKind: string(d.Kind), Routes: routeSummaries(d.Routes), Dependencies: adapterCallNames(d)}
+		if d.Kind == syntax.AdapterHTTP {
+			card.BrowserCalls = "from the origins in ALLOW_ORIGINS or fiig serve -allow-origin at deploy, none by default (ADR 0070)"
+		}
+		return card
 	case *syntax.InterfaceDecl:
 		ops := make([]Operation, len(d.Members))
 		for i, m := range d.Members {

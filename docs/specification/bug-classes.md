@@ -62,7 +62,7 @@ Adapter→Workflow only. Every kind may also call a formula.
 | B7 | A rule calls another rule or a conversion (ADR 0029 — rules call nothing that carries judgment or effects, since ADR 0049 narrowed "nothing at all" to admit formulas; that composition is an `Activity`'s job) | Attested — `effect_error.fiig` (`computeDiscount`) |
 | B8 | An activity or workflow calls a workflow (ADR 0044 — a workflow is the adapter boundary and nothing in fiig may call one; this replaces ADR 0030's "an activity calls a gateway, another activity, or a workflow", which ADR 0044 made legal for the first two) | Attested — `effect_error.fiig` (`lookupViaWorkflow`). A workflow calling a workflow is covered by `compiler/checker`'s `TestWorkflowIsUncallableAndOnlyAdapterBoundary`. |
 | B9 | An activity is part of a call cycle through activities in other files (ADR 0044 — activities may now call each other, so recursion is expressible; the first call-graph cycle check in fiig, since rules call nothing and conversion recursion is structural). Since ADR 0054 §6 an activity calling itself, directly or through its own private helpers, is allowed and bounded by the runtime's call depth limit; only a cycle that leaves the file is B9 | Attested — `effect_error.fiig` (`pingCustomer`/`pongCustomer`, reported at both); `TestActivityCycleThroughHelpersIsStillB9` for a cycle through a helper |
-| B10 | A rule, conversion, activity or workflow calls a primitive capability directly (`Socket.connect(...)`). Only a gateway touches a capability (§3.1), and since ADR 0060 typed `Socket`'s operations the checker can see the call; before that, a direct capability call from any kind was unmodeled and passed silently. ADR 0068 §4 splits the primitives: `Clock` and `Random` are local effects, which an activity or a gateway calls directly, so for them B10 is a rule, conversion, formula, or workflow calling one (`Random.int(...)` in a rule; the rule takes the draw as a parameter) | Attested — `socket_error.fiig` (`peekAtDatabase`), `random_error.fiig` (`rollDie`); `TestSocketOutsideItsGatewayIsB10OrP7` and `TestLocalEffectsOutsideTheShellAreB10` for every kind |
+| B10 | A rule, conversion, activity or workflow calls a primitive capability directly (`Socket.connect(...)`). Only a gateway touches a capability (§3.1), and since ADR 0060 typed `Socket`'s operations the checker can see the call; before that, a direct capability call from any kind was unmodeled and passed silently. ADR 0068 §4 splits the primitives: `Clock` and `Random` are local effects, which an activity or a gateway calls directly, so for them B10 is a rule, conversion, formula, or workflow calling one (`Random.int(...)` in a rule; the rule takes the draw as a parameter). ADR 0071 §2 widens it to reading config (`Sessions.maxAge`) anywhere but an activity or a gateway | Attested — `socket_error.fiig` (`peekAtDatabase`), `random_error.fiig` (`rollDie`); `TestSocketOutsideItsGatewayIsB10OrP7` and `TestLocalEffectsOutsideTheShellAreB10` for every kind; `config_error.fiig` (`retryLimit`), `TestConfigOutsideActivitiesAndGatewaysIsB10` |
 | B11 | A formula calls anything other than a formula: a rule, conversion, activity, gateway, workflow, or capability group (ADR 0049 §2.2 restriction 2). A formula is the bottom of the composition lattice, so it can't become a channel for reaching something a rule is forbidden to reach. A primitive capability call from a formula is B10, like any non-gateway | Attested — `formula_error.fiig` (`brokenChecks.shipsFree`); `compiler/checker`'s `TestFormulaCallsOnlyFormulasB11` for a capability group |
 
 ## C. Transaction errors
@@ -171,6 +171,25 @@ adapter.
 |---|---|---|
 | W1 | A response HTTP can't carry: a status outside 200 to 599, a body on a 204 or 304, a header name that isn't an RFC 9110 token, a header the adapter owns (`Content-Type` from `produces`, `Content-Length`, `Set-Cookie` from `cookies`, and every `Access-Control-*` header, from `fiig serve -allow-origin`, ADR 0070 §7), two header names that differ only by case, or a header value with a control character other than tab (CR and LF are header injection, CWE-113) | Attested — `wire_error.fiig` (`htmlPage`); `compiler/checker`'s `TestWireConstantsAreChecked`; the run-time faults in `compiler/adapter`'s `TestTheAdapterRefusesWhatHTTPCantCarry` |
 | W2 | A cookie a browser would refuse or read as more than it says: a name that isn't a token, a value outside RFC 6265's cookie-octets, a `path` with `;` or a control character, a `domain` that isn't a hostname, a negative `maxAge`, `sameSite: AnySite` with `sentOverPlainHttp: true`, a `__Secure-` name without `Secure`, a `__Host-` name without `Secure` or with a `domain` or a `path` other than `/`, or two cookies in one response with the same name, path, and domain | Attested — `wire_error.fiig` (`embedCookie`), and the same two tests. The checker checks each field it can see, and the browser rules only when every field they read is known (a left-out field is its known default) |
+
+
+## V. Config errors (ADR 0071)
+
+A config declaration the runtime couldn't read once, before the program
+starts. Reading one outside an activity or a gateway is B10, like `Clock`.
+
+| # | Bug class | Status |
+|---|---|---|
+| V1 | A config field of a type an environment variable's text can't be read as (anything but `string`, `int`, `float`, `decimal`, `bool`, an enum, or `Secret`, optionally `\| None`), an environment variable name that isn't one, a default that isn't a constant or doesn't fit the field's type (A1), a default on a `Secret`, which would put the secret in the source, or a field declared twice | Attested — `config_error.fiig` (`Billing.apiKey`); `compiler/checker`'s `TestConfigDeclarationsAreV1`. What only the deployment can get wrong (unset, or `86400s` for an int) is the startup report, every problem at once (`compiler/runtime`'s `TestEveryConfigProblemIsReportedAtOnce`) |
+
+## S. Secret errors (ADR 0071 §4)
+
+A `Secret` is a config value that must never be shown.
+
+| # | Bug class | Status |
+|---|---|---|
+| S1 | A `Secret` shown: interpolated into a string, or able to cross the adapter boundary in a workflow's parameters or result, or a response body. (`==` on one is M1, since it would leak the secret through timing; `.matches()` compares in constant time) | Attested — `config_error.fiig` (`describeKey`); `TestSecretIsNeverShown` |
+| S2 | `.reveal()` outside a gateway, the kind that hands values to the outside world. Anywhere else a `Secret` is passed on, matched, or given to an operation that takes one, so no rule can turn it into a `string` and return it | Attested — `config_error.fiig` (`keyText`); `TestSecretIsNeverShown` |
 
 ## Explicitly out of scope (not statically checkable)
 

@@ -5,14 +5,63 @@ declarations. It refuses a program with checker diagnostics, so a deploy
 can't start a program that doesn't check.
 
 ```
-fiig serve [-addr :8080] [-caps caps.json] [-allow-origin ORIGIN]... [-workspace DIR]... <root> <adapterName>
+fiig serve [-addr :8080] [-caps caps.json] [-env-file .env] [-allow-origin ORIGIN]... [-workspace DIR]... <root> <adapterName>
 ```
 
-## Capabilities and configuration
+## Configuration
+
+A program reads its settings from the environment, through `config`
+declarations (ADR 0071), and a package declares its own, so an
+application sets its dependencies' variables without declaring them.
+`fiig config` lists every variable the program reads, from every package
+and the caps file, which is the deployment's checklist:
+
+```
+$ fiig config -caps caps.json . accountsApi
+ACCOUNTS_EXPORT_TOKEN  Secret   required        config Sessions.exportToken
+SESSION_MAX_AGE        int      = 24 * 60 * 60  config Sessions.maxAge
+ALLOW_ORIGINS          origins  optional        fiig serve: browser origins allowed to call it (ADR 0070)
+LISTEN_ADDR            address  = :8080         fiig serve
+```
+
+`fiig serve` and `fiig run` read every value the entry point can reach
+before they start, and refuse to start with **every** problem listed at
+once: an unset required variable, a value that doesn't parse as its type
+(`SESSION_MAX_AGE=86400s` isn't an int), an unset `${NAME}` in the caps
+file, and a bad origin. A value is never re-read, so changing one means a
+restart. A `Secret`'s value is never printed, in the report, a trace, or a
+fault; it shows as `Secret(NAME)`.
+
+**For development**, `-env-file .env` reads `NAME=value` lines (with an
+optional `export `, `#` comments, and optional matching quotes) into the
+same lookup. A variable set in the process wins, and no file is read
+without the flag, so production behaves the same with one lying around.
+Keep `.env` out of version control and commit a `.env.example`, which
+`fiig config`'s output tells you how to fill.
+
+**Renaming a dependency's variable.** When a package reads a name that
+doesn't fit the deployment (two libraries wanting one database URL under
+different names, or a company convention), the application's
+`fiig.pkg.json` maps it, and the loader refuses a rename of a variable the
+package doesn't read:
+
+```json
+"environment": {"acme.stripe": {"STRIPE_API_KEY": "CLIENTVERTICAL_STRIPE_API_KEY"}}
+```
+
+**One application per vertical.** A deployment that must not contain a
+provider, for a legal reason say, is its own small application package
+over shared ones, depending only on what it may use: it can't import the
+rest, never loads its code, and `fiig config` lists none of its keys.
+`examples/checkout-clientvertical` beside `examples/checkout-app` is the
+worked case.
+
+## Capabilities
 
 `-caps` is the ADR 0027 capabilities file. Any string in it may name an
-environment variable as `${NAME}`, and an unset one stops the server before
-it starts, so paths and secrets live in the environment, not the file:
+environment variable as `${NAME}`, read through the same lookup as config
+(an `-env-file` included), so paths and secrets live in the environment,
+not the file:
 
 ```json
 {
@@ -21,7 +70,8 @@ it starts, so paths and secrets live in the environment, not the file:
 }
 ```
 
-`-addr` defaults to `$LISTEN_ADDR`, then `:8080`. SIGINT or SIGTERM stops
+`-addr` defaults to `$LISTEN_ADDR`, then `:8080`, and `-allow-origin` to
+`$ALLOW_ORIGINS`; both read the same lookup. SIGINT or SIGTERM stops
 accepting connections and gives in-flight requests `-shutdown` (10s) to
 finish.
 
@@ -52,7 +102,7 @@ CMD ["serve", "-caps", "/app/caps.json", "/app", "myHttpAdapter"]
 ```
 
 ```
-docker run -p 8080:8080 -v app-data:/data -e DB_PATH=/data/app.db my-app
+docker run -p 8080:8080 -v app-data:/data -e DB_PATH=/data/app.db --env-file prod.env my-app
 ```
 
 ## As a binary
