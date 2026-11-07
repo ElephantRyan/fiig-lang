@@ -33,6 +33,10 @@ type Interp struct {
 	// alias -> group map (compiler/checker.ResolveFileGroups, per file).
 	Groups map[string]map[string]*types.GroupRef
 
+	// Config is every config declaration's values (ADR 0071), read once by
+	// LoadConfig before the program starts.
+	Config map[*syntax.ConfigDecl]Record
+
 	Capabilities *CapabilityRegistry
 	Clock        Clock
 	Rand         *rand.Rand

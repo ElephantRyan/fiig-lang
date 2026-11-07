@@ -121,7 +121,7 @@ type Card struct {
 	Pure       bool   `json:"pure,omitempty"`
 	// Environment is a config card's variables (ADR 0071 §5), so a reader
 	// knows what a package needs from a deployment before using it.
-	Environment []EnvVar `json:"environment,omitempty"`       // rule/conversion always; an activity when everything it reaches is pure (ADR 0044, derived in Generate) — §3.11 lists purity as its own contract-card field
+	Environment []EnvVar `json:"environment,omitempty"` // rule/conversion always; an activity when everything it reaches is pure (ADR 0044, derived in Generate) — §3.11 lists purity as its own contract-card field
 
 	Fields   []Param   `json:"fields,omitempty"`   // model fields
 	Header   []Param   `json:"header,omitempty"`   // enum header fields (ADR 0046 §4)
