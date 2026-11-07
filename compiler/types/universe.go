@@ -56,12 +56,18 @@ type Universe struct {
 // since nothing attested chains an aliased reference more than two
 // segments deep (grammar.md §2).
 type Package struct {
+	// Path is the package's canonical dotted path, set by compiler/loader;
+	// "" for a package built without one.
+	Path     string
 	Universe *Universe
 	Imports  map[string]*Universe
 	// Groups is the package's own capability-group imports (`use
 	// acme.http.Client`, ADR 0043 §5), alias -> group, which its gateways'
 	// bodies reach through `requires`.
 	Groups map[string]*GroupRef
+	// Dependencies is the packages this one was built against, by path:
+	// what its Imports' universes belong to.
+	Dependencies Packages
 }
 
 // Packages maps a canonical dotted package path (manifest.Manifest.Path)

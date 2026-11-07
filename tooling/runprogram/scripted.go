@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"sort"
+	"strings"
 	"sync"
 
 	"fiig-lang/compiler/runtime"
@@ -87,32 +90,46 @@ func ScriptedFactory(cfg map[string]any) (runtime.CapabilityProvider, error) {
 // faults with "no provider registered", the right failure for a
 // program that needs a capability the caller never configured.
 func LoadCapabilitiesFile(path string, extraFactories runtime.FactoryRegistry) (*runtime.CapabilityRegistry, error) {
+	reg, problems, err := LoadCapabilitiesFileWith(path, extraFactories, os.LookupEnv)
+	if err == nil && len(problems) > 0 {
+		err = fmt.Errorf("%s", strings.Join(problems, "; "))
+	}
+	return reg, err
+}
+
+// LoadCapabilitiesFileWith is LoadCapabilitiesFile reading `${NAME}`
+// through lookup (ADR 0071 §6), so an -env-file feeds it too. Every unset
+// variable is returned as a problem, for the one startup report; with any,
+// no provider is built.
+func LoadCapabilitiesFileWith(path string, extraFactories runtime.FactoryRegistry, lookup runtime.Lookup) (*runtime.CapabilityRegistry, []string, error) {
 	reg := runtime.NewCapabilityRegistry()
 	if path == "" {
-		return reg, nil
+		return reg, nil, nil
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// ParseJSON, not json.Unmarshal, so scripted response numbers keep their
 	// text for DecodeUntypedJSON (ADR 0062 §6).
 	parsed, err := runtime.ParseJSON(raw)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if parsed, err = expandEnv(parsed); err != nil {
-		return nil, err
+	var problems []string
+	parsed = expandEnv(parsed, lookup, filepath.Base(path), &problems)
+	if len(problems) > 0 {
+		return nil, problems, nil
 	}
 	top, ok := parsed.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("capabilities file must be a JSON object")
+		return nil, nil, fmt.Errorf("capabilities file must be a JSON object")
 	}
 	config := make(map[string]map[string]any, len(top))
 	for capability, v := range top {
 		cfg, ok := v.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("capability %q must be a JSON object", capability)
+			return nil, nil, fmt.Errorf("capability %q must be a JSON object", capability)
 		}
 		config[capability] = cfg
 	}
@@ -132,65 +149,61 @@ func LoadCapabilitiesFile(path string, extraFactories runtime.FactoryRegistry) (
 		for method, v := range cfg {
 			list, ok := v.([]any)
 			if !ok {
-				return nil, fmt.Errorf("%s.%s must be a JSON array", capability, method)
+				return nil, nil, fmt.Errorf("%s.%s must be a JSON array", capability, method)
 			}
 			responses[method] = list
 		}
 		reg.Register(capability, &ScriptedCapability{responses: responses, calls: map[string]int{}})
 	}
 	if len(declarative) == 0 {
-		return reg, nil
+		return reg, nil, nil
 	}
 	declReg, err := runtime.LoadCapabilities(declarative, factories)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for capability := range declarative {
 		p, _ := declReg.Lookup(capability)
 		reg.Register(capability, p)
 	}
-	return reg, nil
+	return reg, nil, nil
 }
 
 // envRef is `${NAME}` inside a capabilities file's string.
 var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
-// expandEnv replaces every `${NAME}` in v's strings with that environment
-// variable, so a deployed capabilities file names its secrets and paths
-// instead of holding them: `"dsn": "file:${DB_PATH}"`. An unset variable is
-// an error, never an empty string.
-func expandEnv(v any) (any, error) {
+// expandEnv replaces every `${NAME}` in v's strings with that variable, so
+// a deployed capabilities file names its secrets and paths instead of
+// holding them: `"dsn": "file:${DB_PATH}"`. An unset variable is a problem,
+// named with where it is (`caps.json Database.dsn`), never an empty string.
+func expandEnv(v any, lookup runtime.Lookup, where string, problems *[]string) any {
 	switch v := v.(type) {
 	case string:
-		var missing string
-		out := envRef.ReplaceAllStringFunc(v, func(ref string) string {
+		return envRef.ReplaceAllStringFunc(v, func(ref string) string {
 			name := envRef.FindStringSubmatch(ref)[1]
-			val, ok := os.LookupEnv(name)
-			if !ok && missing == "" {
-				missing = name
+			val, ok := lookup(name)
+			if !ok {
+				*problems = append(*problems, fmt.Sprintf("%s is unset; %s", name, where))
 			}
 			return val
 		})
-		if missing != "" {
-			return nil, fmt.Errorf("environment variable %s is not set", missing)
-		}
-		return out, nil
 	case map[string]any:
-		for k, e := range v {
-			x, err := expandEnv(e)
-			if err != nil {
-				return nil, err
-			}
-			v[k] = x
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		sep := " "
+		if strings.Contains(where, " ") {
+			sep = "."
+		}
+		for _, k := range keys {
+			v[k] = expandEnv(v[k], lookup, where+sep+k, problems)
 		}
 	case []any:
 		for i, e := range v {
-			x, err := expandEnv(e)
-			if err != nil {
-				return nil, err
-			}
-			v[i] = x
+			v[i] = expandEnv(e, lookup, fmt.Sprintf("%s[%d]", where, i), problems)
 		}
 	}
-	return v, nil
+	return v
 }

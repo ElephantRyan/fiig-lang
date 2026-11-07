@@ -5,8 +5,9 @@
 // Usage:
 //
 //	fiig check   [-json] [-workspace DIR]... <root>
-//	fiig run     [-json] [-args JSON] [-caps FILE] [-trace] [-workspace DIR]... <root> <declName>
-//	fiig serve   [-addr ADDR] [-caps FILE] [-workspace DIR]... <root> <adapterName>
+//	fiig run     [-json] [-args JSON] [-caps FILE] [-env-file FILE] [-trace] [-workspace DIR]... <root> <declName>
+//	fiig serve   [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-workspace DIR]... <root> <adapterName>
+//	fiig config  [-caps FILE] [-workspace DIR]... <root> [entry]
 //	fiig fmt     [-w] [-json] <file.fiig>...
 //	fiig catalog generate|find|explain|diff ...
 //	fiig version
@@ -28,6 +29,7 @@ import (
 	fiigsql "fiig-lang/libraries/sql"
 	"fiig-lang/tooling/cli/catalogcmd"
 	"fiig-lang/tooling/cli/checkcmd"
+	"fiig-lang/tooling/cli/configcmd"
 	"fiig-lang/tooling/cli/fmtcmd"
 	"fiig-lang/tooling/cli/runcmd"
 	"fiig-lang/tooling/cli/servecmd"
@@ -39,6 +41,7 @@ commands:
   check     type-check a program and report every diagnostic
   run       run one declaration of a program
   serve     serve one of a program's http adapters
+  config    list the environment variables a program reads
   fmt       format .fiig files
   catalog   generate, search, and compare a program's registry
   version   print the toolchain version
@@ -59,6 +62,8 @@ func main() {
 		runcmd.Main("fiig run", args, sql)
 	case "serve":
 		servecmd.Main("fiig serve", args, sql)
+	case "config":
+		configcmd.Main("fiig config", args)
 	case "fmt":
 		fmtcmd.Main("fiig fmt", args)
 	case "catalog":

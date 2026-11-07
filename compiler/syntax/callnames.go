@@ -197,6 +197,13 @@ func startsUpper(s string) bool {
 	return s != "" && s[0] >= 'A' && s[0] <= 'Z'
 }
 
+// WalkBlockExprs calls visit on every expression in b, outermost first.
+func WalkBlockExprs(b *Block, visit func(Expr)) { walkBlockExprs(b, visit) }
+
+// WalkExpr calls visit on e and every expression inside it, outermost
+// first.
+func WalkExpr(e Expr, visit func(Expr)) { walkExpr(e, visit) }
+
 // walkBlockExprs calls visit on every expression in b, outermost first.
 func walkBlockExprs(b *Block, visit func(Expr)) {
 	if b == nil {
