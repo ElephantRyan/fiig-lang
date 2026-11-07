@@ -323,6 +323,8 @@ func resolveQualified(t *syntax.QualifiedType, u *Universe, imports map[string]*
 		return NoneType{}, true
 	case "Connection":
 		return ConnectionType, true
+	case "Secret":
+		return SecretType, true
 	}
 	if preludeGenerics[name] {
 		args := make([]Type, len(t.Args))

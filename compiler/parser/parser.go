@@ -129,6 +129,7 @@ var structuralKeywords = map[lexer.Kind]bool{
 	lexer.KwCapability: true,
 	lexer.KwFormulas:   true,
 	lexer.KwFormula:    true,
+	lexer.KwConfig:     true,
 	// An adapter kind is reserved only right after `adapter`. Everywhere
 	// else it is a name, which a package alias needs: `use acme.http` binds
 	// `http` (ADR 0043).
@@ -359,6 +360,8 @@ func (p *Parser) parseDecl() syntax.Decl {
 		return p.parseCapabilityDecl()
 	case lexer.KwFormulas:
 		return p.parseFormulasDecl()
+	case lexer.KwConfig:
+		return p.parseConfigDecl()
 	default:
 		if p.cur().Kind == lexer.Ident && p.cur().Text == "value" {
 			// ADR 0055: `value Name: T` was removed, not renamed — say so
@@ -372,7 +375,7 @@ func (p *Parser) parseDecl() syntax.Decl {
 			}
 			return nil
 		}
-		p.errorf(p.cur().Start, "expected a declaration (model/enum/rule/conversion/activity/gateway/workflow/adapter/interface/capability/formulas), got %s", p.cur().Kind)
+		p.errorf(p.cur().Start, "expected a declaration (model/enum/rule/conversion/activity/gateway/workflow/adapter/interface/capability/formulas/config), got %s", p.cur().Kind)
 		return nil
 	}
 }
@@ -435,6 +438,45 @@ func (p *Parser) parseModelDecl() *syntax.ModelDecl {
 	}
 	end := p.expect(lexer.RBrace).End
 	return &syntax.ModelDecl{Span: syntax.Span{Start: start, End: end}, Name: name.Text, Fields: fields}
+}
+
+// parseConfigDecl parses `config Name { name: Type from env "NAME" = default }`
+// (ADR 0071 §1). `from` and `env` are contextual here only, as they are in a
+// route argument.
+func (p *Parser) parseConfigDecl() *syntax.ConfigDecl {
+	start := p.advance().Start // 'config'
+	name := p.expectName()
+	p.expect(lexer.LBrace)
+	var fields []syntax.ConfigField
+	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
+		p.guardProgress(func() { fields = append(fields, p.parseConfigField()) })
+	}
+	end := p.expect(lexer.RBrace).End
+	return &syntax.ConfigDecl{Span: syntax.Span{Start: start, End: end}, Name: name.Text, Fields: fields}
+}
+
+func (p *Parser) parseConfigField() syntax.ConfigField {
+	start := p.cur().Start
+	name := p.expectName()
+	p.expect(lexer.Colon)
+	f := syntax.ConfigField{Name: name.Text, Type: p.parseType()}
+	if p.atContextual("from") && p.peek(1).Kind == lexer.Ident && p.peek(1).Text == "env" {
+		p.advance()
+		p.advance()
+		lit := p.parseStringLit()
+		f.Env = plainText(lit)
+		if hasInterp(lit) {
+			p.errorf(lit.Start, "interpolation is not allowed in an environment variable's name")
+		}
+	} else {
+		p.errorf(p.cur().Start, "expected `from env \"NAME\"` after config field %q's type (ADR 0071 §1), got %s", name.Text, p.cur().Kind)
+	}
+	if p.at(lexer.Equals) {
+		p.advance()
+		f.Default = p.parseExpression()
+	}
+	f.Span = syntax.Span{Start: start, End: p.cur().Start}
+	return f
 }
 
 func (p *Parser) parseEnumDecl() *syntax.EnumDecl {

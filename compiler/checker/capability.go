@@ -64,6 +64,8 @@ func ResolveFileGroups(file *syntax.File, packages types.Packages) map[string]*t
 				groups[importAlias(imp)] = &types.GroupRef{Package: pkg, Decl: g}
 			case *syntax.FormulasDecl:
 				groups[importAlias(imp)] = &types.GroupRef{Package: pkg, Formulas: g}
+			case *syntax.ConfigDecl:
+				groups[importAlias(imp)] = &types.GroupRef{Package: pkg, Config: g}
 			}
 		}
 	}
@@ -101,6 +103,10 @@ func (c *checker) checkImportNames(file *syntax.File, packages types.Packages) {
 			if isUpper(alias) {
 				c.report(imp.Start, "N1", "alias %q must start lowercase, like formulas group %s, which it names (ADR 0050 §2.6)", alias, g.Formulas.Name)
 			}
+		} else if ok && g.Config != nil {
+			if !isUpper(alias) {
+				c.report(imp.Start, "N1", "alias %q must keep the case of config %s, which it names: config names are capitalized (ADR 0071 §1)", alias, g.Config.Name)
+			}
 		} else if ok {
 			if !isUpper(alias) {
 				c.report(imp.Start, "N1", "alias %q must keep the case of capability group %s, which it names: capability names are capitalized (ADR 0043 §5c)", alias, g.Decl.Name)
@@ -114,7 +120,7 @@ func (c *checker) checkImportNames(file *syntax.File, packages types.Packages) {
 				if _, isGateway := d.(*syntax.GatewayDecl); isGateway {
 					c.report(imp.Start, "P4", "gateway %q is not in a capability group, so it is private to its package; only a package's capability groups are reachable from outside it (ADR 0043 §5)", tail)
 				} else {
-					c.report(imp.Start, "", "%q names a %s; an import names a package, or one of its capability or formulas groups", path, syntax.DeclKindName(d))
+					c.report(imp.Start, "", "%q names a %s; an import names a package, or one of its capability groups, formulas groups, or config declarations", path, syntax.DeclKindName(d))
 				}
 			} else {
 				c.report(imp.Start, "", "package %q has no capability or formulas group %q", strings.Join(imp.Path[:len(imp.Path)-1], "."), tail)

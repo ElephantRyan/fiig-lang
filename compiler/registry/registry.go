@@ -81,7 +81,7 @@ type Variant struct {
 // package doc for what's deliberately left out until the checker exists.
 type Card struct {
 	Name    string  `json:"name"`
-	Kind    string  `json:"kind"` // model | value | enum | rule | conversion | activity | gateway | workflow | adapter | interface | capability | formula | constant (a prelude math constant)
+	Kind    string  `json:"kind"` // model | value | enum | rule | conversion | activity | gateway | workflow | adapter | interface | capability | formula | config | constant (a prelude math constant)
 	Catalog Catalog `json:"catalog"`
 	Source  string  `json:"source"` // file path relative to the registry root, forward-slashed
 
@@ -118,7 +118,10 @@ type Card struct {
 
 	Requires   string `json:"requires,omitempty"`   // gateway's capability (grammar.md §4)
 	Idempotent bool   `json:"idempotent,omitempty"` // gateway only (ADR 0014)
-	Pure       bool   `json:"pure,omitempty"`       // rule/conversion always; an activity when everything it reaches is pure (ADR 0044, derived in Generate) — §3.11 lists purity as its own contract-card field
+	Pure       bool   `json:"pure,omitempty"`
+	// Environment is a config card's variables (ADR 0071 §5), so a reader
+	// knows what a package needs from a deployment before using it.
+	Environment []EnvVar `json:"environment,omitempty"`       // rule/conversion always; an activity when everything it reaches is pure (ADR 0044, derived in Generate) — §3.11 lists purity as its own contract-card field
 
 	Fields   []Param   `json:"fields,omitempty"`   // model fields
 	Header   []Param   `json:"header,omitempty"`   // enum header fields (ADR 0046 §4)
@@ -156,6 +159,15 @@ type Card struct {
 	// the same relationship Siblings already models for signatures: a
 	// cross-card fact, not something redundantly stored on every card.
 	Dependencies []string `json:"dependencies,omitempty"`
+}
+
+// EnvVar is one environment variable a config card reads (ADR 0071 §5).
+type EnvVar struct {
+	Name    string `json:"name"`  // the variable
+	Field   string `json:"field"` // the config field it fills
+	Type    string `json:"type"`
+	Default string `json:"default,omitempty"` // as written; "" when required or optional
+	Secret  bool   `json:"secret,omitempty"`
 }
 
 // Operation is one operation on an interface or capability card.
@@ -257,6 +269,15 @@ func BuildCard(decl syntax.Decl, source string) *Card {
 		}
 		sort.Strings(usesList)
 		return &Card{Name: d.Name, Kind: "capability", Catalog: Default, Source: source, Operations: ops, Uses: usesList, Dependencies: dedupe(deps)}
+	case *syntax.ConfigDecl:
+		vars := make([]EnvVar, len(d.Fields))
+		for i, f := range d.Fields {
+			vars[i] = EnvVar{Name: f.Env, Field: f.Name, Type: typeString(f.Type), Secret: holdsSecretName(f.Type)}
+			if f.Default != nil {
+				vars[i].Default = format.Expr(f.Default)
+			}
+		}
+		return &Card{Name: d.Name, Kind: "config", Catalog: Default, Source: source, Environment: vars}
 	default:
 		return nil
 	}
@@ -572,4 +593,21 @@ func typeString(t syntax.Type) string {
 	default:
 		return "?"
 	}
+}
+
+// holdsSecretName reports whether a config field's written type is Secret,
+// alone or `| None`; a config field's types are only §1's, so no deeper
+// walk is needed.
+func holdsSecretName(t syntax.Type) bool {
+	switch t := t.(type) {
+	case *syntax.QualifiedType:
+		return len(t.Path) == 1 && t.Path[0] == "Secret"
+	case *syntax.UnionType:
+		for _, m := range t.Members {
+			if holdsSecretName(m) {
+				return true
+			}
+		}
+	}
+	return false
 }

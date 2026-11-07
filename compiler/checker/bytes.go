@@ -45,6 +45,9 @@ func (c *checker) inferMethodCall(recv types.Type, fa *syntax.FieldAccess, args 
 			if kind == "List" {
 				c.checkListElement(recv.(types.Generic).Args[0], fa.Field, start)
 			}
+			if kind == "Secret" && fa.Field == "reveal" && c.callerKind != kindGateway {
+				c.report(start, "S2", "only a gateway may call .reveal(), where the value leaves for the outside world; pass the Secret on instead (ADR 0071 §4)")
+			}
 			return c.checkMethodArgs(kind, fa.Field, m, args, start, env)
 		}
 		if ok {

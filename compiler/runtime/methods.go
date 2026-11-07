@@ -349,6 +349,8 @@ func methodKind(v Value) string {
 		return "List"
 	case Map:
 		return "Map"
+	case Secret:
+		return "Secret"
 	}
 	return ""
 }

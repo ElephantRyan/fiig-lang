@@ -71,6 +71,8 @@ const (
 	// ADR 0049: a `formulas` group and its `formula` members.
 	KwFormulas
 	KwFormula
+	// ADR 0071: a `config` declaration.
+	KwConfig
 
 	// Punctuation and operators
 	LBrace   // {
@@ -140,6 +142,7 @@ var keywords = map[string]Kind{
 	"capability":    KwCapability,
 	"formulas":      KwFormulas,
 	"formula":       KwFormula,
+	"config":        KwConfig,
 }
 
 // Pos is a source location, 1-indexed for both line and column so it can be
