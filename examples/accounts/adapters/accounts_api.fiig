@@ -1,7 +1,8 @@
 // ADR 0069: a login that sets a session cookie, a route that reads it, a
 // logout that deletes it, and a CSV export for an API client that sends
-// the token as a bearer header instead.
-// fiig serve -caps caps.json . accountsApi
+// the deployment's export token as a bearer header (ADR 0071).
+// fiig config . accountsApi lists what a deployment sets; then
+// fiig serve -caps caps.json -env-file .env.example . accountsApi
 adapter http accountsApi {
     POST "/sessions" -> logIn(authorization: string | None from header "Authorization")
         produces "application/json"

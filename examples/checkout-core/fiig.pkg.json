@@ -1,0 +1,8 @@
+{
+    "path": "checkout.core",
+    "kind": "library",
+    "version": "1.0.0",
+    "dependencies": {
+        "acme.payments": "1.0.0"
+    }
+}

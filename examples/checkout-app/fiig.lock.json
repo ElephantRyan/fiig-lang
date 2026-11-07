@@ -4,7 +4,7 @@
     {
       "path": "acme.http",
       "version": "1.0.0",
-      "hash": "sha256:4d9cb44591d50b3f0a72bd70e9e1ef4bc8e49e7259b111f08edbad50f9a78953",
+      "hash": "sha256:da84824aa35f92e4d0b02578673ac63c67aad96c9400a39b91b70ac8ddec92cf",
       "source": "examples/acme-http",
       "capabilities": [
         "Socket"
@@ -19,14 +19,23 @@
     {
       "path": "acme.square",
       "version": "1.0.0",
-      "hash": "sha256:e9abdf2ceaf075682dd53fe7a8863babc10156d0fa3f60efd137bc8ed563fd55",
+      "hash": "sha256:b76e699e9a62ede23c3eabf3229238096135dfa07a35020438621316965dc92a",
       "source": "examples/acme-square"
     },
     {
       "path": "acme.stripe",
       "version": "1.0.0",
-      "hash": "sha256:e04bacc1eafe15f0c682a05614ac59ec28489b91d46e77ed427dd7e047d96361",
+      "hash": "sha256:f94396ddb89083d07c18d34850e7e767d8dbac9c0937582c33b231223c5a24f5",
       "source": "examples/acme-stripe"
+    },
+    {
+      "path": "checkout.core",
+      "version": "1.0.0",
+      "hash": "sha256:c64db13f8d084af46e9e16e25a7d2371c3ff9ddb74d01b5d32f3d8ff053541fc",
+      "source": "examples/checkout-core",
+      "capabilities": [
+        "Socket"
+      ]
     }
   ]
 }

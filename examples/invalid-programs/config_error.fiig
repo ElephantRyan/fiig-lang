@@ -1,0 +1,25 @@
+// ADR 0071: config the runtime couldn't read, a value read where it may
+// not be, and a Secret shown. Four declarations in one file, so G1 fires
+// three times, incidentally but correctly.
+config Billing {
+    // V1: a default on a Secret would put the secret in the source.
+    apiKey: Secret from env "BILLING_API_KEY" = "sk_live_123"
+    retries: int from env "BILLING_RETRIES" = 3
+}
+
+// B10: a rule reading config; its answer would depend on the deployment,
+// not its arguments, so it takes the value as a parameter instead.
+rule retryLimit() -> int {
+    return Billing.retries
+}
+
+// S1: a Secret interpolated into a string, which a log line would show.
+activity describeKey(key: Secret) -> string {
+    return "using ${key}"
+}
+
+// S2: only a gateway reveals a Secret, where it leaves for the outside
+// world; an activity returning the text could hand it to anything.
+activity keyText(key: Secret) -> string {
+    return key.reveal()
+}

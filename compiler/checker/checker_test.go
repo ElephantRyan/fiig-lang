@@ -126,6 +126,13 @@ func TestInvalidProgramsCatchEveryAttestedBugClass(t *testing.T) {
 			"W2": 1, // embedCookie: SameSite=None over plain HTTP
 			"G1": 1, // two declarations packed into one file, incidental but real
 		}},
+		{"invalid-programs/config_error.fiig", map[string]int{
+			"V1":  1, // Billing.apiKey: a Secret with a default
+			"B10": 1, // retryLimit: a rule reading config
+			"S1":  1, // describeKey: a Secret in a string
+			"S2":  1, // keyText: reveal outside a gateway
+			"G1":  3, // four declarations packed into one file, incidental but real
+		}},
 		{"invalid-programs/random_error.fiig", map[string]int{
 			"B10": 1, // rollDie: a rule drawing a random number
 			"P8":  1, // newApiKey: requires Random

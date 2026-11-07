@@ -239,13 +239,20 @@ func TestCorpusHTTPRequestBytes(t *testing.T) {
 	u := loadUniverse(t, "acme-http/models", "acme-http/conversions")
 	in := newTestInterp(u, nil)
 	request := Record{TypeName: "WebRequest", Fields: map[string]Value{
-		"host": Str("pay.example"), "path": Str("/v1/charges"), "body": Str("amount=5"),
+		"host": Str("pay.example"), "path": Str("/v1/charges"), "body": Str("amount=5"), "authorization": None{},
 	}}
 	v, fault := in.Call(context.Background(), "httpRequest", map[string]Value{"request": request})
 	if fault != nil {
 		t.Fatalf("httpRequest: %v", fault)
 	}
 	want := "POST /v1/charges HTTP/1.1\r\nHost: pay.example\r\nContent-Length: 8\r\nConnection: close\r\n\r\namount=5"
+	if !Equal(v, Bytes{B: []byte(want)}) {
+		t.Fatalf("httpRequest = %s, want %q", v, want)
+	}
+	// ADR 0071 §4: the key a provider revealed goes out as one header.
+	request.Fields["authorization"] = Str("Bearer sk_test")
+	v, _ = in.Call(context.Background(), "httpRequest", map[string]Value{"request": request})
+	want = "POST /v1/charges HTTP/1.1\r\nHost: pay.example\r\nAuthorization: Bearer sk_test\r\nContent-Length: 8\r\nConnection: close\r\n\r\namount=5"
 	if !Equal(v, Bytes{B: []byte(want)}) {
 		t.Fatalf("httpRequest = %s, want %q", v, want)
 	}
