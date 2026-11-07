@@ -909,3 +909,33 @@ func TestBinaryPatternAndExpression(t *testing.T) {
 	// Nested generics still close with two separate `>` tokens.
 	mustParse(t, "rule r(x: List<List<int>>) -> int {\n    return 0\n}")
 }
+
+// ADR 0071 §1: a config declaration's fields, their variables, and
+// defaults.
+func TestParseConfigDecl(t *testing.T) {
+	f, errs := Parse(`config Sessions {
+    maxAge: int from env "SESSION_MAX_AGE" = 24 * 60 * 60
+    exportToken: Secret from env "ACCOUNTS_EXPORT_TOKEN"
+    level: Level | None from env "LOG_LEVEL"
+}`)
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v", errs)
+	}
+	d := f.Decls[0].(*syntax.ConfigDecl)
+	if d.Name != "Sessions" || len(d.Fields) != 3 {
+		t.Fatalf("decl = %+v", d)
+	}
+	if d.Fields[0].Env != "SESSION_MAX_AGE" || d.Fields[0].Default == nil || d.Fields[1].Default != nil || d.Fields[2].Env != "LOG_LEVEL" {
+		t.Fatalf("fields = %+v", d.Fields)
+	}
+	if _, errs := Parse("config C {\n    a: int\n}"); len(errs) == 0 || !strings.Contains(errs[0].Msg, "expected `from env \"NAME\"`") {
+		t.Fatalf("missing from env: %v", errs)
+	}
+	if _, errs := Parse("config C {\n    a: int from env \"A${x}\"\n}"); len(errs) == 0 {
+		t.Fatal("interpolated variable name parsed")
+	}
+	// config is reserved only where a declaration starts.
+	if _, errs := Parse("rule r(config: int) -> int {\n    return config\n}"); len(errs) != 0 {
+		t.Fatalf("config as a name: %v", errs)
+	}
+}

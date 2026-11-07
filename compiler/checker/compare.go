@@ -180,6 +180,11 @@ func (c *checker) handle(t types.Type) string {
 	if types.HoldsConnection(t, c.resolveField) {
 		return "a Connection"
 	}
+	if types.HoldsSecret(t, c.resolveField) {
+		// ADR 0071 §4: == would leak a secret through timing; .matches()
+		// compares in constant time.
+		return "a Secret (compare one with .matches())"
+	}
 	return capabilityValue(t)
 }
 

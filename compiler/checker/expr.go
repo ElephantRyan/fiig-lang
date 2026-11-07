@@ -109,7 +109,8 @@ func (c *checker) inferExpr(e syntax.Expr, env map[string]types.Type) types.Type
 	case *syntax.StringLit:
 		for _, part := range e.Parts {
 			if part.Interp != nil {
-				c.inferExpr(part.Interp, env)
+				start, _ := part.Interp.(syntax.Spanned).Bounds()
+				c.checkInterpolatedSecret(c.inferExpr(part.Interp, env), start)
 			}
 		}
 		return types.Primitive{Name: "string"}
@@ -209,6 +210,9 @@ func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.T
 			}
 			if c.ambiguous(targetIdent.Name) {
 				return types.Unknown{}
+			}
+			if cd, ok := c.configRef(targetIdent.Name); ok {
+				return c.readConfig(cd, e)
 			}
 			if decl, found := c.universe.Lookup(targetIdent.Name); found {
 				if enumDecl, ok := decl.(*syntax.EnumDecl); ok {

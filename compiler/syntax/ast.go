@@ -288,6 +288,36 @@ type FormulaDecl struct {
 	Body       *Block
 }
 
+// ConfigDecl is `config` (ADR 0071 §1): values the deployment supplies
+// through the environment, each read and checked once, before the program
+// starts. Callers read a field as `Name.field`, from an activity or a
+// gateway only (§2).
+type ConfigDecl struct {
+	Span
+	Name   string
+	Fields []ConfigField
+}
+
+// ConfigField is one `name: Type from env "NAME" = default` line. Default
+// is nil when the field has none; the checker holds it to a constant.
+type ConfigField struct {
+	Span
+	Name    string
+	Type    Type
+	Env     string // the environment variable's name
+	Default Expr
+}
+
+// Field returns the field named name, if the config has one.
+func (d *ConfigDecl) Field(name string) (ConfigField, bool) {
+	for _, f := range d.Fields {
+		if f.Name == name {
+			return f, true
+		}
+	}
+	return ConfigField{}, false
+}
+
 type WorkflowDecl struct {
 	Span
 	Name       string
@@ -389,6 +419,7 @@ func (*InterfaceDecl) declNode()  {}
 func (*CapabilityDecl) declNode() {}
 func (*FormulasDecl) declNode()   {}
 func (*FormulaDecl) declNode()    {}
+func (*ConfigDecl) declNode()     {}
 
 // DeclName returns a declaration's name, generically over every kind.
 func DeclName(d Decl) string {
@@ -418,6 +449,8 @@ func DeclName(d Decl) string {
 	case *FormulasDecl:
 		return d.Name
 	case *FormulaDecl:
+		return d.Name
+	case *ConfigDecl:
 		return d.Name
 	default:
 		return ""
@@ -457,6 +490,8 @@ func DeclKindName(d Decl) string {
 		return "formulas group"
 	case *FormulaDecl:
 		return "formula"
+	case *ConfigDecl:
+		return "config"
 	default:
 		return "declaration"
 	}

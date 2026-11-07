@@ -325,6 +325,10 @@ func encodeJSON(v Value, body bool) any {
 			items[i] = map[string]any{"key": encodeJSON(it.Key, body), "outcome": encodeJSON(it.Outcome, body)}
 		}
 		return items
+	case Secret:
+		// The checker keeps a Secret out of anything sent (ADR 0071 §4);
+		// what `fiig run -json` prints is its name, never its value.
+		return v.String()
 	default:
 		return nil
 	}

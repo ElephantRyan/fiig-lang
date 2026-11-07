@@ -67,6 +67,7 @@ type GroupRef struct {
 	Package  *Package
 	Decl     *syntax.CapabilityDecl
 	Formulas *syntax.FormulasDecl
+	Config   *syntax.ConfigDecl // ADR 0071 §5: an imported config declaration
 }
 
 // ProvidesError is one problem found verifying a manifest's `provides` map:

@@ -22,6 +22,20 @@ func (o Opaque) String() string { return o.Name }
 // ConnectionType is `Connection`, a Socket handle.
 var ConnectionType = Opaque{Name: "Connection"}
 
+// SecretType is `Secret` (ADR 0071 §4): a config value that is never shown.
+// Only a config field produces one; it is passed on, matched, or revealed
+// in a gateway.
+var SecretType = Opaque{Name: "Secret"}
+
+// HoldsSecret reports whether a value of type t is, or contains at any
+// depth, a Secret, by the same walk as HoldsConnection.
+func HoldsSecret(t Type, resolveField func(model *syntax.ModelDecl, f syntax.Field) Type) bool {
+	return Holds(t, func(t Type) bool {
+		o, ok := t.(Opaque)
+		return ok && o == SecretType
+	}, resolveField)
+}
+
 // preludeSources are the prelude's declarations, one per source as in any
 // fiig file (ADR 0054's one public declaration per file).
 var preludeSources = []string{`enum SocketError {
@@ -209,7 +223,7 @@ func PreludeName(name string) (string, bool) {
 	switch name {
 	case "string", "int", "float", "decimal", "bool", "bytes":
 		return "a primitive type", true
-	case "None", "Connection":
+	case "None", "Connection", "Secret":
 		return "a prelude type", true
 	case "Ok", "Err":
 		return "Result's constructor", true

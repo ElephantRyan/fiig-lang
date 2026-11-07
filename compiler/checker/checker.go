@@ -801,6 +801,7 @@ func (c *checker) checkDecl(d syntax.Decl) {
 		c.callerKind = kindWorkflow
 		c.checkNoPrivateEscape(d.Params, d.ReturnType)
 		c.checkNoConnectionInSignature(d.Params, d.ReturnType, d.Start)
+		c.checkNoSecretInSignature(d.Params, d.ReturnType, d.Start)
 		c.checkCallable(d.Params, d.ReturnType, d.Body)
 	case *syntax.AdapterDecl:
 		c.checkAdapterRoutes(d)
@@ -810,6 +811,8 @@ func (c *checker) checkDecl(d syntax.Decl) {
 		c.checkCapabilityDecl(d)
 	case *syntax.FormulasDecl:
 		c.checkFormulasDecl(d)
+	case *syntax.ConfigDecl:
+		c.checkConfigDecl(d)
 	}
 }
 

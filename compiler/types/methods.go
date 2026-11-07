@@ -166,6 +166,10 @@ func mapMethods(key, val Type) map[string]Method {
 // dispatches through (ADR 0049 §2.8).
 func MethodsOf(recv Type) (kind string, table map[string]Method, ok bool) {
 	switch t := recv.(type) {
+	case Opaque:
+		if t == SecretType {
+			return "Secret", secretMethods, true
+		}
 	case Primitive:
 		table, ok = primitiveMethods[t.Name]
 		return t.Name, table, ok
@@ -183,7 +187,7 @@ func MethodsOf(recv Type) (kind string, table map[string]Method, ok bool) {
 // MethodKinds lists every receiver kind with a table, for the runtime's
 // check that it implements exactly the methods declared here.
 func MethodKinds() []string {
-	kinds := []string{"List", "Map"}
+	kinds := []string{"List", "Map", "Secret"}
 	for k := range primitiveMethods {
 		kinds = append(kinds, k)
 	}
@@ -201,8 +205,18 @@ func MethodsOfKind(kind string) (map[string]Method, bool) {
 	if kind == "Map" {
 		return mapMethods(Unknown{}, Unknown{}), true
 	}
+	if kind == "Secret" {
+		return secretMethods, true
+	}
 	table, ok := primitiveMethods[kind]
 	return table, ok
+}
+
+// secretMethods is ADR 0071 §4: reveal, legal only in a gateway (S2), and
+// a constant-time comparison legal anywhere.
+var secretMethods = map[string]Method{
+	"reveal":  {nil, stringType},
+	"matches": {[]Param{p("candidate", stringType)}, boolType},
 }
 
 // MethodNames is a table's method names, sorted, for diagnostics.

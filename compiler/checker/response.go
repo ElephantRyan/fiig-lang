@@ -44,6 +44,10 @@ func (c *checker) checkHttpResponse(call *syntax.CallExpr, expected types.Type, 
 	if headers, ok := supplied["headers"]; ok {
 		c.checkHeaderConstants(headers)
 	}
+	if types.HoldsSecret(body, c.resolveField) {
+		start, _ := call.Bounds()
+		c.report(start, "S1", "a response body holds a Secret (%s); a Secret is never encoded (ADR 0071 §4)", body)
+	}
 	return types.Generic{Name: types.HttpResponseName, Args: []types.Type{body}}
 }
 
