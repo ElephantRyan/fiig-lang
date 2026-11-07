@@ -576,14 +576,20 @@ Need an ADR first, in build order:
    ADR 0069 into its own ADR). Done 2026-11-06 (ADR 0070): `fiig serve
    -allow-origin`, with methods derived from the routes.
 5. Configuration values reachable from fiig code, from the environment:
-   service URLs and secrets. Revisit then where CORS origins live
-   (ADR 0070 §1, which reads them from `fiig serve` flags until then).
+   service URLs and secrets. Designed in ADR 0071 (accepted 2026-11-07:
+   `config` declarations, `Secret`, `-env-file`, `fiig config`); it also
+   settled ADR 0070 §1's revisit (origins stay deployment input). Build
+   pending.
 6. The JSON shape of an enum and a `Result` in an HTTP body (today the
    tagged form `fiig run -json` uses).
 7. JSON decoding in fiig code (ADR 0062's library).
 8. An HTTP client package written in fiig over `Socket`: every verb,
    request headers, `http` and `https`, any port, `Content-Length` and
    chunked replies.
+8a. Hashing and HMAC: SHA-256 and `hmacSha256` taking a `Secret` key
+   (ADR 0071 §4), for webhook signatures, signed cookies, and stored
+   random keys; plus a deliberately slow password hash (Argon2id or
+   scrypt) if accounts store passwords (owner's decision 2026-11-07).
 9. A checked `Database` capability: its calls typed and its use held to a
    gateway's `requires`, as P7 does for capability groups written in fiig.
 10. ADR 0066 declared SQL row types.
