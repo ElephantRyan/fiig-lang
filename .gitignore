@@ -9,3 +9,6 @@ fiig
 *.db
 .idea/
 .claude/settings.local.json
+
+# ADR 0071 §3a: a developer's own -env-file; commit .env.example instead
+.env

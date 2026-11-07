@@ -779,7 +779,7 @@ func (c *checker) checkFieldArgs(fields []syntax.Field, args []syntax.Arg, name 
 			}
 			continue
 		}
-		c.checkExpected(expr, fieldTypes[n], env)
+		c.inCallerScope(func() { c.checkExpected(expr, fieldTypes[n], env) })
 	}
 }
 

@@ -1,6 +1,11 @@
 package checker
 
-import "testing"
+import (
+	"testing"
+
+	"fiig-lang/compiler/syntax"
+	"fiig-lang/compiler/types"
+)
 
 // ADR 0071: config declarations, where they may be read, and Secret.
 
@@ -91,4 +96,21 @@ func TestSecretIsNeverShown(t *testing.T) {
 
 func TestSecretIsAPreludeName(t *testing.T) {
 	wantDiag(t, checkSrc(t, "model Secret {\n    a: int\n}"), "K2", "")
+}
+
+// A cross-package call checks its arguments where they were written: a
+// constructor from another package given this package's config and enum.
+// Before ADR 0071 this resolved the arguments in the callee's package, so
+// any package-level name in one was undefined.
+func TestCrossPackageArgumentsResolveInTheCaller(t *testing.T) {
+	httpPkg := buildDep(t, "acme.http", nil, nil, "model WebRequest {\n    host: string\n    authorization: string | None\n}")
+	app := types.Packages{"acme.http": httpPkg}
+	f := mustParse(t, "use acme.http\n\ngateway send() -> http.WebRequest\n    requires Socket\n{\n    return http.WebRequest(host: Region.Eu.host, authorization: \"Bearer ${Account.key.reveal()}\")\n}")
+	files := []*syntax.File{f,
+		mustParse(t, "config Account {\n    key: Secret from env \"KEY\"\n}"),
+		mustParse(t, "enum Region(host: string) {\n    Eu(host: \"eu.example.com\")\n}"),
+	}
+	if diags := Check(files, app); len(diags) != 0 {
+		t.Fatalf("diags = %v", diags)
+	}
 }

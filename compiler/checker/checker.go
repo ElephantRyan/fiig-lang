@@ -570,6 +570,9 @@ type checker struct {
 	// the declaration isn't a gateway. A gateway may use only that one (P7).
 	requires string
 	diags    []Diagnostic
+	// argScope is where the current cross-package call's arguments
+	// resolve (inCallerScope); nil outside one.
+	argScope *scopeState
 	// callerKind is the kind of declaration currently being checked — set
 	// once per top-level checkDecl call (rule/conversion/activity/gateway/workflow
 	// never nest inside each other's bodies, so a single mutable field is
@@ -731,6 +734,9 @@ func universesOf(imports map[string]*types.Package) map[string]*types.Universe {
 // concurrent block.
 func (c *checker) callInScope(pkg *types.Package, fn func() types.Type) types.Type {
 	savedUniverse, savedImports, savedGroups := c.universe, c.imports, c.groups
+	caller := &scopeState{universe: c.universe, imports: c.imports, groups: c.groups, argScope: c.argScope}
+	c.argScope = caller
+	defer func() { c.argScope = caller.argScope }()
 	c.universe, c.imports, c.groups = pkg.Universe, nil, pkg.Groups
 	if len(pkg.Imports) > 0 {
 		c.imports = make(map[string]*types.Package, len(pkg.Imports))
@@ -741,6 +747,33 @@ func (c *checker) callInScope(pkg *types.Package, fn func() types.Type) types.Ty
 	result := fn()
 	c.universe, c.imports, c.groups = savedUniverse, savedImports, savedGroups
 	return result
+}
+
+// scopeState is where names resolve: a package's universe and the
+// imports active in it. argScope is the scope the current call's
+// arguments are written in, when callInScope has moved resolution into the
+// callee's package.
+type scopeState struct {
+	universe *types.Universe
+	imports  map[string]*types.Package
+	groups   map[string]*types.GroupRef
+	argScope *scopeState
+}
+
+// inCallerScope runs fn where the current call's arguments were written:
+// a cross-package call resolves its parameter types in the callee's
+// package, but its argument expressions name the caller's declarations
+// (`http.WebRequest(authorization: StripeAccount.apiKey...)`).
+func (c *checker) inCallerScope(fn func()) {
+	if c.argScope == nil {
+		fn()
+		return
+	}
+	here := scopeState{universe: c.universe, imports: c.imports, groups: c.groups, argScope: c.argScope}
+	a := c.argScope
+	c.universe, c.imports, c.groups, c.argScope = a.universe, a.imports, a.groups, a.argScope
+	fn()
+	c.universe, c.imports, c.groups, c.argScope = here.universe, here.imports, here.groups, here.argScope
 }
 
 // checkPublicType is resolve, plus bug class A8: a structural record type

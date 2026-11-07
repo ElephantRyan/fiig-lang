@@ -1,6 +1,10 @@
 // A logged-in session: a random token the service looks up, so the cookie
 // that carries it has nothing to protect but its secrecy (ADR 0069 §4).
+// maxAge is how long it lasts, in seconds, read from config by the
+// activity that opens it, since the conversion that sets the cookie can't
+// read config itself (ADR 0071 §2).
 model Session {
     token: string
     account: Account
+    maxAge: int
 }

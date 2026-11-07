@@ -1,0 +1,13 @@
+// ADR 0071 §3: a vertical that may charge only through Stripe, for a legal
+// reason say. It isn't a branch or a flag. It is its own small application
+// over checkout.core, and its manifest doesn't depend on acme.square, so
+// `use acme.square` here fails to load, Square's code is never loaded, and
+// `fiig config` lists no Square key. checkout-app, built from the same
+// commit, keeps both.
+use acme.payments
+use acme.stripe.Stripe
+use checkout.core
+
+rule chooseClientProvider(merchant: core.PayingMerchant) -> payments.PaymentProvider {
+    return Stripe
+}

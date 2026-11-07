@@ -2,8 +2,10 @@
 // capability, so every `Upper.lower(...)` line below may reach the outside
 // world and nothing lowercase does.
 use acme.payments
+use checkout.core
+use checkout.core.LedgerApi
 
-activity takePayment(merchant: PayingMerchant, request: payments.ChargeRequest) -> Result<string, string> {
+activity takePayment(merchant: core.PayingMerchant, request: payments.ChargeRequest) -> Result<string, string> {
     Provider = choosePaymentProvider(merchant)
     reference = Provider.charge(request)?
     recorded = LedgerApi.record("charged ${request.orderId} as ${reference}")?

@@ -4,8 +4,9 @@
 use acme.payments
 use acme.square.Square
 use acme.stripe.Stripe
+use checkout.core
 
-rule choosePaymentProvider(merchant: PayingMerchant) -> payments.PaymentProvider {
+rule choosePaymentProvider(merchant: core.PayingMerchant) -> payments.PaymentProvider {
     if merchant.inEurope {
         return Square
     }

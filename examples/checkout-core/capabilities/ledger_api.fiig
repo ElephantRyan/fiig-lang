@@ -1,6 +1,7 @@
-// ADR 0043 §5a: a capability that starts life inside the application.
-// When a second application needs it, this file moves into a package and
-// each caller adds `use company.ledger.LedgerApi`; no call site changes.
+// ADR 0043 §5a: a capability that started life inside checkout-app and
+// moved here when a second application, checkout-clientvertical, needed it
+// (ADR 0071 §3). Each caller added `use checkout.core.LedgerApi`; no call
+// site changed.
 // ADR 0060: one line per entry over a plain connection to the ledger.
 capability LedgerApi {
     gateway record(entry: string) -> Result<None, string>

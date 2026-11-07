@@ -125,6 +125,12 @@ func (c *checker) checkImportNames(file *syntax.File, packages types.Packages) {
 			} else {
 				c.report(imp.Start, "", "package %q has no capability or formulas group %q", strings.Join(imp.Path[:len(imp.Path)-1], "."), tail)
 			}
+		} else if len(packages) > 0 {
+			// With package context every import resolves to a loaded
+			// package; one that doesn't names a package the manifest
+			// doesn't depend on, which is how an application proves what
+			// it doesn't contain (ADR 0071 §3).
+			c.report(imp.Start, "", "%q isn't a dependency of this package; add its package to %s's dependencies to use it", path, "fiig.pkg.json")
 		}
 		if d, found := c.universe.Lookup(alias); found && !c.ambiguous(alias) && !c.mayBeTheImportedGroup(imp, d) && !c.isImportOf(alias, d) {
 			c.report(imp.Start, "G4", "import alias %q has the same name as %s %q in this package; alias the import: use %s as %sOther", alias, syntax.DeclKindName(d), alias, path, alias)

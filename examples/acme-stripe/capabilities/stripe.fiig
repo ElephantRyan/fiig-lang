@@ -1,6 +1,7 @@
 // Stripe chooses its own HTTP library, concretely: no gateway calls a
 // gateway here, charge uses the Client capability it requires, exactly as a
-// gateway would use Socket (ADR 0043 §5).
+// gateway would use Socket (ADR 0043 §5). Its API key is its own config
+// (ADR 0071 §5): the application sets STRIPE_API_KEY and declares nothing.
 use acme.http
 use acme.http.Client
 use acme.payments
@@ -13,6 +14,7 @@ capability Stripe {
             host: "api.stripe.com",
             path: "/v1/charges",
             body: "${request.orderId}:${request.amount}",
+            authorization: "Bearer ${StripeAccount.apiKey.reveal()}",
         )
         reply = Client.send(outbound)
         match reply {

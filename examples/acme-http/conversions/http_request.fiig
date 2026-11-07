@@ -3,6 +3,15 @@
 // instead of parsing Content-Length or chunked framing. Lines end in CRLF.
 conversion httpRequest(request: WebRequest) -> bytes {
     body = request.body.utf8()
-    head = "POST ${request.path} HTTP/1.1\r\nHost: ${request.host}\r\nContent-Length: ${body.length()}\r\nConnection: close\r\n\r\n"
+    head = "POST ${request.path} HTTP/1.1\r\nHost: ${request.host}\r\n${authorizationLine(request.authorization)}Content-Length: ${body.length()}\r\nConnection: close\r\n\r\n"
     return <<head: utf8, body: bytes>>
+}
+
+private {
+    authorizationLine(value: string | None) -> string {
+        match value {
+            None -> ""
+            given -> "Authorization: ${given}\r\n"
+        }
+    }
 }

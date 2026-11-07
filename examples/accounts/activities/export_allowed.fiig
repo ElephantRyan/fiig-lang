@@ -1,0 +1,16 @@
+// The CSV export is for an API client holding the deployment's export
+// token, sent as `Authorization: Bearer <token>`. matches compares in
+// constant time, so the check doesn't leak the token (ADR 0071 §4).
+activity exportAllowed(authorization: string) -> Result<None, AccountError> {
+    match bearerToken(authorization) {
+        None -> {
+            return Err(AccountError.NoCredentials)
+        }
+        token -> {
+            if Sessions.exportToken.matches(token) {
+                return Ok(None)
+            }
+            return Err(AccountError.BadCredentials)
+        }
+    }
+}
