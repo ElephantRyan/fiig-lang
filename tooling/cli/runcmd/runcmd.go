@@ -59,14 +59,20 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	argsJSON := fs.String("args", "{}", "JSON object of arguments, keyed by parameter name")
 	capsPath := fs.String("caps", "", "path to a JSON file of scripted capability responses")
 	trace := fs.Bool("trace", false, "print the call tree (compiler/runtime.Span) to stderr after running")
+	envFile := fs.String("env-file", "", "a file of NAME=value lines that sets environment variables the process doesn't (ADR 0071 §3a)")
 	var workspaces stringList
 	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable. Omitted, root is checked/run with no package context")
 	fs.Parse(argv)
 	if fs.NArg() != 2 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-args JSON] [-caps FILE] [-trace] [-workspace DIR]... <root> <declName>")
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-args JSON] [-caps FILE] [-env-file FILE] [-trace] [-workspace DIR]... <root> <declName>")
 		os.Exit(2)
 	}
 	root, name := fs.Arg(0), fs.Arg(1)
+	env, err := runprogram.NewEnvironment(*envFile)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error: -env-file:", err)
+		os.Exit(1)
+	}
 
 	files, diags, err := runprogram.LoadFiles(root)
 	if err != nil {
@@ -137,10 +143,13 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 		args[p.Name] = v
 	}
 
-	caps, err := runprogram.LoadCapabilitiesFile(*capsPath, factories)
+	caps, problems, err := runprogram.LoadCapabilitiesFileWith(*capsPath, factories, env.Lookup)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: -caps:", err)
 		os.Exit(2)
+	}
+	if caps == nil {
+		caps = runtime.NewCapabilityRegistry()
 	}
 	// Socket is a primitive (ADR 0042), so the real one is the default; a
 	// -caps entry for it (socket-script, for instance) replaces it.
@@ -152,6 +161,12 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	in := runtime.New(universe, caps)
 	in.Imports = imports
 	in.Groups = runprogram.BuildGroups(files, packages)
+	program := runprogram.Program{Universe: universe, Imports: in.Imports, Groups: in.Groups, Renames: runprogram.Renames(root)}
+	problems = append(problems, in.LoadConfig(runprogram.ReachableConfig(program, []string{name}), env.Lookup)...)
+	if err := runprogram.ConfigReport(problems); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
 	var rec *runtime.Recorder
 	if *trace {
 		rec = &runtime.Recorder{}

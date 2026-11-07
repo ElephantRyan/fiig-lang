@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"strings"
 	"testing"
 
 	"fiig-lang/compiler/semver"
@@ -187,4 +188,36 @@ func mustVersion(t *testing.T, s string) semver.Version {
 		t.Fatal(err)
 	}
 	return v
+}
+
+// ADR 0071 §5: a release that reads a new environment variable is
+// reported, Major when every deployment must now set it.
+func TestDiffReportsNewEnvironmentVariables(t *testing.T) {
+	old := []*Card{{Name: "Stripe", Kind: "config", Environment: []EnvVar{{Name: "STRIPE_API_KEY", Type: "Secret", Secret: true}}}}
+	newer := []*Card{
+		{Name: "Stripe", Kind: "config", Environment: []EnvVar{
+			{Name: "STRIPE_API_KEY", Type: "Secret", Secret: true},
+			{Name: "AWS_SECRET_ACCESS_KEY", Type: "Secret", Secret: true},
+			{Name: "STRIPE_TIMEOUT", Type: "int", Default: "10"},
+		}},
+		{Name: "Audit", Kind: "config", Environment: []EnvVar{{Name: "AUDIT_URL", Type: "string"}}},
+	}
+	bump, changes := Diff(old, newer)
+	if bump != Major {
+		t.Fatalf("bump = %v, want major", bump)
+	}
+	var msgs []string
+	for _, c := range changes {
+		msgs = append(msgs, c.Bump.String()+": "+c.Msg)
+	}
+	got := strings.Join(msgs, "\n")
+	for _, want := range []string{
+		"major: now reads environment variable AWS_SECRET_ACCESS_KEY (Secret), which every deployment must set",
+		"minor: now reads environment variable STRIPE_TIMEOUT (int, not required)",
+		"major: now reads environment variable AUDIT_URL (string), which every deployment must set",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("changes missing %q:\n%s", want, got)
+		}
+	}
 }

@@ -234,7 +234,7 @@ func BuildPackage(files []*syntax.File, packages types.Packages) (*types.Package
 		diags = append(diags, conflictDiagnostics(cf, nil)...)
 	}
 	imports, groups := packageImports(files, packages)
-	return &types.Package{Universe: universe, Imports: imports, Groups: groups}, diags
+	return &types.Package{Universe: universe, Imports: imports, Groups: groups, Dependencies: packages}, diags
 }
 
 // packageImports merges every file's import aliases into the one-level

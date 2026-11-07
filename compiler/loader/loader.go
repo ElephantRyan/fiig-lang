@@ -126,6 +126,9 @@ func Load(root string, workspaceRoots []string) (*Loaded, []error) {
 	if errs := checkCapabilities(rootManifest.Capabilities, rootManifest.NativeCapabilities, rootCapabilities, entryList); len(errs) > 0 {
 		return nil, errs
 	}
+	if errs := checkRenames(rootManifest, packages); len(errs) > 0 {
+		return nil, errs
+	}
 
 	capabilities := map[string]bool{}
 	for _, c := range rootCapabilities {
@@ -431,6 +434,7 @@ func (l *loaderState) build(key reqKey) (*types.Package, []error) {
 		return nil, errs
 	}
 
+	pkg.Path = key.path
 	l.built[key] = pkg
 	l.entries[key] = lockfile.Entry{
 		Path:         key.path,
@@ -476,4 +480,37 @@ func parsePackageDir(dir string) ([]*syntax.File, map[string][]byte, error) {
 		return nil, nil, err
 	}
 	return files, hashed, nil
+}
+
+// checkRenames is ADR 0071 §5: an application may rename only a variable
+// one of the package's config declarations reads, so a rename a later
+// version made stale fails loudly instead of doing nothing.
+func checkRenames(m *manifest.Manifest, packages types.Packages) []error {
+	var errs []error
+	for _, path := range sortedKeys(boolKeys(m.Environment)) {
+		reads := map[string]bool{}
+		if pkg := packages[path]; pkg != nil {
+			for _, d := range pkg.Universe.Decls {
+				if cd, ok := d.(*syntax.ConfigDecl); ok {
+					for _, f := range cd.Fields {
+						reads[f.Env] = true
+					}
+				}
+			}
+		}
+		for _, from := range sortedKeys(boolKeys(m.Environment[path])) {
+			if !reads[from] {
+				errs = append(errs, fmt.Errorf("%s renames %s's variable %s, which none of its config declarations reads", manifest.Filename, path, from))
+			}
+		}
+	}
+	return errs
+}
+
+func boolKeys[V any](m map[string]V) map[string]bool {
+	out := make(map[string]bool, len(m))
+	for k := range m {
+		out[k] = true
+	}
+	return out
 }

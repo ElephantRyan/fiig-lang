@@ -98,6 +98,13 @@ type Manifest struct {
 	// structurally — and the only place conformance is declared: nothing in
 	// the group's source mentions the interface.
 	Provides map[string]string `json:"provides,omitempty"`
+
+	// Environment renames a dependency's config variables for this
+	// application's deployment (ADR 0071 §5): package path -> its variable
+	// -> the one the deployment sets. Only an application may rename,
+	// since only it knows the deployment; compiler/loader checks that each
+	// renamed variable is one the package reads.
+	Environment map[string]map[string]string `json:"environment,omitempty"`
 }
 
 // Deprecation is one declaration's deprecation notice: Since is the
@@ -122,6 +129,10 @@ var packagePathPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A
 // own declared names, which are never dotted either) share this exact
 // shape.
 var identifierPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)
+
+// envNamePattern is an environment variable's name as a config field
+// writes one (ADR 0071 §1).
+var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Parse decodes and validates one manifest. Every problem is collected
 // and returned together rather than stopping at the first — the same
@@ -175,6 +186,21 @@ func (m *Manifest) Validate() []error {
 	for _, capability := range m.Capabilities {
 		if !identifierPattern.MatchString(capability) {
 			errs = append(errs, fmt.Errorf("capability %q is not a valid capability name", capability))
+		}
+	}
+	if len(m.Environment) > 0 && m.Kind != Application {
+		errs = append(errs, fmt.Errorf("environment renames are an application's to make, since only it knows the deployment; a %s can't rename its dependencies' variables (ADR 0071 §5)", m.Kind))
+	}
+	for pkg, renames := range m.Environment {
+		if !packagePathPattern.MatchString(pkg) {
+			errs = append(errs, fmt.Errorf("environment key %q is not a valid dotted package path", pkg))
+		} else if _, dep := m.Dependencies[pkg]; !dep {
+			errs = append(errs, fmt.Errorf("environment renames variables of %q, which isn't a dependency", pkg))
+		}
+		for from, to := range renames {
+			if !envNamePattern.MatchString(from) || !envNamePattern.MatchString(to) {
+				errs = append(errs, fmt.Errorf("environment %q: %q -> %q must both be environment variable names", pkg, from, to))
+			}
 		}
 	}
 	for iface, group := range m.Provides {

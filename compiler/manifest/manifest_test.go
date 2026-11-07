@@ -3,6 +3,7 @@ package manifest
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -180,5 +181,30 @@ func TestValidateNativeCapabilities(t *testing.T) {
 	bad.NativeCapabilities = []string{"not a name"}
 	if errs := bad.Validate(); len(errs) != 1 {
 		t.Fatalf("a malformed native capability must be rejected, got %v", errs)
+	}
+}
+
+// ADR 0071 §5: only an application renames, and only its dependencies'
+// variables.
+func TestEnvironmentRenames(t *testing.T) {
+	good := `{"path": "checkout.app", "kind": "application", "version": "1.0.0",
+		"dependencies": {"acme.pgmini": "1.2.0"},
+		"environment": {"acme.pgmini": {"PG_URL": "DATABASE_URL"}}}`
+	if _, errs := Parse([]byte(good)); len(errs) != 0 {
+		t.Fatalf("good: %v", errs)
+	}
+	for src, want := range map[string]string{
+		`{"path": "acme.lib", "kind": "library", "version": "1.0.0", "dependencies": {"acme.pgmini": "1.2.0"}, "environment": {"acme.pgmini": {"PG_URL": "DATABASE_URL"}}}`:  "environment renames are an application's to make",
+		`{"path": "a.app", "kind": "application", "version": "1.0.0", "environment": {"acme.pgmini": {"PG_URL": "DATABASE_URL"}}}`:                                           `renames variables of "acme.pgmini", which isn't a dependency`,
+		`{"path": "a.app", "kind": "application", "version": "1.0.0", "dependencies": {"acme.pgmini": "1.2.0"}, "environment": {"acme.pgmini": {"PG-URL": "DATABASE_URL"}}}`: "must both be environment variable names",
+	} {
+		_, errs := Parse([]byte(src))
+		found := false
+		for _, e := range errs {
+			found = found || strings.Contains(e.Error(), want)
+		}
+		if !found {
+			t.Errorf("%s: errs = %v, want %q", src, errs, want)
+		}
 	}
 }

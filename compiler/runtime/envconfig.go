@@ -40,9 +40,9 @@ func (s ConfigSource) EnvName(f syntax.ConfigField) string {
 	return f.Env
 }
 
-// where is how a message names a field: `config Stripe.apiKey (acme.stripe;
+// Where is how a message names a field: `config Stripe.apiKey (acme.stripe;
 // STRIPE_KEY renamed in fiig.pkg.json)`.
-func (s ConfigSource) where(f syntax.ConfigField) string {
+func (s ConfigSource) Where(f syntax.ConfigField) string {
 	w := "config " + s.Decl.Name + "." + f.Name
 	var notes []string
 	if s.Package != "" {
@@ -81,21 +81,21 @@ func (in *Interp) LoadConfig(sources []ConfigSource, lookup Lookup) []string {
 					if types.HoldsSecret(t, nil) {
 						shown = "(hidden)"
 					}
-					problems = append(problems, fmt.Sprintf("%s=%s isn't %s; %s", name, shown, problem, src.where(f)))
+					problems = append(problems, fmt.Sprintf("%s=%s isn't %s; %s", name, shown, problem, src.Where(f)))
 					continue
 				}
 				rec.Fields[f.Name] = v
 			case f.Default != nil:
 				v, fault := in.configDefault(src, f, t)
 				if fault != nil {
-					problems = append(problems, fmt.Sprintf("%s's default: %s", src.where(f), fault.Message))
+					problems = append(problems, fmt.Sprintf("%s's default: %s", src.Where(f), fault.Message))
 					continue
 				}
 				rec.Fields[f.Name] = v
 			case admitsNoneType(t):
 				rec.Fields[f.Name] = None{}
 			default:
-				problems = append(problems, fmt.Sprintf("%s is unset; %s needs %s", name, src.where(f), article(withoutNoneType(t))))
+				problems = append(problems, fmt.Sprintf("%s is unset; %s needs %s", name, src.Where(f), article(withoutNoneType(t))))
 			}
 		}
 		values[src.Decl] = rec

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"fiig-lang/compiler/semver"
 )
@@ -82,6 +83,9 @@ func Diff(old, newer []*Card) (Bump, []Change) {
 	for name := range newByName {
 		if _, ok := oldByName[name]; !ok {
 			changes = append(changes, Change{Name: name, Bump: Minor, Msg: fmt.Sprintf("%q added", name)})
+			if nc := newByName[name]; nc.Kind == "config" {
+				changes = append(changes, envChanges(name, nil, nc.Environment)...)
+			}
 		}
 	}
 
@@ -184,6 +188,43 @@ func cardDiff(old, newer *Card) []Change {
 			out = append(out, note(Major, "adapter kind changed from %q to %q", old.AdapterKind, newer.AdapterKind))
 		}
 		out = append(out, routeChanges(old.Name, old.Routes, newer.Routes)...)
+	case "config":
+		out = append(out, envChanges(old.Name, old.Environment, newer.Environment)...)
+	}
+	return out
+}
+
+// envChanges is ADR 0071 §5: reading the environment is authority, so a
+// release that reads a new variable is reported the way a new capability
+// is (ADR 0035). A new required variable breaks every deployment that
+// doesn't set it, so it is Major; one with a default, or optional, is
+// Minor. A variable whose type changes may no longer read a deployment's
+// value, so that is Major too.
+func envChanges(name string, old, newer []EnvVar) []Change {
+	var out []Change
+	before := map[string]EnvVar{}
+	for _, v := range old {
+		before[v.Name] = v
+	}
+	after := map[string]bool{}
+	for _, v := range newer {
+		after[v.Name] = true
+		was, existed := before[v.Name]
+		switch {
+		case !existed && v.Default == "" && !strings.HasSuffix(v.Type, "| None"):
+			out = append(out, Change{Name: name, Bump: Major, Msg: fmt.Sprintf("now reads environment variable %s (%s), which every deployment must set", v.Name, v.Type)})
+		case !existed:
+			out = append(out, Change{Name: name, Bump: Minor, Msg: fmt.Sprintf("now reads environment variable %s (%s, not required)", v.Name, v.Type)})
+		case was.Type != v.Type:
+			out = append(out, Change{Name: name, Bump: Major, Msg: fmt.Sprintf("environment variable %s changed type from %s to %s", v.Name, was.Type, v.Type)})
+		case was.Default != v.Default:
+			out = append(out, Change{Name: name, Bump: Minor, Msg: fmt.Sprintf("environment variable %s's default changed from %q to %q", v.Name, was.Default, v.Default)})
+		}
+	}
+	for _, v := range old {
+		if !after[v.Name] {
+			out = append(out, Change{Name: name, Bump: Patch, Msg: fmt.Sprintf("no longer reads environment variable %s", v.Name)})
+		}
 	}
 	return out
 }
