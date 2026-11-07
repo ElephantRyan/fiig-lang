@@ -296,7 +296,16 @@ func (in *Interp) evalFieldAccess(ctx context.Context, e *syntax.FieldAccess, en
 	// inferFieldAccess special-case.
 	if targetIdent, ok := e.Target.(*syntax.Ident); ok {
 		if _, isLocal := env.Get(targetIdent.Name); !isLocal {
-			if decl, found := in.scope(ctx).universe.Lookup(targetIdent.Name); found {
+			sc := in.scope(ctx)
+			if g, ok := sc.groups[targetIdent.Name]; ok && g.Config != nil {
+				v, fault := in.configValue(g.Config, e.Field)
+				return v, false, fault
+			}
+			if decl, found := sc.universe.Lookup(targetIdent.Name); found {
+				if cd, ok := decl.(*syntax.ConfigDecl); ok {
+					v, fault := in.configValue(cd, e.Field)
+					return v, false, fault
+				}
 				if enumDecl, ok := decl.(*syntax.EnumDecl); ok {
 					for _, v := range enumDecl.Variants {
 						if v.Name == e.Field {
