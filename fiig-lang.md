@@ -578,8 +578,9 @@ Need an ADR first, in build order:
 5. Configuration values reachable from fiig code, from the environment:
    service URLs and secrets. Designed in ADR 0071 (accepted 2026-11-07:
    `config` declarations, `Secret`, `-env-file`, `fiig config`); it also
-   settled ADR 0070 §1's revisit (origins stay deployment input). Build
-   pending.
+   settled ADR 0070 §1's revisit (origins stay deployment input). Done
+   2026-11-07, with `fiig config`, manifest renames, and a per-vertical
+   example (`checkout-core`, `checkout-clientvertical`).
 6. The JSON shape of an enum and a `Result` in an HTTP body (today the
    tagged form `fiig run -json` uses).
 7. JSON decoding in fiig code (ADR 0062's library).

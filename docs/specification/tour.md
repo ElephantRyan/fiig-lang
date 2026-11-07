@@ -530,6 +530,36 @@ Not fiig source — `fiig.json` beside the package.
 `capabilities` is a compiler-enforced allowlist of what the package may use
 (ADR 0035). Version resolution is MVS, recorded in `fiig.lock.json`.
 
+An application's manifest may also rename a dependency's config variables
+for its deployment, `"environment": {"acme.stripe": {"STRIPE_API_KEY":
+"CLIENTVERTICAL_STRIPE_API_KEY"}}` (ADR 0071 §5).
+
+### Configuration  [built]
+
+```fiig
+// A deployment's settings, read once from the environment before the
+// program starts (ADR 0071). Capitalized, read as Sessions.maxAge.
+config Sessions {
+    maxAge: int from env "SESSION_MAX_AGE" = 24 * 60 * 60
+    exportToken: Secret from env "ACCOUNTS_EXPORT_TOKEN"
+}
+
+// Only an activity or a gateway reads config; a rule takes the value as a
+// parameter (B10). A Secret is matched in constant time, never shown.
+activity exportAllowed(token: string) -> bool {
+    return Sessions.exportToken.matches(token)
+}
+
+// .reveal() only in a gateway, where the value leaves (S2).
+gateway charge(request: ChargeRequest) -> Result<string, string>
+    requires Client
+{
+    outbound = http.WebRequest(host: "api.stripe.com", path: "/v1/charges", body: "...",
+        authorization: "Bearer ${StripeAccount.apiKey.reveal()}")
+    ...
+}
+```
+
 ## 10. Names: one flat namespace per package
 
 ```fiig

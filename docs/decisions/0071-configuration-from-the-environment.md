@@ -1,5 +1,5 @@
 # ADR 0071: Configuration from the Environment
-Status: Accepted (2026-11-07), after one-decision-at-a-time review: §1
+Status: Accepted and implemented (2026-11-07; see Implementation notes), after one-decision-at-a-time review: §1
 accepted; §2 and §3 accepted, §3 gaining the per-vertical note and corpus
 example the owner asked for; §3a (`-env-file`) added in review; §4
 accepted with the encoding rule, and a `Secret` allowed in rules with
@@ -408,3 +408,65 @@ thing the environment already holds.
 
 1. ~~Whether a `Secret` may be passed to a rule.~~ Yes, for HMAC (§4),
    with `.reveal()` legal only in gateways.
+
+## Implementation notes (2026-11-07)
+
+Built in six steps: the `config` declaration (parser, formatter, catalog
+card); the checker (V1, B10 widened, S1, S2, and `Secret` as an opaque
+prelude type); the runtime's one read (`Interp.LoadConfig`); the lookup,
+reachability, and one report in `tooling/runprogram`, with `-env-file` on
+`fiig run` and `fiig serve`; manifest renames, the loader's check of them,
+`fiig config`, and the bump diff; and the corpus. Dogfooded with the real
+binary: the accounts service's report, `.env.example`, a session cookie
+lasting `SESSION_MAX_AGE`, and the export token; and the vertical's
+payment through a scripted TLS socket, its renamed Stripe key going out as
+one `Authorization` header and appearing nowhere in the trace. Decisions
+made while building, beyond the text above:
+
+- **Defaults may be constant arithmetic** (`= 24 * 60 * 60`), not only a
+  literal: the same constants an enum header takes, plus Go-style constant
+  folding. A literal default keeps its written scale (`= 1.50` for a
+  decimal is 1.50).
+- **Bug-class codes:** V1 for a config declaration the runtime couldn't
+  read, S1 for a `Secret` shown, S2 for `.reveal()` outside a gateway, and
+  B10 widened to reading config. `==` on a `Secret` is M1, the existing
+  comparability class, whose message points at `.matches()`.
+- **Where S1 looks for encoding:** a workflow's parameters and result (the
+  adapter boundary, where H5 already keeps a `Connection` out) and an
+  `HttpResponse` body. A model may hold a `Secret`. `fiig run -json` of an
+  activity that returns one prints `"Secret(NAME)"`.
+- **Reachability** walks resolved names from the entry: calls, path-tail
+  group and config imports, qualified calls into packages, and a capability
+  group used as a value, which reaches every gateway in it. `fiig config`
+  with no entry lists what any root declaration reaches.
+- **The one report** holds config, the caps file's unset `${NAME}`s (now
+  every one, with where it is: `caps.json Database.dsn`), and a bad
+  `-allow-origin`. A malformed or missing `-env-file` is reported by itself
+  first, since nothing else can be read without it. A caps `${NAME}` set to
+  the empty string is still the empty string; only config reads empty as
+  unset.
+- **The bump diff** reports a release that reads a new variable: Major when
+  every deployment must now set it, Minor when it has a default or is
+  optional; a type change is Major, a changed default Minor, and a
+  variable no longer read Patch.
+- **`fiig serve`'s own settings** (`LISTEN_ADDR`, `ALLOW_ORIGINS`) read the
+  lookup, appear in `fiig config` for an http adapter, and an http
+  adapter's catalog card says where its browser origins come from (§7).
+- **`types.Package` gained `Path` and `Dependencies`,** so a dependency's
+  imports can be followed to the package they name.
+- **`acme.http`'s `WebRequest` gained an optional `authorization`,** the
+  one header its client now sends, so the providers can authenticate.
+- **The per-vertical example** extracted `checkout.core` (the merchant
+  model and the ledger capability) from `checkout-app`. The vertical's own
+  declarations have distinct names (`chooseClientProvider`) because the
+  whole `examples/` tree is also checked as one universe.
+  `tooling/runprogram`'s `TestAVerticalProvesWhatItDoesNotContain`
+  attests it.
+- **Two checker bugs the corpus found.** A call into another package
+  checked its argument expressions in the callee's package, so any
+  package-level name in an argument (an enum, a group, a config) was
+  "undefined"; arguments now check where they were written
+  (`TestCrossPackageArgumentsResolveInTheCaller`). And an import of a
+  package that isn't a dependency reported nothing on its own line, only
+  "undefined name" where it was used; it now says the package isn't a
+  dependency.
