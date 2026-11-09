@@ -1,0 +1,7 @@
+// ADR 0072: a variant carries a payload, so every Destination is an object
+// naming its variant beside the payload's fields:
+// {"variant": "International", "country": "NZ", "postcode": "6011"}.
+enum Destination {
+    Domestic(postcode: string)
+    International(country: string, postcode: string)
+}

@@ -19,13 +19,13 @@ import (
 // Result<S, E> Ok/Err members, when it has one) and, for an explicit
 // response-mapping arm, from that arm's own pattern/value shape.
 //
-// This isn't a complete, fully faithful OpenAPI generator — enum variants
-// collapse to a generic object schema rather than a discriminated union,
-// and an ExprResponse arm (a shared conversion call whose actual status
-// code is only known once it runs) is described under PATCH's "default"
-// response slot rather than a specific status. Both are honest
-// simplifications, not silent gaps: good enough to document and exercise
-// real clients against, not a claim of exhaustive fidelity.
+// This isn't a complete, fully faithful OpenAPI generator — an
+// ExprResponse arm (a shared conversion call whose actual status code is
+// only known once it runs) is described under PATCH's "default" response
+// slot rather than a specific status. That is an honest simplification,
+// not a silent gap: good enough to document and exercise real clients
+// against, not a claim of exhaustive fidelity. Enums and Results are
+// described in the shapes ADR 0072 sends them in.
 func GenerateOpenAPI(d *syntax.AdapterDecl, u *types.Universe) (map[string]any, error) {
 	if d.Kind != syntax.AdapterHTTP {
 		return nil, fmt.Errorf("adapter %q is not an http adapter", d.Name)
@@ -271,8 +271,8 @@ func consumesOf(route *syntax.Route) string {
 	return "application/json"
 }
 
-// schemaFor renders t as a JSON Schema fragment. Enum types collapse to a generic object rather than a discriminated
-// union (package doc comment); Unknown becomes a schema-less "any".
+// schemaFor renders t as a JSON Schema fragment; Unknown becomes a
+// schema-less "any".
 func schemaFor(t types.Type, u *types.Universe) map[string]any {
 	switch t := t.(type) {
 	case types.Primitive:
@@ -333,10 +333,20 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 			pair := map[string]any{"type": "array", "prefixItems": []any{schemaFor(t.Args[0], u), schemaFor(t.Args[1], u)}}
 			return map[string]any{"type": "array", "items": pair}
 		}
-		if (t.Name == "Result" || t.Name == "BatchResult") && len(t.Args) >= 2 {
-			variants := make([]any, 0, 2)
-			variants = append(variants, schemaFor(t.Args[0], u), schemaFor(t.Args[1], u))
-			return map[string]any{"oneOf": variants}
+		if t.Name == "Result" && len(t.Args) == 2 {
+			return taggedUnion([]any{
+				variantSchema("Ok", map[string]any{"value": schemaFor(t.Args[0], u)}, []string{"value"}),
+				variantSchema("Err", map[string]any{"error": schemaFor(t.Args[1], u)}, []string{"error"}),
+			})
+		}
+		if t.Name == "BatchResult" && len(t.Args) == 3 {
+			outcome := schemaFor(types.Generic{Name: "Result", Args: t.Args[1:]}, u)
+			item := map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"key": schemaFor(t.Args[0], u), "outcome": outcome},
+				"required":   []string{"key", "outcome"},
+			}
+			return map[string]any{"type": "array", "items": item}
 		}
 		return map[string]any{}
 	case types.Named:
@@ -361,11 +371,59 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 			}
 			return s
 		case *syntax.EnumDecl:
-			return map[string]any{"type": "object", "description": decl.Name + " (a tagged enum variant)"}
+			return enumSchema(decl, u)
 		default:
 			return map[string]any{}
 		}
 	default:
 		return map[string]any{}
 	}
+}
+
+// enumSchema describes an enum as ADR 0072 sends it (§6): a string naming
+// a variant when no variant carries a payload, and otherwise one object
+// schema per variant, told apart by its `variant` member.
+func enumSchema(d *syntax.EnumDecl, u *types.Universe) map[string]any {
+	if !d.HasPayload() {
+		names := make([]any, len(d.Variants))
+		for i, v := range d.Variants {
+			names[i] = v.Name
+		}
+		return map[string]any{"type": "string", "enum": names}
+	}
+	variants := make([]any, len(d.Variants))
+	for i, v := range d.Variants {
+		props := map[string]any{}
+		var required []string
+		for _, f := range v.Fields {
+			ft, ok := types.Resolve(f.Type, u)
+			if !ok {
+				continue
+			}
+			props[f.Name] = schemaFor(ft, u)
+			if !runtime.IsOptional(ft) {
+				required = append(required, f.Name)
+			}
+		}
+		sort.Strings(required)
+		variants[i] = variantSchema(v.Name, props, required)
+	}
+	return taggedUnion(variants)
+}
+
+// variantSchema is one variant's object: its `variant` member, which can
+// only be name, beside its payload's properties.
+func variantSchema(name string, props map[string]any, required []string) map[string]any {
+	props["variant"] = map[string]any{"type": "string", "enum": []any{name}}
+	return map[string]any{
+		"type":       "object",
+		"properties": props,
+		"required":   append([]string{"variant"}, required...),
+	}
+}
+
+// taggedUnion is a oneOf of variant objects with `variant` as their
+// discriminator.
+func taggedUnion(variants []any) map[string]any {
+	return map[string]any{"oneOf": variants, "discriminator": map[string]any{"propertyName": "variant"}}
 }

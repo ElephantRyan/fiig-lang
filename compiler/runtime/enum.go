@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"fiig-lang/compiler/syntax"
+	"fiig-lang/compiler/types"
 )
 
 // headerConstants evaluates a headed enum variant's row (ADR 0046 §4). The
@@ -64,4 +65,51 @@ func keyMatches(key, raw Value) bool {
 		return false
 	}
 	return Equal(key, raw)
+}
+
+// headerConsts returns ev's header constants, evaluating them in the
+// enum's own package when ev has none yet: a headed enum decoded from JSON
+// carries only its variant's name (ADR 0072 §1).
+func (in *Interp) headerConsts(ctx context.Context, ev EnumValue) (map[string]Value, *Fault) {
+	if ev.Consts != nil || ev.Decl == nil || ev.Decl.Header == nil {
+		return ev.Consts, nil
+	}
+	variant, ok := ev.Decl.Variant(ev.Variant)
+	if !ok {
+		return nil, Faultf("%s has no variant %q", ev.Decl.Name, ev.Variant)
+	}
+	return in.headerConstants(withScope(ctx, in.declScope(ev.Decl)), ev.Decl, variant)
+}
+
+// declScope is the scope d's own package runs in: the root package's, or
+// that of the dependency that declares it.
+func (in *Interp) declScope(d *syntax.EnumDecl) scope {
+	if in.Universe.Root().Decls[d.Name] == syntax.Decl(d) {
+		return in.localScope(scope{universe: in.Universe}, d.Name)
+	}
+	seen := map[*types.Package]bool{}
+	var walk func(p *types.Package) (scope, bool)
+	walk = func(p *types.Package) (scope, bool) {
+		if p == nil || seen[p] {
+			return scope{}, false
+		}
+		seen[p] = true
+		if p.Universe != nil && p.Universe.Decls[d.Name] == syntax.Decl(d) {
+			return packageScope(p), true
+		}
+		for _, dep := range p.Dependencies {
+			if sc, ok := walk(dep); ok {
+				return sc, true
+			}
+		}
+		return scope{}, false
+	}
+	for _, aliases := range in.Imports {
+		for _, p := range aliases {
+			if sc, ok := walk(p); ok {
+				return sc
+			}
+		}
+	}
+	return scope{universe: in.Universe}
 }

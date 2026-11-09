@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+
+	"fiig-lang/compiler/syntax"
 )
 
 // Value is a runtime value. Every concrete type below is comparable by Go
@@ -118,8 +120,12 @@ type EnumValue struct {
 	Fields   []Value
 	// Consts is a headed enum's variant's header constants by field name
 	// (ADR 0046 §4), read as `source.code` (§4b); nil otherwise. They are
-	// fixed by Variant, so Equal ignores them.
+	// fixed by Variant, so Equal ignores them. A headed enum decoded from
+	// JSON has none until its first field read (Interp.headerConsts).
 	Consts map[string]Value
+	// Decl is the enum's declaration, which names the payload's fields
+	// for JSON (ADR 0072). Equal ignores it.
+	Decl *syntax.EnumDecl
 }
 
 func (EnumValue) isValue() {}

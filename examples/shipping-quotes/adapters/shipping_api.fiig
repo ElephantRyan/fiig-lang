@@ -1,0 +1,11 @@
+// ADR 0072: enums in HTTP request and response bodies. No capabilities:
+// fiig serve . shippingApi
+adapter http shippingApi {
+    POST "/quotes" -> quoteShipping(request: QuoteRequest)
+        consumes "application/json"
+        produces "application/json"
+    {
+        Ok(quote) -> 200 quote
+        Err(error) -> 422 error
+    }
+}

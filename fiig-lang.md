@@ -582,7 +582,10 @@ Need an ADR first, in build order:
    2026-11-07, with `fiig config`, manifest renames, and a per-vertical
    example (`checkout-core`, `checkout-clientvertical`).
 6. The JSON shape of an enum and a `Result` in an HTTP body (today the
-   tagged form `fiig run -json` uses).
+   tagged form `fiig run -json` uses). Done 2026-11-08 (ADR 0072): a
+   payload-free enum is a string, a payload enum an object with a
+   `variant` member, request bodies decode the same shapes, and
+   `examples/shipping-quotes`.
 7. JSON decoding in fiig code (ADR 0062's library).
 8. An HTTP client package written in fiig over `Socket`: every verb,
    request headers, `http` and `https`, any port, `Content-Length` and

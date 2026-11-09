@@ -1,0 +1,34 @@
+// The price of a parcel: a base rate and a per-kilogram rate by
+// destination, doubled for Express, which only ships domestically.
+rule quoteCents(request: QuoteRequest) -> Result<int, QuoteError> {
+    if request.weightGrams <= 0 {
+        return Err(QuoteError.NonPositiveWeight(weightGrams: request.weightGrams))
+    }
+    if request.weightGrams > 30000 {
+        return Err(QuoteError.TooHeavy(weightGrams: request.weightGrams, limitGrams: 30000))
+    }
+    kilograms = (request.weightGrams + 999) / 1000
+    match request.destination {
+        Destination.Domestic(_) -> {
+            base = 500 + 100 * kilograms
+            match request.speed {
+                Speed.Standard -> {
+                    return Ok(base)
+                }
+                Speed.Express -> {
+                    return Ok(base * 2)
+                }
+            }
+        }
+        Destination.International(_, _) -> {
+            match request.speed {
+                Speed.Standard -> {
+                    return Ok(1500 + 400 * kilograms)
+                }
+                Speed.Express -> {
+                    return Err(QuoteError.NoExpressAbroad)
+                }
+            }
+        }
+    }
+}

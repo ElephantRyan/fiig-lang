@@ -1,0 +1,4 @@
+workflow quoteShipping(request: QuoteRequest) -> Result<Quote, QuoteError> {
+    cents = quoteCents(request)?
+    return Ok(Quote(speed: request.speed, destination: request.destination, cents: cents))
+}

@@ -124,7 +124,8 @@ func TestInvalidProgramsCatchEveryAttestedBugClass(t *testing.T) {
 		{"invalid-programs/wire_error.fiig", map[string]int{
 			"W1": 1, // htmlPage: sets Content-Type, which produces owns
 			"W2": 1, // embedCookie: SameSite=None over plain HTTP
-			"G1": 1, // two declarations packed into one file, incidental but real
+			"W3": 1, // Delivery.Shipped: a payload field named variant
+			"G1": 2, // three declarations packed into one file, incidental but real
 		}},
 		{"invalid-programs/config_error.fiig", map[string]int{
 			"V1":  1, // Billing.apiKey: a Secret with a default

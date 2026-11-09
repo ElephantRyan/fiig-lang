@@ -323,7 +323,11 @@ func (in *Interp) evalFieldAccess(ctx context.Context, e *syntax.FieldAccess, en
 		return target, earlyReturn, fault
 	}
 	if ev, ok := target.(EnumValue); ok {
-		if v, ok := ev.Consts[e.Field]; ok {
+		consts, fault := in.headerConsts(ctx, ev)
+		if fault != nil {
+			return nil, false, fault
+		}
+		if v, ok := consts[e.Field]; ok {
 			return v, false, nil
 		}
 	}
