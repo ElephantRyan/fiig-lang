@@ -314,7 +314,7 @@ func (in *Interp) constructEnum(ctx context.Context, enumDecl *syntax.EnumDecl, 
 		if fault != nil {
 			return nil, false, fault
 		}
-		return EnumValue{TypeName: enumName, Variant: variant.Name, Consts: consts}, false, nil
+		return EnumValue{TypeName: enumName, Variant: variant.Name, Consts: consts, Decl: enumDecl}, false, nil
 	}
 	supplied, earlyReturn, fault := in.evalArgs(ctx, env, args, fieldNames(variant.Fields))
 	if fault != nil || earlyReturn {
@@ -328,7 +328,7 @@ func (in *Interp) constructEnum(ctx context.Context, enumDecl *syntax.EnumDecl, 
 		}
 		fields[i] = v
 	}
-	return EnumValue{TypeName: enumName, Variant: variant.Name, Fields: fields}, false, nil
+	return EnumValue{TypeName: enumName, Variant: variant.Name, Fields: fields, Decl: enumDecl}, false, nil
 }
 
 // evalCopy implements `copy(base, field: value, ...)` (docs/specification/

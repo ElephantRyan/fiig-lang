@@ -1,6 +1,6 @@
 // ADR 0069 §6: what the HTTP adapter refuses to write, reported by the
 // checker when it can see the value. W1: a header the adapter owns, since
-// Content-Type comes from the route's produces. Two declarations in one
+// Content-Type comes from the route's produces. Three declarations in one
 // file, so G1 also fires, incidentally but correctly.
 conversion htmlPage(page: string) -> HttpResponse<string> {
     return HttpResponse(status: 200, body: page, headers: ["Content-Type": "text/html"])
@@ -13,4 +13,11 @@ conversion embedCookie(token: string) -> HttpResponse<None> {
         status: 204,
         cookies: [Cookie(name: "embed", value: token, sameSite: SameSite.AnySite, sentOverPlainHttp: true)],
     )
+}
+
+// W3: an enum with payloads names its variant in a JSON `variant` member
+// (ADR 0072 §2), so a payload field with that name would be sent twice.
+enum Delivery {
+    Shipped(variant: string)
+    Pending
 }

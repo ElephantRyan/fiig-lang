@@ -12,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"fiig-lang/compiler/types"
 )
 
 // ADR 0060: the Socket primitive. SocketProvider implements its six
@@ -350,7 +352,7 @@ func socketErr(ctx context.Context, op string, err error) (Value, *Fault) {
 	if failure == nil {
 		return nil, Faultf("Socket.%s: %v", op, err)
 	}
-	ev := EnumValue{TypeName: "SocketError", Variant: failure.Variant}
+	ev := EnumValue{TypeName: "SocketError", Variant: failure.Variant, Decl: types.SocketErrorDecl}
 	if failure.Variant == "Tls" {
 		ev.Fields = []Value{Str(failure.Reason)}
 	}

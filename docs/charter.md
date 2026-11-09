@@ -46,6 +46,10 @@ Full rules are in language.md §3; this is the index a reader should recognize b
 9. **Registry-first reuse** — every export carries a compact contract; search happens before new code is written.
 10. **Strict about what the program says and reads, lenient about what it receives and ignores** — a program declares exactly what it reads and produces, and the checker holds it to that; extra input from the outside world (an unread header, a `3.0` for an int) is accepted rather than refused. Being opinionated inside the program is what lets a reader, human or LLM, have all the context it needs (ADR 0062 §2, ADR 0070 §2).
 
+## Not object-oriented
+
+Fiig has no classes, and each part of object orientation was replaced by something else in its own ADR. A `model` is data only; behavior lives in separate declarations (rules, conversions, activities, gateways, workflows), and only builtins have method-call syntax. There is no inheritance or subtyping: a model reuses another by embedding it (ADR 0045). Substitution goes through an `interface` at a capability selection point (ADR 0043), and a closed set of cases through an `enum` and an exhaustive `match` (ADR 0046). Encapsulation is per file, in `private { }` blocks (ADR 0054), not per object. Models are values, changed through `copy(...)` (ADR 0023), not objects with identity changed in place. This is the split Go, Rust, and Elixir make, composition for reuse and interfaces for substitution, taken further than Go, which keeps methods on types.
+
 ## Success criteria
 
 The project has earned its next milestone when a first vertical slice (language.md §12) is measurably clearer and safer than the same architecture built as a Go or Java framework, judged by:

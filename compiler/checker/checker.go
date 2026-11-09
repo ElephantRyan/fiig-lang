@@ -806,6 +806,9 @@ func (c *checker) checkDecl(d syntax.Decl) {
 			}
 			for _, f := range v.Fields {
 				c.checkNoCapabilityField(d.Name+"."+v.Name, f, c.resolve(f.Type))
+				if f.Name == "variant" {
+					c.report(f.Start, "W3", "%s.%s has a field named `variant`, which is the member that names the variant in JSON (ADR 0072 §3); rename the field", d.Name, v.Name)
+				}
 			}
 		}
 		if d.Header != nil {

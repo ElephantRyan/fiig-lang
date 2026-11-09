@@ -1,0 +1,8 @@
+// Sent to the client as it is, in a 422 body, instead of a hand-written
+// message: {"variant": "TooHeavy", "weightGrams": 40000, "limitGrams": 30000}.
+// A payload-free variant is still an object: {"variant": "NoExpressAbroad"}.
+enum QuoteError {
+    NonPositiveWeight(weightGrams: int)
+    TooHeavy(weightGrams: int, limitGrams: int)
+    NoExpressAbroad
+}

@@ -344,7 +344,9 @@ func constantChanges(name string, header []Param, old, newer []Variant) []Change
 }
 
 // variantChanges compares an error's variants by name: a removed variant
-// or one whose fields changed is Major; an added variant is Minor.
+// or one whose fields changed is Major; an added variant is Minor, unless
+// it is the enum's first payload, which changes how every variant is sent
+// as JSON, from a string to an object (ADR 0072 §2).
 func variantChanges(name string, old, newer []Variant) []Change {
 	oldByName := map[string]Variant{}
 	for _, v := range old {
@@ -370,7 +372,19 @@ func variantChanges(name string, old, newer []Variant) []Change {
 			out = append(out, Change{Name: name, Bump: Minor, Msg: fmt.Sprintf("variant %q added", n)})
 		}
 	}
+	if !anyPayload(old) && anyPayload(newer) {
+		out = append(out, Change{Name: name, Bump: Major, Msg: "gained its first payload, so every variant is now sent in JSON as an object naming it, not a string (ADR 0072 §2)"})
+	}
 	return out
+}
+
+func anyPayload(variants []Variant) bool {
+	for _, v := range variants {
+		if len(v.Fields) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // routeChanges compares an adapter's routes as a set of "VERB /path"

@@ -123,11 +123,28 @@ func TestDiffKindChangeIsMajor(t *testing.T) {
 }
 
 func TestDiffEnumVariantChanges(t *testing.T) {
-	old := []*Card{{Name: "CustomerError", Kind: "enum", Variants: []Variant{{Name: "NotFound"}}}}
-	newer := []*Card{{Name: "CustomerError", Kind: "enum", Variants: []Variant{{Name: "NotFound"}, {Name: "Invalid", Fields: []Param{{Name: "reason", Type: "string"}}}}}}
+	notFound := Variant{Name: "NotFound", Fields: []Param{{Name: "id", Type: "string"}}}
+	old := []*Card{{Name: "CustomerError", Kind: "enum", Variants: []Variant{notFound}}}
+	newer := []*Card{{Name: "CustomerError", Kind: "enum", Variants: []Variant{notFound, {Name: "Invalid", Fields: []Param{{Name: "reason", Type: "string"}}}}}}
 	bump, _ := Diff(old, newer)
 	if bump != Minor {
 		t.Fatalf("want Minor for a new enum variant, got %s", bump)
+	}
+	plain := []*Card{{Name: "Region", Kind: "enum", Variants: []Variant{{Name: "US"}}}}
+	plainer := []*Card{{Name: "Region", Kind: "enum", Variants: []Variant{{Name: "US"}, {Name: "EU"}}}}
+	if bump, _ := Diff(plain, plainer); bump != Minor {
+		t.Fatalf("want Minor for a new payload-free variant, got %s", bump)
+	}
+}
+
+// ADR 0072 §2: an enum's first payload turns `"US"` into
+// `{"variant": "US"}` for every client.
+func TestDiffEnumFirstPayloadIsMajor(t *testing.T) {
+	old := []*Card{{Name: "Region", Kind: "enum", Variants: []Variant{{Name: "US"}}}}
+	newer := []*Card{{Name: "Region", Kind: "enum", Variants: []Variant{{Name: "US"}, {Name: "Other", Fields: []Param{{Name: "name", Type: "string"}}}}}}
+	bump, changes := Diff(old, newer)
+	if bump != Major {
+		t.Fatalf("want Major for a first payload, got %s: %+v", bump, changes)
 	}
 }
 

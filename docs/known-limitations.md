@@ -38,9 +38,12 @@ doesn't have to discover them.
   up (ADR 0069 §4), and `examples/accounts` stores its keys as given.
 - **`GenerateOpenAPI` isn't on the command line.** The adapter package
   builds the document; no `fiig` command prints it yet.
-- **An enum or `Result` in a response body** is written in the tagged form
-  `fiig run -json` uses (`{"$enum": ...}`); a model is a plain object.
-  Map errors to a status and a message, as the getting-started adapter does.
+- **Two enums with a variant name in common, in one union in a body**
+  (`OrderError | CustomerError`, both with `NotFound`): the JSON doesn't
+  say which enum it is, so decoding takes the first member that matches
+  (ADR 0072, open question 1).
+- **An enum can't be a path segment or query value** yet; route arguments
+  from the path and query bind only primitives (ADR 0072, open question 2).
 - **No HTTP client library.** `examples/acme-http` shows one written in fiig
   over `Socket`, but it only sends POST over TLS to port 443, with an
   `Authorization` header and no others.

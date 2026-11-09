@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
@@ -121,6 +122,9 @@ func DecodeJSON(raw any, t types.Type, u *types.Universe) (Value, error) {
 			}
 			return m, nil
 		}
+		if t.Name == "Result" && len(t.Args) == 2 {
+			return decodeResult(raw, t, u)
+		}
 		return nil, fmt.Errorf("%s cannot be decoded from a plain JSON value", t.String())
 	case types.Named:
 		switch decl := t.Decl.(type) {
@@ -151,12 +155,106 @@ func DecodeJSON(raw any, t types.Type, u *types.Universe) (Value, error) {
 				fields[f.Name] = v
 			}
 			return Record{TypeName: decl.Name, Fields: fields}, nil
+		case *syntax.EnumDecl:
+			return decodeEnum(raw, decl, u)
 		default:
 			return nil, fmt.Errorf("%s cannot be decoded from a plain JSON value", t.String())
 		}
 	default:
 		return nil, fmt.Errorf("%s cannot be decoded from a plain JSON value", t.String())
 	}
+}
+
+// decodeEnum reads the shapes encodeEnumBody writes (ADR 0072 §5): a
+// variant's name for an enum with no payloads, and an object whose
+// `variant` member names one, its payload fields beside it, for an enum
+// with any. Members the variant doesn't declare are ignored.
+func decodeEnum(raw any, decl *syntax.EnumDecl, u *types.Universe) (Value, error) {
+	if !decl.HasPayload() {
+		name, ok := raw.(string)
+		if !ok {
+			return nil, fmt.Errorf("expected a string naming a variant of %s (%s), got %s", decl.Name, variantNames(decl), jsonKind(raw))
+		}
+		if _, ok := decl.Variant(name); !ok {
+			return nil, fmt.Errorf("%q is not a variant of %s (%s)", name, decl.Name, variantNames(decl))
+		}
+		return EnumValue{TypeName: decl.Name, Variant: name, Decl: decl}, nil
+	}
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("expected an object with a \"variant\" member for %s, got %s", decl.Name, jsonKind(raw))
+	}
+	name, ok := obj["variant"].(string)
+	if !ok {
+		return nil, fmt.Errorf("%s needs a \"variant\" member naming one of %s", decl.Name, variantNames(decl))
+	}
+	variant, ok := decl.Variant(name)
+	if !ok {
+		return nil, fmt.Errorf("%q is not a variant of %s (%s)", name, decl.Name, variantNames(decl))
+	}
+	fields := make([]Value, len(variant.Fields))
+	for i, f := range variant.Fields {
+		ft, ok := types.Resolve(f.Type, u)
+		if !ok {
+			return nil, fmt.Errorf("%s.%s.%s: unresolvable field type", decl.Name, name, f.Name)
+		}
+		fraw, present := obj[f.Name]
+		if !present {
+			if IsOptional(ft) {
+				fields[i] = None{}
+				continue
+			}
+			return nil, fmt.Errorf("%s.%s missing required field %q", decl.Name, name, f.Name)
+		}
+		v, err := DecodeJSON(fraw, ft, u)
+		if err != nil {
+			return nil, fmt.Errorf("%s.%s.%s: %w", decl.Name, name, f.Name, err)
+		}
+		fields[i] = v
+	}
+	return EnumValue{TypeName: decl.Name, Variant: name, Fields: fields, Decl: decl}, nil
+}
+
+// variantNames lists d's variants for an error message: "US, EU, APAC".
+func variantNames(d *syntax.EnumDecl) string {
+	names := make([]string, len(d.Variants))
+	for i, v := range d.Variants {
+		names[i] = v.Name
+	}
+	return strings.Join(names, ", ")
+}
+
+// decodeResult reads `{"variant": "Ok", "value": ...}` or
+// `{"variant": "Err", "error": ...}` (ADR 0072 §4).
+func decodeResult(raw any, t types.Generic, u *types.Universe) (Value, error) {
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("expected an object with a \"variant\" member for %s, got %s", t.String(), jsonKind(raw))
+	}
+	var isOk bool
+	var member string
+	var mt types.Type
+	switch obj["variant"] {
+	case "Ok":
+		isOk, member, mt = true, "value", t.Args[0]
+	case "Err":
+		member, mt = "error", t.Args[1]
+	default:
+		return nil, fmt.Errorf("%s needs a \"variant\" member naming Ok or Err", t.String())
+	}
+	mraw, present := obj[member]
+	if !present {
+		if !IsOptional(mt) {
+			if _, isNone := mt.(types.NoneType); !isNone {
+				return nil, fmt.Errorf("%s %s missing %q", t.String(), obj["variant"], member)
+			}
+		}
+	}
+	v, err := DecodeJSON(mraw, mt, u)
+	if err != nil {
+		return nil, fmt.Errorf("%s.%s: %w", obj["variant"], member, err)
+	}
+	return Result{Ok: isOk, Value: v}, nil
 }
 
 // IsOptional reports whether t is a union including None (§3.5: "model
@@ -248,10 +346,11 @@ func jsonKind(raw any) string {
 // into plain objects/arrays.
 func EncodeJSON(v Value) any { return encodeJSON(v, false) }
 
-// EncodeBodyJSON is EncodeJSON for an HTTP body: a model instance is a
-// plain object of its fields, the shape the adapter's OpenAPI document
-// describes and the shape a request body is decoded from (ADR 0021). The
-// other tagged shapes are as EncodeJSON writes them.
+// EncodeBodyJSON is EncodeJSON for an HTTP body, in the shapes a request
+// body is decoded from and the adapter's OpenAPI document describes: a
+// model instance is a plain object of its fields (ADR 0021), an enum with
+// no payloads its variant's name, and an enum with payloads, or a Result,
+// an object naming its variant beside the payload's fields (ADR 0072).
 func EncodeBodyJSON(v Value) any { return encodeJSON(v, true) }
 
 func encodeJSON(v Value, body bool) any {
@@ -308,6 +407,9 @@ func encodeJSON(v Value, body bool) any {
 		}
 		return map[string]any{"$type": v.TypeName, "fields": fields}
 	case EnumValue:
+		if body && v.Decl != nil {
+			return encodeEnumBody(v)
+		}
 		fields := make([]any, len(v.Fields))
 		for i, f := range v.Fields {
 			fields[i] = encodeJSON(f, body)
@@ -317,6 +419,13 @@ func encodeJSON(v Value, body bool) any {
 		tag := "Err"
 		if v.Ok {
 			tag = "Ok"
+		}
+		if body {
+			name := "error"
+			if v.Ok {
+				name = "value"
+			}
+			return orderedObject{{"variant", tag}, {name, encodeJSON(v.Value, body)}}
 		}
 		return map[string]any{"$result": tag, "value": encodeJSON(v.Value, body)}
 	case BatchResult:
@@ -332,6 +441,22 @@ func encodeJSON(v Value, body bool) any {
 	default:
 		return nil
 	}
+}
+
+// encodeEnumBody writes v as ADR 0072 sends it: `"US"` for an enum with no
+// payloads, `{"variant": "NotFound", "id": "o1"}` for one with any.
+func encodeEnumBody(v EnumValue) any {
+	if !v.Decl.HasPayload() {
+		return v.Variant
+	}
+	obj := orderedObject{{"variant", v.Variant}}
+	variant, _ := v.Decl.Variant(v.Variant)
+	for i, f := range variant.Fields {
+		if i < len(v.Fields) {
+			obj = append(obj, objectMember{f.Name, encodeJSON(v.Fields[i], true)})
+		}
+	}
+	return obj
 }
 
 // orderedObject is a JSON object whose members keep their order, which

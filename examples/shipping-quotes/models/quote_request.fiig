@@ -1,0 +1,5 @@
+model QuoteRequest {
+    weightGrams: int
+    speed: Speed
+    destination: Destination
+}

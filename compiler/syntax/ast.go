@@ -161,6 +161,28 @@ type EnumDecl struct {
 	Variants []EnumVariant
 }
 
+// Variant returns the variant named name, if the enum has one.
+func (d *EnumDecl) Variant(name string) (EnumVariant, bool) {
+	for _, v := range d.Variants {
+		if v.Name == name {
+			return v, true
+		}
+	}
+	return EnumVariant{}, false
+}
+
+// HasPayload reports whether any variant carries a payload, which decides
+// the enum's JSON shape (ADR 0072): an object naming its variant if so, a
+// string if not.
+func (d *EnumDecl) HasPayload() bool {
+	for _, v := range d.Variants {
+		if len(v.Fields) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // HeaderField returns the header field named name, if the enum has one.
 func (d *EnumDecl) HeaderField(name string) (EnumField, bool) {
 	for _, f := range d.Header {

@@ -1,0 +1,6 @@
+// Sent back with the request's enums in the shapes they arrived in.
+model Quote {
+    speed: Speed
+    destination: Destination
+    cents: int
+}
