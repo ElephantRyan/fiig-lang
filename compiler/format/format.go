@@ -337,6 +337,9 @@ func printField(f syntax.Field) string {
 	if f.Embedded {
 		return printType(f.Type)
 	}
+	if f.JSON != "" {
+		return fmt.Sprintf("%s: %s from json %s", f.Name, printType(f.Type), strconv.Quote(f.JSON))
+	}
 	return fmt.Sprintf("%s: %s", f.Name, printType(f.Type))
 }
 

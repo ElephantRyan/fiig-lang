@@ -1,0 +1,14 @@
+// Decodes an envelope's payload by its type (ADR 0073 §4), with the
+// decoder a request body uses, so a payload that doesn't fit is the same
+// JsonError.Mismatch whichever way the envelope arrived.
+rule readEvent(envelope: Envelope) -> Result<Event, JsonError> {
+    if envelope.eventType == "invoice.paid" {
+        paid: InvoicePaid = json.decode(envelope.data)?
+        return Ok(Event.Paid(invoice: paid))
+    }
+    if envelope.eventType == "credit.limit_changed" {
+        change: CreditLimitChanged = json.decode(envelope.data)?
+        return Ok(Event.LimitChanged(change: change))
+    }
+    return Ok(Event.Ignored(eventType: envelope.eventType))
+}

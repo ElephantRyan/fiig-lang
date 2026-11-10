@@ -83,9 +83,15 @@ eight currently has an attested case of that (the one that did, `error`, is
 no longer one of them: it's an ordinary, non-reserved identifier now, used
 as both a parameter and field name and as a bare pattern/identifier in
 `checkout_error.fiig` and `customer_error_to_http_response.fiig`). The
-remaining keywords above are reserved everywhere; nothing in the corpus has
-needed one of them as a name. `private` (ADR 0054) is one of these: it opens
-a file's private block, and a helper or field can't be named `private`.
+remaining keywords above are reserved everywhere a parameter, local,
+pattern, or declaration is named. `private` (ADR 0054) is one of these: it
+opens a file's private block, and a helper can't be named `private`.
+
+**Any keyword may name a model or enum payload field** (ADR 0073 §7a): a
+field's name is read only in its declaration, after a `.`, and as a named
+argument, where no keyword means anything else, so `limit: int`,
+`page.limit`, and `Page(limit: 10)` all parse. In a `concurrent` header,
+`limit:` is still the clause.
 
 Not keywords — ordinary identifiers resolved against the standard prelude,
 distinguished only by convention (capitalized) and by appearing as pattern
@@ -204,7 +210,8 @@ Attested forms across the corpus:
 ```ebnf
 model-decl ::= 'model' identifier '{' { model-field } '}'
 model-field ::= field | type-name          // a bare type name embeds that model (ADR 0045)
-field      ::= identifier ':' type
+field      ::= field-name ':' type [ 'from' 'json' string-literal ]   // ADR 0073 §7b; `from`, `json` contextual
+field-name ::= identifier | keyword                                  // ADR 0073 §7a
 
 enum-decl    ::= 'enum' identifier [ enum-header ] '{' { enum-variant } '}'
 enum-header  ::= '(' enum-field { ',' enum-field } ')'      // ADR 0046 §4
@@ -540,9 +547,9 @@ comparison-op   ::= '==' | '!=' | '<' | '<=' | '>' | '>='
 additive        ::= multiplicative { ( '+' | '-' ) multiplicative }
 multiplicative  ::= unary { ( '*' | '/' | '%' ) unary }
 unary           ::= '-' unary | postfix-expression
-postfix-expression ::= primary { '.' identifier | '(' [ arguments ] ')' }
+postfix-expression ::= primary { '.' field-name | '(' [ arguments ] ')' }
 arguments  ::= argument { ',' argument } [ ',' ]
-argument   ::= [ identifier ':' ] expression
+argument   ::= [ field-name ':' ] expression
 primary    ::= identifier | literal | list-literal | map-literal | sorted-expr | '(' expression ')' | 'not' primary
 literal    ::= string-literal | integer-literal | float-literal
 list-literal ::= '[' [ expression { ',' expression } [ ',' ] ] ']'

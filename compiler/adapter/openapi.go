@@ -359,9 +359,9 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 				if !ok {
 					continue
 				}
-				props[f.Name] = schemaFor(ft, u)
+				props[f.JSONName()] = schemaFor(ft, u)
 				if !runtime.IsOptional(ft) {
-					required = append(required, f.Name)
+					required = append(required, f.JSONName())
 				}
 			}
 			sort.Strings(required)
@@ -371,6 +371,10 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 			}
 			return s
 		case *syntax.EnumDecl:
+			if decl == types.JsonValueDecl {
+				// Any JSON at all (ADR 0073 §4); the empty schema says so.
+				return map[string]any{"description": "any JSON value"}
+			}
 			return enumSchema(decl, u)
 		default:
 			return map[string]any{}
@@ -400,9 +404,9 @@ func enumSchema(d *syntax.EnumDecl, u *types.Universe) map[string]any {
 			if !ok {
 				continue
 			}
-			props[f.Name] = schemaFor(ft, u)
+			props[f.JSONName()] = schemaFor(ft, u)
 			if !runtime.IsOptional(ft) {
-				required = append(required, f.Name)
+				required = append(required, f.JSONName())
 			}
 		}
 		sort.Strings(required)

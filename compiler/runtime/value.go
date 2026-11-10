@@ -92,6 +92,10 @@ func (l List) String() string {
 type Record struct {
 	TypeName string
 	Fields   map[string]Value
+	// Decl is the model a model instance was built or decoded as, so the
+	// JSON encoder writes its fields in declared order by their JSON names
+	// (ADR 0073 §6); nil for an anonymous record. Equal ignores it.
+	Decl *syntax.ModelDecl
 }
 
 func (Record) isValue() {}

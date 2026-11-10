@@ -1,0 +1,3 @@
+workflow receiveEvent(envelope: Envelope) -> Result<Event, JsonError> {
+    return readEvent(envelope)
+}

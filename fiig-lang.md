@@ -586,7 +586,11 @@ Need an ADR first, in build order:
    payload-free enum is a string, a payload enum an object with a
    `variant` member, request bodies decode the same shapes, and
    `examples/shipping-quotes`.
-7. JSON decoding in fiig code (ADR 0062's library).
+7. ~~JSON decoding in fiig code (ADR 0062's library).~~ Done 2026-11-09,
+   ADR 0073: a prelude `json` group, `json.decode` typed by context,
+   `json.encode` to bytes in declared order, keywords as field names,
+   `from json "name"`, J1 and J2, and the adapter on the same reader,
+   decoder, and encoder. `examples/event-inbox`.
 8. An HTTP client package written in fiig over `Socket`: every verb,
    request headers, `http` and `https`, any port, `Content-Length` and
    chunked replies.

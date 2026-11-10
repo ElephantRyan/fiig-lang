@@ -158,6 +158,22 @@ func (p *Parser) expectName() lexer.Token {
 	return p.cur()
 }
 
+// atFieldName reports whether the current token can name a model or enum
+// payload field: an identifier or any keyword (ADR 0073 §7a). A field's
+// name is only ever read in its declaration, after a `.`, and as a named
+// argument, where no keyword means anything else.
+func (p *Parser) atFieldName() bool {
+	return p.atName() || lexer.IsKeyword(p.cur().Kind)
+}
+
+// expectFieldName is expectName for a field name.
+func (p *Parser) expectFieldName() lexer.Token {
+	if p.atFieldName() {
+		return p.advance()
+	}
+	return p.expectName()
+}
+
 // guardProgress runs parse and guarantees the token stream advances by at
 // least one token, even if parse itself fails to consume anything. Without
 // this, a caller looping on "not at the closing brace yet" can spin forever
@@ -380,12 +396,30 @@ func (p *Parser) parseDecl() syntax.Decl {
 	}
 }
 
-func (p *Parser) parseField() syntax.Field {
+// parseField parses a model, payload, or record field. jsonName allows a
+// `from json "name"` clause after the type (ADR 0073 §7b), which model and
+// payload fields may have.
+func (p *Parser) parseField(jsonName bool) syntax.Field {
 	start := p.cur().Start
-	name := p.expectName()
+	name := p.expectFieldName()
 	p.expect(lexer.Colon)
 	typ := p.parseType()
-	return syntax.Field{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: name.Text, Type: typ}
+	f := syntax.Field{Name: name.Text, Type: typ}
+	if jsonName && p.atContextual("from") && p.peek(1).Kind == lexer.Ident && p.peek(1).Text == "json" {
+		p.advance()
+		p.advance()
+		lit := p.parseStringLit()
+		if hasInterp(lit) {
+			p.errorf(lit.Start, "interpolation is not allowed in a JSON member name")
+		}
+		f.JSON = plainText(lit)
+		if f.JSON == "" {
+			// "" would read as no `from json` at all; no producer sends it.
+			p.errorf(lit.Start, "a JSON member name can't be empty")
+		}
+	}
+	f.Span = syntax.Span{Start: start, End: p.cur().Start}
+	return f
 }
 
 // parseModelField is parseField, plus ADR 0045's embedded form: a bare type
@@ -394,8 +428,8 @@ func (p *Parser) parseField() syntax.Field {
 // embedded field named for it (what the checker validates is that it names
 // a model).
 func (p *Parser) parseModelField() syntax.Field {
-	if p.atName() && p.peek(1).Kind == lexer.Colon {
-		return p.parseField()
+	if p.atFieldName() && p.peek(1).Kind == lexer.Colon {
+		return p.parseField(true)
 	}
 	start := p.cur().Start
 	typ := p.parseType()
@@ -535,10 +569,10 @@ func (p *Parser) parseEnumVariant(headed bool) syntax.EnumVariant {
 	if p.at(lexer.LParen) {
 		p.advance()
 		if !p.at(lexer.RParen) {
-			fields = append(fields, p.parseField())
+			fields = append(fields, p.parseField(true))
 			for p.at(lexer.Comma) {
 				p.advance()
-				fields = append(fields, p.parseField())
+				fields = append(fields, p.parseField(true))
 			}
 		}
 		p.expect(lexer.RParen)
@@ -980,10 +1014,10 @@ func (p *Parser) parseRecordType() *syntax.RecordType {
 	start := p.expect(lexer.LBrace).Start
 	var fields []syntax.Field
 	if !p.at(lexer.RBrace) {
-		fields = append(fields, p.parseField())
+		fields = append(fields, p.parseField(false))
 		for p.at(lexer.Comma) {
 			p.advance()
-			fields = append(fields, p.parseField())
+			fields = append(fields, p.parseField(false))
 		}
 	}
 	end := p.expect(lexer.RBrace).End
@@ -1358,7 +1392,7 @@ func (p *Parser) parsePostfix() syntax.Expr {
 		switch {
 		case p.at(lexer.Dot):
 			p.advance()
-			field := p.expectName()
+			field := p.expectFieldName()
 			left = &syntax.FieldAccess{Span: syntax.Span{Start: start, End: p.cur().Start}, Target: left, Field: field.Text}
 		case p.at(lexer.LParen):
 			args := p.parseArguments()
@@ -1388,8 +1422,11 @@ func (p *Parser) parseArguments() []syntax.Arg {
 	return args
 }
 
+// parseArgument parses one argument. A name and a colon make it a named
+// one; the name may be a keyword, since a field's name may be (ADR 0073
+// §7a) and no expression starts with a keyword followed by a colon.
 func (p *Parser) parseArgument() syntax.Arg {
-	if p.atName() && p.peek(1).Kind == lexer.Colon {
+	if p.atFieldName() && p.peek(1).Kind == lexer.Colon {
 		name := p.advance().Text
 		p.advance() // ':'
 		return syntax.Arg{Name: name, Value: p.parseExpression()}

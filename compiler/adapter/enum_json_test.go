@@ -59,13 +59,13 @@ func TestEnumsAndResultsRoundTripThroughABody(t *testing.T) {
 	cases := []struct{ in, out string }{
 		{
 			`{"region": "EU", "problem": {"variant": "Late", "id": "s1", "days": 3}, "outcome": {"variant": "Ok", "value": 7}, "source": "Globex"}`,
-			`{"outcome":{"variant":"Ok","value":7},"problem":{"variant":"Late","id":"s1","days":3},"region":"EU","source":"Globex"}`,
+			`{"region":"EU","problem":{"variant":"Late","id":"s1","days":3},"outcome":{"variant":"Ok","value":7},"source":"Globex"}`,
 		},
 		{
 			// A payload-free variant of a payload enum is still an object; a
 			// missing optional payload field is None; unknown members are ignored.
 			`{"region": "US", "problem": {"variant": "Unknown", "extra": 1}, "outcome": {"variant": "Err", "error": {"variant": "Late", "id": "s2"}}, "source": "Acme"}`,
-			`{"outcome":{"variant":"Err","error":{"variant":"Late","id":"s2","days":null}},"problem":{"variant":"Unknown"},"region":"US","source":"Acme"}`,
+			`{"region":"US","problem":{"variant":"Unknown"},"outcome":{"variant":"Err","error":{"variant":"Late","id":"s2","days":null}},"source":"Acme"}`,
 		},
 	}
 	for _, c := range cases {
@@ -187,7 +187,7 @@ func TestCorpusShippingQuotes(t *testing.T) {
 		out  string
 	}{
 		{`{"weightGrams": 2500, "speed": "Express", "destination": {"variant": "Domestic", "postcode": "2000"}}`,
-			200, `{"cents":1600,"destination":{"variant":"Domestic","postcode":"2000"},"speed":"Express"}`},
+			200, `{"speed":"Express","destination":{"variant":"Domestic","postcode":"2000"},"cents":1600}`},
 		{`{"weightGrams": 40000, "speed": "Standard", "destination": {"variant": "Domestic", "postcode": "2000"}}`,
 			422, `{"variant":"TooHeavy","weightGrams":40000,"limitGrams":30000}`},
 		{`{"weightGrams": 100, "speed": "Express", "destination": {"variant": "International", "country": "NZ", "postcode": "6011"}}`,

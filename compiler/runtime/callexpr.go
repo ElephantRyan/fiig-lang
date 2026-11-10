@@ -15,6 +15,11 @@ import (
 // is Ok/Err/copy, a model constructor, or an ordinary declared call.
 func (in *Interp) evalCall(ctx context.Context, e *syntax.CallExpr, env *Env) (Value, bool, *Fault) {
 	if fa, ok := e.Callee.(*syntax.FieldAccess); ok {
+		if target, ok := fa.Target.(*syntax.Ident); ok && target.Name == types.JsonGroup {
+			if _, isLocal := env.Get(target.Name); !isLocal {
+				return in.callJson(ctx, e, fa.Field, env)
+			}
+		}
 		return in.evalQualifiedCall(ctx, fa, e.Args, env)
 	}
 	ident, ok := e.Callee.(*syntax.Ident)
@@ -148,7 +153,7 @@ func (in *Interp) constructDecl(ctx context.Context, decl syntax.Decl, displayNa
 			}
 			fields[f.Name] = v
 		}
-		return Record{TypeName: decl.Name, Fields: fields}, false, nil
+		return Record{TypeName: decl.Name, Fields: fields, Decl: decl}, false, nil
 	default:
 		return nil, false, Faultf("%q is not constructible", displayName)
 	}
@@ -363,7 +368,7 @@ func (in *Interp) evalCopy(ctx context.Context, e *syntax.CallExpr, env *Env) (V
 		}
 		fields[a.Name] = v
 	}
-	return Record{TypeName: rec.TypeName, Fields: fields}, false, nil
+	return Record{TypeName: rec.TypeName, Fields: fields, Decl: rec.Decl}, false, nil
 }
 
 // evalArgs matches args against names by name or position (mirroring

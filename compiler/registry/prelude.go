@@ -10,7 +10,7 @@ import (
 const PreludeSource = "prelude"
 
 // Prelude is a card for each member of the prelude math group (ADR 0049
-// §2.4, §2.7), so `catalog find --input float` finds math.sqrt beside the
+// §2.4, §2.7) and json group (ADR 0073), so `catalog find --input float` finds math.sqrt beside the
 // package's own formulas. grammar.md's backlog item 9 asks for prelude
 // identifiers to have cards like any exported declaration. A package's own
 // catalog (Generate) leaves them out: they are no package's contract, and
@@ -41,6 +41,13 @@ func Prelude() []*Card {
 		}
 		cards = append(cards, &Card{Name: "math." + name, Kind: "constant", Group: types.MathGroup, Catalog: Default, Source: PreludeSource, Returns: returns, Pure: true})
 	}
+	// ADR 0073: json.decode's T is the type its context expects.
+	cards = append(cards,
+		&Card{Name: "json.decode", Kind: "formula", Group: types.JsonGroup, Catalog: Default, Source: PreludeSource, Pure: true,
+			Params: []Param{{Name: "text", Type: "string | bytes | JsonValue"}}, Returns: "Result<T, JsonError>"},
+		&Card{Name: "json.encode", Kind: "formula", Group: types.JsonGroup, Catalog: Default, Source: PreludeSource, Pure: true,
+			Params: []Param{{Name: "value", Type: "T"}}, Returns: "bytes"},
+	)
 	return cards
 }
 

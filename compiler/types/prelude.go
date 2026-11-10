@@ -69,6 +69,18 @@ var preludeSources = []string{`enum SocketError {
     Lax
     AnySite
 }
+`, `enum JsonValue {
+    Null
+    Bool(value: bool)
+    Number(text: string)
+    Text(value: string)
+    Array(items: List<JsonValue>)
+    Object(members: Map<string, JsonValue>)
+}
+`, `enum JsonError {
+    Syntax(offset: int, reason: string)
+    Mismatch(path: string, reason: string)
+}
 `}
 
 // preludeDecls holds the prelude's declarations, found by every Universe's
@@ -216,7 +228,7 @@ func holds(t Type, leaf func(Type) bool, resolveField func(*syntax.ModelDecl, sy
 
 // PreludeName reports what the prelude binds name to in every file, if
 // anything: a primitive type, a prelude type, a Result constructor, or the
-// math group. A declaration of one of these names is K2 (ADR 0049), since
+// math or json group. A declaration of one of these names is K2 (ADR 0049), since
 // resolution and calls reach the prelude's meaning first and the
 // declaration would be silently unreachable or would silently replace it.
 func PreludeName(name string) (string, bool) {
@@ -229,6 +241,8 @@ func PreludeName(name string) (string, bool) {
 		return "Result's constructor", true
 	case MathGroup:
 		return "the prelude math group", true
+	case JsonGroup:
+		return "the prelude json group", true
 	}
 	if preludeGenerics[name] {
 		return "a prelude type", true

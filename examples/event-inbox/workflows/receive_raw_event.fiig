@@ -1,0 +1,6 @@
+// The same event as raw bytes, the form a sender's signature is computed
+// over: decoded in fiig, by the decoder the JSON route uses.
+workflow receiveRawEvent(body: bytes) -> Result<Event, JsonError> {
+    envelope: Envelope = json.decode(body)?
+    return readEvent(envelope)
+}

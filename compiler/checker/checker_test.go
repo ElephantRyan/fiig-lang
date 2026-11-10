@@ -127,6 +127,11 @@ func TestInvalidProgramsCatchEveryAttestedBugClass(t *testing.T) {
 			"W3": 1, // Delivery.Shipped: a payload field named variant
 			"G1": 2, // three declarations packed into one file, incidental but real
 		}},
+		{"invalid-programs/json_error.fiig", map[string]int{
+			"J1": 1, // readCounts: a Map with int keys from a JSON object
+			"J2": 1, // Upload.type: a second field reading "type"
+			"G1": 1, // two declarations packed into one file, incidental but real
+		}},
 		{"invalid-programs/config_error.fiig", map[string]int{
 			"V1":  1, // Billing.apiKey: a Secret with a default
 			"B10": 1, // retryLimit: a rule reading config

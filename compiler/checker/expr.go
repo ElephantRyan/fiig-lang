@@ -24,6 +24,9 @@ func (c *checker) checkExpected(e syntax.Expr, expected types.Type, env map[stri
 		c.checkMapLit(lit, expected, env)
 		return
 	}
+	if c.checkExpectedJson(e, expected, env) {
+		return
+	}
 	if call, ok := e.(*syntax.CallExpr); ok {
 		if ident, ok := call.Callee.(*syntax.Ident); ok && (ident.Name == "Ok" || ident.Name == "Err") {
 			c.checkOkErr(call, ident.Name, expected, env)
@@ -206,6 +209,11 @@ func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.T
 		if _, isLocal := env[targetIdent.Name]; !isLocal {
 			if targetIdent.Name == types.MathGroup {
 				c.mathMember(e)
+				return types.Unknown{}
+			}
+			if targetIdent.Name == types.JsonGroup {
+				start, _ := e.Bounds()
+				c.report(start, "", "json.%s is a formula of the prelude json group; call it, e.g. json.%s(...)", e.Field, e.Field)
 				return types.Unknown{}
 			}
 			if c.ambiguous(targetIdent.Name) {
@@ -422,6 +430,9 @@ func (c *checker) inferCall(e *syntax.CallExpr, env map[string]types.Type) types
 		return c.checkAppend(e, env)
 	}
 
+	if call, member, ok := jsonCall(e, env); ok {
+		return c.inferJsonCall(call, member, env)
+	}
 	if fa, ok := e.Callee.(*syntax.FieldAccess); ok {
 		return c.inferQualifiedCall(fa, e.Args, start, env)
 	}

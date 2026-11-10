@@ -171,7 +171,7 @@ adapter.
 |---|---|---|
 | W1 | A response HTTP can't carry: a status outside 200 to 599, a body on a 204 or 304, a header name that isn't an RFC 9110 token, a header the adapter owns (`Content-Type` from `produces`, `Content-Length`, `Set-Cookie` from `cookies`, and every `Access-Control-*` header, from `fiig serve -allow-origin`, ADR 0070 §7), two header names that differ only by case, or a header value with a control character other than tab (CR and LF are header injection, CWE-113) | Attested — `wire_error.fiig` (`htmlPage`); `compiler/checker`'s `TestWireConstantsAreChecked`; the run-time faults in `compiler/adapter`'s `TestTheAdapterRefusesWhatHTTPCantCarry` |
 | W2 | A cookie a browser would refuse or read as more than it says: a name that isn't a token, a value outside RFC 6265's cookie-octets, a `path` with `;` or a control character, a `domain` that isn't a hostname, a negative `maxAge`, `sameSite: AnySite` with `sentOverPlainHttp: true`, a `__Secure-` name without `Secure`, a `__Host-` name without `Secure` or with a `domain` or a `path` other than `/`, or two cookies in one response with the same name, path, and domain | Attested — `wire_error.fiig` (`embedCookie`), and the same two tests. The checker checks each field it can see, and the browser rules only when every field they read is known (a left-out field is its known default) |
-| W3 | An enum variant's payload field named `variant` (ADR 0072 §3). An enum with payloads is sent in JSON as an object whose `variant` member names the variant, so the field would be sent twice. Unlike W1 and W2 it is checked on the declaration, whether or not an adapter sends the enum, since any value can be encoded | Attested — `wire_error.fiig` (`Delivery.Shipped`) |
+| W3 | An enum variant's payload field whose JSON member is `variant` (ADR 0072 §3): one named `variant`, or one read `from json "variant"` (ADR 0073 §7b). An enum with payloads is sent in JSON as an object whose `variant` member names the variant, so the field would be sent twice. A field named `variant` with a `from json` name of its own is fine. Unlike W1 and W2 it is checked on the declaration, whether or not an adapter sends the enum, since any value can be encoded | Attested — `wire_error.fiig` (`Delivery.Shipped`); `compiler/checker`'s `TestJ2AndW3OnJsonNames` |
 
 
 ## V. Config errors (ADR 0071)
@@ -191,6 +191,13 @@ A `Secret` is a config value that must never be shown.
 |---|---|---|
 | S1 | A `Secret` shown: interpolated into a string, or able to cross the adapter boundary in a workflow's parameters or result, or a response body. (`==` on one is M1, since it would leak the secret through timing; `.matches()` compares in constant time) | Attested — `config_error.fiig` (`describeKey`); `TestSecretIsNeverShown` |
 | S2 | `.reveal()` outside a gateway, the kind that hands values to the outside world. Anywhere else a `Secret` is passed on, matched, or given to an operation that takes one, so no rule can turn it into a `string` and return it | Attested — `config_error.fiig` (`keyText`); `TestSecretIsNeverShown` |
+
+## J. JSON errors (ADR 0073)
+
+| # | Bug class | Status |
+|---|---|---|
+| J1 | `json.decode` into, or `json.encode` of, a type JSON can't carry (§8): one holding a `Secret`, a `Connection`, a capability or interface value, a `BatchResult`, or `bytes`, which no ADR gives a JSON form, and, to decode, a `Map` whose keys aren't `string`. Reported at the call with the part at fault (`json.decode into Session: field token is a Secret`), and at a route whose JSON request body is such a type, which before was found only by the first request. A `Secret` in a body is S1's, at the workflow | Attested — `json_error.fiig` (`readCounts`); `compiler/checker`'s `TestJ1` |
+| J2 | Two fields of one model or one variant reading the same JSON member (§7b), as `a: string from json "x"` beside `x: string`, including through embedding. Decoding would fill both from one member, and encoding would send it twice | Attested — `json_error.fiig` (`Upload.type`); `TestJ2AndW3OnJsonNames` |
 
 ## Explicitly out of scope (not statically checkable)
 
