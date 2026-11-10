@@ -145,6 +145,16 @@ var keywords = map[string]Kind{
 	"config":        KwConfig,
 }
 
+// IsKeyword reports whether k is a reserved word's kind.
+func IsKeyword(k Kind) bool {
+	for _, kind := range keywords {
+		if kind == k {
+			return true
+		}
+	}
+	return false
+}
+
 // Pos is a source location, 1-indexed for both line and column so it can be
 // reported to a human directly (Milestone 1 exit criteria: diagnostics
 // identify the exact declaration and source span). JSON tags make it

@@ -76,6 +76,18 @@ type Field struct {
 	// field name (ADR 0045). Name then holds the embedded type's name, which
 	// is also the key construction uses (`Customer(ContactInfo: c, ...)`).
 	Embedded bool
+	// JSON is the member name a `from json "name"` clause gives a model or
+	// payload field (ADR 0073 §7b); "" when it has none. Use JSONName.
+	JSON string
+}
+
+// JSONName is the member the field reads and writes in JSON: its
+// `from json` name, or its own name.
+func (f Field) JSONName() string {
+	if f.JSON != "" {
+		return f.JSON
+	}
+	return f.Name
 }
 
 // FlatField is one field of a model's flattened field set (ADR 0045): an
@@ -87,6 +99,7 @@ type FlatField struct {
 	Name string
 	Type Type
 	Via  []string
+	JSON string
 }
 
 type Param struct {
@@ -120,7 +133,7 @@ func (m *ModelDecl) AllFields() []Field {
 	}
 	out := make([]Field, len(m.Flat))
 	for i, f := range m.Flat {
-		out[i] = Field{Span: f.Span, Name: f.Name, Type: f.Type}
+		out[i] = Field{Span: f.Span, Name: f.Name, Type: f.Type, JSON: f.JSON}
 	}
 	return out
 }
@@ -793,6 +806,11 @@ type CallExpr struct {
 	Span
 	Callee Expr
 	Args   []Arg
+	// DecodeInto is the type a json.decode call decodes into, a
+	// types.Type the checker takes from the call's context and records here
+	// for the runtime (ADR 0073 §2); nil on every other call, and before
+	// checking.
+	DecodeInto any
 }
 
 // NotExpr is the prefix `not` (grammar.md §5 `primary`).

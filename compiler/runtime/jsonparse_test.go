@@ -54,7 +54,7 @@ func TestDecodeJSONIntNoLongerTruncates(t *testing.T) {
 
 func TestParseJSONRejectsDuplicateNames(t *testing.T) {
 	for _, src := range []string{`{"a": 1, "a": 2}`, `{"x": {"a": 1, "a": 1}}`, `[{"k": true, "k": false}]`} {
-		if _, err := ParseJSON([]byte(src)); err == nil || !strings.Contains(err.Error(), "duplicate member name") {
+		if _, err := ParseJSON([]byte(src)); err == nil || !strings.Contains(err.Error(), "duplicate name") {
 			t.Errorf("ParseJSON(%s) error = %v; want a duplicate-name error", src, err)
 		}
 	}

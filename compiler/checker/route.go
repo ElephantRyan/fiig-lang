@@ -227,6 +227,10 @@ func (c *checker) checkBodyBinding(arg syntax.RouteArg, t types.Type, consumes *
 	}
 	if named, ok := t.(types.Named); ok {
 		if _, isModel := named.Decl.(*syntax.ModelDecl); isModel {
+			// A Secret is S1's, at the workflow's parameter (ADR 0071 §4).
+			if why := c.jsonRefusal(t, true); why != "" && !types.HoldsSecret(t, c.resolveField) {
+				c.report(arg.Start, "J1", "request body parameter %q decodes into %s: %s, which can't be decoded from JSON (ADR 0073 §8)", arg.Name, t, why)
+			}
 			return
 		}
 	}

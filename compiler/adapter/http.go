@@ -82,7 +82,11 @@ func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in
 			}
 			req.bodyIsJSON = httpspec.IsJSON(consumes)
 			if req.bodyIsJSON {
-				parsed, err := runtime.ParseJSONFrom(r.Body)
+				data, err := io.ReadAll(r.Body)
+				var parsed any
+				if err == nil {
+					parsed, err = runtime.ReadJSON(data)
+				}
 				if err != nil {
 					writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("invalid request body: %v", err)})
 					return
@@ -132,7 +136,7 @@ func writeResponse(w http.ResponseWriter, resp Response, produces string) *runti
 	if _, none := resp.Body.(runtime.None); !none && resp.Body != nil {
 		contentType = produces
 		if httpspec.IsJSON(produces) {
-			encoded, err := json.Marshal(runtime.EncodeBodyJSON(resp.Body))
+			encoded, err := runtime.EncodeBodyJSON(resp.Body)
 			if err != nil {
 				return runtime.Faultf("response body does not encode as JSON: %v", err)
 			}

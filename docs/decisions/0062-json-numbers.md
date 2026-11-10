@@ -1,8 +1,9 @@
 # ADR 0062: JSON Numbers Keep Their Text
 
 Status: Accepted (2026-10-30, one-decision-at-a-time review). §6
-implemented 2026-10-30 (`compiler/runtime/jsonparse.go`); §1-§5 and §7 wait
-on the fiig JSON library, `float`, and `decimal`.
+implemented 2026-10-30 (`compiler/runtime/jsonparse.go`); §1-§5 and §7
+implemented 2026-11-09 by ADR 0073's build (`JsonValue` in the prelude,
+`json.decode` for §4's conversions, and the encoder's §5 fault).
 Date: 2026-10-26
 Related: ADR 0019 (arithmetic, no implicit widening), ADR 0048 (float),
 ADR 0049 (primitive method tables), ADR 0051 (no severity levels), ADR 0052

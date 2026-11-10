@@ -90,7 +90,7 @@ rule close(a: Map<string, float>, b: Map<string, float>) -> bool {
 	}
 
 	// A string-keyed map is a JSON object in the map's order.
-	out, err := json.Marshal(EncodeBodyJSON(counts))
+	out, err := EncodeBodyJSON(counts)
 	if err != nil || string(out) != `{"b":2,"a":1}` {
 		t.Errorf("JSON = %s, %v", out, err)
 	}

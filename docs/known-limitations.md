@@ -47,9 +47,15 @@ doesn't have to discover them.
 - **No HTTP client library.** `examples/acme-http` shows one written in fiig
   over `Socket`, but it only sends POST over TLS to port 443, with an
   `Authorization` header and no others.
-- **No JSON parsing in fiig code.** Request bodies decode into declared
-  types at the adapter, but a program can't parse JSON it received some
-  other way (ADR 0062's library).
+- **A JSON request body can't be read raw.** A route that consumes
+  `application/json` binds a model (A7), so a webhook whose signature is
+  computed over its bytes has to be routed as another type, such as
+  `application/octet-stream`, and decoded with `json.decode`
+  (`examples/event-inbox`).
+- **`bytes` has no JSON form** (J1): no ADR decides between base64, as Go
+  sends `[]byte`, and an array of numbers.
+- **No streaming JSON and no pretty printing** (ADR 0073 §9): a decode reads
+  the whole input, and `json.encode` writes no whitespace.
 
 ## Configuration
 
@@ -65,8 +71,6 @@ doesn't have to discover them.
 
 ## Language
 
-- **A JSON object decoded into a `Map` takes its members in name order**,
-  not the order they arrived in (ADR 0062 decides that).
 - **Strings aren't normalized** (ADR 0067 §8): `é` as one code point and
   as `e` plus a combining accent are different strings. No locale-aware
   sorting, and no regular expressions.

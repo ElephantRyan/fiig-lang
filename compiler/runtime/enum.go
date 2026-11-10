@@ -83,9 +83,10 @@ func (in *Interp) headerConsts(ctx context.Context, ev EnumValue) (map[string]Va
 
 // declScope is the scope d's own package runs in: the root package's, or
 // that of the dependency that declares it.
-func (in *Interp) declScope(d *syntax.EnumDecl) scope {
-	if in.Universe.Root().Decls[d.Name] == syntax.Decl(d) {
-		return in.localScope(scope{universe: in.Universe}, d.Name)
+func (in *Interp) declScope(d syntax.Decl) scope {
+	name := syntax.DeclName(d)
+	if in.Universe.Root().Decls[name] == d {
+		return in.localScope(scope{universe: in.Universe}, name)
 	}
 	seen := map[*types.Package]bool{}
 	var walk func(p *types.Package) (scope, bool)
@@ -94,7 +95,7 @@ func (in *Interp) declScope(d *syntax.EnumDecl) scope {
 			return scope{}, false
 		}
 		seen[p] = true
-		if p.Universe != nil && p.Universe.Decls[d.Name] == syntax.Decl(d) {
+		if p.Universe != nil && p.Universe.Decls[name] == d {
 			return packageScope(p), true
 		}
 		for _, dep := range p.Dependencies {

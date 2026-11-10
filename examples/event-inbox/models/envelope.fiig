@@ -1,0 +1,8 @@
+// A webhook's envelope (ADR 0073): what happened, and its payload kept as
+// JSON until the type says what it holds. The sender names the type
+// "@type", which isn't an identifier, so the field says where it reads.
+model Envelope {
+    id: string
+    eventType: string from json "@type"
+    data: JsonValue
+}

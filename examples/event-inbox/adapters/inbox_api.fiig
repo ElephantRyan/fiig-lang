@@ -1,0 +1,18 @@
+// ADR 0073: JSON decoded in fiig code. No capabilities:
+// fiig serve . inboxApi
+adapter http inboxApi {
+    POST "/events" -> receiveEvent(envelope: Envelope)
+        consumes "application/json"
+        produces "application/json"
+    {
+        Ok(event) -> 200 event
+        Err(error) -> 422 error
+    }
+    POST "/events/raw" -> receiveRawEvent(body: bytes)
+        consumes "application/octet-stream"
+        produces "application/json"
+    {
+        Ok(event) -> 200 event
+        Err(error) -> 422 error
+    }
+}

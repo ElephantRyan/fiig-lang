@@ -796,6 +796,8 @@ func (c *checker) checkDecl(d syntax.Decl) {
 		for _, f := range d.Fields {
 			c.checkNoCapabilityField(d.Name, f, c.resolve(f.Type))
 		}
+		c.checkJsonNames(d.Name, d.Fields, false)
+		c.checkPromotedJsonNames(d)
 		for _, e := range types.EmbedDiagnostics(d, c.universe) {
 			c.report(e.At, e.Rule, "%s", e.Msg)
 		}
@@ -806,10 +808,8 @@ func (c *checker) checkDecl(d syntax.Decl) {
 			}
 			for _, f := range v.Fields {
 				c.checkNoCapabilityField(d.Name+"."+v.Name, f, c.resolve(f.Type))
-				if f.Name == "variant" {
-					c.report(f.Start, "W3", "%s.%s has a field named `variant`, which is the member that names the variant in JSON (ADR 0072 §3); rename the field", d.Name, v.Name)
-				}
 			}
+			c.checkJsonNames(d.Name+"."+v.Name, v.Fields, true)
 		}
 		if d.Header != nil {
 			c.checkEnumHeader(d)

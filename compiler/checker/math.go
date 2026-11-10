@@ -264,12 +264,12 @@ func (c *checker) mathMember(e *syntax.FieldAccess) {
 	c.report(start, "", "the prelude math group has no member %q", e.Field)
 }
 
-// mathNameTaken reports a local name or import alias that would hide the
-// prelude math group (ADR 0049 §2.5: `math` is the one group visible
-// without a `use`, so it is the one name reserved everywhere).
+// mathNameTaken reports a local name or import alias that would hide a
+// prelude group (ADR 0049 §2.5: `math`, and `json` (ADR 0073 §1), are
+// visible without a `use`, so they are reserved everywhere).
 func (c *checker) mathNameTaken(name string, at lexer.Pos, what, fix string) {
-	if name == types.MathGroup {
-		c.report(at, "G4", "%s %q would hide the prelude math group, which every file can call without a `use`; a bare name must mean one thing, so %s (ADR 0049 §2.5)", what, name, fix)
+	if types.IsPreludeGroup(name) {
+		c.report(at, "G4", "%s %q would hide the prelude %s group, which every file can call without a `use`; a bare name must mean one thing, so %s (ADR 0049 §2.5)", what, name, name, fix)
 	}
 }
 

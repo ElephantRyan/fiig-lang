@@ -939,3 +939,71 @@ func TestParseConfigDecl(t *testing.T) {
 		t.Fatalf("config as a name: %v", errs)
 	}
 }
+
+// ADR 0073 §7a: any keyword may name a model or payload field, in its
+// declaration, after a `.`, and as a named argument; a parameter or a
+// local still may not.
+func TestKeywordsAsFieldNames(t *testing.T) {
+	f := mustParse(t, `model Page {
+    limit: int
+    in: string
+    match: bool | None
+}`)
+	mustParse(t, `rule next(page: Page) -> Page {
+    later: Page = copy(page, limit: page.limit + 10)
+    return Page(limit: later.limit, in: page.in, match: None)
+}`)
+	m := f.Decls[0].(*syntax.ModelDecl)
+	if m.Fields[0].Name != "limit" || m.Fields[1].Name != "in" || m.Fields[2].Name != "match" {
+		t.Fatalf("fields = %+v", m.Fields)
+	}
+	e := mustParse(t, `enum Window {
+    Range(for: int, while: int)
+}`)
+	if v := e.Decls[0].(*syntax.EnumDecl).Variants[0]; v.Fields[0].Name != "for" || v.Fields[1].Name != "while" {
+		t.Fatalf("payload = %+v", v.Fields)
+	}
+	for _, src := range []string{
+		"rule r(limit: int) -> int {\n    return 1\n}",
+		"rule r(x: int) -> int {\n    in: int = x\n    return in\n}",
+	} {
+		if _, errs := Parse(src); len(errs) == 0 {
+			t.Errorf("parsed %q", src)
+		}
+	}
+	// `limit:` in a concurrent header stays the clause (ADR 0016).
+	c := mustParse(t, "workflow w(xs: List<int>) -> List<int> {\n    return concurrent(x in xs, limit: 2): f(limit: x)\n}")
+	ret := c.Decls[0].(*syntax.WorkflowDecl).Body.Stmts[0].(*syntax.ReturnStmt)
+	ce := ret.Value.(*syntax.ConcurrentExpr)
+	if ce.Limit == nil {
+		t.Fatal("concurrent limit not parsed as the clause")
+	}
+}
+
+// ADR 0073 §7b: `from json "name"` on a model or payload field.
+func TestFromJsonName(t *testing.T) {
+	f := mustParse(t, `model Upload {
+    contentType: string from json "content-type"
+    schema: string | None from json "$schema"
+    size: int
+}`)
+	m := f.Decls[0].(*syntax.ModelDecl)
+	if m.Fields[0].JSONName() != "content-type" || m.Fields[1].JSONName() != "$schema" || m.Fields[2].JSONName() != "size" {
+		t.Fatalf("fields = %+v", m.Fields)
+	}
+	e := mustParse(t, `enum Event {
+    Created(at: string from json "@timestamp")
+}`)
+	if v := e.Decls[0].(*syntax.EnumDecl).Variants[0]; v.Fields[0].JSON != "@timestamp" {
+		t.Fatalf("payload = %+v", v.Fields)
+	}
+	for _, src := range []string{
+		"model M {\n    a: string from json \"\"\n}",
+		"model M {\n    a: string from json \"${x}\"\n}",
+		"rule r(x: {a: int from json \"b\"}) -> int {\n    return 1\n}",
+	} {
+		if _, errs := Parse(src); len(errs) == 0 {
+			t.Errorf("parsed %q", src)
+		}
+	}
+}
