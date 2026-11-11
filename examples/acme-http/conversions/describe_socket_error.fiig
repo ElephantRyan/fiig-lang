@@ -7,5 +7,6 @@ conversion describeSocketError(failure: SocketError) -> string {
         SocketError.Reset -> "connection reset"
         SocketError.Closed -> "connection closed"
         SocketError.Tls(reason) -> "TLS failed: ${reason}"
+        SocketError.TimedOut -> "timed out"
     }
 }

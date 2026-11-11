@@ -73,7 +73,7 @@ func methodList(table map[string]method) string {
 // checkMethodArgs binds a builtin call's arguments to m's parameters, by
 // position or by name (ADR 0068 §5), and checks each against its type.
 func (c *checker) checkMethodArgs(recv, name string, m method, args []syntax.Arg, start lexer.Pos, env map[string]types.Type) types.Type {
-	if param, ok := c.bindBuiltinArgs(recv+"."+name, m.ParamNames(), args, start, env); ok {
+	if param, ok := c.bindBuiltinArgs(recv+"."+name, m.ParamNames(), m.Required(), args, start, env); ok {
 		for i, a := range args {
 			c.checkExpected(a.Value, m.Params[param[i]].Type, env)
 		}
@@ -85,25 +85,30 @@ func (c *checker) checkMethodArgs(recv, name string, m method, args []syntax.Arg
 // params) as types.BindArgs does, and returns each argument's parameter
 // index. When they don't bind it reports why, types every argument, and
 // returns false.
-func (c *checker) bindBuiltinArgs(subject string, params []string, args []syntax.Arg, start lexer.Pos, env map[string]types.Type) ([]int, bool) {
+func (c *checker) bindBuiltinArgs(subject string, params []string, required int, args []syntax.Arg, start lexer.Pos, env map[string]types.Type) ([]int, bool) {
 	argNames := make([]string, len(args))
 	named := false
 	for i, a := range args {
 		argNames[i] = a.Name
 		named = named || a.Name != ""
 	}
-	at, ok := types.BindArgs(params, argNames)
+	at, ok := types.BindArgsOptional(params, required, argNames)
 	if ok {
 		param := make([]int, len(args))
 		for pi, ai := range at {
-			param[ai] = pi
+			if ai >= 0 {
+				param[ai] = pi
+			}
 		}
 		return param, true
 	}
-	if !named {
+	switch {
+	case named:
+		c.reportBuiltinArgs(subject, params, required, args, start)
+	case required < len(params):
+		c.report(start, "", "%s takes %d to %d argument(s), got %d", subject, required, len(params), len(args))
+	default:
 		c.report(start, "", "%s takes %d argument(s), got %d", subject, len(params), len(args))
-	} else {
-		c.reportBuiltinArgs(subject, params, args, start)
 	}
 	for _, a := range args {
 		c.inferExpr(a.Value, env)
@@ -115,7 +120,7 @@ func (c *checker) bindBuiltinArgs(subject string, params []string, args []syntax
 // that isn't a parameter, a parameter given twice, one argument too many,
 // a positional argument after a named one, or a parameter left without
 // one.
-func (c *checker) reportBuiltinArgs(subject string, params []string, args []syntax.Arg, start lexer.Pos) {
+func (c *checker) reportBuiltinArgs(subject string, params []string, required int, args []syntax.Arg, start lexer.Pos) {
 	bound := map[string]bool{}
 	next, named, reported := 0, false, false
 	for _, a := range args {
@@ -155,7 +160,7 @@ func (c *checker) reportBuiltinArgs(subject string, params []string, args []synt
 	}
 	// A name that isn't a parameter, or one given twice, is usually the
 	// missing one reported, so it's the one error.
-	for _, p := range params {
+	for _, p := range params[:required] {
 		if !bound[p] && !reported {
 			c.report(start, "", "%s is missing argument %q", subject, p)
 		}

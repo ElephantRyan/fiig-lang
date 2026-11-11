@@ -103,7 +103,8 @@ Result  Ok  Err  BatchResult  List  Map  None  Connection  SocketError  Rounding
 
 `Connection` is opaque: no fields, methods or constructor, and not
 comparable. `SocketError` is an ordinary enum (`HostNotFound`, `Refused`,
-`Unreachable`, `Reset`, `Closed`, `Tls(reason: string)`) declared in the
+`Unreachable`, `Reset`, `Closed`, `Tls(reason: string)`, and `TimedOut`, a
+deadline the program passed, ADR 0074 §5) declared in the
 prelude rather than in a package. Both are ADR 0060's. `Rounding` is ADR
 0064's, an enum of the six rounding modes decimal's `math.round` and
 `math.divide` take.
@@ -587,7 +588,17 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
   arguments too: a method (`s.replaceAll(old: "-", new: "/")`), a typed
   primitive operation (`Socket.connect(host: h, port: 5432)`), `append`
   (`list`, `element`), and `math` (ADR 0049). Their parameter names are in
-  `compiler/types`'s tables.
+  `compiler/types`'s tables. A builtin's trailing parameter may be optional,
+  and a call that leaves it out passes `None`: every `Socket` operation
+  that waits takes `deadline: int | None` last (ADR 0074 §5), so
+  `Socket.read(connection)` and `Socket.read(connection, deadline: until)`
+  are both calls.
+- Another package's enum variant is written with the package's alias:
+  `http.Method.Get`, `http.HttpError.Socket(failure: f)`, and the same
+  three segments as a pattern (`http.Method.Get -> ...`). Nothing needed it
+  before `fiig.http` (ADR 0074). A qualified type whose alias no `use`
+  line of the file binds (`reply: http.Reply` without `use fiig.http`) is
+  an unresolved type.
 - `not` and unary `-` are the only unary operators. `not` wraps a bare
   `primary` only, not a full `postfix-expression` (`validate_new_customer.fiig`,
   `reserve_inventory.fiig`); unary `-` wraps a full `unary` so it binds

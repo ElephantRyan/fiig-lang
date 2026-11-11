@@ -10,10 +10,13 @@ type Method struct {
 	Result Type
 }
 
-// Param is one parameter of a builtin.
+// Param is one parameter of a builtin. An Optional one may be left out
+// of a call, and only trailing parameters are (ADR 0074 §5); a call that
+// leaves it out passes None.
 type Param struct {
-	Name string
-	Type Type
+	Name     string
+	Type     Type
+	Optional bool
 }
 
 // ParamNames is m's parameter names, in order, for BindArgs.
@@ -25,8 +28,23 @@ func (m Method) ParamNames() []string {
 	return names
 }
 
+// Required is how many of m's parameters a call must supply: all but the
+// trailing optional ones.
+func (m Method) Required() int {
+	n := len(m.Params)
+	for n > 0 && m.Params[n-1].Optional {
+		n--
+	}
+	return n
+}
+
 // p is a Param, to keep the tables below one entry per line.
 func p(name string, t Type) Param { return Param{Name: name, Type: t} }
+
+// deadline is the optional last parameter of every Socket operation that
+// can wait: a point in time, Unix milliseconds as Clock.now() returns
+// them, after which it returns Err(SocketError.TimedOut) (ADR 0074 §5).
+var deadline = Param{Name: "deadline", Type: Union{Members: []Type{intType, NoneType{}}}, Optional: true}
 
 var (
 	intType    = Primitive{Name: "int"}
@@ -92,11 +110,11 @@ var AppendParams = []string{"list", "element"}
 // fiig source. Clock and FileSystem aren't typed yet.
 var primitiveOps = map[string]map[string]Method{
 	"Socket": {
-		"connect":    {[]Param{p("host", stringType), p("port", intType)}, socketResult(ConnectionType)},
-		"connectTls": {[]Param{p("host", stringType), p("port", intType)}, socketResult(ConnectionType)},
-		"startTls":   {[]Param{p("connection", ConnectionType), p("serverName", stringType)}, socketResult(ConnectionType)},
-		"read":       {[]Param{p("connection", ConnectionType)}, socketResult(bytesType)},
-		"write":      {[]Param{p("connection", ConnectionType), p("data", bytesType)}, socketResult(NoneType{})},
+		"connect":    {[]Param{p("host", stringType), p("port", intType), deadline}, socketResult(ConnectionType)},
+		"connectTls": {[]Param{p("host", stringType), p("port", intType), deadline}, socketResult(ConnectionType)},
+		"startTls":   {[]Param{p("connection", ConnectionType), p("serverName", stringType), deadline}, socketResult(ConnectionType)},
+		"read":       {[]Param{p("connection", ConnectionType), deadline}, socketResult(bytesType)},
+		"write":      {[]Param{p("connection", ConnectionType), p("data", bytesType), deadline}, socketResult(NoneType{})},
 		"close":      {[]Param{p("connection", ConnectionType)}, NoneType{}},
 	},
 	"Random": { // ADR 0068 §2

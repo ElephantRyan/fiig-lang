@@ -1,0 +1,9 @@
+{
+    "path": "examples.inboxsender",
+    "kind": "application",
+    "version": "1.0.0",
+    "dependencies": {
+        "fiig.http": "1.0.0"
+    },
+    "capabilities": ["Socket"]
+}

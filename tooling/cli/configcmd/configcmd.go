@@ -45,7 +45,7 @@ func Main(name string, args []string) {
 		fail(err)
 	}
 	var packages types.Packages
-	if len(workspaces) > 0 {
+	if loader.Wanted(root, workspaces) {
 		loaded, errs := loader.Load(root, workspaces)
 		if len(errs) > 0 {
 			for _, e := range errs {

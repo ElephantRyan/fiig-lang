@@ -1,0 +1,60 @@
+// ADR 0074: an HTTP/1.1 client written in fiig over Socket. One connection
+// per request (§8), closed when the reply is read; redirects come back as
+// replies (§4); the timeout bounds the whole exchange, from connecting to
+// the last byte (§5).
+capability HttpClient {
+    gateway send(request: Request) -> Result<Reply, HttpError>
+        requires Socket
+    {
+        outgoing = outgoingRequest(request)?
+        until: int = Clock.now() + outgoing.timeoutMillis
+        opened: Result<Connection, SocketError> = Err(SocketError.Closed)
+        if outgoing.secure {
+            opened = Socket.connectTls(outgoing.host, outgoing.port, deadline: until)
+        } else {
+            opened = Socket.connect(outgoing.host, outgoing.port, deadline: until)
+        }
+        match opened {
+            Err(failure) -> Err(HttpError.Socket(failure: failure))
+            Ok(connection) -> {
+                match Socket.write(connection, outgoing.data, deadline: until) {
+                    Err(failure) -> {
+                        Socket.close(connection)
+                        return Err(HttpError.Socket(failure: failure))
+                    }
+                    Ok(_) -> None
+                }
+                // readReply never asks for more once closed is true, so
+                // this loop ends.
+                buffer: bytes = <<>>
+                closed: bool = false
+                while true {
+                    match readReply(buffer, request.method, closed) {
+                        ReplyRead.Done(reply) -> {
+                            Socket.close(connection)
+                            return Ok(reply)
+                        }
+                        ReplyRead.Malformed(reason) -> {
+                            Socket.close(connection)
+                            return Err(HttpError.MalformedReply(reason: reason))
+                        }
+                        ReplyRead.NeedMore -> {
+                            match Socket.read(connection, deadline: until) {
+                                Ok(chunk) -> {
+                                    buffer = <<buffer: bytes, chunk: bytes>>
+                                }
+                                Err(SocketError.Closed) -> {
+                                    closed = true
+                                }
+                                Err(failure) -> {
+                                    Socket.close(connection)
+                                    return Err(HttpError.Socket(failure: failure))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

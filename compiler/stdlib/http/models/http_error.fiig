@@ -1,0 +1,7 @@
+// ADR 0074 §3: no HTTP reply to read. A status the caller didn't want is
+// not one of these; it is a Reply.
+enum HttpError {
+    InvalidRequest(reason: string)
+    Socket(failure: SocketError)
+    MalformedReply(reason: string)
+}

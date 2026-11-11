@@ -175,7 +175,38 @@ func NewSocketProvider() SocketProvider {
 	return SocketProvider{Backend: NetBackend{}}
 }
 
+// socketArity is how many arguments each operation takes before its
+// optional deadline (ADR 0074 §5); close has none.
+var socketArity = map[string]int{"connect": 2, "connectTls": 2, "startTls": 2, "read": 1, "write": 2}
+
 func (p SocketProvider) Call(ctx context.Context, method string, args []Value) (Value, *Fault) {
+	n, waits := socketArity[method]
+	if !waits || len(args) != n+1 {
+		return p.call(ctx, method, args)
+	}
+	var until Value
+	args, until = args[:n], args[n]
+	if _, none := until.(None); none {
+		return p.call(ctx, method, args)
+	}
+	ms, ok := until.(Int)
+	if !ok {
+		return nil, Faultf("Socket.%s: deadline must be an int or None", method)
+	}
+	// The program's own deadline is a value it can act on; the call's
+	// deadline, which only the host sets, stays a fault (ADR 0074 §5).
+	dctx, cancel := context.WithDeadline(ctx, time.UnixMilli(int64(ms)))
+	defer cancel()
+	v, f := p.call(dctx, method, args)
+	if ctx.Err() == nil && dctx.Err() != nil {
+		if r, isResult := v.(Result); f != nil || (isResult && !r.Ok) {
+			return Result{Ok: false, Value: EnumValue{TypeName: "SocketError", Variant: "TimedOut", Decl: types.SocketErrorDecl}}, nil
+		}
+	}
+	return v, f
+}
+
+func (p SocketProvider) call(ctx context.Context, method string, args []Value) (Value, *Fault) {
 	switch method {
 	case "connect", "connectTls":
 		host, port, f := hostPort(method, args)

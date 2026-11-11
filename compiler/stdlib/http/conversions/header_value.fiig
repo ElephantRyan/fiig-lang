@@ -1,0 +1,9 @@
+// The first header named name, ignoring ASCII case, or None.
+conversion headerValue(headers: List<Header>, name: string) -> string | None {
+    for header in headers {
+        if header.name.equalsIgnoringCase(name) {
+            return header.value
+        }
+    }
+    return None
+}

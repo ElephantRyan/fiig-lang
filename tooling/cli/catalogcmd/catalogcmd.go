@@ -113,7 +113,7 @@ func loadRegistry(root string) []*registry.Card {
 // rather than being forced into the main one) and merges every resolved
 // package's own cards into one catalog (compiler/registry.Merge).
 func loadCatalog(root string, workspaces []string) []*registry.Card {
-	if len(workspaces) == 0 {
+	if !loader.Wanted(root, workspaces) {
 		return loadRegistry(root)
 	}
 	loaded, errs := loader.Load(root, workspaces)

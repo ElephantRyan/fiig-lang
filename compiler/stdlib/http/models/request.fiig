@@ -1,0 +1,9 @@
+// ADR 0074 §2: one HTTP request. Every field but method and url may be
+// left out: no headers, no body, and a 30-second timeout.
+model Request {
+    method: Method
+    url: string
+    headers: List<Header> | None
+    body: bytes | None
+    timeoutMillis: int | None
+}

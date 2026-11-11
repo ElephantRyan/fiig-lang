@@ -118,7 +118,7 @@ func load(root, name, capsPath string, workspaces []string, factories runtime.Fa
 		return nil, err
 	}
 	var packages types.Packages
-	if len(workspaces) > 0 {
+	if loader.Wanted(root, workspaces) {
 		loaded, loadErrs := loader.Load(root, workspaces)
 		if len(loadErrs) > 0 {
 			return nil, errors.Join(loadErrs...)

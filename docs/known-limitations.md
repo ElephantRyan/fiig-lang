@@ -44,9 +44,16 @@ doesn't have to discover them.
   (ADR 0072, open question 1).
 - **An enum can't be a path segment or query value** yet; route arguments
   from the path and query bind only primitives (ADR 0072, open question 2).
-- **No HTTP client library.** `examples/acme-http` shows one written in fiig
-  over `Socket`, but it only sends POST over TLS to port 443, with an
-  `Authorization` header and no others.
+- **The HTTP client opens a connection per request** (ADR 0074 §8):
+  `fiig.http` has no pool, so every `send` pays a TCP and, for `https`, a
+  TLS handshake. No HTTP/2, compression, proxies, cookie jar, streaming
+  bodies, multipart, or client certificates (§9), and redirects come back
+  as replies (§4).
+- **No limit on a reply's size** (ADR 0074 open question 2): the timeout
+  bounds how long a reply takes, not how much memory it uses.
+- **No package-internal visibility.** A declaration is private to its file
+  or public to every importer, so the conversions `fiig.http`'s gateway
+  calls (`readReply`, `outgoingRequest`, and two helpers) are public too.
 - **A JSON request body can't be read raw.** A route that consumes
   `application/json` binds a model (A7), so a webhook whose signature is
   computed over its bytes has to be routed as another type, such as

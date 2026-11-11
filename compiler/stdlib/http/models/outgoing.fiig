@@ -1,0 +1,9 @@
+// A request ready to send: where to connect, how, the bytes to write, and
+// how long the whole exchange may take. outgoingRequest builds it.
+model Outgoing {
+    host: string
+    port: int
+    secure: bool
+    data: bytes
+    timeoutMillis: int
+}

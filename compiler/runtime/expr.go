@@ -286,7 +286,45 @@ func (in *Interp) evalBinary(ctx context.Context, e *syntax.BinaryExpr, env *Env
 // `None ->` arm first (bindPattern never binds the catch-all name to a bare
 // None), so reaching one here is a real defect, not a case to special-case
 // around.
+// importedEnum resolves target as `alias.Enum`, an enum of an imported
+// package named with its alias (http.Method.Get), as the checker does.
+func (in *Interp) importedEnum(ctx context.Context, target syntax.Expr, env *Env) (*syntax.EnumDecl, bool) {
+	fa, ok := target.(*syntax.FieldAccess)
+	if !ok {
+		return nil, false
+	}
+	alias, ok := fa.Target.(*syntax.Ident)
+	if !ok {
+		return nil, false
+	}
+	if _, isLocal := env.Get(alias.Name); isLocal {
+		return nil, false
+	}
+	pkg, found := in.scope(ctx).imports[alias.Name]
+	if !found {
+		return nil, false
+	}
+	decl, found := pkg.Universe.Lookup(fa.Field)
+	if !found {
+		return nil, false
+	}
+	enumDecl, ok := decl.(*syntax.EnumDecl)
+	return enumDecl, ok
+}
+
+func (in *Interp) constructVariant(ctx context.Context, enumDecl *syntax.EnumDecl, name string, args []syntax.Arg, env *Env) (Value, bool, *Fault) {
+	for _, v := range enumDecl.Variants {
+		if v.Name == name {
+			return in.constructEnum(ctx, enumDecl, v, args, env)
+		}
+	}
+	return nil, false, Faultf("%s has no variant %q", enumDecl.Name, name)
+}
+
 func (in *Interp) evalFieldAccess(ctx context.Context, e *syntax.FieldAccess, env *Env) (Value, bool, *Fault) {
+	if enumDecl, ok := in.importedEnum(ctx, e.Target, env); ok {
+		return in.constructVariant(ctx, enumDecl, e.Field, nil, env)
+	}
 	// A zero-field enum variant construction (CheckoutError.OutOfStock)
 	// parses bare, with no call parens — same shape as this function's own
 	// Record-field case, but Target names a type, not a value, so it must

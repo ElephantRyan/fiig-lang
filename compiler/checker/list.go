@@ -137,7 +137,7 @@ func listInterface(elems []types.Type) (*syntax.InterfaceDecl, bool) {
 // An empty literal as the list takes its element type from the element.
 func (c *checker) checkAppend(e *syntax.CallExpr, env map[string]types.Type) types.Type {
 	start, _ := e.Bounds()
-	param, ok := c.bindBuiltinArgs("append", types.AppendParams, e.Args, start, env)
+	param, ok := c.bindBuiltinArgs("append", types.AppendParams, len(types.AppendParams), e.Args, start, env)
 	if !ok {
 		return types.Unknown{}
 	}

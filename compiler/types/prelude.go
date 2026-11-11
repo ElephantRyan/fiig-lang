@@ -45,6 +45,7 @@ var preludeSources = []string{`enum SocketError {
     Reset
     Closed
     Tls(reason: string)
+    TimedOut
 }
 `, `enum Rounding {
     HalfUp

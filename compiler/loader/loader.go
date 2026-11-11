@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -27,6 +28,7 @@ import (
 	"fiig-lang/compiler/manifest"
 	"fiig-lang/compiler/parser"
 	"fiig-lang/compiler/semver"
+	"fiig-lang/compiler/stdlib"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
 )
@@ -47,10 +49,13 @@ type Loaded struct {
 	Capabilities []string
 }
 
-// discovered is one package found while scanning the workspace.
+// discovered is one package found while scanning the workspace, or built
+// into the toolchain (ADR 0074 §1). dir names it in errors and in the
+// lockfile; fsys holds its files.
 type discovered struct {
 	manifest *manifest.Manifest
 	dir      string
+	fsys     fs.FS
 }
 
 // reqKey identifies one major-version track of one package path — ADR
@@ -79,13 +84,19 @@ func Load(root string, workspaceRoots []string) (*Loaded, []error) {
 		return nil, errs
 	}
 
-	rootFiles, _, err := parsePackageDir(root)
+	if reserved(rootManifest.Path) {
+		return nil, []error{reservedError(root, rootManifest.Path)}
+	}
+	rootFiles, _, err := parsePackageDir(os.DirFS(root), root)
 	if err != nil {
 		return nil, []error{err}
 	}
 	rootCapabilities := gatewayCapabilities(rootFiles, rootManifest.Dependencies)
 
-	index := map[string][]discovered{}
+	index, errs := scanBuiltin()
+	if len(errs) > 0 {
+		return nil, errs
+	}
 	for _, workspaceRoot := range workspaceRoots {
 		rootIndex, rootErrs := scanWorkspace(workspaceRoot)
 		if len(rootErrs) > 0 {
@@ -286,8 +297,67 @@ func scanWorkspace(root string) (map[string][]discovered, []error) {
 			}
 			return filepath.SkipDir
 		}
-		index[m.Path] = append(index[m.Path], discovered{manifest: m, dir: path})
+		if reserved(m.Path) {
+			errs = append(errs, reservedError(path, m.Path))
+			return filepath.SkipDir
+		}
+		index[m.Path] = append(index[m.Path], discovered{manifest: m, dir: path, fsys: os.DirFS(path)})
 		return filepath.SkipDir
+	})
+	if err != nil {
+		errs = append(errs, err)
+	}
+	return index, errs
+}
+
+// Wanted reports whether root should be loaded as a package even with no
+// workspace roots: it has a manifest that names dependencies, which may be
+// built into the toolchain (ADR 0074 §1), and which, when they aren't,
+// deserve the loader's "not found" rather than an unresolved import.
+func Wanted(root string, workspaceRoots []string) bool {
+	if len(workspaceRoots) > 0 {
+		return true
+	}
+	m, errs := manifest.Load(root)
+	return len(errs) == 0 && len(m.Dependencies) > 0
+}
+
+// BuiltinPrefix starts the path of every package the toolchain ships, and
+// of no other (ADR 0074 §1), as Java reserves java.*.
+const BuiltinPrefix = "fiig."
+
+func reserved(path string) bool {
+	return path == "fiig" || strings.HasPrefix(path, BuiltinPrefix)
+}
+
+func reservedError(dir, path string) error {
+	return fmt.Errorf("%s: package path %q starts with %q, which is reserved for packages the fiig toolchain ships (ADR 0074 §1); choose another path", filepath.ToSlash(dir), path, BuiltinPrefix)
+}
+
+// scanBuiltin indexes the packages built into the toolchain (stdlib.FS),
+// which every Load searches as if they were one more workspace root. Each
+// is named builtin:<dir> in errors and the lockfile.
+func scanBuiltin() (map[string][]discovered, []error) {
+	index := map[string][]discovered{}
+	var errs []error
+	err := fs.WalkDir(stdlib.FS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || !d.IsDir() {
+			return err
+		}
+		data, readErr := fs.ReadFile(stdlib.FS, pathpkg.Join(path, manifest.Filename))
+		if readErr != nil {
+			return nil
+		}
+		name := "builtin:" + path
+		m, mErrs := manifest.Parse(data)
+		for _, e := range mErrs {
+			errs = append(errs, fmt.Errorf("%s: %w", name, e))
+		}
+		if len(mErrs) == 0 {
+			sub, _ := fs.Sub(stdlib.FS, path)
+			index[m.Path] = append(index[m.Path], discovered{manifest: m, dir: name, fsys: sub})
+		}
+		return fs.SkipDir
 	})
 	if err != nil {
 		errs = append(errs, err)
@@ -355,7 +425,7 @@ func validateInstalled(reqs map[reqKey]semver.Version, index map[string][]discov
 		cands := filterMajor(index[key.path], key.major)
 		switch len(cands) {
 		case 0:
-			errs = append(errs, fmt.Errorf("dependency %s needs >= %s, but nothing at that major was found under the workspace", key, minV))
+			errs = append(errs, fmt.Errorf("dependency %s needs >= %s, but nothing at that major was found under the workspace or built into fiig", key, minV))
 		case 1:
 			installed, err := semver.Parse(cands[0].manifest.Version)
 			if err != nil {
@@ -404,7 +474,7 @@ func (l *loaderState) build(key reqKey) (*types.Package, []error) {
 	cands := filterMajor(l.index[key.path], key.major) // exactly one, per validateInstalled
 	inst := cands[0]
 
-	files, hashed, err := parsePackageDir(inst.dir)
+	files, hashed, err := parsePackageDir(inst.fsys, inst.dir)
 	if err != nil {
 		return nil, []error{err}
 	}
@@ -447,33 +517,29 @@ func (l *loaderState) build(key reqKey) (*types.Package, []error) {
 	return pkg, nil
 }
 
-// parsePackageDir parses every .fiig file under dir, recursively, and
-// collects each one's source keyed by path relative to dir for
-// lockfile.HashFiles.
-func parsePackageDir(dir string) ([]*syntax.File, map[string][]byte, error) {
+// parsePackageDir parses every .fiig file in fsys, recursively, and
+// collects each one's source keyed by its path in fsys for
+// lockfile.HashFiles. dir names the package in errors.
+func parsePackageDir(fsys fs.FS, dir string) ([]*syntax.File, map[string][]byte, error) {
 	var files []*syntax.File
 	hashed := map[string][]byte{}
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || filepath.Ext(path) != ".fiig" {
+		if d.IsDir() || pathpkg.Ext(path) != ".fiig" {
 			return nil
 		}
-		src, err := os.ReadFile(path)
+		src, err := fs.ReadFile(fsys, path)
 		if err != nil {
 			return err
 		}
 		file, parseErrs := parser.Parse(string(src))
 		if len(parseErrs) > 0 {
-			return fmt.Errorf("%s: %v", path, parseErrs)
+			return fmt.Errorf("%s: %v", filepath.ToSlash(filepath.Join(dir, path)), parseErrs)
 		}
 		files = append(files, file)
-		rel, relErr := filepath.Rel(dir, path)
-		if relErr != nil {
-			rel = path
-		}
-		hashed[filepath.ToSlash(rel)] = src
+		hashed[path] = src
 		return nil
 	})
 	if err != nil {
