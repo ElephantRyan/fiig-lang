@@ -48,11 +48,38 @@ func TestBuiltinNamedArgMisuse(t *testing.T) {
     requires Socket
 {
     return Socket.connect(hostname: host, port: 1)
-}`, `Socket.connect has no parameter "hostname"; its parameters are host and port`},
+}`, `Socket.connect has no parameter "hostname"; its parameters are host, port, and deadline`},
+		// ADR 0074 §5: an optional parameter may be left out, not the
+		// required ones before it.
+		{`gateway g(host: string) -> Result<Connection, SocketError>
+    requires Socket
+{
+    return Socket.connect(host, deadline: 5)
+}`, `Socket.connect is missing argument "port"`},
+		{`gateway g(host: string) -> Result<Connection, SocketError>
+    requires Socket
+{
+    return Socket.connect(host)
+}`, "Socket.connect takes 2 to 3 argument(s), got 1"},
 	}
 	for _, c := range cases {
 		wantDiag(t, checkSrc(t, c.src), "", c.fragment)
 	}
+	if diags := checkSrc(t, `gateway g(host: string, until: int) -> Result<bytes, SocketError>
+    requires Socket
+{
+    connection = Socket.connect(host, 80)?
+    first = Socket.read(connection, until)?
+    second = Socket.read(connection, deadline: None)?
+    return Socket.read(connection: connection, deadline: until)
+}`); len(diags) > 0 {
+		t.Errorf("deadline left out, None, positional, and named: %v", diags)
+	}
+	wantDiag(t, checkSrc(t, `gateway g(host: string) -> Result<Connection, SocketError>
+    requires Socket
+{
+    return Socket.connect(host, 80, deadline: "soon")
+}`), "A1", "")
 	// Arguments are typed against the parameter their name binds to.
 	wantDiag(t, checkSrc(t, `rule r(s: string) -> string {
     return s.slice(to: "3", from: 1)

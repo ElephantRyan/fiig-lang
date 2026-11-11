@@ -1,0 +1,6 @@
+// What readReply makes of the bytes read so far.
+enum ReplyRead {
+    NeedMore
+    Done(reply: Reply)
+    Malformed(reason: string)
+}

@@ -199,6 +199,11 @@ func (c *checker) checkRetry(e *syntax.RetryExpr) {
 }
 
 func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.Type) types.Type {
+	// Another package's zero-field variant, named with its package
+	// (http.Method.Get).
+	if _, enumDecl, ok := c.importedEnum(e.Target, env); ok {
+		return c.variantType(enumDecl, e.Field, nil, e, env)
+	}
 	// A zero-field enum variant is constructed with no call parens at all
 	// (CheckoutError.OutOfStock), so it parses as a bare FieldAccess, not a
 	// CallExpr — inferQualifiedCall (which handles the call-shaped form)
@@ -207,6 +212,9 @@ func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.T
 	// name is a type reference, not a local variable.
 	if targetIdent, ok := e.Target.(*syntax.Ident); ok {
 		if _, isLocal := env[targetIdent.Name]; !isLocal {
+			if t, isAlias := c.packageMember(targetIdent.Name, e); isAlias {
+				return t
+			}
 			if targetIdent.Name == types.MathGroup {
 				c.mathMember(e)
 				return types.Unknown{}
@@ -260,18 +268,29 @@ func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.T
 	case *syntax.ModelDecl:
 		for _, f := range decl.AllFields() {
 			if f.Name == e.Field {
-				return c.resolve(f.Type)
+				return c.resolveDeclType(decl, f.Type)
 			}
 		}
 	case *syntax.EnumDecl:
 		// ADR 0046 §4b: a header field is readable on any value of the enum.
 		if f, ok := decl.HeaderField(e.Field); ok {
-			return c.resolve(f.Type)
+			return c.resolveDeclType(decl, f.Type)
 		}
 	}
 	start, _ := e.Bounds()
 	c.report(start, "", "%s has no field %q", named.Name, e.Field)
 	return types.Unknown{}
+}
+
+// resolveDeclType resolves a type written in owner, in owner's package:
+// reading reply.headers, where Reply is another package's model, resolves
+// List<Header> by that package's names, not the reader's.
+func (c *checker) resolveDeclType(owner syntax.Decl, t syntax.Type) types.Type {
+	pkg := c.pkgOf(owner)
+	if pkg == nil {
+		return c.resolve(t)
+	}
+	return c.callInScope(pkg, func() types.Type { return c.resolve(t) })
 }
 
 func (c *checker) inferBinary(e *syntax.BinaryExpr, env map[string]types.Type) types.Type {
@@ -526,6 +545,11 @@ func (c *checker) callDecl(decl syntax.Decl, name string, args []syntax.Arg, sta
 // capability-contract system exists yet (Milestone 5), so the last case
 // is deliberately unchecked rather than guessed at.
 func (c *checker) inferQualifiedCall(fa *syntax.FieldAccess, args []syntax.Arg, start lexer.Pos, env map[string]types.Type) types.Type {
+	if pkg, enumDecl, ok := c.importedEnum(fa.Target, env); ok {
+		return c.callInScope(pkg, func() types.Type {
+			return c.variantType(enumDecl, fa.Field, args, fa, env)
+		})
+	}
 	targetIdent, ok := fa.Target.(*syntax.Ident)
 	if !ok {
 		return c.inferMethodCall(c.inferExpr(fa.Target, env), fa, args, start, env)
@@ -813,6 +837,86 @@ func (c *checker) bindPattern(p syntax.Pattern, subject types.Type, env map[stri
 	}
 }
 
+// importedEnum resolves target as `alias.Enum`: an enum of a package this
+// file imports, named with its alias, so its variants are written
+// http.Method.Get and http.HttpError.Socket(failure).
+func (c *checker) importedEnum(target syntax.Expr, env map[string]types.Type) (*types.Package, *syntax.EnumDecl, bool) {
+	fa, ok := target.(*syntax.FieldAccess)
+	if !ok {
+		return nil, nil, false
+	}
+	alias, ok := fa.Target.(*syntax.Ident)
+	if !ok {
+		return nil, nil, false
+	}
+	return c.importedEnumNamed(alias.Name, fa.Field, env)
+}
+
+func (c *checker) importedEnumNamed(alias, name string, env map[string]types.Type) (*types.Package, *syntax.EnumDecl, bool) {
+	if _, isLocal := env[alias]; isLocal {
+		return nil, nil, false
+	}
+	pkg, found := c.imports[alias]
+	if !found {
+		return nil, nil, false
+	}
+	decl, found := pkg.Universe.Lookup(name)
+	if !found {
+		return nil, nil, false
+	}
+	enumDecl, ok := decl.(*syntax.EnumDecl)
+	return pkg, enumDecl, ok
+}
+
+// packageMember is `alias.Name` read as a value, where alias is one of the
+// file's package imports and nothing local: only an enum, as the target of
+// a variant (http.Method.Get), means anything, and inferFieldAccess and
+// inferQualifiedCall handle that one level up. When the package isn't
+// loaded, as when a package is checked without its dependencies, the
+// reference is left unmodeled, as types.Resolve leaves its types. A
+// package's alias is lowercase; a capitalized one names a group, config,
+// or interface by path tail (ADR 0043 §6), read elsewhere.
+func (c *checker) packageMember(alias string, e *syntax.FieldAccess) (types.Type, bool) {
+	if _, imported := c.aliases[alias]; !imported || isUpper(alias) {
+		return nil, false
+	}
+	pkg, loaded := c.imports[alias]
+	if !loaded {
+		return types.Unknown{}, true
+	}
+	start, _ := e.Bounds()
+	if _, found := pkg.Universe.Lookup(e.Field); !found {
+		c.report(start, "", "package %q has no declaration %q", alias, e.Field)
+	} else {
+		c.report(start, "", "%s.%s is a declaration, not a value; name a variant (%s.%s.Variant) or call it", alias, e.Field, alias, e.Field)
+	}
+	return types.Unknown{}, true
+}
+
+// variantType checks the variant named field of an imported enum, built
+// with args, or bare when args is nil.
+func (c *checker) variantType(enumDecl *syntax.EnumDecl, field string, args []syntax.Arg, at syntax.Spanned, env map[string]types.Type) types.Type {
+	start, _ := at.Bounds()
+	for _, v := range enumDecl.Variants {
+		if v.Name != field {
+			continue
+		}
+		if args == nil {
+			if len(v.Fields) > 0 {
+				c.report(start, "A3", "%s.%s requires %d field(s); none supplied", enumDecl.Name, v.Name, len(v.Fields))
+			}
+		} else {
+			c.checkFieldArgs(v.Fields, args, enumDecl.Name+"."+field, start, env, true)
+		}
+		return types.Named{Name: enumDecl.Name, Decl: enumDecl}
+	}
+	c.report(start, "", "%s has no variant %q", enumDecl.Name, field)
+	for _, a := range args {
+		c.inferExpr(a.Value, env)
+	}
+	return types.Unknown{}
+}
+
 func (c *checker) bindConstructorPattern(p *syntax.ConstructorPattern, subject types.Type, env map[string]types.Type) {
 	if len(p.Path) == 1 && (p.Path[0] == "Ok" || p.Path[0] == "Err") {
 		if g, ok := subject.(types.Generic); ok && g.Name == "Result" && len(g.Args) == 2 {
@@ -839,6 +943,28 @@ func (c *checker) bindConstructorPattern(p *syntax.ConstructorPattern, subject t
 						return
 					}
 				}
+			}
+		}
+	}
+	if len(p.Path) == 3 {
+		if pkg, enumDecl, ok := c.importedEnumNamed(p.Path[0], p.Path[1], env); ok {
+			for _, v := range enumDecl.Variants {
+				if v.Name != p.Path[2] {
+					continue
+				}
+				fieldTypes := make([]types.Type, len(v.Fields))
+				c.callInScope(pkg, func() types.Type {
+					for i, f := range v.Fields {
+						fieldTypes[i] = c.resolve(f.Type)
+					}
+					return nil
+				})
+				for i, sub := range p.Args {
+					if i < len(fieldTypes) {
+						c.bindPattern(sub, fieldTypes[i], env)
+					}
+				}
+				return
 			}
 		}
 	}

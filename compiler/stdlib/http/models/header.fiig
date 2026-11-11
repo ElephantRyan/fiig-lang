@@ -1,0 +1,6 @@
+// One header line, as sent or as received. A list of them, not a Map,
+// because a name may repeat (Set-Cookie) and order can matter.
+model Header {
+    name: string
+    value: string
+}

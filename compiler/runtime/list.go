@@ -49,7 +49,7 @@ func (in *Interp) evalAppend(ctx context.Context, e *syntax.CallExpr, env *Env) 
 	if len(vals) != 2 {
 		return nil, false, Faultf("append(list, element) takes exactly two arguments")
 	}
-	if vals, fault = placeArgs("append", types.AppendParams, e.Args, vals); fault != nil {
+	if vals, fault = placeArgs("append", types.AppendParams, len(types.AppendParams), e.Args, vals); fault != nil {
 		return nil, false, fault
 	}
 	list, ok := vals[0].(List)

@@ -661,6 +661,52 @@ func (c *checker) resolve(t syntax.Type) types.Type {
 	return rt
 }
 
+// resolveOwn is resolve for a type written in the file being checked: a
+// field, a signature, or a typed local. types.Resolve leaves an alias it
+// doesn't know unmodeled, for a package this check wasn't given, but an
+// alias that no use line of the file binds can't name anything. (A call's
+// callee may be declared in another file, whose types are resolved with
+// resolve, so the check can't live there.)
+func (c *checker) resolveOwn(t syntax.Type) types.Type {
+	if alias, ok := c.unimportedAlias(t); ok {
+		start, _ := t.(syntax.Spanned).Bounds()
+		c.report(start, "", "unresolved type %q: this file has no use line for %q", types.SyntaxString(t), alias)
+		return types.Unknown{}
+	}
+	return c.resolve(t)
+}
+
+// unimportedAlias finds a qualified type in t (`http.Reply`) whose alias no
+// use line of the current file binds.
+func (c *checker) unimportedAlias(t syntax.Type) (string, bool) {
+	switch t := t.(type) {
+	case *syntax.QualifiedType:
+		if len(t.Path) == 2 {
+			if _, imported := c.aliases[t.Path[0]]; !imported {
+				return t.Path[0], true
+			}
+		}
+		for _, a := range t.Args {
+			if alias, ok := c.unimportedAlias(a); ok {
+				return alias, true
+			}
+		}
+	case *syntax.RecordType:
+		for _, f := range t.Fields {
+			if alias, ok := c.unimportedAlias(f.Type); ok {
+				return alias, true
+			}
+		}
+	case *syntax.UnionType:
+		for _, m := range t.Members {
+			if alias, ok := c.unimportedAlias(m); ok {
+				return alias, true
+			}
+		}
+	}
+	return "", false
+}
+
 // reportUndefined reports a name that does not resolve here. When it names
 // another file's private member, that is an escape (H4, ADR 0054 §3), and
 // saying so is more useful than "undefined". what is "name" or "type".
@@ -787,14 +833,14 @@ func (c *checker) checkPublicType(t syntax.Type) types.Type {
 		start, _ := t.(syntax.Spanned).Bounds()
 		c.report(start, "A8", "a structural record type isn't allowed in a public signature; declare a named model instead")
 	}
-	return c.resolve(t)
+	return c.resolveOwn(t)
 }
 
 func (c *checker) checkDecl(d syntax.Decl) {
 	switch d := d.(type) {
 	case *syntax.ModelDecl:
 		for _, f := range d.Fields {
-			c.checkNoCapabilityField(d.Name, f, c.resolve(f.Type))
+			c.checkNoCapabilityField(d.Name, f, c.resolveOwn(f.Type))
 		}
 		c.checkJsonNames(d.Name, d.Fields, false)
 		c.checkPromotedJsonNames(d)
@@ -807,7 +853,7 @@ func (c *checker) checkDecl(d syntax.Decl) {
 				c.report(v.Start, "N2", "enum variant %s.%s must be capitalized, so `Upper.Upper` always reads as an enum variant (ADR 0043 §6a)", d.Name, v.Name)
 			}
 			for _, f := range v.Fields {
-				c.checkNoCapabilityField(d.Name+"."+v.Name, f, c.resolve(f.Type))
+				c.checkNoCapabilityField(d.Name+"."+v.Name, f, c.resolveOwn(f.Type))
 			}
 			c.checkJsonNames(d.Name+"."+v.Name, v.Fields, true)
 		}

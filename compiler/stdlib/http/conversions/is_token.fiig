@@ -1,0 +1,17 @@
+// RFC 9110 §5.6.2: a header name is one or more of letters, digits, and
+// !#$%&'*+-.^_`|~.
+conversion isToken(text: string) -> bool {
+    raw = text.utf8()
+    if raw.length() == 0 {
+        return false
+    }
+    for b in raw {
+        letter = (b >= 65 and b <= 90) or (b >= 97 and b <= 122)
+        digit = b >= 48 and b <= 57
+        mark = b == 33 or (b >= 35 and b <= 39) or b == 42 or b == 43 or b == 45 or b == 46 or (b >= 94 and b <= 96) or b == 124 or b == 126
+        if not (letter or digit or mark) {
+            return false
+        }
+    }
+    return true
+}

@@ -1,0 +1,14 @@
+{
+  "toolchain": "dev",
+  "dependencies": [
+    {
+      "path": "fiig.http",
+      "version": "1.0.0",
+      "hash": "sha256:6eb7d7eb09367df0132561dac6f7795bb5dd851120cbc877ae47be9de4285dad",
+      "source": "builtin:http",
+      "capabilities": [
+        "Socket"
+      ]
+    }
+  ]
+}

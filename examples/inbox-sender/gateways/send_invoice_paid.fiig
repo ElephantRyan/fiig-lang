@@ -1,0 +1,40 @@
+// ADR 0074: fiig calling fiig over HTTP, with no Go in between. The event
+// goes out with json.encode, comes back as bytes, and a 200 is decoded
+// with json.decode; any other status is the caller's to judge (§3).
+use fiig.http
+use fiig.http.HttpClient
+
+gateway sendInvoicePaid(inboxUrl: string, id: string, invoice: string, amount: decimal) -> Result<InboxEvent, SendError>
+    requires HttpClient
+{
+    event = PaidEnvelope(
+        id: id,
+        eventType: "invoice.paid",
+        data: PaidInvoice(invoice: invoice, amount: amount, paidAt: "2026-11-10"),
+    )
+    sent = HttpClient.send(
+        http.Request(method: http.Method.Post, url: "${inboxUrl}/events", headers: [http.Header(name: "Content-Type", value: "application/json")], body: json.encode(event), timeoutMillis: 5000),
+    )
+    match sent {
+        Err(failure) -> Err(SendError.Unreachable(failure: failure))
+        Ok(reply) -> {
+            if reply.status != 200 {
+                return Err(SendError.Rejected(status: reply.status, body: replyText(reply.body)))
+            }
+            answer: Result<InboxEvent, JsonError> = json.decode(reply.body)
+            match answer {
+                Ok(received) -> Ok(received)
+                Err(failure) -> Err(SendError.Unreadable(failure: failure))
+            }
+        }
+    }
+}
+
+private {
+    replyText(raw: bytes) -> string {
+        match raw.utf8() {
+            None -> "(not UTF-8)"
+            text -> text
+        }
+    }
+}

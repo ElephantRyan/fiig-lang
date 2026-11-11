@@ -1,0 +1,297 @@
+// ADR 0074 §7: a reply from the bytes read so far. closed says the server
+// has hung up, which ends a body that runs until close and makes any other
+// unfinished reply Malformed, so with closed true this never answers
+// NeedMore. A 1xx interim reply is skipped, and the body's length follows
+// RFC 9112 §6.3: none for HEAD, 204, and 304; chunked; Content-Length; or
+// until the server closes.
+conversion readReply(buffer: bytes, method: Method, closed: bool) -> ReplyRead {
+    rest: bytes = buffer
+    while true {
+        end = headEnd(rest)
+        if end < 0 {
+            if rest.length() > 1048576 {
+                return ReplyRead.Malformed(reason: "the reply's headers are longer than 1 MiB")
+            }
+            if closed and rest.length() == 0 {
+                return ReplyRead.Malformed(
+                    reason: "the server closed the connection without replying",
+                )
+            }
+            return waiting(closed, "inside the reply's headers")
+        }
+        match parseHead(rest.slice(0, end)) {
+            Err(reason) -> {
+                return ReplyRead.Malformed(reason: reason)
+            }
+            Ok(head) -> {
+                body = rest.slice(end + 4, rest.length())
+                if head.status >= 200 or head.status == 101 {
+                    return readBody(head, body, method, closed)
+                }
+                rest = body
+            }
+        }
+    }
+}
+
+private {
+    model Head {
+        status: int
+        headers: List<Header>
+    }
+
+    // Where the blank line ending the headers starts, or -1.
+    headEnd(data: bytes) -> int {
+        i: int = 0
+        while i + 3 < data.length() {
+            if data.at(i) == 13 and data.at(i + 1) == 10 and data.at(i + 2) == 13 and data.at(i + 3) == 10 {
+                return i
+            }
+            i = i + 1
+        }
+        return -1
+    }
+
+    // Where the next CRLF at or after from starts, or -1.
+    lineEnd(data: bytes, from: int) -> int {
+        i: int = from
+        while i + 1 < data.length() {
+            if data.at(i) == 13 and data.at(i + 1) == 10 {
+                return i
+            }
+            i = i + 1
+        }
+        return -1
+    }
+
+    waiting(closed: bool, where: string) -> ReplyRead {
+        if closed {
+            return ReplyRead.Malformed(reason: "the server closed the connection ${where}")
+        }
+        return ReplyRead.NeedMore
+    }
+
+    parseHead(head: bytes) -> Result<Head, string> {
+        match head.utf8() {
+            None -> Err("the reply's headers aren't UTF-8")
+            text -> parseHeadText(text)
+        }
+    }
+
+    // The status line, then one header per line. A line starting with a
+    // space or tab continues the one before (obsolete folding, RFC 9112
+    // §5.2), joined with a space.
+    parseHeadText(text: string) -> Result<Head, string> {
+        lines = text.split("\r\n")
+        status = statusOf(lines.first())
+        if status < 0 {
+            return Err(
+                "the status line \"${lines.first()}\" isn't HTTP/1.1 and a three-digit status",
+            )
+        }
+        headers: List<Header> = []
+        i: int = 1
+        while i < lines.length() {
+            line = lines.at(i)
+            if line.startsWith(" ") or line.startsWith("\t") {
+                if headers.length() == 0 {
+                    return Err("the first header line starts with a space")
+                }
+                last = headers.last()
+                headers = append(
+                    headers.slice(0, headers.length() - 1),
+                    Header(name: last.name, value: "${last.value} ${line.trim()}"),
+                )
+            } else {
+                parts = line.split(":")
+                if parts.length() < 2 {
+                    return Err("the header line \"${line}\" has no colon")
+                }
+                name = parts.first()
+                if not isToken(name) {
+                    return Err("the header name \"${name}\" isn't an HTTP token")
+                }
+                headers = append(
+                    headers,
+                    Header(name: name, value: parts.slice(1, parts.length()).join(":").trim()),
+                )
+            }
+            i = i + 1
+        }
+        return Ok(Head(status: status, headers: headers))
+    }
+
+    // HTTP/1.1 or HTTP/1.0, a space, three digits; the reason phrase is
+    // ignored. -1 for anything else.
+    statusOf(line: string) -> int {
+        parts = line.split(" ")
+        if parts.length() < 2 {
+            return -1
+        }
+        if parts.first() != "HTTP/1.1" and parts.first() != "HTTP/1.0" {
+            return -1
+        }
+        code = parts.at(1)
+        if code.length() != 3 {
+            return -1
+        }
+        status = digitsValue(code)
+        if status < 100 {
+            return -1
+        }
+        return status
+    }
+
+    readBody(head: Head, rest: bytes, method: Method, closed: bool) -> ReplyRead {
+        if method == Method.Head or head.status == 204 or head.status == 304 or head.status == 101 {
+            return done(head, <<>>)
+        }
+        coding = lastCoding(head.headers)
+        if coding == "chunked" {
+            return readChunked(head, rest, closed)
+        }
+        if coding != "" {
+            return untilClose(head, rest, closed)
+        }
+        length = contentLength(head.headers)
+        if length == -2 {
+            return ReplyRead.Malformed(
+                reason: "the reply's Content-Length headers disagree, or one isn't a number",
+            )
+        }
+        if length < 0 {
+            return untilClose(head, rest, closed)
+        }
+        if rest.length() >= length {
+            return done(head, rest.slice(0, length))
+        }
+        if closed {
+            return ReplyRead.Malformed(
+                reason: "the server closed the connection after ${rest.length()} of the ${length} bytes its Content-Length promised",
+            )
+        }
+        return ReplyRead.NeedMore
+    }
+
+    untilClose(head: Head, rest: bytes, closed: bool) -> ReplyRead {
+        if closed {
+            return done(head, rest)
+        }
+        return ReplyRead.NeedMore
+    }
+
+    done(head: Head, body: bytes) -> ReplyRead {
+        return ReplyRead.Done(reply: Reply(status: head.status, headers: head.headers, body: body))
+    }
+
+    // The last transfer coding named across every Transfer-Encoding
+    // header, lowercased; "" when there is none.
+    lastCoding(headers: List<Header>) -> string {
+        coding: string = ""
+        for header in headers {
+            if header.name.equalsIgnoringCase("Transfer-Encoding") {
+                for part in header.value.split(",") {
+                    if not part.isBlank() {
+                        coding = part.trim().lowercase()
+                    }
+                }
+            }
+        }
+        return coding
+    }
+
+    // The Content-Length every such header agrees on; -1 when there is
+    // none, -2 when they disagree or one isn't a number (RFC 9112 §6.3).
+    contentLength(headers: List<Header>) -> int {
+        length: int = -1
+        for header in headers {
+            if header.name.equalsIgnoringCase("Content-Length") {
+                for part in header.value.split(",") {
+                    value = digitsValue(part.trim())
+                    if value < 0 or (length >= 0 and value != length) {
+                        return -2
+                    }
+                    length = value
+                }
+            }
+        }
+        return length
+    }
+
+    // RFC 9112 §7.1: size in hex, optional extensions after ;, CRLF, the
+    // data, CRLF; a zero size, then trailers, which are dropped, and a
+    // blank line.
+    readChunked(head: Head, rest: bytes, closed: bool) -> ReplyRead {
+        body: bytes = <<>>
+        pos: int = 0
+        while true {
+            end = lineEnd(rest, pos)
+            if end < 0 {
+                return waiting(closed, "inside a chunk's size line")
+            }
+            size = chunkSize(rest.slice(pos, end))
+            if size < 0 {
+                return ReplyRead.Malformed(reason: "a chunk's size isn't hexadecimal")
+            }
+            pos = end + 2
+            if size == 0 {
+                while true {
+                    trailer = lineEnd(rest, pos)
+                    if trailer < 0 {
+                        return waiting(closed, "inside the chunked body's trailers")
+                    }
+                    if trailer == pos {
+                        return done(head, body)
+                    }
+                    pos = trailer + 2
+                }
+            }
+            if rest.length() < pos + size + 2 {
+                return waiting(closed, "inside a chunk")
+            }
+            if rest.at(pos + size) != 13 or rest.at(pos + size + 1) != 10 {
+                return ReplyRead.Malformed(reason: "a chunk doesn't end with CRLF")
+            }
+            body = <<body: bytes, rest.slice(pos, pos + size): bytes>>
+            pos = pos + size + 2
+        }
+    }
+
+    // A chunk-size line's hex number, up to any ; and trailing spaces or
+    // tabs; -1 when it isn't one, or has more than 15 digits.
+    chunkSize(line: bytes) -> int {
+        size: int = 0
+        count: int = 0
+        for b in line {
+            if b == 59 {
+                break
+            }
+            digit = hexValue(b)
+            if digit < 0 {
+                if b == 32 or b == 9 {
+                    break
+                }
+                return -1
+            }
+            size = size * 16 + digit
+            count = count + 1
+        }
+        if count == 0 or count > 15 {
+            return -1
+        }
+        return size
+    }
+
+    hexValue(b: int) -> int {
+        if b >= 48 and b <= 57 {
+            return b - 48
+        }
+        if b >= 65 and b <= 70 {
+            return b - 55
+        }
+        if b >= 97 and b <= 102 {
+            return b - 87
+        }
+        return -1
+    }
+}

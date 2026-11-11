@@ -1,0 +1,6 @@
+// The payload event-inbox reads for "invoice.paid".
+model PaidInvoice {
+    invoice: string
+    amount: decimal
+    paidAt: string from json "paid_at"
+}

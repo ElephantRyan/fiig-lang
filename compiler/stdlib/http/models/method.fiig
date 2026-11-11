@@ -1,0 +1,12 @@
+// ADR 0074 §2: every verb a service sends. TRACE and CONNECT are left out:
+// CONNECT opens a proxy tunnel, and TRACE echoes credentials back.
+enum Method {
+    Get
+    Head
+    Post
+    Put
+    Patch
+    Delete
+    Options
+    Query
+}

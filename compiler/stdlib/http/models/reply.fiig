@@ -1,0 +1,8 @@
+// ADR 0074 §2: what came back. Every status is a reply, a 404 or a 503
+// included (§3). headers are in the order received, repeats kept; body is
+// empty when the server sent none.
+model Reply {
+    status: int
+    headers: List<Header>
+    body: bytes
+}

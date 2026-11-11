@@ -42,7 +42,7 @@ func Main(name string, args []string) {
 	fs := flag.NewFlagSet(name, flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "print diagnostics as a JSON array instead of one line each")
 	var workspaces stringList
-	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable. Omitted, root is checked with no package context")
+	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable. Omitted, only the packages fiig ships are searched (ADR 0074)")
 	fs.Parse(args)
 	if fs.NArg() != 1 {
 		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-workspace <dir>]... <root>")
@@ -51,7 +51,7 @@ func Main(name string, args []string) {
 	root := fs.Arg(0)
 
 	var packages types.Packages
-	if len(workspaces) > 0 {
+	if loader.Wanted(root, workspaces) {
 		loaded, errs := loader.Load(root, workspaces)
 		if len(errs) > 0 {
 			for _, e := range errs {

@@ -212,6 +212,9 @@ func (in *Interp) evalDeclCall(ctx context.Context, sc scope, name string, decl 
 
 // evalQualifiedCall handles `Target.Field(args)`.
 func (in *Interp) evalQualifiedCall(ctx context.Context, fa *syntax.FieldAccess, args []syntax.Arg, env *Env) (Value, bool, *Fault) {
+	if enumDecl, ok := in.importedEnum(ctx, fa.Target, env); ok {
+		return in.constructVariant(ctx, enumDecl, fa.Field, args, env)
+	}
 	targetIdent, ok := fa.Target.(*syntax.Ident)
 	if ok {
 		// A local binding (`email.contains("@")`) is a builtin method call
@@ -267,7 +270,7 @@ func (in *Interp) evalQualifiedCall(ctx context.Context, fa *syntax.FieldAccess,
 		// it sees the transaction's own uncommitted writes.
 		if ops, typed := types.PrimitiveOps(targetIdent.Name); typed {
 			if m, found := ops[fa.Field]; found {
-				if argVals, fault = placeArgs(targetIdent.Name+"."+fa.Field, m.ParamNames(), args, argVals); fault != nil {
+				if argVals, fault = placeArgs(targetIdent.Name+"."+fa.Field, m.ParamNames(), m.Required(), args, argVals); fault != nil {
 					return nil, false, fault
 				}
 			}
@@ -300,7 +303,7 @@ func (in *Interp) evalQualifiedCall(ctx context.Context, fa *syntax.FieldAccess,
 	}
 	if sigs, ok := types.MethodsOfKind(methodKind(target)); ok {
 		if m, found := sigs[fa.Field]; found {
-			if argVals, fault = placeArgs(methodKind(target)+"."+fa.Field, m.ParamNames(), args, argVals); fault != nil {
+			if argVals, fault = placeArgs(methodKind(target)+"."+fa.Field, m.ParamNames(), m.Required(), args, argVals); fault != nil {
 				return nil, false, fault
 			}
 		}
@@ -425,8 +428,10 @@ func (in *Interp) evalArgsPositional(ctx context.Context, args []syntax.Arg, env
 
 // placeArgs orders a builtin call's argument values, which are in source
 // order, by the builtin's parameters when any argument is named (ADR 0068
-// §5). The checker reports arguments that don't bind before a run.
-func placeArgs(subject string, params []string, args []syntax.Arg, vals []Value) ([]Value, *Fault) {
+// §5), and passes None for each optional parameter left out (ADR 0074 §5),
+// so a builtin always receives one value per parameter. The checker
+// reports arguments that don't bind before a run.
+func placeArgs(subject string, params []string, required int, args []syntax.Arg, vals []Value) ([]Value, *Fault) {
 	argNames := make([]string, len(args))
 	named := false
 	for i, a := range args {
@@ -434,14 +439,21 @@ func placeArgs(subject string, params []string, args []syntax.Arg, vals []Value)
 		named = named || a.Name != ""
 	}
 	if !named {
+		for len(vals) < len(params) && len(vals) >= required {
+			vals = append(vals, None{})
+		}
 		return vals, nil
 	}
-	at, ok := types.BindArgs(params, argNames)
+	at, ok := types.BindArgsOptional(params, required, argNames)
 	if !ok {
 		return nil, Faultf("%s's arguments don't bind to its parameters (%s)", subject, strings.Join(params, ", "))
 	}
 	placed := make([]Value, len(at))
 	for i, ai := range at {
+		if ai < 0 {
+			placed[i] = None{}
+			continue
+		}
 		placed[i] = vals[ai]
 	}
 	return placed, nil

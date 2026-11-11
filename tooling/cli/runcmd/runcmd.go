@@ -61,7 +61,7 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	trace := fs.Bool("trace", false, "print the call tree (compiler/runtime.Span) to stderr after running")
 	envFile := fs.String("env-file", "", "a file of NAME=value lines that sets environment variables the process doesn't (ADR 0071 §3a)")
 	var workspaces stringList
-	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable. Omitted, root is checked/run with no package context")
+	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable. Omitted, only the packages fiig ships are searched (ADR 0074)")
 	fs.Parse(argv)
 	if fs.NArg() != 2 {
 		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-args JSON] [-caps FILE] [-env-file FILE] [-trace] [-workspace DIR]... <root> <declName>")
@@ -81,7 +81,7 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	}
 
 	var packages types.Packages
-	if len(workspaces) > 0 {
+	if loader.Wanted(root, workspaces) {
 		loaded, loadErrs := loader.Load(root, workspaces)
 		if len(loadErrs) > 0 {
 			for _, e := range loadErrs {

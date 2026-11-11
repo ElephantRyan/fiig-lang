@@ -591,13 +591,26 @@ Need an ADR first, in build order:
    `json.encode` to bytes in declared order, keywords as field names,
    `from json "name"`, J1 and J2, and the adapter on the same reader,
    decoder, and encoder. `examples/event-inbox`.
-8. An HTTP client package written in fiig over `Socket`: every verb,
-   request headers, `http` and `https`, any port, `Content-Length` and
-   chunked replies.
+8. ~~An HTTP client package written in fiig over `Socket`.~~ Done
+   2026-11-10, ADR 0074: `fiig.http`, built into the toolchain, with one
+   `send`, statuses as data, no redirects followed, a whole-exchange
+   timeout (`Socket` deadlines and `SocketError.TimedOut`), and
+   `examples/inbox-sender`.
 8a. Hashing and HMAC: SHA-256 and `hmacSha256` taking a `Secret` key
    (ADR 0071 §4), for webhook signatures, signed cookies, and stored
    random keys; plus a deliberately slow password hash (Argon2id or
    scrypt) if accounts store passwords (owner's decision 2026-11-07).
+8b. A JSON request body read raw: a route that consumes
+   `application/json` binding `bytes`, so a webhook's signature can be
+   checked over the bytes before `json.decode` (with 8a; known
+   limitations, found by ADR 0073's dogfooding).
+8c. The JSON form of `bytes` (base64, as Go sends `[]byte`, or an array of
+   numbers), so a `bytes` field stops being J1 (ADR 0073).
+8d. An enum as a path segment or query value (ADR 0072 open question 2).
+8e. A union of enums that share a variant name, in a body (`OrderError |
+   CustomerError`, both with `NotFound`; ADR 0072 open question 1).
+8f. `fiig openapi`: print the document `GenerateOpenAPI` builds. Likely a
+   command, not an ADR.
 9. A checked `Database` capability: its calls typed and its use held to a
    gateway's `requires`, as P7 does for capability groups written in fiig.
 10. ADR 0066 declared SQL row types.

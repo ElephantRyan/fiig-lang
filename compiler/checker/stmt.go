@@ -47,7 +47,7 @@ func declare(env map[string]types.Type, name string, t types.Type, reassignable 
 // ADR 0053.
 func (c *checker) checkBinding(s *syntax.Binding, env map[string]types.Type) {
 	if s.Type != nil {
-		declared := c.resolve(s.Type)
+		declared := c.resolveOwn(s.Type)
 		if _, exists := env[s.Name]; exists {
 			c.report(s.Start, "R1", "%s is already bound in this scope; a reassignable local cannot shadow another name", s.Name)
 		}

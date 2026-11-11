@@ -23,6 +23,12 @@ func MatchPattern(p syntax.Pattern, v Value, env *Env) bool {
 			ev, ok := v.(EnumValue)
 			return ok && ev.TypeName == p.Path[0] && ev.Variant == p.Path[1]
 		}
+		if len(p.Path) == 3 {
+			// Another package's variant, named with its alias
+			// (http.Method.Get).
+			ev, ok := v.(EnumValue)
+			return ok && ev.TypeName == p.Path[1] && ev.Variant == p.Path[2]
+		}
 		if len(p.Path) != 1 {
 			return false
 		}
@@ -72,9 +78,9 @@ func matchConstructorPattern(p *syntax.ConstructorPattern, v Value, env *Env) bo
 		}
 		return true
 	}
-	if len(p.Path) == 2 {
+	if n := len(p.Path); n == 2 || n == 3 {
 		ev, ok := v.(EnumValue)
-		if !ok || ev.TypeName != p.Path[0] || ev.Variant != p.Path[1] {
+		if !ok || ev.TypeName != p.Path[n-2] || ev.Variant != p.Path[n-1] {
 			return false
 		}
 		for i, sub := range p.Args {

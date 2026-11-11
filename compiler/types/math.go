@@ -148,6 +148,13 @@ func BindMathArgs(ps []MathParam, argNames []string) ([]int, bool) {
 // name given twice, a positional argument after a named one, or a
 // parameter left without one.
 func BindArgs(params []string, argNames []string) ([]int, bool) {
+	return BindArgsOptional(params, len(params), argNames)
+}
+
+// BindArgsOptional is BindArgs where only the first required parameters
+// must be supplied; a trailing parameter left out binds to -1 (ADR 0074
+// §5).
+func BindArgsOptional(params []string, required int, argNames []string) ([]int, bool) {
 	at := make([]int, len(params))
 	for i := range at {
 		at[i] = -1
@@ -179,8 +186,8 @@ func BindArgs(params []string, argNames []string) ([]int, bool) {
 		}
 		at[pi] = ai
 	}
-	for _, ai := range at {
-		if ai < 0 {
+	for pi, ai := range at {
+		if ai < 0 && pi < required {
 			return nil, false
 		}
 	}

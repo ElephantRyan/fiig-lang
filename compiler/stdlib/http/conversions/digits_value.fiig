@@ -1,0 +1,17 @@
+// The value of 1 to 18 ASCII digits, or -1 for anything else: no sign, no
+// spaces, nothing toIntOrNone's wider grammar accepts (ADR 0067 §7). A
+// port, a status, and a Content-Length are written this way.
+conversion digitsValue(text: string) -> int {
+    raw = text.utf8()
+    if raw.length() == 0 or raw.length() > 18 {
+        return -1
+    }
+    value: int = 0
+    for b in raw {
+        if b < 48 or b > 57 {
+            return -1
+        }
+        value = value * 10 + b - 48
+    }
+    return value
+}

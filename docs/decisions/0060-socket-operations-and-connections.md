@@ -2,7 +2,9 @@
 
 Status: Accepted (2026-10-26, on the author's approval of folding `TlsSocket`
 into `Socket`; see "Decisions taken at review"). Implemented 2026-10-26;
-see "Implementation notes".
+see "Implementation notes". §3 and §4 amended by ADR 0074 §5 (2026-11-10):
+every operation that waits takes an optional `deadline`, and running out
+of it is `Err(SocketError.TimedOut)`.
 Date: 2026-10-26
 Related: ADR 0010 (a gateway requires exactly one capability), ADR 0027
 (declarative capability configuration), ADR 0035 (manifest capability
