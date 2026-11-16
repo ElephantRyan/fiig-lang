@@ -86,7 +86,6 @@ doesn't have to discover them.
   as `e` plus a combining accent are different strings. No locale-aware
   sorting, and no regular expressions.
 - **No user-defined generics** and no lambdas (ADR 0056).
-- **No model invariants:** validate in a rule.
 - **Streams and queue consumers** (ADR 0047) are designed, not built.
 - See `docs/specification/grammar.md`'s "Known gaps" for open syntax
   questions.

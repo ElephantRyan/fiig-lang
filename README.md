@@ -7,11 +7,14 @@ of bugs: unhandled errors, undeclared effects, unbounded concurrency, and
 invalid transaction nesting.
 
 ```fiig
-rule validateRating(input: NewRating) -> Result<NewRating, RatingError> {
+rule createValidRating(input: NewRating) -> Result<Rating, RatingError> {
     if input.score < 1 or input.score > 10 {
         return Err(RatingError.Invalid("score", "must be from 1 to 10"))
     }
-    return Ok(input)
+    if input.item.isBlank() {
+        return Err(RatingError.Invalid("item", "must not be blank"))
+    }
+    return Ok(Rating(item: input.item, score: input.score, note: input.note))
 }
 ```
 

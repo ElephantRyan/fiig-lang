@@ -1,11 +1,12 @@
 // A rule is pure: no database, no network, so it can be tested with plain
-// values and called from anywhere.
-rule validateRating(input: NewRating) -> Result<NewRating, RatingError> {
+// values and called from anywhere. It makes the valid Rating from what a
+// client sent; a model declares no checks of its own (ADR 0083).
+rule createValidRating(input: NewRating) -> Result<Rating, RatingError> {
     if input.score < 1 or input.score > 10 {
         return Err(RatingError.Invalid("score", "must be from 1 to 10"))
     }
     if input.item.isBlank() {
         return Err(RatingError.Invalid("item", "must not be blank"))
     }
-    return Ok(input)
+    return Ok(Rating(item: input.item, score: input.score, note: input.note))
 }

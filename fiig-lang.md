@@ -88,7 +88,7 @@ Customer | None
 
 `None` is distinct from an empty string, list, map, or domain collection.
 
-### 3.5 Models and invariants
+### 3.5 Models
 
 - Model fields are required unless their type includes `None`.
 - Models are immutable by default.
@@ -96,8 +96,10 @@ Customer | None
 - A `copy` operation produces a modified model without reconstructing every
   field by hand; no in-place mutation is exposed at the language level
   (`docs/specification/ownership.md`, `docs/decisions/0023-ownership-resolved-as-copy-sugar.md`).
-- Stable, pure, context-independent invariants may be declared on models.
-- Contextual business validation belongs in rules.
+- A model declares no invariants: whether a value is acceptable is business
+  logic, and belongs in rules (ADR 0083). A rule makes the valid model from
+  the input model, `createValidRating(input: NewRating) -> Result<Rating,
+  RatingError>`, and code that needs a valid one takes the second type.
 - Validation requiring a database, clock, network, randomness, or configuration belongs in gateways and workflows.
 - Separate lifecycle models are preferred over temporarily invalid objects, such as `NewCustomer` and `Customer` rather than `Customer` with an absent ID.
 
@@ -645,7 +647,9 @@ Need an ADR first, in build order:
    supersedes 0066: a query's row type comes from context, columns fill a
    model by exact name (`AS` renames), and each value is read by its
    field's type, faulting at the query.
-11. Model invariants (§3.5), or a recorded decision that rules cover them.
+11. ~~Model invariants (§3.5), or a recorded decision that rules cover
+   them.~~ Done 2026-11-16, ADR 0083: models declare no invariants; a rule
+   makes the valid model from the input model.
 
 Exit criteria:
 
