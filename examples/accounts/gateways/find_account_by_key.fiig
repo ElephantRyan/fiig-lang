@@ -1,14 +1,28 @@
+// The account is found by name and its key checked against the stored
+// hash (ADR 0075 §5). An unknown name is checked against a hash of a key
+// nobody has, so it takes as long as a wrong key and the time doesn't say
+// which names exist.
 gateway findAccountByKey(credentials: Credentials) -> Result<Account, AccountError>
     requires Database
     idempotent
 {
     row = Database.queryOne(
-        "SELECT name, email FROM accounts WHERE name = ? AND key = ?",
+        "SELECT name, email, key_hash FROM accounts WHERE name = ?",
         credentials.name,
-        credentials.key,
     )
     match row {
-        found -> Ok(Account(name: found.name, email: found.email))
-        None -> Err(AccountError.BadCredentials)
+        None -> {
+            crypto.passwordMatches(
+                credentials.key,
+                stored: "$argon2id$v=19$m=19456,t=2,p=1$bm8tc3VjaC1hY2NvdW50$Rjc8Ou31Bqaj4G0fqgDCm6Zg8D4Ozp+2cn17Fd8tY0o",
+            )
+            return Err(AccountError.BadCredentials)
+        }
+        found -> {
+            if not crypto.passwordMatches(credentials.key, stored: found.key_hash) {
+                return Err(AccountError.BadCredentials)
+            }
+            return Ok(Account(name: found.name, email: found.email))
+        }
     }
 }

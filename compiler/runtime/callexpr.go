@@ -231,6 +231,9 @@ func (in *Interp) evalQualifiedCall(ctx context.Context, fa *syntax.FieldAccess,
 		if targetIdent.Name == types.MathGroup {
 			return in.callMath(ctx, fa, args, env)
 		}
+		if targetIdent.Name == types.CryptoGroup {
+			return in.callCrypto(ctx, fa, args, env)
+		}
 		sc := in.scope(ctx)
 		if g, gsc, isFormulas := in.formulasGroup(sc, targetIdent.Name); isFormulas {
 			return in.callFormula(ctx, g, gsc, targetIdent.Name, fa.Field, args, env)

@@ -33,9 +33,12 @@ doesn't have to discover them.
 - **One content type per route**, and no `Accept` negotiation (ADR 0069
   open question 4). A non-JSON body is a `string` or `bytes` the program
   parses or writes itself; there's no XML library (open question 5).
-- **No signed cookies or password hashing:** fiig has no hash functions
-  yet, so a session cookie should carry a random token the service looks
-  up (ADR 0069 §4), and `examples/accounts` stores its keys as given.
+- **SHA-256 is the only hash** (ADR 0075 §6): no SHA-1 or SHA-512 HMACs
+  (Twilio signs with SHA-1), no encryption, no public-key signatures (so
+  no RS256 JWTs), and no HKDF. A `Secret` can't be read as base64 or hex
+  outside a gateway, as Standard Webhooks' `whsec_` secrets need.
+- **`crypto.equal` isn't enforced:** comparing a signature with `==` checks
+  clean and leaks timing (ADR 0075 §3).
 - **`GenerateOpenAPI` isn't on the command line.** The adapter package
   builds the document; no `fiig` command prints it yet.
 - **Two enums with a variant name in common, in one union in a body**

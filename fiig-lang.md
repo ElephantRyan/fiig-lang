@@ -596,10 +596,15 @@ Need an ADR first, in build order:
    `send`, statuses as data, no redirects followed, a whole-exchange
    timeout (`Socket` deadlines and `SocketError.TimedOut`), and
    `examples/inbox-sender`.
-8a. Hashing and HMAC: SHA-256 and `hmacSha256` taking a `Secret` key
-   (ADR 0071 §4), for webhook signatures, signed cookies, and stored
-   random keys; plus a deliberately slow password hash (Argon2id or
-   scrypt) if accounts store passwords (owner's decision 2026-11-07).
+8a. ~~Hashing and HMAC, and a slow password hash.~~ Done 2026-11-11, ADR
+   0075: a prelude `crypto` group with `sha256`, `hmacSha256` (a `Secret`
+   or `bytes` key), a constant-time `equal`, and Argon2id
+   `hashPassword`/`passwordMatches`; `examples/accounts` now stores
+   hashes.
+8a2. Request limits in `fiig serve`: a request body read whole with no
+   size limit, no limit on requests at once, and no deadline per request
+   (found from ADR 0075's open question 5; owner asked to fix it). Drafted
+   as ADR 0076 (Proposed, 2026-11-11).
 8b. A JSON request body read raw: a route that consumes
    `application/json` binding `bytes`, so a webhook's signature can be
    checked over the bytes before `json.decode` (with 8a; known

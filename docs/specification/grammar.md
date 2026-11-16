@@ -297,9 +297,9 @@ block; one without is K5. Attested: `customer-service/formulas/text.fiig`,
 called from `customer-service/rules/validate_email.fiig`, and
 `order-processing/formulas/shipping.fiig`.
 
-The prelude `math` group (ADR 0049 §2.4) is the one group every file sees
-without a `use`, so no import alias, parameter, or binding may be named
-`math` (G4). It has no source. Its formulas are native and listed in
+The prelude `math` group (ADR 0049 §2.4), like `json` (ADR 0073) and
+`crypto` (below), is a group every file sees without a `use`, so no import
+alias, parameter, or binding may be named `math` (G4). It has no source. Its formulas are native and listed in
 `compiler/types/math.go`: the crossings `toFloat`, `toDecimal`, and
 `floorToInt`, `ceilToInt`, `truncToInt`, `roundToInt`, `roundHalfEvenToInt`;
 `floor`, `ceil`, `round`, `trunc`, `sqrt`, `exp`, `log`, `log10`, the
@@ -316,6 +316,21 @@ constants `pi`, `tau`, `e`, `minInt`, `maxInt`, and
 `maxFloat` are written `math.pi`, without parentheses. They are untyped
 constants (§2.7), so `math.pi * 2` folds exactly and `math.maxInt + 1` is a
 compile error.
+
+The prelude `crypto` group (ADR 0075) is listed in
+`compiler/types/crypto.go`. It takes and returns `bytes`, never `string`:
+`sha256(data)`; `hmacSha256(key: Secret | bytes, data)`, whose `Secret` key
+is its value's UTF-8; `equal(a, b)`, which compares in time that depends
+only on the lengths, for a signature (`==` stops at the first differing
+byte); `hashPassword(password: string) -> string`, Argon2id at 19 MiB, 2
+passes, 1 lane, written as a PHC string (`$argon2id$v=19$m=19456,t=2,p=1$...`);
+and `passwordMatches(password, stored) -> bool`, which reads the parameters
+from `stored` and faults on one that isn't such a string or asks for more
+than 1 GiB, 10 passes, or 16 lanes. Every member is pure but
+`hashPassword`, whose salt comes from the `Random` provider: like `Random`,
+only an activity or a gateway may call it (B10). Attested:
+`accounts/gateways/` (`add_account.fiig`, `find_account_by_key.fiig`) and
+`accounts/conversions/token_hash.fiig`.
 
 `interface-decl` and `capability-decl` are ADR 0043's. An interface lists the
 operations a capability group must have to fulfill it; its name is a type,
