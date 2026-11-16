@@ -144,10 +144,9 @@ or "too many arguments" already get.
   reference-counted in-place reuse (§3) is ever implemented, it stays a
   Milestone 4 runtime/backend technique, invisible to Fiig source — not a
   future extension of this document's scope.
-- **Model invariants** (§3.5's "stable, pure, context-independent
-  invariants may be declared on models") aren't implemented at all yet,
-  for `copy`-produced values or any other construction — not a gap this
-  document introduces, just not yet built, uniformly.
+- **Model invariants** don't exist, for `copy`-produced values or any other
+  construction: ADR 0083 decided a model declares none, and a rule makes
+  the valid model instead.
 
 ## 6. Consequences
 

@@ -221,6 +221,8 @@ worth naming so they aren't mistaken for missing catalog entries:
 - **Prefer separate lifecycle models over temporarily-invalid objects**
   (§3.5, e.g. `NewCustomer` vs. `Customer`) — a style guideline, not a
   checkable property; nothing stops a developer from modeling it differently.
+  Likewise ADR 0083's rule that makes the valid model
+  (`createValidRating`): any code may still construct a `Rating` directly.
 - **Failure after an earlier commit requires explicit compensation, not
   rollback** (§3.8) — the *language* can make compensation easy to write
   (`place_and_ship_order.fiig`), but whether a given compensation is

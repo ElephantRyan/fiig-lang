@@ -71,17 +71,17 @@ rating for nope"` with status 404, the mapping written in
 ## 5. See an error
 
 In `activities/record_rating.fiig`, delete the `?` after
-`validateRating(input)`, then check again:
+`createValidRating(input)`, then check again:
 
 ```
 fiig check .
 ```
 
 ```
-activities/record_rating.fiig:4:23: [A1] type mismatch: got Result<NewRating, RatingError>, expected NewRating
+activities/record_rating.fiig:4:26: [A1] type mismatch: got Result<Rating, RatingError>, expected Rating
 ```
 
-`validateRating` can fail, and the program no longer says what happens
+`createValidRating` can fail, and the program no longer says what happens
 when it does, so it doesn't compile. Every diagnostic carries a bug-class
 code; `docs/specification/bug-classes.md` lists them, and
 `examples/invalid-programs` holds a program for each. Put the `?` back.

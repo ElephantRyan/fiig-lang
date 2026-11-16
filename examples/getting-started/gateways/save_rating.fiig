@@ -1,11 +1,12 @@
-gateway saveRating(input: NewRating) -> Result<Rating, RatingError>
+// Takes a Rating, the validated form, which createValidRating makes.
+gateway saveRating(rating: Rating) -> Rating
     requires Database
 {
     Database.execute(
         "INSERT INTO ratings (item, score, note) VALUES (?, ?, ?) ON CONFLICT (item) DO UPDATE SET score = excluded.score, note = excluded.note",
-        input.item,
-        input.score,
-        input.note,
+        rating.item,
+        rating.score,
+        rating.note,
     )
-    return Ok(Rating(item: input.item, score: input.score, note: input.note))
+    return rating
 }

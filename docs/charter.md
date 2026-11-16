@@ -38,7 +38,7 @@ Full rules are in language.md §3; this is the index a reader should recognize b
 1. **Semantic declarations** — Model, Rule, Conversion, Activity, Gateway, Workflow, Adapter, each with a fixed responsibility and fixed calling rules.
 2. **Strong static typing** — nominal models, no implicit conversions, no unchecked `Any`.
 3. **No null** — absence is `T | None`, always explicit.
-4. **Immutable models with declared invariants** — validation that needs I/O lives in rules/gateways, not models.
+4. **Immutable models; validation in rules** — a model is the shape of data and declares no checks; a rule makes the valid model from the input model, and validation that needs I/O lives in gateways (ADR 0083).
 5. **Typed errors, untyped faults** — expected failures are `Result<T, E>`; defects cancel and roll back, they don't propagate as unchecked exceptions.
 6. **Structured concurrency by default** — bounded, cancellable, budgeted, with per-item failures preserved rather than aborting a whole batch.
 7. **Explicit transactions** — only `transaction` blocks create a transaction; no implicit reads, no nested transactions, no network calls inside one.
