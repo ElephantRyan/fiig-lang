@@ -1,6 +1,7 @@
 package adapter
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,12 +20,20 @@ import (
 // grammar's own placeholder syntax (grammar.md's own note: chosen to
 // match OpenAPI's path-templating ahead of Milestone 5), so a route's path
 // string needs no translation at all — it's passed straight through as
-// the mux pattern.
+// the mux pattern. It serves under DefaultLimits.
 func HTTPHandler(d *syntax.AdapterDecl, u *types.Universe, in *runtime.Interp) (http.Handler, error) {
+	return HTTPHandlerWithLimits(d, u, in, DefaultLimits())
+}
+
+// HTTPHandlerWithLimits is HTTPHandler under l (ADR 0076), shared by every
+// route. The limits wrap each route, not the mux, so a CORS preflight or a
+// 404 takes no slot (§2).
+func HTTPHandlerWithLimits(d *syntax.AdapterDecl, u *types.Universe, in *runtime.Interp, l Limits) (http.Handler, error) {
 	if d.Kind != syntax.AdapterHTTP {
 		return nil, fmt.Errorf("adapter %q is not an http adapter", d.Name)
 	}
 	mux := http.NewServeMux()
+	lim := newLimiter(l)
 	for _, route := range d.Routes {
 		route := route
 		plan, err := planRoute(route, true, u)
@@ -33,12 +42,12 @@ func HTTPHandler(d *syntax.AdapterDecl, u *types.Universe, in *runtime.Interp) (
 		}
 		pathPart, _, _ := strings.Cut(route.Path, "?")
 		pattern := route.Verb + " " + pathPart
-		mux.HandleFunc(pattern, httpRouteHandler(route, plan, u, in))
+		mux.HandleFunc(pattern, lim.wrap(httpRouteHandler(route, plan, u, in, lim)))
 	}
 	return mux, nil
 }
 
-func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in *runtime.Interp) http.HandlerFunc {
+func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in *runtime.Interp, lim *limiter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		req := request{
 			path: func(name string) (string, bool) {
@@ -81,23 +90,19 @@ func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in
 				return
 			}
 			req.bodyIsJSON = httpspec.IsJSON(consumes)
+			raw, err := io.ReadAll(r.Body)
+			if err != nil {
+				lim.bodyError(w, r, err)
+				return
+			}
 			if req.bodyIsJSON {
-				data, err := io.ReadAll(r.Body)
-				var parsed any
-				if err == nil {
-					parsed, err = runtime.ReadJSON(data)
-				}
+				parsed, err := runtime.ReadJSON(raw)
 				if err != nil {
 					writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("invalid request body: %v", err)})
 					return
 				}
 				req.bodyJSON = parsed
 			} else {
-				raw, err := io.ReadAll(r.Body)
-				if err != nil {
-					writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("invalid request body: %v", err)})
-					return
-				}
 				req.bodyRaw = raw
 			}
 		}
@@ -108,6 +113,10 @@ func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in
 			return
 		}
 		resp, fault := callRoute(r.Context(), in, route, args)
+		if fault != nil && r.Context().Err() == context.DeadlineExceeded {
+			lim.timedOut(w) // the program did nothing wrong (ADR 0076 §3)
+			return
+		}
 		if fault != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"fault": fault.String()})
 			return

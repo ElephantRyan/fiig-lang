@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 
@@ -36,6 +37,23 @@ const (
 	maxArgonPasses    = 10
 	maxArgonLanes     = 16
 )
+
+// hashSlots bounds the Argon2id runs at once to one per CPU (ADR 0076 §4):
+// it is all CPU, so more at once finishes none sooner and only multiplies
+// the memory. Shared by the process, so fiig run and tests are bounded too.
+var hashSlots = make(chan struct{}, goruntime.GOMAXPROCS(0))
+
+// argonKey is argon2.IDKey in one of hashSlots, waiting for one while the
+// call's deadline allows.
+func argonKey(ctx context.Context, password string, salt []byte, passes, memory uint32, lanes uint8, keyLen uint32) ([]byte, *Fault) {
+	select {
+	case hashSlots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, Faultf("cancelled: %v", ctx.Err())
+	}
+	defer func() { <-hashSlots }()
+	return argon2.IDKey([]byte(password), salt, passes, memory, lanes, keyLen), nil
+}
 
 type cryptoFunc func(ctx context.Context, in *Interp, args []Value) (Value, *Fault)
 
@@ -69,15 +87,21 @@ var cryptoFormulas = map[string]cryptoFunc{
 			return nil, f
 		}
 		salt := v.(Bytes).B
-		hash := argon2.IDKey([]byte(string(args[0].(Str))), salt, argonPasses, argonMemoryKiB, argonLanes, argonHashLen)
+		hash, f := argonKey(ctx, string(args[0].(Str)), salt, argonPasses, argonMemoryKiB, argonLanes, argonHashLen)
+		if f != nil {
+			return nil, f
+		}
 		return Str(phcString(argonMemoryKiB, argonPasses, argonLanes, salt, hash)), nil
 	},
-	"passwordMatches": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
+	"passwordMatches": func(ctx context.Context, _ *Interp, args []Value) (Value, *Fault) {
 		stored, err := parsePHC(string(args[1].(Str)))
 		if err != nil {
 			return nil, Faultf("crypto.passwordMatches: the stored hash %s (ADR 0075 §5)", err)
 		}
-		got := argon2.IDKey([]byte(string(args[0].(Str))), stored.salt, stored.passes, stored.memory, stored.lanes, uint32(len(stored.hash)))
+		got, f := argonKey(ctx, string(args[0].(Str)), stored.salt, stored.passes, stored.memory, stored.lanes, uint32(len(stored.hash)))
+		if f != nil {
+			return nil, f
+		}
 		return Bool(subtle.ConstantTimeCompare(got, stored.hash) == 1), nil
 	},
 }

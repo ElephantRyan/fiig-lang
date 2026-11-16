@@ -22,6 +22,9 @@ ACCOUNTS_EXPORT_TOKEN  Secret   required        config Sessions.exportToken
 SESSION_MAX_AGE        int      = 24 * 60 * 60  config Sessions.maxAge
 ALLOW_ORIGINS          origins  optional        fiig serve: browser origins allowed to call it (ADR 0070)
 LISTEN_ADDR            address  = :8080         fiig serve
+MAX_BODY_BYTES         int      = 2097152       fiig serve: the most bytes a request body may have (ADR 0076)
+MAX_REQUESTS           int      = 256           fiig serve: requests run at once, as many more waiting (ADR 0076)
+REQUEST_TIMEOUT        duration = 30s           fiig serve: how long a request may run (ADR 0076)
 ```
 
 `fiig serve` and `fiig run` read every value the entry point can reach
@@ -70,8 +73,9 @@ not the file:
 }
 ```
 
-`-addr` defaults to `$LISTEN_ADDR`, then `:8080`, and `-allow-origin` to
-`$ALLOW_ORIGINS`; both read the same lookup. SIGINT or SIGTERM stops
+`-addr` defaults to `$LISTEN_ADDR`, then `:8080`, `-allow-origin` to
+`$ALLOW_ORIGINS`, and the request limits to theirs (see below); all read
+the same lookup. SIGINT or SIGTERM stops
 accepting connections and gives in-flight requests `-shutdown` (10s) to
 finish.
 
@@ -149,7 +153,35 @@ site (`app.example.com` and `api.example.com`): a cookie's default
 `sameSite: SameSite.AnySite`, and browsers increasingly block such
 cookies anyway, so use a bearer token in `Authorization` there.
 
+## Request limits
+
+`fiig serve` bounds what clients can make it hold (ADR 0076). Every limit
+is on by default; raise or lower each with its variable or flag:
+
+| Limit | Variable | Flag | Default | Past it |
+|---|---|---|---|---|
+| Request body | `MAX_BODY_BYTES` | `-max-body` | 2 MiB | 413 |
+| Requests running at once | `MAX_REQUESTS` | `-max-requests` | 256 | wait, then 503 |
+| Time per request | `REQUEST_TIMEOUT` | `-request-timeout` | 30s | 503 |
+
+- A body whose `Content-Length` is over the limit is refused before any
+  of it is read; a chunked one at the byte that passes it.
+- A request arriving when `MAX_REQUESTS` are running waits up to 5 s for
+  one to finish. At most `MAX_REQUESTS` wait; past that, and past the 5 s,
+  the answer is 503 with `Retry-After: 1`. CORS preflights don't count.
+- The time limit starts when a request starts running and covers reading
+  its body, its workflow, and every `Socket` call in it. A body sent
+  slowly is cut off at it.
+- The request line and headers are at most 64 KiB (431 past it), and at
+  most one `crypto.hashPassword` or `crypto.passwordMatches` per CPU runs
+  at once; neither has a setting.
+- Every refusal's body names the variable to raise.
+
+At the defaults, request bodies hold at most 512 MiB and password hashes
+19 MiB per CPU. Size `MAX_REQUESTS` and `MAX_BODY_BYTES` to the
+container's memory, and put per-client rate limits in the proxy in
+front.
+
 ## Not yet
 
-- Enum and `Result` values in an HTTP body are still written in the tagged
-  form `run-cli -json` uses; a model is a plain object.
+See [known limitations](known-limitations.md).

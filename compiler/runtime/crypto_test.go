@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/argon2"
 
@@ -170,5 +171,29 @@ func TestPasswordMatchesRefusals(t *testing.T) {
 		if fault == nil || !strings.Contains(fault.Error(), fragment) || !strings.Contains(fault.Error(), "the stored hash") {
 			t.Errorf("passwordMatches(%q): fault = %v, want one containing %q", stored, fault, fragment)
 		}
+	}
+}
+
+// ADR 0076 §4: with every hash slot taken, a hash waits for one, and stops
+// at the call's deadline rather than running.
+func TestPasswordHashesWaitForASlot(t *testing.T) {
+	in := cryptoInterp(t, 1)
+	for i := 0; i < cap(hashSlots); i++ {
+		hashSlots <- struct{}{}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, fault := in.Call(ctx, "hash", map[string]Value{"password": Str("pw")})
+	if fault == nil || !strings.Contains(fault.String(), "cancelled") {
+		t.Errorf("with every slot taken: got fault %v, want cancelled at the deadline", fault)
+	}
+	done := make(chan Value)
+	go func() { done <- callOK(t, in, "hash", map[string]Value{"password": Str("pw")}) }()
+	<-hashSlots // one frees, and the waiting hash takes it
+	if v := <-done; !strings.HasPrefix(string(v.(Str)), "$argon2id$") {
+		t.Errorf("got %v", v)
+	}
+	for i := 1; i < cap(hashSlots); i++ {
+		<-hashSlots
 	}
 }

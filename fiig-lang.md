@@ -601,10 +601,12 @@ Need an ADR first, in build order:
    or `bytes` key), a constant-time `equal`, and Argon2id
    `hashPassword`/`passwordMatches`; `examples/accounts` now stores
    hashes.
-8a2. Request limits in `fiig serve`: a request body read whole with no
-   size limit, no limit on requests at once, and no deadline per request
-   (found from ADR 0075's open question 5; owner asked to fix it). Drafted
-   as ADR 0076 (Proposed, 2026-11-11).
+8a2. ~~Request limits in `fiig serve`.~~ Done 2026-11-15, ADR 0076: a
+   2 MiB body (413), 256 requests at once with as many waiting up to 5 s
+   (503), a 30 s deadline per request on the workflow and the connection
+   (503), 64 KiB of headers (431), and one password hash per CPU; set by
+   `MAX_BODY_BYTES`, `MAX_REQUESTS`, `REQUEST_TIMEOUT`. No corpus file:
+   nothing in the language changed; `docs/deploying.md` documents it.
 8b. A JSON request body read raw: a route that consumes
    `application/json` binding `bytes`, so a webhook's signature can be
    checked over the bytes before `json.decode` (with 8a; known
