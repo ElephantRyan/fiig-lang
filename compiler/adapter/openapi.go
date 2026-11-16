@@ -56,7 +56,7 @@ func GenerateOpenAPI(d *syntax.AdapterDecl, u *types.Universe) (map[string]any, 
 }
 
 func buildOperation(route *syntax.Route, u *types.Universe) (map[string]any, error) {
-	plan, err := planRoute(route, true, u)
+	plan, err := planRoute(route, true, u, nil)
 	if err != nil {
 		return nil, err
 	}

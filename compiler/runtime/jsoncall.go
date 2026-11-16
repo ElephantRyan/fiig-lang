@@ -59,6 +59,19 @@ func (in *Interp) callJson(ctx context.Context, e *syntax.CallExpr, member strin
 	return nil, false, Faultf("the prelude json group has no member %q", member)
 }
 
+// ParamType resolves one of d's parameter types where d is declared: its
+// package and its file's imports, as the checker did. compiler/adapter
+// plans a route with it, so a body typed `kernel.Money` binds.
+func (in *Interp) ParamType(d syntax.Decl, t syntax.Type) (types.Type, bool) {
+	return in.fieldType(d, t)
+}
+
+// DecodeBodyJSON is DecodeJSON for a request body, each model's fields
+// resolved in the package that declares it, as json.decode does.
+func (in *Interp) DecodeBodyJSON(raw any, t types.Type) (Value, error) {
+	return decodeJSON(raw, t, in.fieldType, "")
+}
+
 // fieldType resolves a field's type in the package that declares owner,
 // so a model from a dependency decodes by that dependency's names.
 func (in *Interp) fieldType(owner syntax.Decl, t syntax.Type) (types.Type, bool) {

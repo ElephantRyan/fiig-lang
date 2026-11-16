@@ -189,11 +189,14 @@ func gatewayCapabilities(files []*syntax.File, deps map[string]string) []string 
 			if n := len(imp.Path); n >= 2 {
 				_, isPackage := deps[strings.Join(imp.Path, ".")]
 				_, parentIsPackage := deps[strings.Join(imp.Path[:n-1], ".")]
-				if !isPackage && parentIsPackage {
-					alias := imp.Alias
-					if alias == "" {
-						alias = imp.Path[n-1]
-					}
+				alias := imp.Alias
+				if alias == "" {
+					alias = imp.Path[n-1]
+				}
+				// A required package is a domain the gateway calls into (ADR
+				// 0079 §1), not a capability; what it reaches is collected in
+				// its own lockfile entry, like a group's.
+				if isPackage || (!isPackage && parentIsPackage) {
 					groups[alias] = true
 				}
 			}

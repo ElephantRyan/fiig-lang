@@ -88,26 +88,35 @@ func ParseOrigins(values []string) (*CORS, error) {
 // returns it unchanged when c is nil. It refuses `*` for an adapter whose
 // routes read a cookie (§3), since a browser never sends one to it.
 func WithCORS(h http.Handler, d *syntax.AdapterDecl, c *CORS) (http.Handler, error) {
+	return WithCORSFor(h, []Served{{Decl: d}}, c)
+}
+
+// WithCORSFor is WithCORS for every adapter a listener serves (ADR 0079
+// §6): one policy, a preflight answering with the methods of all of
+// them, and the cookie refusal checked per adapter.
+func WithCORSFor(h http.Handler, adapters []Served, c *CORS) (http.Handler, error) {
 	if c == nil {
 		return h, nil
 	}
 	mux, ok := h.(*http.ServeMux)
 	if !ok {
-		return nil, fmt.Errorf("adapter %q: CORS wraps the handler HTTPHandler built", d.Name)
+		return nil, fmt.Errorf("CORS wraps the handler HTTPHandler built")
 	}
 	var verbs []string
 	seen := map[string]bool{}
-	for _, route := range d.Routes {
-		if c.any {
-			for _, a := range route.Args {
-				if a.Source == "cookie" {
-					return nil, fmt.Errorf("allowed origin * can't serve adapter %q: route %s %q reads cookie %q, and browsers never send cookies to a * policy; list the origins instead", d.Name, route.Verb, route.Path, a.SourceName)
+	for _, served := range adapters {
+		for _, route := range served.Decl.Routes {
+			if c.any {
+				for _, a := range route.Args {
+					if a.Source == "cookie" {
+						return nil, fmt.Errorf("allowed origin * can't serve adapter %q: route %s %q reads cookie %q, and browsers never send cookies to a * policy; list the origins instead", served.Name(), route.Verb, route.Path, a.SourceName)
+					}
 				}
 			}
-		}
-		if !seen[route.Verb] {
-			seen[route.Verb] = true
-			verbs = append(verbs, route.Verb)
+			if !seen[route.Verb] {
+				seen[route.Verb] = true
+				verbs = append(verbs, route.Verb)
+			}
 		}
 	}
 	return &corsHandler{mux: mux, policy: c, verbs: verbs}, nil

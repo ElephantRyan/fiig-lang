@@ -27,7 +27,7 @@ func Dispatch(ctx context.Context, d *syntax.AdapterDecl, u *types.Universe, in 
 		if !ok {
 			continue
 		}
-		plan, err := planRoute(route, false, u)
+		plan, err := planRoute(route, false, u, in)
 		if err != nil {
 			return Response{}, err
 		}
@@ -36,7 +36,7 @@ func Dispatch(ctx context.Context, d *syntax.AdapterDecl, u *types.Universe, in 
 			return v, ok
 		}
 		req := request{path: pathVal, query: noValues, header: noValues, cookie: noValues}
-		routeArgs, err := buildArgs(route, plan, req, u)
+		routeArgs, err := buildArgs(route, plan, req, u, in)
 		if err != nil {
 			return Response{}, err
 		}

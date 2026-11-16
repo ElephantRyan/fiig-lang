@@ -1,0 +1,17 @@
+use shop.kernel
+
+// Payments' behaviour, reached by its own adapter and, from another
+// domain, by a gateway that requires shop.payments (ADR 0079 §1).
+workflow capturePayment(reference: string, amount: kernel.Money) -> Result<Receipt, PaymentError> {
+    if amount.amount <= 0 {
+        return Err(PaymentError.InvalidAmount)
+    }
+    if amount.amount > 1000 {
+        return Err(PaymentError.Declined(reason: "over the limit for one payment"))
+    }
+    id = "pay-${reference}"
+    recordCharge(id: id, reference: reference, charged: amount)
+    return Ok(
+        Receipt(id: id, reference: reference, charged: amount, refundable: isRefundable(amount)),
+    )
+}

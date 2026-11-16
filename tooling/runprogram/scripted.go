@@ -125,21 +125,54 @@ func LoadCapabilitiesFileWith(path string, extraFactories runtime.FactoryRegistr
 	if !ok {
 		return nil, nil, fmt.Errorf("capabilities file must be a JSON object")
 	}
-	config := make(map[string]map[string]any, len(top))
-	for capability, v := range top {
-		cfg, ok := v.(map[string]any)
-		if !ok {
-			return nil, nil, fmt.Errorf("capability %q must be a JSON object", capability)
-		}
-		config[capability] = cfg
-	}
-
 	factories := runtime.FactoryRegistry{"scripted": ScriptedFactory, "socket": SocketFactory, "socket-script": SocketScriptFactory, "random-seeded": RandomSeededFactory}
 	for name, f := range extraFactories {
 		factories[name] = f
 	}
+	// "packages" binds capabilities for one package's workflows (ADR 0079
+	// §6a): package path -> the same shape as the file's top level.
+	if v, has := top["packages"]; has {
+		delete(top, "packages")
+		perPackage, ok := v.(map[string]any)
+		if !ok {
+			return nil, nil, fmt.Errorf("packages must be a JSON object of package path to capabilities")
+		}
+		for path, v := range perPackage {
+			caps, ok := v.(map[string]any)
+			if !ok {
+				return nil, nil, fmt.Errorf("packages.%s must be a JSON object of capabilities", path)
+			}
+			providers, err := buildProviders(caps, factories, "packages."+path+".")
+			if err != nil {
+				return nil, nil, err
+			}
+			for capability, p := range providers {
+				reg.RegisterFor(path, capability, p)
+			}
+		}
+	}
+	providers, err := buildProviders(top, factories, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	for capability, p := range providers {
+		reg.Register(capability, p)
+	}
+	return reg, nil, nil
+}
+
+// buildProviders builds one capability -> configuration object: a "type"
+// picks a factory (ADR 0027), and a map without one is the legacy flat
+// form of method -> scripted responses. prefix names where the object is,
+// for errors.
+func buildProviders(top map[string]any, factories runtime.FactoryRegistry, prefix string) (map[string]runtime.CapabilityProvider, error) {
+	out := map[string]runtime.CapabilityProvider{}
 	declarative := map[string]map[string]any{}
-	for capability, cfg := range config {
+	for capability, v := range top {
+		cfg, ok := v.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("capability %q must be a JSON object", prefix+capability)
+		}
 		if _, hasType := cfg["type"]; hasType {
 			declarative[capability] = cfg
 			continue
@@ -149,24 +182,24 @@ func LoadCapabilitiesFileWith(path string, extraFactories runtime.FactoryRegistr
 		for method, v := range cfg {
 			list, ok := v.([]any)
 			if !ok {
-				return nil, nil, fmt.Errorf("%s.%s must be a JSON array", capability, method)
+				return nil, fmt.Errorf("%s%s.%s must be a JSON array", prefix, capability, method)
 			}
 			responses[method] = list
 		}
-		reg.Register(capability, &ScriptedCapability{responses: responses, calls: map[string]int{}})
+		out[capability] = &ScriptedCapability{responses: responses, calls: map[string]int{}}
 	}
 	if len(declarative) == 0 {
-		return reg, nil, nil
+		return out, nil
 	}
 	declReg, err := runtime.LoadCapabilities(declarative, factories)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	for capability := range declarative {
 		p, _ := declReg.Lookup(capability)
-		reg.Register(capability, p)
+		out[capability] = p
 	}
-	return reg, nil, nil
+	return out, nil
 }
 
 // envRef is `${NAME}` inside a capabilities file's string.

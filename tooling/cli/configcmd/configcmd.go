@@ -12,6 +12,7 @@
 package configcmd
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -99,6 +100,28 @@ func Main(name string, args []string) {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", v.Name, v.Type, v.Requirement, v.Where)
 	}
 	w.Flush()
+
+	// Where each domain's capabilities come from (ADR 0079 §6a), so one
+	// sharing the application's database shows before it's deployed.
+	own, err := runprogram.CapsPackages(*capsPath)
+	if err != nil {
+		fail(fmt.Errorf("-caps: %w", err))
+	}
+	var ownPaths []string
+	for path := range own {
+		ownPaths = append(ownPaths, path)
+	}
+	if problems := runprogram.UnknownPackages(ownPaths, packages); len(problems) > 0 {
+		fail(errors.New(strings.Join(problems, "; ")))
+	}
+	bindings := runprogram.Bindings(packages, func(path, capability string) bool { return own[path][capability] }, ownPaths)
+	if len(bindings) > 0 {
+		fmt.Println()
+		fmt.Println("capability bindings:")
+		for _, b := range bindings {
+			fmt.Println("  " + b)
+		}
+	}
 }
 
 func fail(err error) {

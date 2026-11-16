@@ -1,0 +1,10 @@
+// Orders' errors for a charge. Declined and InvalidAmount mirror
+// Payments' variants, so after the split the gateway decodes Payments'
+// error body straight into this enum (ADR 0072). Unavailable is the
+// network's; in one process it never happens, and callers handle it
+// anyway, because the seam looks remote from the start (ADR 0079 §3).
+enum ChargeError {
+    Declined(reason: string)
+    InvalidAmount
+    Unavailable(detail: string)
+}

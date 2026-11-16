@@ -1,6 +1,9 @@
 package runtime
 
-import "context"
+import (
+	"context"
+	"sort"
+)
 
 // Role, per ADR 0042: the native floor is the closed primitive set in
 // compiler/capability (Socket, Clock, FileSystem, Random; ADR 0060 folded
@@ -25,24 +28,64 @@ type CapabilityProvider interface {
 }
 
 // CapabilityRegistry maps a capability name (`Database`, `EmailSender`, ...)
-// to the provider backing it for one interpreter run.
+// to the provider backing it for one interpreter run: one for the
+// process, and optionally one per package (ADR 0079 §6a), used while that
+// package's workflow runs.
 type CapabilityRegistry struct {
 	providers map[string]CapabilityProvider
+	packages  map[string]map[string]CapabilityProvider
 }
 
 func NewCapabilityRegistry() *CapabilityRegistry {
-	return &CapabilityRegistry{providers: map[string]CapabilityProvider{}}
+	return &CapabilityRegistry{providers: map[string]CapabilityProvider{}, packages: map[string]map[string]CapabilityProvider{}}
 }
 
-// Register installs provider as the backing for capability.
+// Register installs provider as the process-wide backing for capability.
 func (r *CapabilityRegistry) Register(capability string, provider CapabilityProvider) {
 	r.providers[capability] = provider
 }
 
-// Lookup returns the provider registered for capability, if any —
-// transaction.go uses this to find a TransactionalProvider to Begin against
-// when entering a `transaction Capability { ... }` block.
+// RegisterFor installs provider as capability's backing while a workflow
+// of the package at path runs (ADR 0079 §6a).
+func (r *CapabilityRegistry) RegisterFor(path, capability string, provider CapabilityProvider) {
+	if r.packages[path] == nil {
+		r.packages[path] = map[string]CapabilityProvider{}
+	}
+	r.packages[path][capability] = provider
+}
+
+// BoundFor reports whether the package at path has its own binding for
+// capability, rather than the process-wide one.
+func (r *CapabilityRegistry) BoundFor(path, capability string) bool {
+	_, ok := r.packages[path][capability]
+	return ok
+}
+
+// Packages is every package path with a binding of its own.
+func (r *CapabilityRegistry) Packages() []string {
+	out := make([]string, 0, len(r.packages))
+	for path := range r.packages {
+		out = append(out, path)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Lookup returns the process-wide provider registered for capability, if
+// any.
 func (r *CapabilityRegistry) Lookup(capability string) (CapabilityProvider, bool) {
+	p, ok := r.providers[capability]
+	return p, ok
+}
+
+// LookupIn returns the provider for capability in ctx's domain (ADR 0079
+// §6a): the running package's own, else the process-wide one —
+// transaction.go uses this to find a TransactionalProvider to Begin
+// against when entering a `transaction Capability { ... }` block.
+func (r *CapabilityRegistry) LookupIn(ctx context.Context, capability string) (CapabilityProvider, bool) {
+	if p, ok := r.packages[Domain(ctx)][capability]; ok {
+		return p, true
+	}
 	p, ok := r.providers[capability]
 	return p, ok
 }
@@ -53,11 +96,26 @@ func (r *CapabilityRegistry) Lookup(capability string) (CapabilityProvider, bool
 // checker has no way to catch (it treats every capability call as
 // deliberately unmodeled, compiler/checker/checker.go's own doc comment).
 func (r *CapabilityRegistry) Call(ctx context.Context, capability, method string, args []Value) (Value, *Fault) {
-	p, ok := r.providers[capability]
+	p, ok := r.LookupIn(ctx, capability)
 	if !ok {
 		return nil, Faultf("no provider registered for capability %q", capability)
 	}
 	return p.Call(ctx, method, args)
+}
+
+type domainKey struct{}
+
+// WithDomain marks ctx as running for the package at path: its workflow
+// was entered by an adapter route or a gateway (ADR 0079 §6a). "" is the
+// root package, which uses the process-wide bindings.
+func WithDomain(ctx context.Context, path string) context.Context {
+	return context.WithValue(ctx, domainKey{}, path)
+}
+
+// Domain is the package ctx is running for, "" for the root.
+func Domain(ctx context.Context) string {
+	d, _ := ctx.Value(domainKey{}).(string)
+	return d
 }
 
 // FuncProvider is a CapabilityProvider backed by plain Go functions — the

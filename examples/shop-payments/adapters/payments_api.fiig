@@ -1,0 +1,15 @@
+use shop.kernel
+
+// ADR 0079 §6: served beside Orders' adapter in the monolith
+// (fiig serve shop-orders ordersApi shop.payments.paymentsApi), and on its
+// own once split out (fiig serve shop-payments paymentsApi). Its routes
+// are under /payments, so they don't move when it does.
+adapter http paymentsApi {
+    POST "/payments/{reference}" -> capturePayment(reference: string, amount: kernel.Money)
+        consumes "application/json"
+        produces "application/json"
+    {
+        Ok(receipt) -> 200 receipt
+        Err(error) -> 422 error
+    }
+}

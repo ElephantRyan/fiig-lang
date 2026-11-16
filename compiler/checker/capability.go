@@ -211,7 +211,8 @@ func (c *checker) groupValue(name string) (types.Type, bool) {
 
 // checkRequires checks that a gateway's `requires` names a capability: a
 // primitive, a capability group, or (until ADR 0042's grandfather list
-// empties) a host-backed capability the loader vets. A package alias or a
+// empties) a host-backed capability the loader vets; or an imported
+// package, whose workflows the gateway may then call (ADR 0079 §1). A
 // declaration of another kind is not one.
 func (c *checker) checkRequires(g *syntax.GatewayDecl) {
 	name := g.Requires
@@ -229,8 +230,10 @@ func (c *checker) checkRequires(g *syntax.GatewayDecl) {
 		return
 	}
 	if _, ok := c.imports[name]; ok {
-		c.report(g.Start, "", "gateway %q requires %q, which is a package, not a capability; import the capability group it needs (use path.GroupName)", g.Name, name)
 		return
+	}
+	if imp, ok := c.aliases[name]; ok && !isUpper(name) && imp != nil {
+		return // a package not loaded in this run; its workflows are unchecked here
 	}
 	if d, found := c.lookup(name); found {
 		if _, ok := d.(*syntax.CapabilityDecl); !ok {

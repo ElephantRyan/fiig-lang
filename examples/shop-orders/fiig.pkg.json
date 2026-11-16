@@ -1,0 +1,11 @@
+{
+    "path": "shop.orders",
+    "kind": "application",
+    "version": "1.0.0",
+    "dependencies": {
+        "shop.kernel": "1.0.0",
+        "shop.payments": "1.0.0"
+    },
+    "capabilities": ["Database"],
+    "nativeCapabilities": ["Database"]
+}

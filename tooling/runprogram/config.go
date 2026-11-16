@@ -107,10 +107,33 @@ type configScope struct {
 // through Stripe or Square needs both keys. entries are root declarations
 // by name; an adapter's entry reaches its routes' workflows and mappings.
 func ReachableConfig(p Program, entries []string) []runtime.ConfigSource {
+	list := make([]Entry, len(entries))
+	for i, name := range entries {
+		list[i] = Entry{Name: name}
+	}
+	return ReachableConfigFrom(p, list)
+}
+
+// Entry is a declaration ReachableConfigFrom starts from: by name in the
+// root, or in Package, a dependency whose adapter is served (ADR 0079 §6).
+type Entry struct {
+	Package *types.Package
+	Name    string
+}
+
+// ReachableConfigFrom is ReachableConfig from entries in the root and its
+// dependencies, so one report covers every adapter a process serves.
+func ReachableConfigFrom(p Program, entries []Entry) []runtime.ConfigSource {
 	w := &walker{program: p, seen: map[syntax.Decl]bool{}, configs: map[*syntax.ConfigDecl]configScope{}}
-	for _, name := range entries {
-		if d, ok := p.Universe.Lookup(name); ok {
-			w.visit(d, w.rootScope(name))
+	for _, e := range entries {
+		if e.Package != nil {
+			if d, ok := e.Package.Universe.Lookup(e.Name); ok {
+				w.visit(d, packageScope(e.Package))
+			}
+			continue
+		}
+		if d, ok := p.Universe.Lookup(e.Name); ok {
+			w.visit(d, w.rootScope(e.Name))
 		}
 	}
 	var out []runtime.ConfigSource

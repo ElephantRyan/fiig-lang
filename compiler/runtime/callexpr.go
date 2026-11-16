@@ -187,6 +187,12 @@ func (in *Interp) callDeclInPackage(ctx context.Context, pkg *types.Package, ali
 	if fault != nil || earlyReturn {
 		return nil, earlyReturn, fault
 	}
+	if _, isWorkflow := decl.(*syntax.WorkflowDecl); isWorkflow {
+		// A gateway calling another package's workflow (ADR 0079 §1): the
+		// workflow runs for its own package, whose bindings its gateways
+		// use (§6a).
+		ctx = WithDomain(ctx, pkg.Path)
+	}
 	v, f := in.callDecl(ctx, packageScope(pkg), alias+"."+field, decl, supplied)
 	if f != nil {
 		return nil, false, f

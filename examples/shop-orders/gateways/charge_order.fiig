@@ -1,0 +1,23 @@
+use shop.kernel
+use shop.payments
+
+// ADR 0079 §1: Orders asks Payments to take a payment, in one process.
+// Splitting Payments out changes this file's requires line and body, and
+// nothing that calls it (examples/shop-orders-split).
+gateway chargeOrder(order: string, amount: kernel.Money) -> Result<Charge, ChargeError>
+    requires payments
+{
+    match payments.capturePayment(reference: order, amount: amount) {
+        Ok(receipt) -> Ok(Charge(id: receipt.id, refundable: receipt.refundable))
+        Err(failure) -> Err(chargeErrorOf(failure))
+    }
+}
+
+private {
+    chargeErrorOf(failure: payments.PaymentError) -> ChargeError {
+        match failure {
+            payments.PaymentError.Declined(reason) -> ChargeError.Declined(reason: reason)
+            payments.PaymentError.InvalidAmount -> ChargeError.InvalidAmount
+        }
+    }
+}

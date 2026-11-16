@@ -617,6 +617,12 @@ Need an ADR first, in build order:
    `null`); read in either alphabet, padded or not; J1 drops `bytes`; a
    whole `bytes` body on a JSON route is raw both ways, a response checked
    to be JSON.
+8c2. ~~Domains in one application call each other through gateways.~~
+   Done 2026-11-16, ADR 0079: a gateway that `requires` another package
+   may call its workflows (B4 within a package), `fiig serve` serves
+   several adapters on one listener, and a caps file binds a capability
+   per package, following the running workflow; `examples/shop-*` and
+   `docs/modular-monolith.md`.
 8d. An enum as a path segment or query value (ADR 0072 open question 2).
 8e. A union of enums that share a variant name, in a body (`OrderError |
    CustomerError`, both with `NotFound`; ADR 0072 open question 1).

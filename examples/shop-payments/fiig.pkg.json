@@ -1,0 +1,10 @@
+{
+    "path": "shop.payments",
+    "kind": "library",
+    "version": "1.0.0",
+    "dependencies": {
+        "shop.kernel": "1.0.0"
+    },
+    "capabilities": ["Database"],
+    "nativeCapabilities": ["Database"]
+}

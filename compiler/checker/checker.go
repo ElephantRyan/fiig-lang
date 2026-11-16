@@ -117,8 +117,10 @@ func (d Diagnostic) String() string {
 // every file at once, not one at a time. Parse errors are returned
 // alongside checker diagnostics rather than aborting, matching
 // registry.Generate's approach. Every diagnostic's File is set to the
-// path (relative to root) it actually came from.
-func CheckDir(root string, packages types.Packages) ([]Diagnostic, error) {
+// path (relative to root) it actually came from. skip names directories
+// under root, relative to it, that are programs of their own and are left
+// out.
+func CheckDir(root string, packages types.Packages, skip ...string) ([]Diagnostic, error) {
 	type parsed struct {
 		path string
 		file *syntax.File
@@ -129,6 +131,13 @@ func CheckDir(root string, packages types.Packages) ([]Diagnostic, error) {
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if d.IsDir() {
+			for _, s := range skip {
+				if path == filepath.Join(root, s) {
+					return filepath.SkipDir
+				}
+			}
 		}
 		if d.IsDir() || filepath.Ext(path) != ".fiig" {
 			return nil
@@ -569,7 +578,11 @@ type checker struct {
 	// requires is the capability the gateway being checked requires, "" when
 	// the declaration isn't a gateway. A gateway may use only that one (P7).
 	requires string
-	diags    []Diagnostic
+	// foreignWorkflow is the import alias of the package whose workflow
+	// the call being checked names, set just before callDecl and read
+	// once by checkEffect (ADR 0079 §1); "" otherwise.
+	foreignWorkflow string
+	diags           []Diagnostic
 	// argScope is where the current cross-package call's arguments
 	// resolve (inCallerScope); nil outside one.
 	argScope *scopeState
@@ -983,8 +996,24 @@ func bugClassForEffect(caller, callee declKind) string {
 // that kind (§6): an activity or conversion may call itself, but a rule
 // may not (B7), nor a gateway (B3) or a workflow (B8).
 func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeName string, at lexer.Pos) {
+	foreign := c.foreignWorkflow
+	c.foreignWorkflow = ""
 	if !c.inSortKey && callee != c.entry && c.sameFile(callee) {
 		return
+	}
+	// ADR 0079 §1: another package's workflow is reached from a gateway
+	// that requires that package, and from nothing else.
+	if calleeKind == kindWorkflow && foreign != "" && !c.inSortKey {
+		switch c.callerKind {
+		case kindGateway:
+			if c.requires != foreign {
+				c.report(at, "B4", "gateway may call workflow %s only if it requires %s; this one requires %s, and a gateway requires exactly one thing (ADR 0079 §1, ADR 0010)", calleeName, foreign, c.requires)
+			}
+			return
+		case kindActivity, kindWorkflow:
+			c.report(at, "B8", "%s may not call workflow %s; another package's workflow is called through a gateway that requires %s (ADR 0079 §1)", c.callerKind, calleeName, foreign)
+			return
+		}
 	}
 	allowed, tracked := allowedCallees[c.callerKind]
 	if !tracked || allowed[calleeKind] {
@@ -994,6 +1023,10 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 		c.inSortKey = false
 		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "a sorted key may not call %s %q; it may call only what a rule may, formulas and methods, so the order can't depend on outside state (ADR 0065 §3)", calleeKind, calleeName)
 		c.inSortKey = true
+		return
+	}
+	if calleeKind == kindWorkflow && (c.callerKind == kindGateway || c.callerKind == kindActivity || c.callerKind == kindWorkflow) {
+		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s may not call workflow %q; a workflow is called only from outside its package, by an adapter or by another package's gateway (ADR 0079 §2)", c.callerKind, calleeName)
 		return
 	}
 	c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s may not call %s %q", c.callerKind, calleeKind, calleeName)

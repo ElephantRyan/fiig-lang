@@ -1,0 +1,6 @@
+use shop.kernel
+
+workflow submitOrder(order: string, amount: kernel.Money) -> Result<OrderPlaced, ChargeError> {
+    charge = chargeOrder(order: order, amount: amount)?
+    return Ok(saveOrder(order: order, charge: charge))
+}
