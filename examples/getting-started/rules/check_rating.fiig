@@ -1,0 +1,12 @@
+// Re-checks a Rating already in hand, wherever it came from, right before
+// it is stored. createValidRating makes a Rating from what a client sent;
+// this one takes a Rating and returns it unchanged when it passes.
+rule checkRating(rating: Rating) -> Result<Rating, RatingError> {
+    if rating.score < 1 or rating.score > 10 {
+        return Err(RatingError.Invalid("score", "must be from 1 to 10"))
+    }
+    if rating.item.isBlank() {
+        return Err(RatingError.Invalid("item", "must not be blank"))
+    }
+    return Ok(rating)
+}
