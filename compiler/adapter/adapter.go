@@ -190,8 +190,14 @@ func buildArgs(route *syntax.Route, plan routePlan, req request, u *types.Univer
 	return args, nil
 }
 
+func isBytes(t types.Type) bool {
+	p, ok := t.(types.Primitive)
+	return ok && p.Name == "bytes"
+}
+
 // decodeBody binds the request body to the body-bound argument: decoded as
-// JSON for a JSON route, and raw, as a string or bytes, for any other.
+// JSON for a JSON route, and raw, as a string or bytes, for any other or
+// for a JSON route binding bytes (ADR 0077).
 func decodeBody(req request, t types.Type, u *types.Universe) (runtime.Value, error) {
 	if req.bodyIsJSON {
 		return runtime.DecodeJSON(req.bodyJSON, t, u)

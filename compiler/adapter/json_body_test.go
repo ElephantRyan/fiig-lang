@@ -1,6 +1,9 @@
 package adapter
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http/httptest"
 	"path/filepath"
@@ -88,42 +91,126 @@ func TestOpenAPIListsJsonNames(t *testing.T) {
 
 // TestCorpusEventInbox serves examples/event-inbox: an envelope whose
 // JsonValue payload a rule decodes by its type, received as a JSON body
-// and as raw bytes decoded in fiig, with JsonError as the 422 body.
+// and as a signed JSON body read raw (ADR 0077), checked, and decoded in
+// fiig, with JsonError as the 422 body.
 func TestCorpusEventInbox(t *testing.T) {
 	if diags, err := checker.CheckDir(filepath.Join(findExamplesDir(t), "event-inbox"), nil); err != nil || len(diags) > 0 {
 		t.Fatalf("checker: %v %+v", err, diags)
 	}
-	u, files := loadProgram(t, "event-inbox/models", "event-inbox/rules", "event-inbox/workflows", "event-inbox/adapters")
+	u, files := loadProgram(t, "event-inbox/models", "event-inbox/errors", "event-inbox/config", "event-inbox/rules",
+		"event-inbox/activities", "event-inbox/conversions", "event-inbox/workflows", "event-inbox/adapters")
 	// loadProgram doesn't check, and json.decode needs the type the
 	// checker records on each call.
 	checker.Check(files, nil)
-	h, err := HTTPHandler(findAdapter(t, files, "inboxApi"), u, runtime.New(u, runtime.NewCapabilityRegistry()))
+	in := runtime.New(u, runtime.NewCapabilityRegistry())
+	const secret = "It's a Secret to Everybody"
+	inbox, _ := u.Lookup("Inbox")
+	if problems := in.LoadConfig([]runtime.ConfigSource{{Decl: inbox.(*syntax.ConfigDecl), Universe: u}}, func(name string) (string, bool) {
+		return secret, name == "INBOX_WEBHOOK_SECRET"
+	}); len(problems) > 0 {
+		t.Fatal(problems)
+	}
+	h, err := HTTPHandler(findAdapter(t, files, "inboxApi"), u, in)
 	if err != nil {
 		t.Fatal(err)
 	}
+	sign := func(body string) string {
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write([]byte(body))
+		return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	}
+	// Spacing and 5000.50 are in the bytes signed, so re-encoding the
+	// decoded envelope wouldn't reproduce the signature.
+	limit := `{"id": "e5",  "@type": "credit.limit_changed", "data": {"account": "a3", "limit": 5000.50}}`
 	cases := []struct {
 		path, contentType, in string
 		code                  int
 		out                   string
+		signature             string
 	}{
 		{"/events", "application/json", `{"id": "e1", "@type": "invoice.paid", "data": {"invoice": "in_9", "amount": 12.50, "paid_at": "2026-11-09", "extra": true}}`,
-			200, `{"variant":"Paid","invoice":{"invoice":"in_9","amount":12.50,"paid_at":"2026-11-09"}}`},
+			200, `{"variant":"Paid","invoice":{"invoice":"in_9","amount":12.50,"paid_at":"2026-11-09"}}`, ""},
 		{"/events", "application/json", `{"id": "e2", "@type": "credit.limit_changed", "data": {"account": "a3", "limit": 5000}}`,
-			200, `{"variant":"LimitChanged","change":{"account":"a3","limit":5000}}`},
+			200, `{"variant":"LimitChanged","change":{"account":"a3","limit":5000}}`, ""},
 		{"/events", "application/json", `{"id": "e3", "@type": "customer.created", "data": null}`,
-			200, `{"variant":"Ignored","eventType":"customer.created"}`},
+			200, `{"variant":"Ignored","eventType":"customer.created"}`, ""},
 		{"/events", "application/json", `{"id": "e4", "@type": "invoice.paid", "data": {"invoice": "in_9", "amount": "12.50", "paid_at": "x"}}`,
-			422, `{"variant":"Mismatch","path":"amount","reason":"expected a number, got a string"}`},
-		{"/events/raw", "application/octet-stream", `{"id": "e5", "@type": "credit.limit_changed", "data": {"account": "a3", "limit": 5000}}`,
-			200, `{"variant":"LimitChanged","change":{"account":"a3","limit":5000}}`},
-		{"/events/raw", "application/octet-stream", `{"id": "e6", "id": "e7"}`,
-			422, `{"variant":"Syntax","offset":13,"reason":"duplicate name \"id\""}`},
+			422, `{"variant":"Mismatch","path":"amount","reason":"expected a number, got a string"}`, ""},
+		{"/events/signed", "application/json", limit,
+			200, `{"variant":"LimitChanged","change":{"account":"a3","limit":5000.50}}`, sign(limit)},
+		{"/events/signed", "application/json", limit, 401, ``, sign(limit + " ")},
+		{"/events/signed", "application/json", limit, 401, ``, "sha256=not-hex"},
+		{"/events/signed", "application/json", limit, 401, ``, ""},
+		// A forged junk body is forged first: 401, not a Syntax error.
+		{"/events/signed", "application/json", `{not json`, 401, ``, sign(`{other`)},
+		{"/events/signed", "application/json", `{"id": "e6", "id": "e7"}`,
+			422, `{"variant":"Undecodable","failure":{"variant":"Syntax","offset":13,"reason":"duplicate name \"id\""}}`, sign(`{"id": "e6", "id": "e7"}`)},
 	}
 	for _, c := range cases {
 		req := httptest.NewRequest("POST", c.path, strings.NewReader(c.in))
 		req.Header.Set("Content-Type", c.contentType)
+		if c.signature != "" {
+			req.Header.Set("X-Hub-Signature-256", c.signature)
+		}
 		if code, _, body := serve(h, req); code != c.code || strings.TrimSpace(body) != c.out {
 			t.Errorf("POST %s %s\n got %d %s\nwant %d %s", c.path, c.in, code, body, c.code, c.out)
 		}
+	}
+}
+
+// ADR 0077: a JSON route binding bytes gets the body as it arrived, with
+// no parse and so no 400, but still the 415.
+var rawHookProgram = []string{
+	`workflow hookBytes(body: bytes) -> string {
+    return body.toHex()
+}`,
+	`adapter http rawHookApi {
+    POST "/hooks" -> hookBytes(body: bytes)
+        consumes "application/json"
+        produces "text/plain"
+}`,
+}
+
+func TestAJsonRouteBindingBytesGetsTheBodyAsItArrived(t *testing.T) {
+	h := handlerFor(t, rawHookProgram...)
+	for _, in := range []string{`{"b": 1.50,  "a" : "\u00e9"}`, `{not json`} {
+		req := httptest.NewRequest("POST", "/hooks", strings.NewReader(in))
+		req.Header.Set("Content-Type", "application/json; charset=utf-8")
+		code, _, body := serve(h, req)
+		if want := hex.EncodeToString([]byte(in)); code != 200 || body != want {
+			t.Errorf("%s: got %d %s, want 200 %s", in, code, body, want)
+		}
+	}
+	req := httptest.NewRequest("POST", "/hooks", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/octet-stream")
+	if code, _, _ := serve(h, req); code != 415 {
+		t.Errorf("wrong content type: got %d, want 415", code)
+	}
+}
+
+func TestOpenAPIListsARawJsonBodyAsAnyJson(t *testing.T) {
+	var files []*syntax.File
+	var ad *syntax.AdapterDecl
+	for _, src := range rawHookProgram {
+		f, errs := parser.Parse(src)
+		if len(errs) > 0 {
+			t.Fatalf("parse: %v", errs)
+		}
+		files = append(files, f)
+		for _, d := range f.Decls {
+			if a, ok := d.(*syntax.AdapterDecl); ok {
+				ad = a
+			}
+		}
+	}
+	u, _ := types.BuildUniverse(files)
+	doc, err := GenerateOpenAPI(ad, u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	post := doc["paths"].(map[string]any)["/hooks"].(map[string]any)["post"].(map[string]any)
+	got, _ := json.Marshal(post["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"])
+	if want := `{"description":"any JSON value"}`; string(got) != want {
+		t.Errorf("schema: got %s, want %s", got, want)
 	}
 }

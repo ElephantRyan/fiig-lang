@@ -1,0 +1,5 @@
+// ADR 0071: the secret this sender shares with event-inbox, which checks
+// every delivery's signature against it (ADR 0077).
+config Outbox {
+    webhookSecret: Secret from env "INBOX_WEBHOOK_SECRET"
+}

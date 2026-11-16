@@ -61,11 +61,6 @@ doesn't have to discover them.
 - **No package-internal visibility.** A declaration is private to its file
   or public to every importer, so the conversions `fiig.http`'s gateway
   calls (`readReply`, `outgoingRequest`, and two helpers) are public too.
-- **A JSON request body can't be read raw.** A route that consumes
-  `application/json` binds a model (A7), so a webhook whose signature is
-  computed over its bytes has to be routed as another type, such as
-  `application/octet-stream`, and decoded with `json.decode`
-  (`examples/event-inbox`).
 - **`bytes` has no JSON form** (J1): no ADR decides between base64, as Go
   sends `[]byte`, and an array of numbers.
 - **No streaming JSON and no pretty printing** (ADR 0073 §9): a decode reads

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"fiig-lang/compiler/httpspec"
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
@@ -87,9 +88,13 @@ func buildOperation(route *syntax.Route, u *types.Universe) (map[string]any, err
 		op["parameters"] = params
 	}
 	if plan.bodyArg != "" {
+		schema := schemaFor(paramType[plan.bodyArg], u)
+		if httpspec.IsJSON(consumesOf(route)) && isBytes(paramType[plan.bodyArg]) {
+			schema = map[string]any{"description": "any JSON value"} // as JsonValue; the workflow decodes it (ADR 0077 §5)
+		}
 		op["requestBody"] = map[string]any{
 			"required": true,
-			"content":  map[string]any{consumesOf(route): map[string]any{"schema": schemaFor(paramType[plan.bodyArg], u)}},
+			"content":  map[string]any{consumesOf(route): map[string]any{"schema": schema}},
 		}
 	}
 

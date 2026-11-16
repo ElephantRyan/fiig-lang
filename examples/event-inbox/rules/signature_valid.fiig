@@ -1,0 +1,9 @@
+// GitHub's X-Hub-Signature-256: "sha256=" and the hex of an HMAC-SHA-256
+// of the body's exact bytes under the shared secret (ADR 0075 §1),
+// compared in constant time.
+rule signatureValid(secret: Secret, body: bytes, header: string) -> bool {
+    match header.removePrefix("sha256=").fromHex() {
+        None -> false
+        sent -> crypto.equal(crypto.hmacSha256(key: secret, data: body), sent)
+    }
+}
