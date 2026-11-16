@@ -82,7 +82,7 @@ func lookupActiveTx(ctx context.Context, capability string) (Tx, bool) {
 // nothing to do with that case; it only ever decides the fate of the one
 // transaction it itself opened.
 func (in *Interp) evalTransaction(ctx context.Context, s *syntax.TransactionStmt, env *Env, producingHere bool) (Value, bool, *Fault) {
-	provider, ok := in.Capabilities.Lookup(s.Capability)
+	provider, ok := in.Capabilities.LookupIn(ctx, s.Capability)
 	if !ok {
 		return nil, false, Faultf("no provider registered for capability %q", s.Capability)
 	}

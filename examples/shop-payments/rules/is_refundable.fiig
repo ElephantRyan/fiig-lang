@@ -1,0 +1,7 @@
+use shop.kernel
+
+// ADR 0079 §5: a decision Payments owns. Orders never imports it; it gets
+// the answer as data, in the receipt.
+rule isRefundable(charged: kernel.Money) -> bool {
+    return charged.amount <= 500
+}

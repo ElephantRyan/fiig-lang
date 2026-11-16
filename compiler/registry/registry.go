@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	"fiig-lang/compiler/format"
 	"fiig-lang/compiler/manifest"
@@ -344,6 +345,7 @@ func Generate(root string) ([]*Card, []FileError, error) {
 	for _, pf := range parsed {
 		for i, decl := range pf.file.Decls {
 			for _, c := range BuildCards(decl, pf.rel) {
+				c.Requires = requiredPath(pf.file, c.Requires)
 				// Private members get no card of their own (ADR 0054 §3), but
 				// what their helpers call is what the public entry calls.
 				if i == 0 && pf.file.Private != nil {
@@ -618,4 +620,24 @@ func holdsSecretName(t syntax.Type) bool {
 		}
 	}
 	return false
+}
+
+// requiredPath is a gateway's `requires` as its card records it: a
+// package the gateway calls into (ADR 0079 §4) by its path, which the
+// catalog can join on, not the alias the file chose. A capability keeps
+// its name.
+func requiredPath(f *syntax.File, requires string) string {
+	if requires == "" || unicode.IsUpper(rune(requires[0])) {
+		return requires
+	}
+	for _, imp := range f.Imports {
+		alias := imp.Alias
+		if alias == "" {
+			alias = imp.Path[len(imp.Path)-1]
+		}
+		if alias == requires {
+			return strings.Join(imp.Path, ".")
+		}
+	}
+	return requires
 }

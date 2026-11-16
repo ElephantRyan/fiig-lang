@@ -1,0 +1,7 @@
+// ADR 0079 §5: the shared kernel, vocabulary every shop domain uses with
+// one meaning. A decision, such as whether a payment can be refunded,
+// doesn't belong here: one domain owns it and the others ask.
+model Money {
+    amount: decimal
+    currency: string
+}

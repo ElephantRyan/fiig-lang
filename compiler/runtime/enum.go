@@ -112,5 +112,10 @@ func (in *Interp) declScope(d syntax.Decl) scope {
 			}
 		}
 	}
+	for _, p := range in.Packages {
+		if sc, ok := walk(p); ok {
+			return sc
+		}
+	}
 	return scope{universe: in.Universe}
 }

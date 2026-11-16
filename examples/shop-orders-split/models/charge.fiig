@@ -1,0 +1,6 @@
+// Orders' own view of a payment. The gateway converts Payments' receipt
+// into it, so no caller of chargeOrder sees Payments' types (ADR 0079 §3).
+model Charge {
+    id: string
+    refundable: bool
+}

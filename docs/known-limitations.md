@@ -58,8 +58,8 @@ doesn't have to discover them.
   question 1): a route taking uploads over 2 MiB needs `MAX_BODY_BYTES`
   raised for every route. No rate limit per client (§5); put it in the
   proxy.
-- **No package-internal visibility.** A declaration is private to its file
-  or public to every importer, so the conversions `fiig.http`'s gateway
+- **No package-internal visibility** (ADR 0079 open question 1). A
+  declaration is private to its file or public to every importer, so the conversions `fiig.http`'s gateway
   calls (`readReply`, `outgoingRequest`, and two helpers) are public too.
 - **A `bytes` field is always written as standard base64** (ADR 0078
   open question 1): an API that demands base64url for a field (Gmail's

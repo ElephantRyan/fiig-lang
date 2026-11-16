@@ -1,0 +1,20 @@
+{
+  "toolchain": "dev",
+  "dependencies": [
+    {
+      "path": "shop.kernel",
+      "version": "1.0.0",
+      "hash": "sha256:a3153c34ce1b2769451bd266a037e7d2fc3c260c413d3bbec366fbd72bf4bc44",
+      "source": "examples/shop-kernel"
+    },
+    {
+      "path": "shop.payments",
+      "version": "1.0.0",
+      "hash": "sha256:b1b5c7a6a0c3c5fa89bd7641bdc0b428769c2599d43fb235ef528e24d08649f5",
+      "source": "examples/shop-payments",
+      "capabilities": [
+        "Database"
+      ]
+    }
+  ]
+}

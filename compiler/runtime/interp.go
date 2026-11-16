@@ -33,6 +33,12 @@ type Interp struct {
 	// alias -> group map (compiler/checker.ResolveFileGroups, per file).
 	Groups map[string]map[string]*types.GroupRef
 
+	// Packages is every package the build loaded, so a declaration of a
+	// dependency the root never imports, such as one whose adapter is
+	// served (ADR 0079 §6), still resolves in its own package. nil when
+	// the caller has none; Imports' packages are walked first either way.
+	Packages types.Packages
+
 	// Config is every config declaration's values (ADR 0071), read once by
 	// LoadConfig before the program starts.
 	Config map[*syntax.ConfigDecl]Record
@@ -102,16 +108,36 @@ func (in *Interp) Call(ctx context.Context, name string, args map[string]Value) 
 	if f := checkCancelled(ctx); f != nil {
 		return nil, f
 	}
+	// ADR 0060 §5: this call owns every connection opened beneath it, and
+	// closes whichever are still open when it returns, faults or is
+	// cancelled.
+	if pkg, entered := ctx.Value(entryKey{}).(*types.Package); entered {
+		decl, found := pkg.Universe.Lookup(name)
+		if !found {
+			return nil, Faultf("package %s has no declaration %q", pkg.Path, name)
+		}
+		ctx, endOwner := withResourceOwner(ctx)
+		defer endOwner()
+		return in.callDecl(ctx, packageScope(pkg), name, decl, args)
+	}
 	decl, found := in.Universe.Lookup(name)
 	if !found {
 		return nil, Faultf("undefined declaration %q", name)
 	}
-	// ADR 0060 §5: this call owns every connection opened beneath it, and
-	// closes whichever are still open when it returns, faults or is
-	// cancelled.
 	ctx, endOwner := withResourceOwner(ctx)
 	defer endOwner()
 	return in.callDecl(ctx, scope{universe: in.Universe, imports: in.Imports[name], groups: in.Groups[name]}, name, decl, args)
+}
+
+type entryKey struct{}
+
+// EnterPackage marks ctx as entering pkg, a dependency of the root whose
+// adapter is served (ADR 0079 §6): Call finds its declarations, EvalExpr
+// resolves in it, and its workflows run for it (§6a).
+func (in *Interp) EnterPackage(ctx context.Context, pkg *types.Package) context.Context {
+	ctx = context.WithValue(ctx, entryKey{}, pkg)
+	ctx = withScope(ctx, packageScope(pkg))
+	return WithDomain(ctx, pkg.Path)
 }
 
 // callDecl binds args against decl's own params and evaluates its body

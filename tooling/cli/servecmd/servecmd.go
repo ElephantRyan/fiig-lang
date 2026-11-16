@@ -1,5 +1,5 @@
-// Package servecmd is `fiig serve`: it checks a fiig program and serves one of its `adapter
-// http` declarations: the deployable form of a fiig application. It is
+// Package servecmd is `fiig serve`: it checks a fiig program and serves its `adapter
+// http` declarations on one listener: the deployable form of a fiig application. It is
 // `fiig run`'s counterpart for a long-running service, with the same
 // capability wiring (ADR 0027): -caps names a JSON file whose "sql"-typed
 // capability opens a real database (when the binary registers the sql
@@ -18,9 +18,16 @@
 // many waiting up to 5 s, and REQUEST_TIMEOUT per request
 // (-request-timeout, 30 s).
 //
+// A modular monolith serves several adapters at once (ADR 0079 §6): a
+// bare name is an adapter in root, and a dotted one is a dependency's,
+// its package path then its name. They share the listener, the limits,
+// and the CORS policy, and two routes that would serve the same requests
+// stop it before it starts. The caps file's "packages" section binds a
+// capability for one package's workflows (§6a).
+//
 // Usage:
 //
-//	fiig serve [-addr :8080] [-caps caps.json] [-max-body N] [-max-requests N] [-request-timeout D] [-workspace <dir>]... <root> <adapterName>
+//	fiig serve [-addr :8080] [-caps caps.json] [-max-body N] [-max-requests N] [-request-timeout D] [-workspace <dir>]... <root> <adapterName>...
 package servecmd
 
 import (
@@ -67,8 +74,8 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	maxRequests := fs.Int("max-requests", 0, "how many requests may run at once, with as many waiting up to 5 s, else 503 (ADR 0076 §2); default $MAX_REQUESTS, else 256")
 	requestTimeout := fs.Duration("request-timeout", 0, "how long a request may run, else 503 (ADR 0076 §3); default $REQUEST_TIMEOUT, else 30s")
 	fs.Parse(args)
-	if fs.NArg() != 2 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-max-body N] [-max-requests N] [-request-timeout D] [-workspace DIR]... <root> <adapterName>")
+	if fs.NArg() < 2 {
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-max-body N] [-max-requests N] [-request-timeout D] [-workspace DIR]... <root> <adapterName>...")
 		os.Exit(2)
 	}
 	env, err := runprogram.NewEnvironment(*envFile)
@@ -95,7 +102,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	}
 	limits, limitProblems := readLimits(env, *maxBody, *maxRequests, *requestTimeout)
 	originProblems = append(originProblems, limitProblems...)
-	handler, err := load(fs.Arg(0), fs.Arg(1), *capsPath, workspaces, factories, cors, limits, env, originProblems)
+	handler, bindings, err := load(fs.Arg(0), fs.Args()[1:], *capsPath, workspaces, factories, cors, limits, env, originProblems)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -114,7 +121,10 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 		defer cancel()
 		srv.Shutdown(done)
 	}()
-	log.Printf("fiig %s: serving %s on %s", version.Version, fs.Arg(1), addr)
+	log.Printf("fiig %s: serving %s on %s", version.Version, strings.Join(fs.Args()[1:], ", "), addr)
+	for _, b := range bindings {
+		log.Printf("fiig: %s", b)
+	}
 	if cors != nil {
 		log.Printf("fiig: allowing cross-origin calls from %s", strings.Join(cors.Origins(), ", "))
 	}
@@ -125,18 +135,20 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	log.Print("fiig: stopped")
 }
 
-// load checks root and builds the handler for its http adapter named name,
-// with every configuration problem (ADR 0071 §3's one report) found first.
-func load(root, name, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string) (http.Handler, error) {
+// load checks root and builds the handler for the http adapters named
+// names, with every configuration problem (ADR 0071 §3's one report)
+// found first. It returns ADR 0079 §6a's listing of each domain's
+// capability bindings, for the startup log.
+func load(root string, names []string, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string) (http.Handler, []string, error) {
 	files, diags, err := runprogram.LoadFiles(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var packages types.Packages
 	if loader.Wanted(root, workspaces) {
 		loaded, loadErrs := loader.Load(root, workspaces)
 		if len(loadErrs) > 0 {
-			return nil, errors.Join(loadErrs...)
+			return nil, nil, errors.Join(loadErrs...)
 		}
 		packages = loaded.Packages
 	}
@@ -145,47 +157,99 @@ func load(root, name, capsPath string, workspaces []string, factories runtime.Fa
 		for _, d := range diags {
 			fmt.Fprintln(os.Stderr, d.String())
 		}
-		return nil, fmt.Errorf("refusing to serve a program with checker diagnostics")
+		return nil, nil, fmt.Errorf("refusing to serve a program with checker diagnostics")
 	}
 	universe, _ := types.BuildUniverse(files) // conflicts already reported by runprogram.Check above
 
-	var decl *syntax.AdapterDecl
-	for _, f := range files {
-		for _, d := range f.Decls {
-			if ad, ok := d.(*syntax.AdapterDecl); ok && ad.Name == name {
-				decl = ad
-			}
-		}
-	}
-	if decl == nil {
-		return nil, fmt.Errorf("no adapter named %q", name)
+	served, err := findAdapters(names, files, packages)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	caps, capProblems, err := runprogram.LoadCapabilitiesFileWith(capsPath, factories, env.Lookup)
 	if err != nil {
-		return nil, fmt.Errorf("-caps: %w", err)
+		return nil, nil, fmt.Errorf("-caps: %w", err)
 	}
 	problems = append(capProblems, problems...)
 	if caps == nil {
 		caps = runtime.NewCapabilityRegistry()
 	}
+	problems = append(problems, runprogram.UnknownPackages(caps.Packages(), packages)...)
 	if err := runprogram.RefuseSeededRandom(caps); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	runprogram.RegisterDefaults(caps)
 	in := runtime.New(universe, caps)
 	in.Imports = runprogram.BuildImports(files, packages)
 	in.Groups = runprogram.BuildGroups(files, packages)
+	in.Packages = packages
 	program := runprogram.Program{Universe: universe, Imports: in.Imports, Groups: in.Groups, Renames: runprogram.Renames(root)}
-	problems = append(problems, in.LoadConfig(runprogram.ReachableConfig(program, []string{name}), env.Lookup)...)
+	entries := make([]runprogram.Entry, len(served))
+	for i, s := range served {
+		entries[i] = runprogram.Entry{Package: s.Package, Name: s.Decl.Name}
+	}
+	problems = append(problems, in.LoadConfig(runprogram.ReachableConfigFrom(program, entries), env.Lookup)...)
 	if err := runprogram.ConfigReport(problems); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	h, err := adapter.HTTPHandlerWithLimits(decl, universe, in, limits)
+	h, err := adapter.HTTPHandlerFor(served, universe, in, limits)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return adapter.WithCORS(h, decl, cors)
+	h, err = adapter.WithCORSFor(h, served, cors)
+	if err != nil {
+		return nil, nil, err
+	}
+	return h, runprogram.Bindings(packages, caps.BoundFor, caps.Packages()), nil
+}
+
+// findAdapters resolves each name `fiig serve` was given (ADR 0079 §6): a
+// bare name in root's own files, a dotted one as a dependency's package
+// path and then its adapter's name.
+func findAdapters(names []string, files []*syntax.File, packages types.Packages) ([]adapter.Served, error) {
+	var out []adapter.Served
+	seen := map[string]bool{}
+	for _, name := range names {
+		if seen[name] {
+			return nil, fmt.Errorf("adapter %s is named twice", name)
+		}
+		seen[name] = true
+		if path, adapterName, dotted := cutLast(name); dotted {
+			pkg, ok := packages[path]
+			if !ok {
+				return nil, fmt.Errorf("adapter %s: the application doesn't depend on a package %s", name, path)
+			}
+			d, _ := pkg.Universe.Lookup(adapterName)
+			ad, ok := d.(*syntax.AdapterDecl)
+			if !ok {
+				return nil, fmt.Errorf("package %s has no adapter named %q", path, adapterName)
+			}
+			out = append(out, adapter.Served{Decl: ad, Package: pkg})
+			continue
+		}
+		var decl *syntax.AdapterDecl
+		for _, f := range files {
+			for _, d := range f.Decls {
+				if ad, ok := d.(*syntax.AdapterDecl); ok && ad.Name == name {
+					decl = ad
+				}
+			}
+		}
+		if decl == nil {
+			return nil, fmt.Errorf("no adapter named %q", name)
+		}
+		out = append(out, adapter.Served{Decl: decl})
+	}
+	return out, nil
+}
+
+// cutLast splits a dotted name at its last dot.
+func cutLast(name string) (string, string, bool) {
+	i := strings.LastIndex(name, ".")
+	if i < 0 {
+		return "", name, false
+	}
+	return name[:i], name[i+1:], true
 }
 
 // readLimits is ADR 0076's limits: each flag, else its variable, else the

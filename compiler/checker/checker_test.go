@@ -52,11 +52,23 @@ func rules(diags []Diagnostic) map[string]int {
 // check this package implements. A single false positive here would mean
 // the checker rejects a program fiig-lang.md's own examples establish as
 // correct.
+//
+// shop-orders-split is shop-orders after a domain is split out (ADR 0079
+// §7), so it repeats shop-orders' names by design; it is checked as the
+// program of its own it is.
 func TestValidCorpusHasNoDiagnostics(t *testing.T) {
 	root := findExamplesDir(t)
-	diags, err := CheckDir(root, nil)
+	diags, err := CheckDir(root, nil, "shop-orders-split")
 	if err != nil {
 		t.Fatalf("CheckDir: %v", err)
+	}
+	split, err := CheckDir(filepath.Join(root, "shop-orders-split"), nil)
+	if err != nil {
+		t.Fatalf("CheckDir: %v", err)
+	}
+	for _, d := range split {
+		d.File = filepath.Join("shop-orders-split", d.File)
+		diags = append(diags, d)
 	}
 	for file, fileDiags := range diagsByFile(diags) {
 		if filepath.Dir(filepath.ToSlash(file)) == "invalid-programs" {

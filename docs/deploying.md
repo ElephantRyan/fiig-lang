@@ -73,6 +73,22 @@ not the file:
 }
 ```
 
+A capability can also be bound for one package's workflows, so each
+domain of a modular monolith keeps its own database (ADR 0079 §6a); see
+[A modular monolith in fiig](modular-monolith.md):
+
+```json
+{
+  "Database": {"type": "sql", "driver": "sqlite", "dsn": "file:orders.db"},
+  "packages": {"shop.payments": {"Database": {"type": "sql", "driver": "sqlite", "dsn": "file:payments.db"}}}
+}
+```
+
+`fiig serve` takes every adapter the process serves, a dependency's by
+its package path: `fiig serve . ordersApi shop.payments.paymentsApi`.
+They share the listener, the limits below, and the CORS policy, and two
+routes that would serve the same requests stop it at startup.
+
 `-addr` defaults to `$LISTEN_ADDR`, then `:8080`, `-allow-origin` to
 `$ALLOW_ORIGINS`, and the request limits to theirs (see below); all read
 the same lookup. SIGINT or SIGTERM stops

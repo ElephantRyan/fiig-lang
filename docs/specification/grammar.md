@@ -355,7 +355,12 @@ file in `rules/`, `conversions/`, `gateways/`, `workflows/`. The `requires`
 clause takes exactly one capability name in every attested gateway, and
 `docs/decisions/0010-steps-require-one-capability.md` confirms that's by
 design, not just an unexercised gap — a gateway is scoped to one
-capability, full stop. The optional `idempotent` modifier
+capability, full stop. ADR 0079 adds one more thing a `requires` may name,
+still one: an imported package, by its lowercase alias (`requires
+payments`), whose workflows the gateway may then call. That is how one
+domain of a modular monolith asks another to do something
+(`docs/modular-monolith.md`); attested by
+`shop-orders/gateways/charge_order.fiig`. The optional `idempotent` modifier
 (`docs/decisions/0014-idempotency-and-explicit-retry.md`) is attested by
 `get_customer.fiig`; every other gateway omits it, including
 `chargePayment`, which is deliberately non-idempotent

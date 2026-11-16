@@ -1,0 +1,16 @@
+use shop.kernel
+
+// In the monolith, served beside Payments' adapter on one listener
+// (fiig serve -workspace .. -caps caps.json . ordersApi
+// shop.payments.paymentsApi); once Payments is split out, served alone
+// (fiig serve -workspace .. -caps caps.json . ordersApi). This file is the
+// same in both (ADR 0079 §7).
+adapter http ordersApi {
+    POST "/orders/{order}" -> submitOrder(order: string, amount: kernel.Money)
+        consumes "application/json"
+        produces "application/json"
+    {
+        Ok(placed) -> 201 placed
+        Err(error) -> chargeErrorResponse(error)
+    }
+}

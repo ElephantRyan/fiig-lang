@@ -1,0 +1,11 @@
+{
+  "toolchain": "dev",
+  "dependencies": [
+    {
+      "path": "shop.kernel",
+      "version": "1.0.0",
+      "hash": "sha256:a3153c34ce1b2769451bd266a037e7d2fc3c260c413d3bbec366fbd72bf4bc44",
+      "source": "examples/shop-kernel"
+    }
+  ]
+}

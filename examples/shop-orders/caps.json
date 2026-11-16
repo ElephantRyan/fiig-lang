@@ -1,0 +1,8 @@
+{
+    "Database": {"type": "sql", "driver": "sqlite", "dsn": "file:orders.db"},
+    "packages": {
+        "shop.payments": {
+            "Database": {"type": "sql", "driver": "sqlite", "dsn": "file:payments.db"}
+        }
+    }
+}

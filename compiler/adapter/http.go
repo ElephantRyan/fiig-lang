@@ -29,25 +29,78 @@ func HTTPHandler(d *syntax.AdapterDecl, u *types.Universe, in *runtime.Interp) (
 // route. The limits wrap each route, not the mux, so a CORS preflight or a
 // 404 takes no slot (§2).
 func HTTPHandlerWithLimits(d *syntax.AdapterDecl, u *types.Universe, in *runtime.Interp, l Limits) (http.Handler, error) {
-	if d.Kind != syntax.AdapterHTTP {
-		return nil, fmt.Errorf("adapter %q is not an http adapter", d.Name)
+	return HTTPHandlerFor([]Served{{Decl: d}}, u, in, l)
+}
+
+// Served is one http adapter a listener serves (ADR 0079 §6): its
+// declaration, and the dependency package it is declared in, nil for the
+// root package.
+type Served struct {
+	Decl    *syntax.AdapterDecl
+	Package *types.Package
+}
+
+// Name is the adapter as `fiig serve` names it: bare in the root, after
+// its package's path in a dependency.
+func (s Served) Name() string {
+	if s.Package != nil {
+		return s.Package.Path + "." + s.Decl.Name
 	}
+	return s.Decl.Name
+}
+
+// HTTPHandlerFor serves several adapters on one mux under one set of
+// limits (ADR 0079 §6), the root's names resolving in u and a
+// dependency's in its own package. Two routes that would serve the same
+// requests are an error naming both, before anything is served.
+func HTTPHandlerFor(adapters []Served, u *types.Universe, in *runtime.Interp, l Limits) (http.Handler, error) {
 	mux := http.NewServeMux()
 	lim := newLimiter(l)
-	for _, route := range d.Routes {
-		route := route
-		plan, err := planRoute(route, true, u)
-		if err != nil {
-			return nil, fmt.Errorf("route %s %q: %w", route.Verb, route.Path, err)
+	owner := map[string]string{}
+	for _, a := range adapters {
+		d := a.Decl
+		if d.Kind != syntax.AdapterHTTP {
+			return nil, fmt.Errorf("adapter %q is not an http adapter", a.Name())
 		}
-		pathPart, _, _ := strings.Cut(route.Path, "?")
-		pattern := route.Verb + " " + pathPart
-		mux.HandleFunc(pattern, lim.wrap(httpRouteHandler(route, plan, u, in, lim)))
+		scope, enter := u, func(ctx context.Context) context.Context { return ctx }
+		if pkg := a.Package; pkg != nil {
+			scope = pkg.Universe
+			enter = func(ctx context.Context) context.Context { return in.EnterPackage(ctx, pkg) }
+		}
+		for _, route := range d.Routes {
+			route := route
+			plan, err := planRoute(route, true, scope, in)
+			if err != nil {
+				return nil, fmt.Errorf("route %s %q: %w", route.Verb, route.Path, err)
+			}
+			pathPart, _, _ := strings.Cut(route.Path, "?")
+			pattern := route.Verb + " " + pathPart
+			where := fmt.Sprintf("%s %q in adapter %s", route.Verb, route.Path, a.Name())
+			if prev, taken := owner[pattern]; taken {
+				return nil, fmt.Errorf("routes %s and %s serve the same requests; give each domain its own path prefix (ADR 0079 §6)", prev, where)
+			}
+			if err := register(mux, pattern, lim.wrap(httpRouteHandler(route, plan, scope, in, lim, enter))); err != nil {
+				return nil, fmt.Errorf("route %s conflicts with another route: %v (ADR 0079 §6)", where, err)
+			}
+			owner[pattern] = where
+		}
 	}
 	return mux, nil
 }
 
-func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in *runtime.Interp, lim *limiter) http.HandlerFunc {
+// register is mux.HandleFunc, with the panic ServeMux raises for two
+// patterns that match the same requests turned into an error.
+func register(mux *http.ServeMux, pattern string, h http.HandlerFunc) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+	mux.HandleFunc(pattern, h)
+	return nil
+}
+
+func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in *runtime.Interp, lim *limiter, enter func(context.Context) context.Context) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		req := request{
 			path: func(name string) (string, bool) {
@@ -109,12 +162,12 @@ func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in
 			}
 		}
 
-		args, err := buildArgs(route, plan, req, u)
+		args, err := buildArgs(route, plan, req, u, in)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return
 		}
-		resp, fault := callRoute(r.Context(), in, route, args)
+		resp, fault := callRoute(enter(r.Context()), in, route, args)
 		if fault != nil && r.Context().Err() == context.DeadlineExceeded {
 			lim.timedOut(w) // the program did nothing wrong (ADR 0076 §3)
 			return

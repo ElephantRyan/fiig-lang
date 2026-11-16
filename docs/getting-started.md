@@ -90,4 +90,5 @@ code; `docs/specification/bug-classes.md` lists them, and
 
 - `docs/specification/tour.md`: the language in one pass.
 - `docs/deploying.md`: running a program as a service or a container.
+- `docs/modular-monolith.md`: several domains in one application.
 - `docs/known-limitations.md`: what this alpha does not do yet.

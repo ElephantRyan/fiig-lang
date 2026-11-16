@@ -594,6 +594,9 @@ func (c *checker) inferQualifiedCall(fa *syntax.FieldAccess, args []syntax.Arg, 
 				return types.Unknown{}
 			}
 			return c.callInScope(pkg, func() types.Type {
+				if _, isWorkflow := decl.(*syntax.WorkflowDecl); isWorkflow {
+					c.foreignWorkflow = targetIdent.Name
+				}
 				return c.callDecl(decl, qualifiedName, args, start, env)
 			})
 		}

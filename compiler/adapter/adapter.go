@@ -58,7 +58,11 @@ type routePlan struct {
 	paramTypes map[string]types.Type
 }
 
-func planRoute(route *syntax.Route, isHTTP bool, u *types.Universe) (routePlan, error) {
+// planRoute reads route's workflow's parameter types: through in when
+// there is one, in the workflow's own package and file imports, so a
+// parameter typed by another package's model (`kernel.Money`) binds; in u
+// alone otherwise (OpenAPI generation).
+func planRoute(route *syntax.Route, isHTTP bool, u *types.Universe, in *runtime.Interp) (routePlan, error) {
 	var plan routePlan
 	if isHTTP {
 		pathPart, queryPart, hasQuery := strings.Cut(route.Path, "?")
@@ -76,7 +80,13 @@ func planRoute(route *syntax.Route, isHTTP bool, u *types.Universe) (routePlan, 
 	}
 	plan.paramTypes = make(map[string]types.Type, len(wd.Params))
 	for _, p := range wd.Params {
-		pt, ok := types.Resolve(p.Type, u)
+		var pt types.Type
+		var ok bool
+		if in != nil {
+			pt, ok = in.ParamType(wd, p.Type)
+		} else {
+			pt, ok = types.Resolve(p.Type, u)
+		}
 		if !ok {
 			return plan, fmt.Errorf("parameter %q has an unresolvable type", p.Name)
 		}
@@ -136,7 +146,7 @@ type request struct {
 // (if any) decodes from the JSON body via runtime.DecodeJSON, or binds the
 // raw body as a string or bytes. A missing value is None for an argument
 // typed `T | None`, and an error otherwise.
-func buildArgs(route *syntax.Route, plan routePlan, req request, u *types.Universe) (map[string]runtime.Value, error) {
+func buildArgs(route *syntax.Route, plan routePlan, req request, u *types.Universe, in *runtime.Interp) (map[string]runtime.Value, error) {
 	pathSet := make(map[string]bool, len(plan.pathNames))
 	for _, n := range plan.pathNames {
 		pathSet[n] = true
@@ -164,7 +174,7 @@ func buildArgs(route *syntax.Route, plan routePlan, req request, u *types.Univer
 		case querySet[name]:
 			src, what, key = req.query, "query value", name
 		case name == plan.bodyArg:
-			v, err := decodeBody(req, pt, u)
+			v, err := decodeBody(req, pt, u, in)
 			if err != nil {
 				return nil, fmt.Errorf("body %q: %w", name, err)
 			}
@@ -198,8 +208,11 @@ func isBytes(t types.Type) bool {
 // decodeBody binds the request body to the body-bound argument: decoded as
 // JSON for a JSON route, and raw, as a string or bytes, for any other or
 // for a JSON route binding bytes (ADR 0077).
-func decodeBody(req request, t types.Type, u *types.Universe) (runtime.Value, error) {
+func decodeBody(req request, t types.Type, u *types.Universe, in *runtime.Interp) (runtime.Value, error) {
 	if req.bodyIsJSON {
+		if in != nil {
+			return in.DecodeBodyJSON(req.bodyJSON, t)
+		}
 		return runtime.DecodeJSON(req.bodyJSON, t, u)
 	}
 	if p, ok := t.(types.Primitive); ok && p.Name == "bytes" {

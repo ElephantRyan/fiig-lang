@@ -1,0 +1,4 @@
+enum PaymentError {
+    Declined(reason: string)
+    InvalidAmount
+}

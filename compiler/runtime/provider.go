@@ -54,10 +54,18 @@ func (in *Interp) localScope(sc scope, name string) scope {
 }
 
 // packageScope is the scope a dependency package's declarations run in.
+// An import keeps its whole Package when pkg lists it as a dependency, so
+// a call onward from there knows its path (ADR 0079 §6a) and its imports.
 func packageScope(pkg *types.Package) scope {
 	imports := map[string]*types.Package{}
 	for alias, u := range pkg.Imports {
 		imports[alias] = &types.Package{Universe: u}
+		for _, dep := range pkg.Dependencies {
+			if dep.Universe == u {
+				imports[alias] = dep
+				break
+			}
+		}
 	}
 	return scope{universe: pkg.Universe, imports: imports, groups: pkg.Groups}
 }
