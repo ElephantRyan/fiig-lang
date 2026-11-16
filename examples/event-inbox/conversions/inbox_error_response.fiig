@@ -1,0 +1,8 @@
+// A forged delivery is a 401 with no body, so a forger learns nothing; an
+// undecodable one is a 422 naming what didn't decode.
+conversion inboxErrorResponse(error: InboxError) -> HttpResponse<InboxError> {
+    match error {
+        InboxError.BadSignature -> HttpResponse(status: 401)
+        InboxError.Undecodable(_) -> HttpResponse(status: 422, body: error)
+    }
+}

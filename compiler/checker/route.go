@@ -225,6 +225,11 @@ func (c *checker) checkBodyBinding(arg syntax.RouteArg, t types.Type, consumes *
 		}
 		return
 	}
+	// ADR 0077: bytes is the JSON body as it arrived, for a signature
+	// checked before json.decode; string stays A7 (§2).
+	if p, ok := t.(types.Primitive); ok && p.Name == "bytes" {
+		return
+	}
 	if named, ok := t.(types.Named); ok {
 		if _, isModel := named.Decl.(*syntax.ModelDecl); isModel {
 			// A Secret is S1's, at the workflow's parameter (ADR 0071 §4).
@@ -234,7 +239,7 @@ func (c *checker) checkBodyBinding(arg syntax.RouteArg, t types.Type, consumes *
 			return
 		}
 	}
-	c.report(arg.Start, "A7", "request body parameter %q binds to %q, which isn't a model; a primitive type has no fields to structurally decode the body against", arg.Name, t)
+	c.report(arg.Start, "A7", "request body parameter %q binds to %q, which isn't a model; a primitive type has no fields to structurally decode the body against (bind bytes to read the JSON body raw, ADR 0077)", arg.Name, t)
 }
 
 func isRawBody(t types.Type) bool {

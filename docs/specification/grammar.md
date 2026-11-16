@@ -428,7 +428,9 @@ route that binds a body declares the type it reads with `consumes` (ADR
 (`application/json`, or any `+json`) encodes any body as JSON. Any other
 type sends a `string` (as UTF-8, with `; charset=utf-8` for `text/*`) or
 `bytes` body, and a route that consumes one binds the body raw as a
-`string` or `bytes` argument, so A7 applies only to JSON bodies. The
+`string` or `bytes` argument, so A7 applies only to JSON bodies. A JSON
+route binds its body to a model, decoded, or to `bytes`, as it arrived and
+unparsed, for a signature checked before `json.decode` (ADR 0077). The
 formatter puts each clause on its own line under the route, consumes
 first, and the response mapping's `{` on its own line after them. CLI
 routes have neither clause.

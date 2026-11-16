@@ -89,7 +89,9 @@ func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in
 				writeJSON(w, http.StatusUnsupportedMediaType, map[string]any{"error": fmt.Sprintf("unsupported media type %q; this route consumes %q", got, consumes)})
 				return
 			}
-			req.bodyIsJSON = httpspec.IsJSON(consumes)
+			// A JSON body bound as bytes is passed as it arrived, unparsed,
+			// for the workflow to check and decode (ADR 0077 §3).
+			req.bodyIsJSON = httpspec.IsJSON(consumes) && !isBytes(plan.bodyType)
 			raw, err := io.ReadAll(r.Body)
 			if err != nil {
 				lim.bodyError(w, r, err)

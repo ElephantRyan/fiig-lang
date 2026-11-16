@@ -1,4 +1,4 @@
-// What event-inbox's POST /events takes: the sender's envelope, with the
+// What event-inbox's POST /events and /events/signed take: the sender's envelope, with the
 // event type under the member "@type" (ADR 0073 §7b).
 model PaidEnvelope {
     id: string

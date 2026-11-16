@@ -607,10 +607,11 @@ Need an ADR first, in build order:
    (503), 64 KiB of headers (431), and one password hash per CPU; set by
    `MAX_BODY_BYTES`, `MAX_REQUESTS`, `REQUEST_TIMEOUT`. No corpus file:
    nothing in the language changed; `docs/deploying.md` documents it.
-8b. A JSON request body read raw: a route that consumes
-   `application/json` binding `bytes`, so a webhook's signature can be
-   checked over the bytes before `json.decode` (with 8a; known
-   limitations, found by ADR 0073's dogfooding).
+8b. ~~A JSON request body read raw.~~ Done 2026-11-15, ADR 0077: a route
+   that consumes JSON may bind its body as `bytes`, unparsed (`string`
+   stays A7), so a webhook's signature is checked before `json.decode`;
+   `examples/event-inbox` checks GitHub-style signatures that
+   `examples/inbox-sender` makes.
 8c. The JSON form of `bytes` (base64, as Go sends `[]byte`, or an array of
    numbers), so a `bytes` field stops being J1 (ADR 0073).
 8d. An enum as a path segment or query value (ADR 0072 open question 2).

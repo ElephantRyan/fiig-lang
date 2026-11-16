@@ -26,6 +26,12 @@ func routeSrc(adapter string) []string {
 		`workflow orderCount() -> int {
     return 1
 }`,
+		`workflow receiveHook(body: bytes) -> Result<int, string> {
+    return Ok(body.length())
+}`,
+		`workflow receiveMaybeHook(body: bytes | None) -> Result<int, string> {
+    return Ok(1)
+}`,
 		adapter,
 	}
 }
@@ -117,10 +123,30 @@ func TestRouteBindingErrors(t *testing.T) {
         consumes "text/xml"
         produces "application/json"
 }`, "A7", `request body parameter "input" is NewOrder, but the route consumes "text/xml", which binds raw as string or bytes`},
+		{`adapter http a {
+    POST "/hooks" -> receiveMaybeHook(body: bytes | None)
+        consumes "application/json"
+        produces "application/json"
+}`, "A7", `(bind bytes to read the JSON body raw, ADR 0077)`},
 	}
 	for _, c := range cases {
 		diags := checkSrc(t, routeSrc(c.adapter)...)
 		wantDiag(t, diags, c.rule, c.fragment)
+	}
+}
+
+// ADR 0077: a JSON route may bind its body raw, as bytes.
+func TestJSONRouteMayBindItsBodyAsBytes(t *testing.T) {
+	diags := checkSrc(t, routeSrc(`adapter http a {
+    POST "/hooks" -> receiveHook(body: bytes)
+        consumes "application/json"
+        produces "application/json"
+    POST "/hooks/vendor" -> receiveHook(body: bytes)
+        consumes "application/vnd.github+json"
+        produces "application/json"
+}`)...)
+	if len(diags) != 0 {
+		t.Fatalf("diags = %v", diags)
 	}
 }
 

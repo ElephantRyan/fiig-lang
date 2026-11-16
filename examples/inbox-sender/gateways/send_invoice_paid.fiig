@@ -1,6 +1,8 @@
 // ADR 0074: fiig calling fiig over HTTP, with no Go in between. The event
 // goes out with json.encode, comes back as bytes, and a 200 is decoded
-// with json.decode; any other status is the caller's to judge (§3).
+// with json.decode; any other status is the caller's to judge (§3). The
+// bytes sent are signed as GitHub signs a delivery (ADR 0075 §1), and the
+// inbox checks the signature over those same bytes (ADR 0077).
 use fiig.http
 use fiig.http.HttpClient
 
@@ -12,8 +14,10 @@ gateway sendInvoicePaid(inboxUrl: string, id: string, invoice: string, amount: d
         eventType: "invoice.paid",
         data: PaidInvoice(invoice: invoice, amount: amount, paidAt: "2026-11-10"),
     )
+    body = json.encode(event)
+    signature = crypto.hmacSha256(key: Outbox.webhookSecret, data: body).toHex()
     sent = HttpClient.send(
-        http.Request(method: http.Method.Post, url: "${inboxUrl}/events", headers: [http.Header(name: "Content-Type", value: "application/json")], body: json.encode(event), timeoutMillis: 5000),
+        http.Request(method: http.Method.Post, url: "${inboxUrl}/events/signed", headers: [http.Header(name: "Content-Type", value: "application/json"), http.Header(name: "X-Hub-Signature-256", value: "sha256=${signature}")], body: body, timeoutMillis: 5000),
     )
     match sent {
         Err(failure) -> Err(SendError.Unreachable(failure: failure))
