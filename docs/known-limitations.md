@@ -61,8 +61,9 @@ doesn't have to discover them.
 - **No package-internal visibility.** A declaration is private to its file
   or public to every importer, so the conversions `fiig.http`'s gateway
   calls (`readReply`, `outgoingRequest`, and two helpers) are public too.
-- **`bytes` has no JSON form** (J1): no ADR decides between base64, as Go
-  sends `[]byte`, and an array of numbers.
+- **A `bytes` field is always written as standard base64** (ADR 0078
+  open question 1): an API that demands base64url for a field (Gmail's
+  `raw`) needs a `string` field filled with `toBase64Url()`.
 - **No streaming JSON and no pretty printing** (ADR 0073 §9): a decode reads
   the whole input, and `json.encode` writes no whitespace.
 

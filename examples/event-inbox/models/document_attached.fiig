@@ -1,0 +1,7 @@
+// A "document.attached" payload: a file's bytes, sent as base64 (ADR
+// 0078). Read in either alphabet, wrapped or not, and sent back as
+// standard base64, padded.
+model DocumentAttached {
+    name: string
+    content: bytes
+}

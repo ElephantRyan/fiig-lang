@@ -146,7 +146,14 @@ func writeResponse(w http.ResponseWriter, resp Response, produces string) *runti
 	contentType := ""
 	if _, none := resp.Body.(runtime.None); !none && resp.Body != nil {
 		contentType = produces
-		if httpspec.IsJSON(produces) {
+		if raw, ok := resp.Body.(runtime.Bytes); ok && httpspec.IsJSON(produces) {
+			// JSON the program built is sent as it is, not as a base64
+			// string, once checked to be what the route says (ADR 0078 §4).
+			if _, err := runtime.ReadJSON(raw.B); err != nil {
+				return runtime.Faultf("route produces %q, but the bytes body isn't JSON: %v", produces, err)
+			}
+			body = raw.B
+		} else if httpspec.IsJSON(produces) {
 			encoded, err := runtime.EncodeBodyJSON(resp.Body)
 			if err != nil {
 				return runtime.Faultf("response body does not encode as JSON: %v", err)

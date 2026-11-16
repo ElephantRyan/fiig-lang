@@ -146,8 +146,8 @@ func (c *checker) jsonArg(call *syntax.CallExpr, param string, env map[string]ty
 // jsonRefusal says why a value of type t can't be decoded (decode) or
 // encoded (ADR 0073 §8), naming the part of t at fault, or "" when it can:
 // a Secret, a Connection, a capability or interface value, a BatchResult,
-// bytes, which no ADR gives a JSON form, and, to decode, a Map whose keys
-// aren't strings.
+// and, to decode, a Map whose keys aren't strings. bytes is base64 (ADR
+// 0078).
 func (c *checker) jsonRefusal(t types.Type, decode bool) string {
 	return c.refusal(t, decode, "", map[syntax.Decl]bool{})
 }
@@ -168,10 +168,6 @@ func (c *checker) refusal(t types.Type, decode bool, where string, seen map[synt
 	switch t := t.(type) {
 	case types.Opaque:
 		return is("a " + t.Name)
-	case types.Primitive:
-		if t.Name == "bytes" {
-			return is("bytes")
-		}
 	case types.Union:
 		for _, m := range t.Members {
 			if why := c.refusal(m, decode, where, seen); why != "" {

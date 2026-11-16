@@ -196,7 +196,7 @@ A `Secret` is a config value that must never be shown.
 
 | # | Bug class | Status |
 |---|---|---|
-| J1 | `json.decode` into, or `json.encode` of, a type JSON can't carry (§8): one holding a `Secret`, a `Connection`, a capability or interface value, a `BatchResult`, or `bytes`, which no ADR gives a JSON form, and, to decode, a `Map` whose keys aren't `string`. Reported at the call with the part at fault (`json.decode into Session: field token is a Secret`), and at a route whose JSON request body is such a type, which before was found only by the first request. A `Secret` in a body is S1's, at the workflow | Attested — `json_error.fiig` (`readCounts`); `compiler/checker`'s `TestJ1` |
+| J1 | `json.decode` into, or `json.encode` of, a type JSON can't carry (§8): one holding a `Secret`, a `Connection`, a capability or interface value, or a `BatchResult`, and, to decode, a `Map` whose keys aren't `string`. Reported at the call with the part at fault (`json.decode into Session: field token is a Secret`), and at a route whose JSON request body is such a type, which before was found only by the first request. A `Secret` in a body is S1's, at the workflow. `bytes` was J1 until ADR 0078 gave it base64 | Attested — `json_error.fiig` (`readCounts`); `compiler/checker`'s `TestJ1` |
 | J2 | Two fields of one model or one variant reading the same JSON member (§7b), as `a: string from json "x"` beside `x: string`, including through embedding. Decoding would fill both from one member, and encoding would send it twice | Attested — `json_error.fiig` (`Upload.type`); `TestJ2AndW3OnJsonNames` |
 
 ## Explicitly out of scope (not statically checkable)

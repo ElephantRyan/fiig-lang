@@ -1,7 +1,9 @@
 // What event-inbox answers with (ADR 0072's enum shape). LimitChanged's
-// payload is kept as JSON, since this sender never sends one.
+// and Attached's payloads are kept as JSON, since this sender never sends
+// either.
 enum InboxEvent {
     Paid(invoice: PaidInvoice)
     LimitChanged(change: JsonValue)
+    Attached(document: JsonValue)
     Ignored(eventType: string)
 }

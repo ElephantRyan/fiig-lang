@@ -612,8 +612,11 @@ Need an ADR first, in build order:
    stays A7), so a webhook's signature is checked before `json.decode`;
    `examples/event-inbox` checks GitHub-style signatures that
    `examples/inbox-sender` makes.
-8c. The JSON form of `bytes` (base64, as Go sends `[]byte`, or an array of
-   numbers), so a `bytes` field stops being J1 (ADR 0073).
+8c. ~~The JSON form of `bytes`.~~ Done 2026-11-15, ADR 0078: standard
+   base64, padded, written everywhere (and `fiig run -json`, which printed
+   `null`); read in either alphabet, padded or not; J1 drops `bytes`; a
+   whole `bytes` body on a JSON route is raw both ways, a response checked
+   to be JSON.
 8d. An enum as a path segment or query value (ADR 0072 open question 2).
 8e. A union of enums that share a variant name, in a body (`OrderError |
    CustomerError`, both with `NotFound`; ADR 0072 open question 1).

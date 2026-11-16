@@ -136,6 +136,14 @@ func TestCorpusEventInbox(t *testing.T) {
 			200, `{"variant":"Ignored","eventType":"customer.created"}`, ""},
 		{"/events", "application/json", `{"id": "e4", "@type": "invoice.paid", "data": {"invoice": "in_9", "amount": "12.50", "paid_at": "x"}}`,
 			422, `{"variant":"Mismatch","path":"amount","reason":"expected a number, got a string"}`, ""},
+		// ADR 0078: a bytes field, sent wrapped as GitHub's contents API
+		// sends it, or in the URL-safe alphabet, comes back padded standard.
+		{"/events", "application/json", `{"id": "e7", "@type": "document.attached", "data": {"name": "logo.png", "content": "iVBORw0K\nGgr7/w==\n"}}`,
+			200, `{"variant":"Attached","document":{"name":"logo.png","content":"iVBORw0KGgr7/w=="}}`, ""},
+		{"/events", "application/json", `{"id": "e8", "@type": "document.attached", "data": {"name": "logo.png", "content": "iVBORw0KGgr7_w"}}`,
+			200, `{"variant":"Attached","document":{"name":"logo.png","content":"iVBORw0KGgr7/w=="}}`, ""},
+		{"/events", "application/json", `{"id": "e9", "@type": "document.attached", "data": {"name": "logo.png", "content": [137, 80]}}`,
+			422, `{"variant":"Mismatch","path":"content","reason":"expected a base64 string, got an array"}`, ""},
 		{"/events/signed", "application/json", limit,
 			200, `{"variant":"LimitChanged","change":{"account":"a3","limit":5000.50}}`, sign(limit)},
 		{"/events/signed", "application/json", limit, 401, ``, sign(limit + " ")},
@@ -212,5 +220,78 @@ func TestOpenAPIListsARawJsonBodyAsAnyJson(t *testing.T) {
 	got, _ := json.Marshal(post["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"])
 	if want := `{"description":"any JSON value"}`; string(got) != want {
 		t.Errorf("schema: got %s, want %s", got, want)
+	}
+}
+
+// ADR 0078 §4: a whole bytes response on a JSON route is the JSON the
+// program built, sent raw once checked; bytes inside a body are base64.
+var bytesBodyProgram = []string{
+	`model Report {
+    title: string
+    digest: bytes
+}`,
+	`workflow report(title: string) -> bytes {
+    return json.encode(Report(title: title, digest: crypto.sha256(title.utf8())))
+}`,
+	`workflow broken() -> bytes {
+    return "not json".utf8()
+}`,
+	`workflow nested(title: string) -> Report {
+    return Report(title: title, digest: "hi".utf8())
+}`,
+	`adapter http reportApi {
+    GET "/report/{title}" -> report(title: string)
+        produces "application/json"
+    GET "/broken" -> broken()
+        produces "application/json"
+    GET "/nested/{title}" -> nested(title: string)
+        produces "application/json"
+}`,
+}
+
+func TestAWholeBytesBodyOnAJsonRouteIsSentRaw(t *testing.T) {
+	h := handlerFor(t, bytesBodyProgram...)
+	code, _, body := serve(h, httptest.NewRequest("GET", "/report/q3", nil))
+	if !strings.HasPrefix(body, `{"title":"q3","digest":"`) || code != 200 {
+		t.Errorf("raw: got %d %s, want the report itself", code, body)
+	}
+	if code, _, body := serve(h, httptest.NewRequest("GET", "/broken", nil)); code != 500 || !strings.Contains(body, "the bytes body isn't JSON") {
+		t.Errorf("not JSON: got %d %s, want 500", code, body)
+	}
+	if code, _, body := serve(h, httptest.NewRequest("GET", "/nested/q3", nil)); code != 200 || strings.TrimSpace(body) != `{"title":"q3","digest":"aGk="}` {
+		t.Errorf("nested: got %d %s", code, body)
+	}
+}
+
+func TestOpenAPIWritesBytesAsBase64InsideJson(t *testing.T) {
+	var files []*syntax.File
+	var ad *syntax.AdapterDecl
+	for _, src := range bytesBodyProgram {
+		f, errs := parser.Parse(src)
+		if len(errs) > 0 {
+			t.Fatalf("parse: %v", errs)
+		}
+		files = append(files, f)
+		for _, d := range f.Decls {
+			if a, ok := d.(*syntax.AdapterDecl); ok {
+				ad = a
+			}
+		}
+	}
+	u, _ := types.BuildUniverse(files)
+	doc, err := GenerateOpenAPI(ad, u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schemaOf := func(path string) string {
+		get := doc["paths"].(map[string]any)[path].(map[string]any)["get"].(map[string]any)
+		got, _ := json.Marshal(get["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"])
+		return string(got)
+	}
+	if got := schemaOf("/report/{title}"); got != `{"description":"any JSON value"}` {
+		t.Errorf("whole bytes body: %s", got)
+	}
+	if got := schemaOf("/nested/{title}"); !strings.Contains(got, `"digest":{"format":"byte","type":"string"}`) {
+		t.Errorf("nested bytes: %s", got)
 	}
 }
