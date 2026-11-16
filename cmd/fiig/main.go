@@ -6,7 +6,8 @@
 //
 //	fiig check   [-json] [-workspace DIR]... <root>
 //	fiig run     [-json] [-args JSON] [-caps FILE] [-env-file FILE] [-trace] [-workspace DIR]... <root> <declName>
-//	fiig serve   [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-workspace DIR]... <root> <adapterName>
+//	fiig serve   [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-workspace DIR]... <root> <adapterName>...
+//	fiig openapi [-workspace DIR]... <root> <adapterName>...
 //	fiig config  [-caps FILE] [-workspace DIR]... <root> [entry]
 //	fiig fmt     [-w] [-json] <file.fiig>...
 //	fiig catalog generate|find|explain|diff ...
@@ -40,7 +41,8 @@ const usage = `usage: fiig <command> [arguments]
 commands:
   check     type-check a program and report every diagnostic
   run       run one declaration of a program
-  serve     serve one of a program's http adapters
+  serve     serve a program's http adapters
+  openapi   print the OpenAPI document for what serve would serve
   config    list the environment variables a program reads
   fmt       format .fiig files
   catalog   generate, search, and compare a program's registry
@@ -62,6 +64,8 @@ func main() {
 		runcmd.Main("fiig run", args, sql)
 	case "serve":
 		servecmd.Main("fiig serve", args, sql)
+	case "openapi":
+		servecmd.OpenAPIMain("fiig openapi", args)
 	case "config":
 		configcmd.Main("fiig config", args)
 	case "fmt":

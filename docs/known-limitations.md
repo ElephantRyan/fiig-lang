@@ -39,8 +39,6 @@ doesn't have to discover them.
   outside a gateway, as Standard Webhooks' `whsec_` secrets need.
 - **`crypto.equal` isn't enforced:** comparing a signature with `==` checks
   clean and leaks timing (ADR 0075 §3).
-- **`GenerateOpenAPI` isn't on the command line.** The adapter package
-  builds the document; no `fiig` command prints it yet.
 - **Two models, or `int | decimal`, in one union** decode by the order
   the members are written (ADR 0081 open questions 1 and 2). Enums that
   read the same JSON are refused (J3).

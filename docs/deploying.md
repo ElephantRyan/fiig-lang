@@ -169,6 +169,23 @@ site (`app.example.com` and `api.example.com`): a cookie's default
 `sameSite: SameSite.AnySite`, and browsers increasingly block such
 cookies anyway, so use a bearer token in `Authorization` there.
 
+## The OpenAPI document
+
+`fiig openapi` prints the OpenAPI 3.0.3 document for what `fiig serve`
+would serve, given the same root and adapters, as JSON on standard
+output:
+
+```
+fiig openapi -workspace .. . ordersApi shop.payments.paymentsApi > openapi.json
+```
+
+Several adapters are one document, as they're one listener. It reads no
+capabilities file and no environment, so it runs in CI beside `fiig
+check`, and a program with checker diagnostics is refused as `serve`
+refuses it. Bodies and parameters are described as the adapter reads and
+writes them: enums by their spellings (ADR 0080), a union of an enum and
+`string` as `anyOf` (ADR 0081), and another package's models in full.
+
 ## Request limits
 
 `fiig serve` bounds what clients can make it hold (ADR 0076). Every limit

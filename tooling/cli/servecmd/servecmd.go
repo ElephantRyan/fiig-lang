@@ -140,31 +140,11 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 // found first. It returns ADR 0079 §6a's listing of each domain's
 // capability bindings, for the startup log.
 func load(root string, names []string, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string) (http.Handler, []string, error) {
-	files, diags, err := runprogram.LoadFiles(root)
+	p, err := check(root, names, workspaces, "serve")
 	if err != nil {
 		return nil, nil, err
 	}
-	var packages types.Packages
-	if loader.Wanted(root, workspaces) {
-		loaded, loadErrs := loader.Load(root, workspaces)
-		if len(loadErrs) > 0 {
-			return nil, nil, errors.Join(loadErrs...)
-		}
-		packages = loaded.Packages
-	}
-	diags = append(diags, runprogram.Check(root, files, packages)...)
-	if len(diags) > 0 {
-		for _, d := range diags {
-			fmt.Fprintln(os.Stderr, d.String())
-		}
-		return nil, nil, fmt.Errorf("refusing to serve a program with checker diagnostics")
-	}
-	universe, _ := types.BuildUniverse(files) // conflicts already reported by runprogram.Check above
-
-	served, err := findAdapters(names, files, packages)
-	if err != nil {
-		return nil, nil, err
-	}
+	files, packages, universe, served := p.files, p.packages, p.universe, p.served
 
 	caps, capProblems, err := runprogram.LoadCapabilitiesFileWith(capsPath, factories, env.Lookup)
 	if err != nil {
@@ -201,6 +181,46 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 		return nil, nil, err
 	}
 	return h, runprogram.Bindings(packages, caps.BoundFor, caps.Packages()), nil
+}
+
+// checked is a program loaded and checked, with the adapters it was asked
+// to serve or describe.
+type checked struct {
+	files    []*syntax.File
+	packages types.Packages
+	universe *types.Universe
+	served   []adapter.Served
+}
+
+// check loads root with its dependencies, refuses it with checker
+// diagnostics (verb says what was refused), and finds the adapters
+// names names.
+func check(root string, names, workspaces []string, verb string) (*checked, error) {
+	files, diags, err := runprogram.LoadFiles(root)
+	if err != nil {
+		return nil, err
+	}
+	var packages types.Packages
+	if loader.Wanted(root, workspaces) {
+		loaded, loadErrs := loader.Load(root, workspaces)
+		if len(loadErrs) > 0 {
+			return nil, errors.Join(loadErrs...)
+		}
+		packages = loaded.Packages
+	}
+	diags = append(diags, runprogram.Check(root, files, packages)...)
+	if len(diags) > 0 {
+		for _, d := range diags {
+			fmt.Fprintln(os.Stderr, d.String())
+		}
+		return nil, fmt.Errorf("refusing to %s a program with checker diagnostics", verb)
+	}
+	universe, _ := types.BuildUniverse(files) // conflicts already reported by runprogram.Check above
+	served, err := findAdapters(names, files, packages)
+	if err != nil {
+		return nil, err
+	}
+	return &checked{files: files, packages: packages, universe: universe, served: served}, nil
 }
 
 // findAdapters resolves each name `fiig serve` was given (ADR 0079 §6): a

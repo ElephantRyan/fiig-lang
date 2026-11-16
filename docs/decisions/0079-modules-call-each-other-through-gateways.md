@@ -354,8 +354,9 @@ any can be tested. Rejected as the default; it's §3's end state.
   package's model (`amount: kernel.Money`) came out unknown and every
   request was a 400. That was true before this ADR for any route; routes
   now resolve through `Interp.ParamType` and decode through
-  `DecodeBodyJSON`, in the workflow's own package and file imports (the
-  OpenAPI generator still uses the root universe; alpha item 8f). And a
+  `DecodeBodyJSON`, in the workflow's own package and file imports. (The
+  OpenAPI generator still used the root universe; `fiig openapi`, alpha
+  item 8f, fixed it the same way, 2026-11-16.) And a
   served dependency that no root file imports wasn't reachable by
   `declScope`; `Interp.Packages` now holds every loaded package for it.
 - **`fiig serve`** takes `<root> <adapter>...`, resolves dotted names

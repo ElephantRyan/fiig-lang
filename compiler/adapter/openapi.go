@@ -28,39 +28,78 @@ import (
 // against, not a claim of exhaustive fidelity. Enums and Results are
 // described in the shapes ADR 0072 sends them in.
 func GenerateOpenAPI(d *syntax.AdapterDecl, u *types.Universe) (map[string]any, error) {
-	if d.Kind != syntax.AdapterHTTP {
-		return nil, fmt.Errorf("adapter %q is not an http adapter", d.Name)
-	}
+	return GenerateOpenAPIFor([]Served{{Decl: d}}, u, nil)
+}
+
+// GenerateOpenAPIFor describes every adapter `fiig serve` would serve
+// on one listener (ADR 0079 §6) in one document: their routes merged by
+// path, a dependency's in its own package. With in, each declaration's
+// types resolve where it is declared, its imports included, as the
+// handler does (so a body typed kernel.Money is described); without
+// one, in u alone.
+func GenerateOpenAPIFor(adapters []Served, u *types.Universe, in *runtime.Interp) (map[string]any, error) {
 	paths := map[string]any{}
-	for _, route := range d.Routes {
-		op, err := buildOperation(route, u)
-		if err != nil {
-			return nil, fmt.Errorf("route %s %q: %w", route.Verb, route.Path, err)
+	var names []string
+	for _, a := range adapters {
+		d := a.Decl
+		if d.Kind != syntax.AdapterHTTP {
+			return nil, fmt.Errorf("adapter %q is not an http adapter", a.Name())
 		}
-		// OpenAPI path templating already uses `{name}` — identical to
-		// this grammar's own placeholder syntax (grammar.md's own note),
-		// so the path string needs no translation at all.
-		pathPart, _, _ := strings.Cut(route.Path, "?")
-		entry, ok := paths[pathPart].(map[string]any)
-		if !ok {
-			entry = map[string]any{}
-			paths[pathPart] = entry
+		names = append(names, a.Name())
+		r := resolver{u: u, in: in}
+		if a.Package != nil {
+			r.u = a.Package.Universe
 		}
-		entry[strings.ToLower(route.Verb)] = op
+		for _, route := range d.Routes {
+			op, err := buildOperation(route, r)
+			if err != nil {
+				return nil, fmt.Errorf("adapter %s, route %s %q: %w", a.Name(), route.Verb, route.Path, err)
+			}
+			// OpenAPI path templating already uses `{name}` — identical to
+			// this grammar's own placeholder syntax (grammar.md's own note),
+			// so the path string needs no translation at all.
+			pathPart, _, _ := strings.Cut(route.Path, "?")
+			entry, ok := paths[pathPart].(map[string]any)
+			if !ok {
+				entry = map[string]any{}
+				paths[pathPart] = entry
+			}
+			method := strings.ToLower(route.Verb)
+			if _, taken := entry[method]; taken {
+				return nil, fmt.Errorf("two routes serve %s %q; give each domain its own path prefix (ADR 0079 §6)", route.Verb, pathPart)
+			}
+			entry[method] = op
+		}
 	}
 	return map[string]any{
 		"openapi": "3.0.3",
-		"info":    map[string]any{"title": d.Name, "version": "0.0.0"},
+		"info":    map[string]any{"title": strings.Join(names, ", "), "version": "0.0.0"},
 		"paths":   paths,
 	}, nil
 }
 
-func buildOperation(route *syntax.Route, u *types.Universe) (map[string]any, error) {
-	plan, err := planRoute(route, true, u, nil)
+// resolver resolves the types the document describes: in u, the package
+// the adapter is declared in, and through in, when there is one, in the
+// package and file that declare each type's owner.
+type resolver struct {
+	u  *types.Universe
+	in *runtime.Interp
+}
+
+// decl resolves t, written in owner's declaration.
+func (r resolver) decl(owner syntax.Decl, t syntax.Type) (types.Type, bool) {
+	if r.in != nil {
+		return r.in.ParamType(owner, t)
+	}
+	return types.Resolve(t, r.u)
+}
+
+func buildOperation(route *syntax.Route, r resolver) (map[string]any, error) {
+	plan, err := planRoute(route, true, r.u, r.in)
 	if err != nil {
 		return nil, err
 	}
-	wd, err := routeWorkflow(route, u)
+	wd, err := routeWorkflow(route, r.u)
 	if err != nil {
 		return nil, err
 	}
@@ -70,11 +109,11 @@ func buildOperation(route *syntax.Route, u *types.Universe) (map[string]any, err
 
 	var params []any
 	for _, n := range plan.pathNames {
-		params = append(params, map[string]any{"name": n, "in": "path", "required": true, "schema": schemaFor(paramType[n], u)})
+		params = append(params, map[string]any{"name": n, "in": "path", "required": true, "schema": schemaFor(paramType[n], r)})
 	}
 	for _, n := range plan.queryNames {
 		pt := paramType[n]
-		params = append(params, map[string]any{"name": n, "in": "query", "required": !runtime.IsOptional(pt), "schema": schemaFor(nonNone(pt), u)})
+		params = append(params, map[string]any{"name": n, "in": "query", "required": !runtime.IsOptional(pt), "schema": schemaFor(nonNone(pt), r)})
 	}
 	// ADR 0069 §1: header and cookie arguments, which OpenAPI has its own
 	// `in` for. A `T | None` argument is optional.
@@ -83,7 +122,7 @@ func buildOperation(route *syntax.Route, u *types.Universe) (map[string]any, err
 			continue
 		}
 		pt := paramType[arg.Name]
-		params = append(params, map[string]any{"name": arg.SourceName, "in": arg.Source, "required": !runtime.IsOptional(pt), "schema": schemaFor(nonNone(pt), u)})
+		params = append(params, map[string]any{"name": arg.SourceName, "in": arg.Source, "required": !runtime.IsOptional(pt), "schema": schemaFor(nonNone(pt), r)})
 	}
 	if len(params) > 0 {
 		op["parameters"] = params
@@ -91,11 +130,11 @@ func buildOperation(route *syntax.Route, u *types.Universe) (map[string]any, err
 	if plan.bodyArg != "" {
 		op["requestBody"] = map[string]any{
 			"required": true,
-			"content":  map[string]any{consumesOf(route): map[string]any{"schema": bodySchema(paramType[plan.bodyArg], consumesOf(route), u)}},
+			"content":  map[string]any{consumesOf(route): map[string]any{"schema": bodySchema(paramType[plan.bodyArg], consumesOf(route), r)}},
 		}
 	}
 
-	responses, err := buildResponses(route, wd, u)
+	responses, err := buildResponses(route, wd, r)
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +146,8 @@ func buildOperation(route *syntax.Route, u *types.Universe) (map[string]any, err
 // explicit response-mapping (ADR 0017) or from ADR 0026's default
 // (Ok -> 200, Err -> 500), using the workflow's own Result<S, E> return
 // type to know what each status's body actually is.
-func buildResponses(route *syntax.Route, wd *syntax.WorkflowDecl, u *types.Universe) (map[string]any, error) {
-	retType, ok := types.Resolve(wd.ReturnType, u)
+func buildResponses(route *syntax.Route, wd *syntax.WorkflowDecl, r resolver) (map[string]any, error) {
+	retType, ok := r.decl(wd, wd.ReturnType)
 	if !ok {
 		return nil, fmt.Errorf("workflow %q has an unresolvable return type", wd.Name)
 	}
@@ -118,10 +157,10 @@ func buildResponses(route *syntax.Route, wd *syntax.WorkflowDecl, u *types.Unive
 	responses := map[string]any{}
 	if route.Mapping == nil {
 		if isResult {
-			responses["200"] = responseObject(okType, media, u)
-			responses["500"] = responseObject(errType, media, u)
+			responses["200"] = responseObject(okType, media, r)
+			responses["500"] = responseObject(errType, media, r)
 		} else {
-			responses["200"] = responseObject(retType, media, u)
+			responses["200"] = responseObject(retType, media, r)
 		}
 		return responses, nil
 	}
@@ -140,10 +179,10 @@ func buildResponses(route *syntax.Route, wd *syntax.WorkflowDecl, u *types.Unive
 			if hasBody {
 				// A body that is a call has that call's type; a bare name
 				// is the value the arm's pattern bound.
-				if t, ok := resolveExprType(body, u); ok {
+				if t, ok := resolveExprType(body, r); ok {
 					bodyType = t
 				}
-				responses[code] = responseObject(bodyType, media, u)
+				responses[code] = responseObject(bodyType, media, r)
 			} else {
 				responses[code] = map[string]any{"description": ""}
 			}
@@ -151,11 +190,11 @@ func buildResponses(route *syntax.Route, wd *syntax.WorkflowDecl, u *types.Unive
 			// The actual status is only known dynamically (inside whatever
 			// this expression calls) — described under "default" rather
 			// than guessed at. Its body is HttpResponse<B>'s B (ADR 0069 §3).
-			exprType, _ := resolveExprType(v.Value, u)
+			exprType, _ := resolveExprType(v.Value, r)
 			if b, ok := types.IsHttpResponse(exprType); ok {
 				exprType = b
 			}
-			responses["default"] = responseObject(exprType, media, u)
+			responses["default"] = responseObject(exprType, media, r)
 		}
 	}
 	return responses, nil
@@ -212,7 +251,7 @@ func resultMembers(t types.Type) (ok, err types.Type, isResult bool) {
 // activity/gateway/workflow (`customerErrorToHttpResponse(error)`); anything else (a call
 // through a FieldAccess, a non-call expression) isn't attested and
 // resolves to Unknown rather than guessed at.
-func resolveExprType(e syntax.Expr, u *types.Universe) (types.Type, bool) {
+func resolveExprType(e syntax.Expr, r resolver) (types.Type, bool) {
 	call, ok := e.(*syntax.CallExpr)
 	if !ok {
 		return types.Unknown{}, false
@@ -221,7 +260,7 @@ func resolveExprType(e syntax.Expr, u *types.Universe) (types.Type, bool) {
 	if !ok {
 		return types.Unknown{}, false
 	}
-	decl, found := u.Lookup(ident.Name)
+	decl, found := r.u.Lookup(ident.Name)
 	if !found {
 		return types.Unknown{}, false
 	}
@@ -240,28 +279,28 @@ func resolveExprType(e syntax.Expr, u *types.Universe) (types.Type, bool) {
 	default:
 		return types.Unknown{}, false
 	}
-	return types.Resolve(rt, u)
+	return r.decl(decl, rt)
 }
 
 // responseObject describes a response whose body is t, sent as media (the
 // route's `produces`, ADR 0069 §5). A body that is only ever None is no
 // content at all.
-func responseObject(t types.Type, media string, u *types.Universe) map[string]any {
+func responseObject(t types.Type, media string, r resolver) map[string]any {
 	if _, none := t.(types.NoneType); none {
 		return map[string]any{"description": ""}
 	}
 	return map[string]any{
 		"description": "",
-		"content":     map[string]any{media: map[string]any{"schema": bodySchema(t, media, u)}},
+		"content":     map[string]any{media: map[string]any{"schema": bodySchema(t, media, r)}},
 	}
 }
 
 // bodySchema is schemaFor for a whole body sent as media. A whole body of
 // bytes is raw: any JSON value on a JSON route, which the program built or
 // decodes itself (ADR 0077 §5, ADR 0078 §4), and binary on any other.
-func bodySchema(t types.Type, media string, u *types.Universe) map[string]any {
+func bodySchema(t types.Type, media string, r resolver) map[string]any {
 	if !isBytes(t) {
-		return schemaFor(t, u)
+		return schemaFor(t, r)
 	}
 	if httpspec.IsJSON(media) {
 		return map[string]any{"description": "any JSON value"} // as JsonValue
@@ -288,7 +327,7 @@ func consumesOf(route *syntax.Route) string {
 
 // schemaFor renders t as a JSON Schema fragment; Unknown becomes a
 // schema-less "any".
-func schemaFor(t types.Type, u *types.Universe) map[string]any {
+func schemaFor(t types.Type, r resolver) map[string]any {
 	switch t := t.(type) {
 	case types.Primitive:
 		switch t.Name {
@@ -323,7 +362,7 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 			nonNone = append(nonNone, m)
 		}
 		if len(nonNone) == 1 {
-			s := schemaFor(nonNone[0], u)
+			s := schemaFor(nonNone[0], r)
 			if hasNone {
 				s["nullable"] = true
 			}
@@ -331,7 +370,7 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 		}
 		variants := make([]any, len(nonNone))
 		for i, m := range nonNone {
-			variants[i] = schemaFor(m, u)
+			variants[i] = schemaFor(m, r)
 		}
 		// oneOf says a value matches exactly one member; an enum beside
 		// string can match both, so that union is anyOf (ADR 0081 §3).
@@ -346,27 +385,27 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 		return s
 	case types.Generic:
 		if t.Name == "List" && len(t.Args) == 1 {
-			return map[string]any{"type": "array", "items": schemaFor(t.Args[0], u)}
+			return map[string]any{"type": "array", "items": schemaFor(t.Args[0], r)}
 		}
 		if t.Name == "Map" && len(t.Args) == 2 && t.Args[0].String() == "string" {
 			// A JSON object; other key types encode as [key, value] pairs.
-			return map[string]any{"type": "object", "additionalProperties": schemaFor(t.Args[1], u)}
+			return map[string]any{"type": "object", "additionalProperties": schemaFor(t.Args[1], r)}
 		}
 		if t.Name == "Map" && len(t.Args) == 2 {
-			pair := map[string]any{"type": "array", "prefixItems": []any{schemaFor(t.Args[0], u), schemaFor(t.Args[1], u)}}
+			pair := map[string]any{"type": "array", "prefixItems": []any{schemaFor(t.Args[0], r), schemaFor(t.Args[1], r)}}
 			return map[string]any{"type": "array", "items": pair}
 		}
 		if t.Name == "Result" && len(t.Args) == 2 {
 			return taggedUnion([]any{
-				variantSchema("Ok", map[string]any{"value": schemaFor(t.Args[0], u)}, []string{"value"}),
-				variantSchema("Err", map[string]any{"error": schemaFor(t.Args[1], u)}, []string{"error"}),
+				variantSchema("Ok", map[string]any{"value": schemaFor(t.Args[0], r)}, []string{"value"}),
+				variantSchema("Err", map[string]any{"error": schemaFor(t.Args[1], r)}, []string{"error"}),
 			})
 		}
 		if t.Name == "BatchResult" && len(t.Args) == 3 {
-			outcome := schemaFor(types.Generic{Name: "Result", Args: t.Args[1:]}, u)
+			outcome := schemaFor(types.Generic{Name: "Result", Args: t.Args[1:]}, r)
 			item := map[string]any{
 				"type":       "object",
-				"properties": map[string]any{"key": schemaFor(t.Args[0], u), "outcome": outcome},
+				"properties": map[string]any{"key": schemaFor(t.Args[0], r), "outcome": outcome},
 				"required":   []string{"key", "outcome"},
 			}
 			return map[string]any{"type": "array", "items": item}
@@ -378,11 +417,11 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 			props := map[string]any{}
 			var required []string
 			for _, f := range decl.AllFields() {
-				ft, ok := types.Resolve(f.Type, u)
+				ft, ok := r.decl(decl, f.Type)
 				if !ok {
 					continue
 				}
-				props[f.JSONName()] = schemaFor(ft, u)
+				props[f.JSONName()] = schemaFor(ft, r)
 				if !runtime.IsOptional(ft) {
 					required = append(required, f.JSONName())
 				}
@@ -398,7 +437,7 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 				// Any JSON at all (ADR 0073 §4); the empty schema says so.
 				return map[string]any{"description": "any JSON value"}
 			}
-			return enumSchema(decl, u)
+			return enumSchema(decl, r)
 		default:
 			return map[string]any{}
 		}
@@ -419,7 +458,7 @@ func hasString(members []types.Type) bool {
 // enumSchema describes an enum as ADR 0072 sends it (§6): a string naming
 // a variant when no variant carries a payload, and otherwise one object
 // schema per variant, told apart by its `variant` member.
-func enumSchema(d *syntax.EnumDecl, u *types.Universe) map[string]any {
+func enumSchema(d *syntax.EnumDecl, r resolver) map[string]any {
 	if !d.HasPayload() {
 		names := make([]any, len(d.Variants))
 		for i, v := range d.Variants {
@@ -432,11 +471,11 @@ func enumSchema(d *syntax.EnumDecl, u *types.Universe) map[string]any {
 		props := map[string]any{}
 		var required []string
 		for _, f := range v.Fields {
-			ft, ok := types.Resolve(f.Type, u)
+			ft, ok := r.decl(d, f.Type)
 			if !ok {
 				continue
 			}
-			props[f.JSONName()] = schemaFor(ft, u)
+			props[f.JSONName()] = schemaFor(ft, r)
 			if !runtime.IsOptional(ft) {
 				required = append(required, f.JSONName())
 			}
