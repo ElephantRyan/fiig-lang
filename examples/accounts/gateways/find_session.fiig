@@ -3,8 +3,8 @@ gateway findSession(token: string) -> Result<Account, AccountError>
     idempotent
 {
     row = Database.queryOne(
-        "SELECT accounts.name, accounts.email FROM sessions JOIN accounts ON accounts.name = sessions.name WHERE sessions.token = ?",
-        token,
+        "SELECT accounts.name, accounts.email FROM sessions JOIN accounts ON accounts.name = sessions.name WHERE sessions.token_hash = ?",
+        tokenHash(token),
     )
     match row {
         found -> Ok(Account(name: found.name, email: found.email))

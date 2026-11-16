@@ -1,6 +1,11 @@
 gateway addAccount(name: string, email: string, key: string) -> Account
     requires Database
 {
-    Database.execute("INSERT INTO accounts (name, email, key) VALUES (?, ?, ?)", name, email, key)
+    Database.execute(
+        "INSERT INTO accounts (name, email, key_hash) VALUES (?, ?, ?)",
+        name,
+        email,
+        crypto.hashPassword(key),
+    )
     return Account(name: name, email: email)
 }

@@ -48,6 +48,17 @@ func Prelude() []*Card {
 		&Card{Name: "json.encode", Kind: "formula", Group: types.JsonGroup, Catalog: Default, Source: PreludeSource, Pure: true,
 			Params: []Param{{Name: "value", Type: "T"}}, Returns: "bytes"},
 	)
+	// ADR 0075: every crypto member is pure but hashPassword, whose salt
+	// comes from Random.
+	for _, name := range types.CryptoFormulaNames() {
+		m, _ := types.CryptoFormula(name)
+		c := &Card{Name: "crypto." + name, Kind: "formula", Group: types.CryptoGroup, Catalog: Default, Source: PreludeSource,
+			Pure: name != types.HashPasswordFormula, Returns: m.Result.String()}
+		for _, p := range m.Params {
+			c.Params = append(c.Params, Param{Name: p.Name, Type: p.Type.String()})
+		}
+		cards = append(cards, c)
+	}
 	return cards
 }
 
