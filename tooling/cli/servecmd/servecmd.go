@@ -13,9 +13,14 @@
 // one. SIGINT or SIGTERM stops accepting connections and lets in-flight
 // requests finish for up to -shutdown.
 //
+// What clients send is bounded (ADR 0076): a body of MAX_BODY_BYTES
+// (-max-body, 2 MiB), MAX_REQUESTS at once (-max-requests, 256) with as
+// many waiting up to 5 s, and REQUEST_TIMEOUT per request
+// (-request-timeout, 30 s).
+//
 // Usage:
 //
-//	fiig serve [-addr :8080] [-caps caps.json] [-workspace <dir>]... <root> <adapterName>
+//	fiig serve [-addr :8080] [-caps caps.json] [-max-body N] [-max-requests N] [-request-timeout D] [-workspace <dir>]... <root> <adapterName>
 package servecmd
 
 import (
@@ -27,6 +32,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -57,9 +63,12 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable")
 	var origins stringList
 	fs.Var(&origins, "allow-origin", "an origin a browser front end may call from, as scheme://host[:port], or * for any (ADR 0070); repeatable; default $ALLOW_ORIGINS, comma-separated; none means CORS off")
+	maxBody := fs.Int64("max-body", 0, "the most bytes a request body may have, else 413 (ADR 0076 §1); default $MAX_BODY_BYTES, else 2097152")
+	maxRequests := fs.Int("max-requests", 0, "how many requests may run at once, with as many waiting up to 5 s, else 503 (ADR 0076 §2); default $MAX_REQUESTS, else 256")
+	requestTimeout := fs.Duration("request-timeout", 0, "how long a request may run, else 503 (ADR 0076 §3); default $REQUEST_TIMEOUT, else 30s")
 	fs.Parse(args)
 	if fs.NArg() != 2 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-workspace DIR]... <root> <adapterName>")
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-max-body N] [-max-requests N] [-request-timeout D] [-workspace DIR]... <root> <adapterName>")
 		os.Exit(2)
 	}
 	env, err := runprogram.NewEnvironment(*envFile)
@@ -84,13 +93,19 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	if err != nil {
 		originProblems = append(originProblems, "ALLOW_ORIGINS / -allow-origin: "+err.Error())
 	}
-	handler, err := load(fs.Arg(0), fs.Arg(1), *capsPath, workspaces, factories, cors, env, originProblems)
+	limits, limitProblems := readLimits(env, *maxBody, *maxRequests, *requestTimeout)
+	originProblems = append(originProblems, limitProblems...)
+	handler, err := load(fs.Arg(0), fs.Arg(1), *capsPath, workspaces, factories, cors, limits, env, originProblems)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 
-	srv := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	readTimeout, writeTimeout := limits.ServerTimeouts()
+	srv := &http.Server{
+		Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout: readTimeout, WriteTimeout: writeTimeout, MaxHeaderBytes: adapter.MaxHeaderBytes,
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go func() {
@@ -112,7 +127,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 
 // load checks root and builds the handler for its http adapter named name,
 // with every configuration problem (ADR 0071 §3's one report) found first.
-func load(root, name, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, env *runprogram.Environment, problems []string) (http.Handler, error) {
+func load(root, name, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string) (http.Handler, error) {
 	files, diags, err := runprogram.LoadFiles(root)
 	if err != nil {
 		return nil, err
@@ -166,9 +181,56 @@ func load(root, name, capsPath string, workspaces []string, factories runtime.Fa
 	if err := runprogram.ConfigReport(problems); err != nil {
 		return nil, err
 	}
-	h, err := adapter.HTTPHandler(decl, universe, in)
+	h, err := adapter.HTTPHandlerWithLimits(decl, universe, in, limits)
 	if err != nil {
 		return nil, err
 	}
 	return adapter.WithCORS(h, decl, cors)
 }
+
+// readLimits is ADR 0076's limits: each flag, else its variable, else the
+// default. A bad value is a problem for ADR 0071 §3's one report.
+func readLimits(env *runprogram.Environment, maxBody int64, maxRequests int, requestTimeout time.Duration) (adapter.Limits, []string) {
+	l := adapter.DefaultLimits()
+	var problems []string
+	positive := func(name string, flag int64, set func(int64)) {
+		if flag != 0 {
+			if flag < 0 {
+				problems = append(problems, fmt.Sprintf("%s / -%s: %d isn't a positive whole number", name, flagName[name], flag))
+				return
+			}
+			set(flag)
+			return
+		}
+		v, ok := env.Lookup(name)
+		if !ok || v == "" {
+			return
+		}
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || n <= 0 {
+			problems = append(problems, fmt.Sprintf("%s: %q isn't a positive whole number", name, v))
+			return
+		}
+		set(n)
+	}
+	positive("MAX_BODY_BYTES", maxBody, func(n int64) { l.MaxBodyBytes = n })
+	positive("MAX_REQUESTS", int64(maxRequests), func(n int64) { l.MaxRequests = int(n) })
+	switch {
+	case requestTimeout < 0:
+		problems = append(problems, fmt.Sprintf("REQUEST_TIMEOUT / -request-timeout: %s isn't a positive duration", requestTimeout))
+	case requestTimeout > 0:
+		l.RequestTimeout = requestTimeout
+	default:
+		if v, ok := env.Lookup("REQUEST_TIMEOUT"); ok && v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil || d <= 0 {
+				problems = append(problems, fmt.Sprintf("REQUEST_TIMEOUT: %q isn't a positive duration, such as 30s or 2m", v))
+			} else {
+				l.RequestTimeout = d
+			}
+		}
+	}
+	return l, problems
+}
+
+var flagName = map[string]string{"MAX_BODY_BYTES": "max-body", "MAX_REQUESTS": "max-requests"}

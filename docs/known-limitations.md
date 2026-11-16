@@ -54,6 +54,10 @@ doesn't have to discover them.
   as replies (§4).
 - **No limit on a reply's size** (ADR 0074 open question 2): the timeout
   bounds how long a reply takes, not how much memory it uses.
+- **Request limits are per service, not per route** (ADR 0076 open
+  question 1): a route taking uploads over 2 MiB needs `MAX_BODY_BYTES`
+  raised for every route. No rate limit per client (§5); put it in the
+  proxy.
 - **No package-internal visibility.** A declaration is private to its file
   or public to every importer, so the conversions `fiig.http`'s gateway
   calls (`readReply`, `outgoingRequest`, and two helpers) are public too.

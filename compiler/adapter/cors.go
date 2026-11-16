@@ -222,6 +222,10 @@ func (w *corsWriter) WriteHeader(status int) {
 	w.ResponseWriter.WriteHeader(status)
 }
 
+// Unwrap lets http.ResponseController reach the connection, for ADR 0076
+// §3's deadlines.
+func (w *corsWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
 func (w *corsWriter) Write(b []byte) (int, error) {
 	if !w.written {
 		w.WriteHeader(http.StatusOK)

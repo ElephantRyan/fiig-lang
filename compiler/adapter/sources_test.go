@@ -18,6 +18,11 @@ import (
 
 func handlerFor(t *testing.T, srcs ...string) http.Handler {
 	t.Helper()
+	return handlerWithLimits(t, DefaultLimits(), srcs...)
+}
+
+func handlerWithLimits(t *testing.T, l Limits, srcs ...string) http.Handler {
+	t.Helper()
 	var files []*syntax.File
 	var ad *syntax.AdapterDecl
 	for _, src := range srcs {
@@ -36,7 +41,7 @@ func handlerFor(t *testing.T, srcs ...string) http.Handler {
 	if len(conflicts) > 0 {
 		t.Fatalf("conflicts: %v", conflicts)
 	}
-	h, err := HTTPHandler(ad, u, runtime.New(u, runtime.NewCapabilityRegistry()))
+	h, err := HTTPHandlerWithLimits(ad, u, runtime.New(u, runtime.NewCapabilityRegistry()), l)
 	if err != nil {
 		t.Fatal(err)
 	}

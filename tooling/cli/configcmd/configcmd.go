@@ -4,7 +4,7 @@
 // .env.example are derived rather than written by hand. Given an entry, a
 // declaration or an http adapter, it lists only what that entry reaches,
 // which is what `fiig run` or `fiig serve` of it demands; an http adapter
-// adds fiig serve's own LISTEN_ADDR and ALLOW_ORIGINS.
+// adds fiig serve's own LISTEN_ADDR, ALLOW_ORIGINS, and ADR 0076's limits.
 //
 // Usage:
 //
@@ -89,6 +89,9 @@ func Main(name string, args []string) {
 		vars = append(vars,
 			runprogram.Variable{Name: "ALLOW_ORIGINS", Type: "origins", Requirement: "optional", Where: "fiig serve: browser origins allowed to call it (ADR 0070)"},
 			runprogram.Variable{Name: "LISTEN_ADDR", Type: "address", Requirement: "= :8080", Where: "fiig serve"},
+			runprogram.Variable{Name: "MAX_BODY_BYTES", Type: "int", Requirement: "= 2097152", Where: "fiig serve: the most bytes a request body may have (ADR 0076)"},
+			runprogram.Variable{Name: "MAX_REQUESTS", Type: "int", Requirement: "= 256", Where: "fiig serve: requests run at once, as many more waiting (ADR 0076)"},
+			runprogram.Variable{Name: "REQUEST_TIMEOUT", Type: "duration", Requirement: "= 30s", Where: "fiig serve: how long a request may run (ADR 0076)"},
 		)
 	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
