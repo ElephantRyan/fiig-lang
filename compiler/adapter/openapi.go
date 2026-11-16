@@ -88,13 +88,9 @@ func buildOperation(route *syntax.Route, u *types.Universe) (map[string]any, err
 		op["parameters"] = params
 	}
 	if plan.bodyArg != "" {
-		schema := schemaFor(paramType[plan.bodyArg], u)
-		if httpspec.IsJSON(consumesOf(route)) && isBytes(paramType[plan.bodyArg]) {
-			schema = map[string]any{"description": "any JSON value"} // as JsonValue; the workflow decodes it (ADR 0077 §5)
-		}
 		op["requestBody"] = map[string]any{
 			"required": true,
-			"content":  map[string]any{consumesOf(route): map[string]any{"schema": schema}},
+			"content":  map[string]any{consumesOf(route): map[string]any{"schema": bodySchema(paramType[plan.bodyArg], consumesOf(route), u)}},
 		}
 	}
 
@@ -255,8 +251,21 @@ func responseObject(t types.Type, media string, u *types.Universe) map[string]an
 	}
 	return map[string]any{
 		"description": "",
-		"content":     map[string]any{media: map[string]any{"schema": schemaFor(t, u)}},
+		"content":     map[string]any{media: map[string]any{"schema": bodySchema(t, media, u)}},
 	}
+}
+
+// bodySchema is schemaFor for a whole body sent as media. A whole body of
+// bytes is raw: any JSON value on a JSON route, which the program built or
+// decodes itself (ADR 0077 §5, ADR 0078 §4), and binary on any other.
+func bodySchema(t types.Type, media string, u *types.Universe) map[string]any {
+	if !isBytes(t) {
+		return schemaFor(t, u)
+	}
+	if httpspec.IsJSON(media) {
+		return map[string]any{"description": "any JSON value"} // as JsonValue
+	}
+	return map[string]any{"type": "string", "format": "binary"}
 }
 
 // producesOf and consumesOf are a route's declared content types, or JSON
@@ -293,7 +302,9 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 		case "string":
 			return map[string]any{"type": "string"}
 		case "bytes":
-			return map[string]any{"type": "string", "format": "binary"}
+			// Base64 inside JSON (ADR 0078 §3); a whole raw body is
+			// bodySchema's.
+			return map[string]any{"type": "string", "format": "byte"}
 		case "bool":
 			return map[string]any{"type": "boolean"}
 		}

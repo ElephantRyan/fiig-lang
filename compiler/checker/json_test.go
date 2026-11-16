@@ -92,9 +92,6 @@ func TestJ1(t *testing.T) {
 		{"encode secret", `rule r(s: Session) -> bytes {
     return json.encode(s)
 }`, "json.encode of Session: field token is a Secret"},
-		{"bytes", `rule r(body: string) -> Result<List<bytes>, JsonError> {
-    return json.decode(body)
-}`, "it is bytes"},
 		{"map keys", `rule r(body: string) -> Result<Map<int, string>, JsonError> {
     return json.decode(body)
 }`, "a Map with int keys"},
@@ -119,14 +116,36 @@ func TestJ1(t *testing.T) {
 	}
 	wantDiag(t, checkSrc(t, `model Upload {
     name: string
-    content: bytes
+    parts: Map<int, string>
 }`, `workflow upload(file: Upload) -> string {
     return file.name
 }`, `adapter http api {
     POST "/uploads" -> upload(file: Upload)
         consumes "application/json"
         produces "text/plain"
-}`), "J1", `request body parameter "file" decodes into Upload: field content is bytes`)
+}`), "J1", `request body parameter "file" decodes into Upload: field parts is a Map with int keys`)
+}
+
+// ADR 0078 §3: bytes is base64 in JSON, so it is no longer J1, in a body
+// or at either call.
+func TestBytesIsNotJ1(t *testing.T) {
+	diags := checkSrc(t, `model Upload {
+    name: string
+    content: bytes
+}`, `rule read(body: string) -> Result<List<bytes>, JsonError> {
+    return json.decode(body)
+}`, `rule write(file: Upload) -> bytes {
+    return json.encode(file)
+}`, `workflow upload(file: Upload) -> Upload {
+    return file
+}`, `adapter http api {
+    POST "/uploads" -> upload(file: Upload)
+        consumes "application/json"
+        produces "application/json"
+}`)
+	if len(diags) > 0 {
+		t.Errorf("diags = %v", diags)
+	}
 }
 
 // §7b: J2, and W3 on the member's JSON name.

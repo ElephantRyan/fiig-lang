@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -109,6 +110,16 @@ func decodeJSON(raw any, t types.Type, u fieldTypes, path string) (Value, error)
 				return nil, mismatch(path, "expected a boolean, got %s", jsonKind(raw))
 			}
 			return Bool(b), nil
+		case "bytes":
+			s, ok := raw.(string)
+			if !ok {
+				return nil, mismatch(path, "expected a base64 string, got %s", jsonKind(raw))
+			}
+			b, err := decodeJSONBase64(s)
+			if err != nil {
+				return nil, mismatch(path, "%v", err)
+			}
+			return Bytes{B: b}, nil
 		}
 	case types.NoneType:
 		if raw != nil {
@@ -495,6 +506,8 @@ func EncodeJSON(v Value) any {
 		return json.Number(v.String())
 	case Str:
 		return string(v)
+	case Bytes:
+		return base64.StdEncoding.EncodeToString(v.B) // ADR 0078 §1; was null
 	case Bool:
 		return bool(v)
 	case None:
@@ -621,6 +634,8 @@ func writeBodyJSON(b *bytes.Buffer, v Value) error {
 		b.WriteString(v.String())
 	case Str:
 		writeJSONString(b, string(v))
+	case Bytes:
+		writeJSONString(b, base64.StdEncoding.EncodeToString(v.B)) // ADR 0078 §1
 	case Bool:
 		b.WriteString(strconv.FormatBool(bool(v)))
 	case None:
@@ -792,4 +807,24 @@ func writeJSONString(b *bytes.Buffer, s string) {
 		i += size
 	}
 	b.WriteByte('"')
+}
+
+// decodeJSONBase64 reads a JSON string as bytes (ADR 0078 §2): ADR 0069
+// §7's base64 rules, in whichever alphabet the text is written, since a
+// JSON member names none. Both alphabets in one string is an error.
+func decodeJSONBase64(s string) ([]byte, error) {
+	std := strings.ContainsAny(s, "+/")
+	url := strings.ContainsAny(s, "-_")
+	if std && url {
+		return nil, fmt.Errorf("base64 mixes the standard alphabet (+ /) with the URL-safe one (- _)")
+	}
+	enc := base64.StdEncoding
+	if url {
+		enc = base64.URLEncoding
+	}
+	b, err := decodeBase64(s, enc)
+	if err != nil {
+		return nil, fmt.Errorf("isn't base64: %v", err)
+	}
+	return b, nil
 }

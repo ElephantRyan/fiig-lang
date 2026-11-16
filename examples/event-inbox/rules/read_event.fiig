@@ -10,5 +10,9 @@ rule readEvent(envelope: Envelope) -> Result<Event, JsonError> {
         change: CreditLimitChanged = json.decode(envelope.data)?
         return Ok(Event.LimitChanged(change: change))
     }
+    if envelope.eventType == "document.attached" {
+        document: DocumentAttached = json.decode(envelope.data)?
+        return Ok(Event.Attached(document: document))
+    }
     return Ok(Event.Ignored(eventType: envelope.eventType))
 }
