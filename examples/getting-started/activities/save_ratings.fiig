@@ -1,0 +1,13 @@
+// Saves a batch, all or nothing. Each rating is checked just before it is
+// written; an Err from `?` inside a transaction block rolls back every row
+// already written, so one bad rating stores none of them.
+// fiig run -caps caps.json -args '{"ratings": [{"item": "dune", "score": 9, "note": "great"}]}' . saveRatings
+activity saveRatings(ratings: List<Rating>) -> Result<int, RatingError> {
+    transaction Database {
+        for rating in ratings {
+            checkRating(rating)?
+            saveRating(rating)
+        }
+    }
+    return Ok(ratings.length())
+}
