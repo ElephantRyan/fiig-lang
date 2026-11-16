@@ -339,7 +339,7 @@ func TestDecodeStringFloat(t *testing.T) {
 			t.Errorf("decode %q = %v, want an error", raw, v)
 		}
 	}
-	if schema := schemaFor(floatT, nil); schema["type"] != "number" {
+	if schema := schemaFor(floatT, resolver{}); schema["type"] != "number" {
 		t.Errorf("schema = %v, want a number", schema)
 	}
 }
@@ -358,7 +358,7 @@ func TestDecodeStringDecimal(t *testing.T) {
 			t.Errorf("decode %q = %v, want an error", raw, v)
 		}
 	}
-	if schema := schemaFor(decT, nil); schema["type"] != "number" || schema["format"] != "decimal" {
+	if schema := schemaFor(decT, resolver{}); schema["type"] != "number" || schema["format"] != "decimal" {
 		t.Errorf("schema = %v, want a decimal number", schema)
 	}
 }

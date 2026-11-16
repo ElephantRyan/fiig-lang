@@ -632,8 +632,11 @@ Need an ADR first, in build order:
    0081: J3 refuses a union whose members read the same JSON; `Enum |
    string` decodes a spelling as the enum and anything else as text, and a
    `match` over it names every variant and the text.
-8f. `fiig openapi`: print the document `GenerateOpenAPI` builds. Likely a
-   command, not an ADR.
+8f. ~~`fiig openapi`.~~ Done 2026-11-16, a command, no ADR: `fiig openapi
+   [-workspace DIR]... <root> <adapter>...` prints the document for what
+   `fiig serve` would serve, one document for several adapters, with each
+   declaration's types resolved in its own package (another package's
+   model had been an empty schema).
 9. A checked `Database` capability: its calls typed and its use held to a
    gateway's `requires`, as P7 does for capability groups written in fiig.
 10. ADR 0066 declared SQL row types.
