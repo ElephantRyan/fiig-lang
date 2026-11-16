@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -41,10 +42,10 @@ func (db *fakeDatabase) Call(ctx context.Context, method string, args []Value) (
 		}
 		key := keyString(args[1])
 		if row, ok := db.rowsByID[key]; ok {
-			return row, nil
+			return selectColumns(args[0], row), nil
 		}
 		if row, ok := db.rowsByEmail[key]; ok {
-			return row, nil
+			return selectColumns(args[0], row), nil
 		}
 		return None{}, nil
 	case "execute":
@@ -52,6 +53,29 @@ func (db *fakeDatabase) Call(ctx context.Context, method string, args []Value) (
 	default:
 		return nil, Faultf("fakeDatabase has no method %q", method)
 	}
+}
+
+// selectColumns keeps the columns a "SELECT a, b FROM" query names, as a
+// real database would; a query reads its row type by exact column match
+// (ADR 0082 §6).
+func selectColumns(query Value, row Value) Value {
+	text, ok := query.(Str)
+	rec, isRec := row.(Record)
+	if !ok || !isRec {
+		return row
+	}
+	list, _, found := strings.Cut(strings.TrimPrefix(string(text), "SELECT "), " FROM")
+	if !found {
+		return row
+	}
+	fields := map[string]Value{}
+	for _, col := range strings.Split(list, ",") {
+		col = strings.TrimSpace(col)
+		if v, ok := rec.Fields[col]; ok {
+			fields[col] = v
+		}
+	}
+	return Record{Fields: fields}
 }
 
 func (db *fakeDatabase) Begin(ctx context.Context) (Tx, *Fault) {

@@ -24,6 +24,9 @@ func (c *checker) checkExpected(e syntax.Expr, expected types.Type, env map[stri
 		c.checkMapLit(lit, expected, env)
 		return
 	}
+	if c.checkExpectedQuery(e, expected, env) {
+		return
+	}
 	if c.checkExpectedJson(e, expected, env) {
 		return
 	}
@@ -631,7 +634,15 @@ func (c *checker) inferQualifiedCall(fa *syntax.FieldAccess, args []syntax.Arg, 
 			return types.Unknown{}
 		}
 	}
-	// Not a known declaration or import alias: an opaque capability call.
+	// Not a known declaration or import alias: a capability with no
+	// declaration in fiig, held to its gateway's requires like a primitive
+	// (ADR 0082 §2). Only Database's calls are typed (§1).
+	if c.isNativeCapability(targetIdent.Name, env) {
+		c.checkPrimitiveCaller(targetIdent.Name, fa.Field, start)
+		if targetIdent.Name == types.DatabaseName {
+			return c.callDatabase(&syntax.CallExpr{Span: fa.Span, Callee: fa, Args: args}, fa.Field, nil, start, env)
+		}
+	}
 	for _, a := range args {
 		c.inferExpr(a.Value, env)
 	}

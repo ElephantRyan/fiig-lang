@@ -174,14 +174,16 @@ activity validateNewCustomer(input: NewCustomer) -> Result<NewCustomer, Customer
 ```fiig
 // GATEWAY — the only declaration that touches a capability, and exactly one
 // (ADR 0010). `idempotent` is optional and follows the capability name.
-// A gateway may not call another gateway (ADR 0031).                 [built]
+// A gateway may not call another gateway (ADR 0031). A query's row type
+// comes from context, and its columns fill the model by name; the SQL
+// text is a literal, values are bound after it (ADR 0082).          [built]
 gateway getCustomer(id: string) -> Result<Customer, CustomerError>
     requires Database
     idempotent
 {
-    row = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id)
+    row: Customer | None = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id)
     match row {
-        found -> Ok(Customer(id: found.id, name: found.name, email: found.email))
+        found -> Ok(found)
         None -> Err(CustomerError.NotFound(id))
     }
 }
@@ -336,7 +338,7 @@ math.roundToInt(price)       // the *ToInt crossings take decimals too
 
 ```fiig
 // Calls take positional or named arguments; a trailing comma is allowed.
-Customer(id: found.id, name: found.name, email: found.email)   // named
+Customer(id: id, name: input.name, email: input.email)        // named
 CustomerError.NotFound(id)                                     // positional
 s.replaceAll(old: "-", new: "/")      // builtins take names too (ADR 0068 §5)
 xs = append(xs, element: x)          // positional first, then named

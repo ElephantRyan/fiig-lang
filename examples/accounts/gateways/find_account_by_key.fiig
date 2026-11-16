@@ -6,8 +6,8 @@ gateway findAccountByKey(credentials: Credentials) -> Result<Account, AccountErr
     requires Database
     idempotent
 {
-    row = Database.queryOne(
-        "SELECT name, email, key_hash FROM accounts WHERE name = ?",
+    row: StoredAccount | None = Database.queryOne(
+        "SELECT name, email, key_hash AS keyHash FROM accounts WHERE name = ?",
         credentials.name,
     )
     match row {
@@ -19,7 +19,7 @@ gateway findAccountByKey(credentials: Credentials) -> Result<Account, AccountErr
             return Err(AccountError.BadCredentials)
         }
         found -> {
-            if not crypto.passwordMatches(credentials.key, stored: found.key_hash) {
+            if not crypto.passwordMatches(credentials.key, stored: found.keyHash) {
                 return Err(AccountError.BadCredentials)
             }
             return Ok(Account(name: found.name, email: found.email))

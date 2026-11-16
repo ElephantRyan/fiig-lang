@@ -637,9 +637,14 @@ Need an ADR first, in build order:
    `fiig serve` would serve, one document for several adapters, with each
    declaration's types resolved in its own package (another package's
    model had been an empty schema).
-9. A checked `Database` capability: its calls typed and its use held to a
-   gateway's `requires`, as P7 does for capability groups written in fiig.
-10. ADR 0066 declared SQL row types.
+9. ~~A checked `Database` capability.~~ Done 2026-11-16, ADR 0082: its
+   operations typed from a table, the SQL text a literal (Q1), bound values
+   checked (Q2), and every capability with no declaration in fiig held to
+   its gateway's `requires` (B10, P7).
+10. ~~ADR 0066 declared SQL row types.~~ Done 2026-11-16 in ADR 0082, which
+   supersedes 0066: a query's row type comes from context, columns fill a
+   model by exact name (`AS` renames), and each value is read by its
+   field's type, faulting at the query.
 11. Model invariants (§3.5), or a recorded decision that rules cover them.
 
 Exit criteria:

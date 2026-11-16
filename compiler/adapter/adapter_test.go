@@ -3,6 +3,7 @@ package adapter
 import (
 	"context"
 	"encoding/json"
+	"fiig-lang/compiler/checker"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -69,6 +70,8 @@ func loadProgram(t *testing.T, subdirs ...string) (*types.Universe, []*syntax.Fi
 	if len(conflicts) > 0 {
 		t.Fatalf("unexpected conflicts: %+v", conflicts)
 	}
+	// Checked, so a Database query reads into its row type (ADR 0082 §5).
+	checker.Check(files, nil)
 	return u, files
 }
 

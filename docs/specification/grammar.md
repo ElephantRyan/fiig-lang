@@ -190,11 +190,10 @@ Attested forms across the corpus:
   (`time-library/rules/compute_follow_up_date.fiig`)
 - Generic type: `List<string>`, `Result<Customer, CustomerError>`,
   `BatchResult<string, Customer, CustomerError>`
-- Union with `None`: `fiig-lang.md` line 79, `Customer | None`. No example
-  currently writes this on a declared signature — every gateway reading from
-  `Database.queryOne` produces a `Row | None`-shaped value that its `match`
-  block destructures inline (`get_customer.fiig`, `check_email_unique.fiig`)
-  — but §3.5 ("Model fields are required unless their type includes `None`")
+- Union with `None`: `fiig-lang.md` line 79, `Customer | None`. Every
+  gateway reading from `Database.queryOne` writes one on a typed binding,
+  which gives the query its row type (ADR 0082 §5: `row: Customer | None =
+  Database.queryOne(...)` in `get_customer.fiig`) — and §3.5 ("Model fields are required unless their type includes `None`")
   already settles that this is a normal, directly-writable type, not just an
   internal artifact of certain capability calls. A model with an optional
   field, e.g. `middleName: string | None`, should parse under this same
@@ -501,7 +500,7 @@ every declaration kind; `while true` is the infinite form (ADR 0059).
 `break`, `continue` and labels apply to either loop. They may not cross a
 `concurrent` or `transaction` body.
 
-Attested: bindings (`row = Database.queryOne(...)`), bare `return` (`Ok(...)`
+Attested: bindings (`row: Customer | None = Database.queryOne(...)`), bare `return` (`Ok(...)`
 value), and `return` of a bare call (`return getCustomer(id)`). Every `if`
 in the corpus (`validate_new_customer.fiig`) is a single-sided guard with no
 `else` — `else`/`else if` are decided
@@ -620,7 +619,7 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
   call. `arguments` and `list-literal` allow one; no other comma-separated
   list (params, fields, type args, pattern args) has needed one yet.
 - `arguments` supports both positional (`CustomerError.NotFound(id)`) and
-  named (`Customer(id: found.id, name: found.name, email: found.email)`)
+  named (`Customer(id: id, name: input.name, email: input.email)`, `insert_customer.fiig`)
   forms, and may mix them: positional arguments come first, then named
   ones, and no parameter is given twice (ADR 0068 §5). Builtins take named
   arguments too: a method (`s.replaceAll(old: "-", new: "/")`), a typed
@@ -714,7 +713,13 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
   the compiler can't see faults.
 - Qualified calls like `Database.queryOne(...)` and `PaymentGateway.charge(...)`
   parse as ordinary postfix field-access-then-call — the grammar doesn't need
-  to distinguish "capability method call" from any other call.
+  to distinguish "capability method call" from any other call. The checker
+  does: a capitalized receiver that names nothing declared is a capability
+  with no declaration in fiig, held to its gateway's `requires` (B10, P7),
+  and `Database`'s are typed (ADR 0082): the SQL text is a string literal
+  with no `${...}` (Q1), the values after it are bound by position (Q2),
+  and a query's row type comes from context (A12 without one, Q3 for a
+  type SQL can't fill).
 
 ### Concurrency and retry
 

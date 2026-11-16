@@ -846,9 +846,10 @@ type CallExpr struct {
 	Span
 	Callee Expr
 	Args   []Arg
-	// DecodeInto is the type a json.decode call decodes into, a
-	// types.Type the checker takes from the call's context and records here
-	// for the runtime (ADR 0073 §2); nil on every other call, and before
+	// DecodeInto is the type a json.decode call decodes into (ADR 0073
+	// §2), or the row type a Database query reads its rows into (ADR 0082
+	// §5): a types.Type the checker takes from the call's context and
+	// records here for the runtime; nil on every other call, and before
 	// checking.
 	DecodeInto any
 }

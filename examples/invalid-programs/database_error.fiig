@@ -1,0 +1,47 @@
+// ADR 0082: what a Database call may not do. Six declarations in one
+// file, so G1 also fires, incidentally but correctly.
+// B10: a rule is pure, so it may not touch Database, or any capability
+// with no declaration in fiig (§2).
+rule purgeSessions(name: string) -> int {
+    return Database.execute("DELETE FROM sessions WHERE name = ?", name)
+}
+
+// P7: a gateway uses only the capability it requires (§2), Database or
+// one with no declaration in fiig, such as EmailSender.
+gateway recordSent(to: string) -> int
+    requires Socket
+{
+    return Database.execute("INSERT INTO sent (address) VALUES (?)", to)
+}
+
+gateway mailFromDatabase(to: string) -> None
+    requires Database
+{
+    EmailSender.send(to, "hello", "from the database")
+    return None
+}
+
+// Q1: SQL text built from a value (§3). Q2: a model has no single SQL
+// value to bind (§4). K1: an operation Database doesn't have (§1).
+gateway removeBySql(table: string, ledger: Ledger) -> int
+    requires Database
+{
+    Database.execute("DELETE FROM ${table}")
+    Database.execute("INSERT INTO ledgers (ledger) VALUES (?)", ledger)
+    return Database.exec("DELETE FROM ledgers")
+}
+
+// A12: a query with no row type to read into (§5). Q3: a row type with a
+// field one column can't hold.
+gateway readLedgers() -> int
+    requires Database
+{
+    ids = Database.queryMany("SELECT id FROM ledgers")
+    ledgers: List<Ledger> = Database.queryMany("SELECT id, entries FROM ledgers")
+    return ledgers.length()
+}
+
+model Ledger {
+    id: string
+    entries: List<int>
+}

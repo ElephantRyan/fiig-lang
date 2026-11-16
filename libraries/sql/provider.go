@@ -20,13 +20,15 @@
 // A new row's ID is the program's to make, with Random.uuid() (ADR 0068
 // §4), not this provider's.
 //
-// A result column decodes to the obvious fiig Value: SQL integers become
-// Int, floating-point columns Float (ADR 0048), text becomes Str, NULL
-// becomes None. A decimal binds as TEXT in plain notation (ADR 0064 §8)
-// and reads back as text, a string, since a row has no declared types to
-// say which text is a decimal; `toDecimalOrNone()` converts it. A non-finite float (Postgres stores 'NaN' and 'Infinity')
-// has no fiig value, and since these calls have no error channel yet it
-// Faults; ADR 0048 §2.3 records that as this boundary's open gap.
+// A row comes back as a record with no type, each column holding what the
+// database stored: SQL integers Int, floating-point columns Float (ADR
+// 0048), text Str, a BLOB Bytes, NULL None. The interpreter reads it into
+// the row type the checker took from the query's context (ADR 0082 §5-§7),
+// so a decimal bound as TEXT in plain notation (ADR 0064 §8) reads back
+// into a decimal field exactly. A non-finite float (Postgres stores 'NaN'
+// and 'Infinity') has no fiig value, and since these calls have no error
+// channel yet it Faults; ADR 0048 §2.3 records that as this boundary's
+// open gap.
 package sql
 
 import (
@@ -207,6 +209,18 @@ func toDriverValue(v runtime.Value) (any, error) {
 		return v.String(), nil
 	case runtime.Bool:
 		return bool(v), nil
+	case runtime.Bytes:
+		// ADR 0082 §4: a BLOB.
+		return v.B, nil
+	case runtime.EnumValue:
+		// ADR 0082 §4: a payload-free enum binds as its text form (ADR
+		// 0080); one with a payload has no single SQL value.
+		if len(v.Fields) == 0 && v.Decl != nil {
+			if variant, ok := v.Decl.Variant(v.Variant); ok {
+				return variant.Text(), nil
+			}
+		}
+		return nil, fmt.Errorf("cannot bind %s as a SQL parameter", v)
 	case runtime.None:
 		return nil, nil
 	case runtime.Record:

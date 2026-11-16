@@ -125,6 +125,24 @@ var primitiveOps = map[string]map[string]Method{
 	},
 }
 
+// DatabaseName is the native capability whose calls ADR 0082 types. It
+// stays on ADR 0042's grandfather list, not a primitive; the table is
+// what the name means when no declaration takes it.
+const DatabaseName = "Database"
+
+// databaseOps is Database's operations (ADR 0082 §1). Each takes the SQL
+// text, then the values to bind, by position, which a Method can't
+// describe; the checker types those (Q2). A query's Result is nil: its
+// row type comes from the call's context (§5).
+var databaseOps = map[string]Method{
+	"execute":   {[]Param{p("sql", stringType)}, intType},
+	"queryOne":  {[]Param{p("sql", stringType)}, nil},
+	"queryMany": {[]Param{p("sql", stringType)}, nil},
+}
+
+// DatabaseOps is Database's operation table.
+func DatabaseOps() map[string]Method { return databaseOps }
+
 func socketResult(ok Type) Type {
 	return Generic{Name: "Result", Args: []Type{ok, SocketErrorType}}
 }

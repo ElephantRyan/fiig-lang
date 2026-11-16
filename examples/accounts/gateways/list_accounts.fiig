@@ -2,10 +2,5 @@ gateway listAccounts() -> List<Account>
     requires Database
     idempotent
 {
-    rows = Database.queryMany("SELECT name, email FROM accounts ORDER BY name")
-    accounts: List<Account> = []
-    for row in rows {
-        accounts = append(accounts, Account(name: row.name, email: row.email))
-    }
-    return accounts
+    return Database.queryMany("SELECT name, email FROM accounts ORDER BY name")
 }

@@ -1,7 +1,8 @@
 # ADR 0066: Declared Row Types for SQL Results
 
-Status: Proposed (2026-11-03). Split out of ADR 0064 step 3 at the project
-owner's direction; nothing here is decided.
+Status: Superseded by ADR 0082 (2026-11-16), which answers every question
+below. Proposed 2026-11-03, split out of ADR 0064 step 3 at the project
+owner's direction, and never accepted.
 Date: 2026-11-03
 Related: ADR 0025 (`libraries/sql`), ADR 0027 (declarative capabilities),
 ADR 0043 (capabilities written in fiig), ADR 0048 §2.3 (non-finite floats at

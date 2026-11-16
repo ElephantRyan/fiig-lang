@@ -2,9 +2,12 @@ gateway getCustomer(id: string) -> Result<Customer, CustomerError>
     requires Database
     idempotent
 {
-    row = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id)
+    row: Customer | None = Database.queryOne(
+        "SELECT id, name, email FROM customers WHERE id = ?",
+        id,
+    )
     match row {
-        found -> Ok(Customer(id: found.id, name: found.name, email: found.email))
+        found -> Ok(found)
         None -> Err(CustomerError.NotFound(id))
     }
 }
