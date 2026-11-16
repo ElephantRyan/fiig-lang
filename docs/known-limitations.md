@@ -9,14 +9,20 @@ doesn't have to discover them.
 - **SQLite is the only database built in.** `libraries/sql` works with any
   Go `database/sql` driver, but `fiig` bundles only SQLite. No Postgres
   (Milestone 7 writes its wire protocol in fiig), Redis, Kafka, or queues.
-- **`Database` calls are not checked.** `Database` is a host capability with
-  no fiig declaration, so its calls' arguments and results aren't
-  type-checked, and a gateway's `requires` line isn't checked against it.
-  Capability groups written in fiig are checked (P7).
-- **Rows are untyped.** A query returns a record whose field types come from
-  the database's storage, and a decimal written to SQL reads back as a
-  `string`; convert it with `toDecimalOrNone()`. Declared row types are ADR
-  0066, proposed.
+- **Queries aren't checked against the schema.** A query's rows read into
+  the row type its context gives (ADR 0082), but whether the columns fit is
+  found at the query, as a fault naming the column, not by `fiig check`:
+  that needs tables declared in fiig (ADR 0082 open question 3).
+- **`Database` calls have no error channel.** A duplicate key or a lost
+  connection is a fault, not a `Result` a program can handle (ADR 0082
+  open question 2).
+- **No SQL whose shape depends on data.** The SQL text is a literal (Q1), so
+  a sort column or table chosen at run time has no form; an `IN` list of
+  varying length can bind one parameter with SQLite's `json_each(?)` (ADR
+  0082 open question 1).
+- **Other host capabilities are untyped.** `EmailSender`, `PaymentGateway`,
+  and the like are held to a gateway's `requires` (B10, P7), but their
+  arguments and results aren't checked; only `Database`'s are.
 - **No migrations.** Create tables from a gateway, as the getting-started
   example does.
 - **`FileSystem` has no runtime provider.** `Socket`, `Clock`, and

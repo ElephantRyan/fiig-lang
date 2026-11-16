@@ -128,6 +128,16 @@ func TestInvalidProgramsCatchEveryAttestedBugClass(t *testing.T) {
 		{"invalid-programs/error_handling_error.fiig", map[string]int{
 			"F1": 1, // createCustomerIgnoringFailure: Result dropped as a bare statement
 		}},
+		{"invalid-programs/database_error.fiig", map[string]int{
+			"B10": 1, // purgeSessions: a rule calling Database.execute
+			"P7":  2, // recordSent: Database in a Socket gateway; mailFromDatabase: EmailSender in a Database gateway (ADR 0082 §2)
+			"Q1":  1, // removeBySql: SQL text with ${table}
+			"Q2":  1, // removeBySql: a Ledger bound as a parameter
+			"K1":  1, // removeBySql: Database.exec
+			"A12": 1, // readLedgers: a query with no row type
+			"Q3":  1, // readLedgers: Ledger.entries is a List
+			"G1":  5, // six declarations packed into one file, incidental but real
+		}},
 		{"invalid-programs/socket_error.fiig", map[string]int{
 			"B10": 1, // peekAtDatabase: a rule calling Socket.connect
 			"H5":  1, // resumeSession: a Connection as a workflow parameter

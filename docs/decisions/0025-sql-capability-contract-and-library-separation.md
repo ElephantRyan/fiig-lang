@@ -5,7 +5,10 @@ ADR 0068 made `Random.uuid()` the way to draw an ID, which a seeded
 `Random` makes repeatable in tests and `fiig catalog` shows as a use of
 `Random`; `nextId` was a UUID made in Go behind `Database`, hiding both.
 No corpus program called it after `insertCustomer` moved to
-`Random.uuid()`.
+`Random.uuid()`. Amended 2026-11-16 by ADR 0082: `queryOne` and `queryMany`
+read their rows into a row type the call's context gives (`T | None`,
+`List<T>`) instead of an anonymous record, and the SQL text must be a
+string literal.
 Date: 2026-10-07
 
 > **Note (2026-10-17):** ADR 0055 removed `value` declarations. References to `value` types below are historical.
