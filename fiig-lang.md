@@ -628,8 +628,10 @@ Need an ADR first, in build order:
    route arguments, config, and OpenAPI; a payload-free enum binds from a
    path, query, header, cookie, or command line, exactly, with a 400
    naming the spellings; W4 refuses a route argument text can't carry.
-8e. A union of enums that share a variant name, in a body (`OrderError |
-   CustomerError`, both with `NotFound`; ADR 0072 open question 1).
+8e. ~~A union of enums that share a variant name.~~ Done 2026-11-16, ADR
+   0081: J3 refuses a union whose members read the same JSON; `Enum |
+   string` decodes a spelling as the enum and anything else as text, and a
+   `match` over it names every variant and the text.
 8f. `fiig openapi`: print the document `GenerateOpenAPI` builds. Likely a
    command, not an ADR.
 9. A checked `Database` capability: its calls typed and its use held to a

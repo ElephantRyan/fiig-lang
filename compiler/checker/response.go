@@ -101,6 +101,10 @@ func (c *checker) checkResponseArms(route *syntax.Route, wd *syntax.WorkflowDecl
 // checkProducedBody reports a response body a route's `produces` type
 // can't send: a type other than JSON sends string or bytes (ADR 0069 §5).
 func (c *checker) checkProducedBody(route *syntax.Route, body types.Type, at syntax.Expr) {
+	if route.Produces != nil && httpspec.IsJSON(route.Produces.Text) && !isUnknown(body) {
+		start, _ := at.(syntax.Spanned).Bounds()
+		c.checkJsonOverlap(start, body, "this response's body")
+	}
 	if route.Produces == nil || !httpspec.ValidMediaType(route.Produces.Text) || httpspec.IsJSON(route.Produces.Text) {
 		return
 	}

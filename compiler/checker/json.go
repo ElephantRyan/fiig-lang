@@ -87,6 +87,8 @@ func (c *checker) inferJsonCall(call *syntax.CallExpr, member string, env map[st
 		if ok {
 			if why := c.jsonRefusal(arg, false); why != "" {
 				c.report(start, "J1", "json.encode of %s: %s, which can't be encoded as JSON (ADR 0073 §8)", arg, why)
+			} else {
+				c.checkJsonOverlap(start, arg, "json.encode of "+arg.String())
 			}
 		}
 		return types.Primitive{Name: "bytes"}
@@ -122,6 +124,7 @@ func (c *checker) checkJsonDecode(call *syntax.CallExpr, into types.Type, env ma
 		c.report(start, "J1", "json.decode into %s: %s, which can't be decoded from JSON (ADR 0073 §8)", into, why)
 		return
 	}
+	c.checkJsonOverlap(start, into, "json.decode into "+into.String())
 	call.DecodeInto = into
 }
 

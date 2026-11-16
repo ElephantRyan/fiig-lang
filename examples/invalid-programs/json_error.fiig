@@ -19,3 +19,20 @@ enum ShipmentState {
     Sent from json "sent"
     Delivered from json "sent"
 }
+
+// ADR 0081: J3, a union whose members read the same JSON. Both enums are
+// "Lost", so decoding would take whichever is written first. Spell one
+// (`Lost from json "parcel_lost"`), or wrap them in an enum of your own.
+rule readLoss(body: string) -> Result<ParcelError | LetterError, JsonError> {
+    return json.decode(body)
+}
+
+enum ParcelError {
+    Lost
+    Damaged
+}
+
+enum LetterError {
+    Lost
+    Returned
+}

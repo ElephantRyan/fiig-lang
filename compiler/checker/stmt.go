@@ -363,6 +363,25 @@ func requiredTags(st types.Type) ([]string, bool) {
 		}
 		return tags, true
 	case types.Union:
+		if enums, rest, ok := splitEnums(st); ok {
+			// Enums beside something else (ADR 0081 §3): every variant, None
+			// if it's a member, and the rest, which a bare name covers.
+			var tags []string
+			for _, d := range enums {
+				for _, v := range d.Variants {
+					tags = append(tags, v.Name)
+				}
+			}
+			for _, m := range st.Members {
+				if _, isNone := m.(types.NoneType); isNone {
+					tags = append(tags, noneTag)
+				}
+			}
+			if rest != nil {
+				tags = append(tags, restTag)
+			}
+			return tags, true
+		}
 		for _, m := range st.Members {
 			if _, isNone := m.(types.NoneType); isNone {
 				return []string{noneTag, restTag}, true
@@ -372,6 +391,41 @@ func requiredTags(st types.Type) ([]string, bool) {
 	default:
 		return nil, false
 	}
+}
+
+// splitEnums splits a union that has enum members into its enums and the
+// rest, the members that are neither an enum nor None (nil when there are
+// none; a Union when there are several). ok is false for a type that
+// isn't such a union.
+func splitEnums(t types.Type) (enums []*syntax.EnumDecl, rest types.Type, ok bool) {
+	u, isUnion := t.(types.Union)
+	if !isUnion {
+		return nil, nil, false
+	}
+	var others []types.Type
+	for _, m := range u.Members {
+		if n, isNamed := m.(types.Named); isNamed {
+			if d, isEnum := n.Decl.(*syntax.EnumDecl); isEnum {
+				enums = append(enums, d)
+				continue
+			}
+		}
+		if _, isNone := m.(types.NoneType); isNone {
+			continue
+		}
+		others = append(others, m)
+	}
+	if len(enums) == 0 {
+		return nil, nil, false
+	}
+	switch len(others) {
+	case 0:
+	case 1:
+		rest = others[0]
+	default:
+		rest = types.Union{Members: others}
+	}
+	return enums, rest, true
 }
 
 // patternCoverage reports whether p is a catch-all covering every required
@@ -419,9 +473,24 @@ func (c *checker) checkExhaustive(s *syntax.MatchStmt, subjectType types.Type) {
 		return
 	}
 	isNoneUnion := len(tags) == 2 && tags[0] == noneTag && tags[1] == restTag
+	// A bare name covers only the rest against enums beside something
+	// else, and only the enums against enums beside None (ADR 0081 §3).
+	enums, rest, enumUnion := splitEnums(subjectType)
 
 	covered := map[string]bool{}
 	for _, arm := range s.Arms {
+		if np, ok := arm.Pattern.(*syntax.NamePattern); ok && enumUnion && len(np.Path) == 1 && np.Path[0] != noneTag {
+			if rest != nil {
+				covered[restTag] = true
+				continue
+			}
+			for _, d := range enums {
+				for _, v := range d.Variants {
+					covered[v.Name] = true
+				}
+			}
+			continue
+		}
 		all, tag := patternCoverage(arm.Pattern, isNoneUnion)
 		if all {
 			return
@@ -432,6 +501,9 @@ func (c *checker) checkExhaustive(s *syntax.MatchStmt, subjectType types.Type) {
 	var missing []string
 	for _, t := range tags {
 		if !covered[t] {
+			if t == restTag && enumUnion {
+				t = rest.String() + " (a bare name binds it)"
+			}
 			missing = append(missing, t)
 		}
 	}
