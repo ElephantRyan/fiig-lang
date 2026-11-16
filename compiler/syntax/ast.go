@@ -743,6 +743,12 @@ type WildcardPattern struct{ Span }
 type NamePattern struct {
 	Span
 	Path []string
+	// Excludes is set by the checker on a bare name against a union of
+	// enums and something else (`Status | string`, ADR 0081 §3): the enums
+	// the name doesn't catch, since their variants have arms of their own.
+	// The runtime holds to it whatever the arms' order, as it does for
+	// None. nil otherwise.
+	Excludes []*EnumDecl
 }
 
 // ConstructorPattern is a qualified name with parens:

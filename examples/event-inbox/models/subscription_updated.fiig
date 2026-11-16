@@ -1,6 +1,8 @@
 // A "customer.subscription.updated" payload, as Stripe sends its
-// subscription object: {"id": "sub_1", "status": "past_due", ...}.
+// subscription object: {"id": "sub_1", "status": "past_due", ...}. Stripe
+// adds statuses from time to time; one SubscriptionStatus doesn't list
+// arrives as its text rather than refusing the delivery (ADR 0081 §3).
 model SubscriptionUpdated {
     id: string
-    status: SubscriptionStatus
+    status: SubscriptionStatus | string
 }

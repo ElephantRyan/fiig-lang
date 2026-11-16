@@ -259,7 +259,8 @@ Rejected.
    as `Other(text: string) from json *`, would let a program receive what
    it can't name yet, which is charter principle 10's lenient receiving;
    it needs its own decision (does `match` still have to name it, and
-   what does encoding it send?). Found while dogfooding.
+   what does encoding it send?). Found while dogfooding. Resolved by ADR
+   0081 §3: `SubscriptionStatus | string`.
 2. **A list from a repeated query value** (`?speed=Standard&speed=Express`
    into `List<Speed>`). No route argument takes a list today, of any type.
 

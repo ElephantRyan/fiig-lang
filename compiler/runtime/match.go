@@ -46,6 +46,13 @@ func MatchPattern(p syntax.Pattern, v Value, env *Env) bool {
 		if _, isNone := v.(None); isNone {
 			return false
 		}
+		if ev, ok := v.(EnumValue); ok {
+			for _, d := range p.Excludes {
+				if ev.Decl == d {
+					return false
+				}
+			}
+		}
 		// Against a Result specifically, a catch-all is always paired with
 		// an explicit Ok(...)/Err(...)/tag arm earlier in the same match
 		// (checkout.fiig's `Err(error) -> ...; found -> ...`) — by the time

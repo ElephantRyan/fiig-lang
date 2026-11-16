@@ -832,6 +832,12 @@ func (c *checker) bindPattern(p syntax.Pattern, subject types.Type, env map[stri
 		if len(p.Path) == 1 && p.Path[0] != "None" {
 			// Against `T | None` a bare name covers only the non-None
 			// remainder (grammar.md §5; patternCoverage), so it binds T.
+			// Against enums beside something else, it covers only that
+			// something else, so it binds it (ADR 0081 §3).
+			if enums, rest, ok := splitEnums(subject); ok && rest != nil {
+				p.Excludes = enums
+				subject = rest
+			}
 			subject = withoutNone(subject)
 			env[p.Path[0]] = subject
 			c.checkLocalName(p.Path[0], subject, p.Start)

@@ -241,6 +241,7 @@ item 7's library uses.
    "NotFound", ...}` doesn't say which. Decoding tries members in order
    today, as it does for a union of models. Should the checker refuse such
    a union in a body, or should the shape name the enum?
+   Resolved by ADR 0081: the checker refuses it (J3).
 2. **An enum in a path segment or query value**, such as
    `GET "/regions/{region}"` with `region: Region`. The natural form is the
    variant name, as in §1, but route arguments bind only primitives today.

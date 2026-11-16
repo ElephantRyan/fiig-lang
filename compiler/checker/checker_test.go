@@ -143,7 +143,8 @@ func TestInvalidProgramsCatchEveryAttestedBugClass(t *testing.T) {
 		{"invalid-programs/json_error.fiig", map[string]int{
 			"J1": 1, // readCounts: a Map with int keys from a JSON object
 			"J2": 2, // Upload.type: a second field reading "type"; ShipmentState.Delivered: a second variant spelled "sent"
-			"G1": 2, // three declarations packed into one file, incidental but real
+			"J3": 1, // readLoss: ParcelError | LetterError, both "Lost"
+			"G1": 5, // six declarations packed into one file, incidental but real
 		}},
 		{"invalid-programs/config_error.fiig", map[string]int{
 			"V1":  1, // Billing.apiKey: a Secret with a default

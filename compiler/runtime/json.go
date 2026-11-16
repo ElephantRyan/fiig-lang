@@ -136,7 +136,7 @@ func decodeJSON(raw any, t types.Type, u fieldTypes, path string) (Value, error)
 			return nil, mismatch(path, "null given but %s has no None member", t.String())
 		}
 		var lastErr error
-		for _, m := range t.Members {
+		for _, m := range stringLast(t.Members) {
 			if _, isNone := m.(types.NoneType); isNone {
 				continue
 			}
@@ -246,6 +246,23 @@ func decodeField(obj *jsonObject, f syntax.Field, decl syntax.Decl, owner string
 		return nil, mismatch(path, "%s missing required field %q", owner, f.JSONName())
 	}
 	return decodeJSON(raw, ft, u, memberPath(path, f.JSONName()))
+}
+
+// stringLast is a union's members in the order decoding tries them: as
+// written, but `string` last, so a string that is one of an enum's
+// spellings is that variant, wherever string is written (ADR 0081 §3).
+// No other two members read the same JSON (J3).
+func stringLast(members []types.Type) []types.Type {
+	out := make([]types.Type, 0, len(members))
+	var strs []types.Type
+	for _, m := range members {
+		if p, ok := m.(types.Primitive); ok && p.Name == "string" {
+			strs = append(strs, m)
+			continue
+		}
+		out = append(out, m)
+	}
+	return append(out, strs...)
 }
 
 // decodeEnum reads the shapes the body encoder writes (ADR 0072 §5): a

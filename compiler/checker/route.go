@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"fmt"
 	"strings"
 
 	"fiig-lang/compiler/httpspec"
@@ -273,7 +274,9 @@ func (c *checker) checkBodyBinding(arg syntax.RouteArg, t types.Type, consumes *
 			// A Secret is S1's, at the workflow's parameter (ADR 0071 §4).
 			if why := c.jsonRefusal(t, true); why != "" && !types.HoldsSecret(t, c.resolveField) {
 				c.report(arg.Start, "J1", "request body parameter %q decodes into %s: %s, which can't be decoded from JSON (ADR 0073 §8)", arg.Name, t, why)
+				return
 			}
+			c.checkJsonOverlap(arg.Start, t, fmt.Sprintf("request body parameter %q", arg.Name))
 			return
 		}
 	}
@@ -290,6 +293,13 @@ func isRawBody(t types.Type) bool {
 // 0069 §5): a type other than JSON sends string or bytes, so both the Ok
 // and the Err side of the workflow's Result must be one.
 func (c *checker) checkDefaultBody(route *syntax.Route, wd *syntax.WorkflowDecl) {
+	// J3 (ADR 0081): what a JSON route sends by ADR 0026's default
+	// mapping is the workflow's result, Ok side or Err side.
+	if route.Mapping == nil && route.Produces != nil && httpspec.IsJSON(route.Produces.Text) {
+		if ret, ok := types.ResolveWithImports(wd.ReturnType, c.universe, universesOf(c.imports)); ok {
+			c.checkJsonOverlap(route.Start, ret, fmt.Sprintf("route %s %q sends %s", route.Verb, route.Path, ret))
+		}
+	}
 	if route.Mapping != nil || route.Produces == nil || !httpspec.ValidMediaType(route.Produces.Text) || httpspec.IsJSON(route.Produces.Text) {
 		return
 	}

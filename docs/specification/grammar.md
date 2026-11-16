@@ -568,6 +568,13 @@ A zero-field variant's pattern (e.g. `Region.US`) is the parenless form of
 no trailing parens, attested by `order-processing/rules/region_display_name.fiig`
 matching every `Region` variant exhaustively (ADR 0040).
 
+Against a union of enums and something else, such as `SubscriptionStatus |
+string` (ADR 0081 §3), a bare name takes only the something else and is
+typed as it: the enums' variants need arms of their own (A9 names any
+missing, and the text), and a variant never reaches the bare name
+whichever order the arms are in, as `None` never does. Attested:
+`examples/event-inbox/rules/read_event.fiig` (`needsAttention`).
+
 ### Calls, field access, error propagation
 
 ```ebnf

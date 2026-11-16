@@ -333,7 +333,13 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 		for i, m := range nonNone {
 			variants[i] = schemaFor(m, u)
 		}
-		s := map[string]any{"oneOf": variants}
+		// oneOf says a value matches exactly one member; an enum beside
+		// string can match both, so that union is anyOf (ADR 0081 §3).
+		kind := "oneOf"
+		if hasString(nonNone) {
+			kind = "anyOf"
+		}
+		s := map[string]any{kind: variants}
 		if hasNone {
 			s["nullable"] = true
 		}
@@ -399,6 +405,15 @@ func schemaFor(t types.Type, u *types.Universe) map[string]any {
 	default:
 		return map[string]any{}
 	}
+}
+
+func hasString(members []types.Type) bool {
+	for _, m := range members {
+		if p, ok := m.(types.Primitive); ok && p.Name == "string" {
+			return true
+		}
+	}
+	return false
 }
 
 // enumSchema describes an enum as ADR 0072 sends it (§6): a string naming
