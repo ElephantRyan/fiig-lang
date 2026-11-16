@@ -870,6 +870,7 @@ func (c *checker) checkDecl(d syntax.Decl) {
 			}
 			c.checkJsonNames(d.Name+"."+v.Name, v.Fields, true)
 		}
+		c.checkVariantSpellings(d)
 		if d.Header != nil {
 			c.checkEnumHeader(d)
 		}

@@ -144,6 +144,12 @@ func TestCorpusEventInbox(t *testing.T) {
 			200, `{"variant":"Attached","document":{"name":"logo.png","content":"iVBORw0KGgr7/w=="}}`, ""},
 		{"/events", "application/json", `{"id": "e9", "@type": "document.attached", "data": {"name": "logo.png", "content": [137, 80]}}`,
 			422, `{"variant":"Mismatch","path":"content","reason":"expected a base64 string, got an array"}`, ""},
+		// ADR 0080: Stripe's snake_case status, by each variant's spelling,
+		// sent back the same way; an unknown one names the spellings.
+		{"/events", "application/json", `{"id": "e10", "@type": "customer.subscription.updated", "data": {"id": "sub_1", "status": "past_due", "object": "subscription"}}`,
+			200, `{"variant":"SubscriptionChanged","subscription":{"id":"sub_1","status":"past_due"}}`, ""},
+		{"/events", "application/json", `{"id": "e11", "@type": "customer.subscription.updated", "data": {"id": "sub_1", "status": "PastDue"}}`,
+			422, `{"variant":"Mismatch","path":"status","reason":"\"PastDue\" is not a variant of SubscriptionStatus (incomplete, incomplete_expired, trialing, active, past_due, canceled, unpaid, paused)"}`, ""},
 		{"/events/signed", "application/json", limit,
 			200, `{"variant":"LimitChanged","change":{"account":"a3","limit":5000.50}}`, sign(limit)},
 		{"/events/signed", "application/json", limit, 401, ``, sign(limit + " ")},

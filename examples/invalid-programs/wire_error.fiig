@@ -21,3 +21,15 @@ enum Delivery {
     Shipped(variant: string)
     Pending
 }
+
+// W4 (ADR 0080 §6): a path segment is one piece of text, and a Delivery
+// with a payload has no single-text form, so this route would answer
+// every request 400.
+workflow trackDelivery(delivery: Delivery) -> string {
+    return "tracked"
+}
+
+adapter http deliveryApi {
+    GET "/deliveries/{delivery}" -> trackDelivery(delivery: Delivery)
+        produces "application/json"
+}

@@ -267,9 +267,32 @@ func decodeString(raw string, t types.Type, u *types.Universe) (runtime.Value, e
 			return runtime.Bool(b), nil
 		}
 		return nil, fmt.Errorf("unsupported primitive %q", t.Name)
+	case types.Named:
+		// A payload-free enum, by its text form (ADR 0080 §3-§4): exact,
+		// and an unknown value names the ones it may be.
+		if d, ok := t.Decl.(*syntax.EnumDecl); ok && !d.HasPayload() {
+			if v, ok := d.VariantByText(raw); ok {
+				return runtime.EnumValue{TypeName: d.Name, Variant: v.Name, Decl: d}, nil
+			}
+			return nil, fmt.Errorf("%q isn't a %s; expected %s", raw, d.Name, orList(d.Texts()))
+		}
+		return nil, fmt.Errorf("%s cannot be decoded from a path/query value", t.String())
 	default:
 		return nil, fmt.Errorf("%s cannot be decoded from a path/query value", t.String())
 	}
+}
+
+// orList is "a", "a or b", or "a, b, or c".
+func orList(items []string) string {
+	switch len(items) {
+	case 0:
+		return "nothing"
+	case 1:
+		return items[0]
+	case 2:
+		return items[0] + " or " + items[1]
+	}
+	return strings.Join(items[:len(items)-1], ", ") + ", or " + items[len(items)-1]
 }
 
 // callRoute invokes route's target workflow and resolves its result into

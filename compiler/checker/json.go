@@ -265,6 +265,21 @@ func (c *checker) checkJsonNames(owner string, fields []syntax.Field, payload bo
 	}
 }
 
+// checkVariantSpellings is J2 for an enum: no two variants with one text
+// form (ADR 0080 §1), as `A from json "B"` beside a variant `B`, since
+// reading that text couldn't say which one it is.
+func (c *checker) checkVariantSpellings(d *syntax.EnumDecl) {
+	seen := map[string]string{}
+	for _, v := range d.Variants {
+		text := v.Text()
+		if first, dup := seen[text]; dup {
+			c.report(v.Start, "J2", "%s.%s is spelled %q, which %s.%s already is (ADR 0080 §1)", d.Name, v.Name, text, d.Name, first)
+			continue
+		}
+		seen[text] = v.Name
+	}
+}
+
 // checkPromotedJsonNames is J2 across a model's flattened fields: an own
 // field and a promoted one, or two promoted ones, that read one member.
 // Two own fields are checkJsonNames's.

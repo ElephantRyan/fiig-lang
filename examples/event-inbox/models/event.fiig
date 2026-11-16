@@ -4,5 +4,6 @@ enum Event {
     Paid(invoice: InvoicePaid)
     LimitChanged(change: CreditLimitChanged)
     Attached(document: DocumentAttached)
+    SubscriptionChanged(subscription: SubscriptionUpdated)
     Ignored(eventType: string)
 }

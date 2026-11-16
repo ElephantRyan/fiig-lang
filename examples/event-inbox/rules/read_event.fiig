@@ -14,5 +14,9 @@ rule readEvent(envelope: Envelope) -> Result<Event, JsonError> {
         document: DocumentAttached = json.decode(envelope.data)?
         return Ok(Event.Attached(document: document))
     }
+    if envelope.eventType == "customer.subscription.updated" {
+        subscription: SubscriptionUpdated = json.decode(envelope.data)?
+        return Ok(Event.SubscriptionChanged(subscription: subscription))
+    }
     return Ok(Event.Ignored(eventType: envelope.eventType))
 }

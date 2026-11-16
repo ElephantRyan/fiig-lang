@@ -26,3 +26,35 @@ func TestGatewayCardRecordsTheRequiredPackagesPath(t *testing.T) {
 		t.Errorf("no cards for %v", want)
 	}
 }
+
+// ADR 0080: an enum card shows each variant's spelling, and changing one
+// is a major change, since clients send and read it.
+func TestVariantSpellingIsOnTheCardAndAMajorChange(t *testing.T) {
+	cards, _, err := Generate(filepath.Join("..", "..", "examples", "event-inbox"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var status *Card
+	for _, c := range cards {
+		if c.Name == "SubscriptionStatus" {
+			status = c
+		}
+	}
+	if status == nil || status.Variants[4].Name != "PastDue" || status.Variants[4].Text != "past_due" {
+		t.Fatalf("SubscriptionStatus card: %+v", status)
+	}
+	old := []Variant{{Name: "PastDue", Text: "past_due"}, {Name: "Active"}}
+	for _, newer := range [][]Variant{
+		{{Name: "PastDue", Text: "pastdue"}, {Name: "Active"}},
+		{{Name: "PastDue"}, {Name: "Active"}},
+		{{Name: "PastDue", Text: "past_due"}, {Name: "Active", Text: "active"}},
+	} {
+		changes := variantChanges("SubscriptionStatus", old, newer)
+		if len(changes) != 1 || changes[0].Bump != Major {
+			t.Errorf("%+v: got %+v, want one major change", newer, changes)
+		}
+	}
+	if changes := variantChanges("SubscriptionStatus", old, old); len(changes) != 0 {
+		t.Errorf("unchanged: got %+v", changes)
+	}
+}

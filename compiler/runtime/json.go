@@ -258,10 +258,11 @@ func decodeEnum(raw any, decl *syntax.EnumDecl, u fieldTypes, path string) (Valu
 		if !ok {
 			return nil, mismatch(path, "expected a string naming a variant of %s (%s), got %s", decl.Name, variantNames(decl), jsonKind(raw))
 		}
-		if _, ok := decl.Variant(name); !ok {
+		variant, ok := decl.VariantByText(name)
+		if !ok {
 			return nil, mismatch(path, "%q is not a variant of %s (%s)", name, decl.Name, variantNames(decl))
 		}
-		return EnumValue{TypeName: decl.Name, Variant: name, Decl: decl}, nil
+		return EnumValue{TypeName: decl.Name, Variant: variant.Name, Decl: decl}, nil
 	}
 	obj, ok := asObject(raw)
 	if !ok {
@@ -272,28 +273,25 @@ func decodeEnum(raw any, decl *syntax.EnumDecl, u fieldTypes, path string) (Valu
 	if !ok {
 		return nil, mismatch(path, "%s needs a \"variant\" member naming one of %s", decl.Name, variantNames(decl))
 	}
-	variant, ok := decl.Variant(name)
+	variant, ok := decl.VariantByText(name)
 	if !ok {
 		return nil, mismatch(memberPath(path, "variant"), "%q is not a variant of %s (%s)", name, decl.Name, variantNames(decl))
 	}
 	fields := make([]Value, len(variant.Fields))
 	for i, f := range variant.Fields {
-		v, err := decodeField(obj, f, decl, decl.Name+"."+name, u, path)
+		v, err := decodeField(obj, f, decl, decl.Name+"."+variant.Name, u, path)
 		if err != nil {
 			return nil, err
 		}
 		fields[i] = v
 	}
-	return EnumValue{TypeName: decl.Name, Variant: name, Fields: fields, Decl: decl}, nil
+	return EnumValue{TypeName: decl.Name, Variant: variant.Name, Fields: fields, Decl: decl}, nil
 }
 
-// variantNames lists d's variants for an error message: "US, EU, APAC".
+// variantNames lists d's variants as they're sent, for an error message:
+// "US, EU, APAC", or each one's `from json` spelling (ADR 0080 §2).
 func variantNames(d *syntax.EnumDecl) string {
-	names := make([]string, len(d.Variants))
-	for i, v := range d.Variants {
-		names[i] = v.Name
-	}
-	return strings.Join(names, ", ")
+	return strings.Join(d.Texts(), ", ")
 }
 
 // decodeResult reads `{"variant": "Ok", "value": ...}` or
@@ -706,12 +704,16 @@ func writeEnumJSON(b *bytes.Buffer, v EnumValue) error {
 			return nil
 		}
 		return writeBodyJSON(b, v.Fields[0])
-	case v.Decl == nil || !v.Decl.HasPayload():
+	case v.Decl == nil:
 		writeJSONString(b, v.Variant)
 		return nil
+	case !v.Decl.HasPayload():
+		variant, _ := v.Decl.Variant(v.Variant)
+		writeJSONString(b, variant.Text())
+		return nil
 	}
-	members := []bodyMember{{"variant", Str(v.Variant)}}
 	variant, _ := v.Decl.Variant(v.Variant)
+	members := []bodyMember{{"variant", Str(variant.Text())}}
 	for i, f := range variant.Fields {
 		if i < len(v.Fields) {
 			members = append(members, bodyMember{f.JSONName(), v.Fields[i]})

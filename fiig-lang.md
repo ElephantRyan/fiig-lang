@@ -623,7 +623,11 @@ Need an ADR first, in build order:
    several adapters on one listener, and a caps file binds a capability
    per package, following the running workflow; `examples/shop-*` and
    `docs/modular-monolith.md`.
-8d. An enum as a path segment or query value (ADR 0072 open question 2).
+8d. ~~An enum's text form.~~ Done 2026-11-16, ADR 0080: a variant may
+   declare its spelling (`PastDue from json "past_due"`), used in JSON,
+   route arguments, config, and OpenAPI; a payload-free enum binds from a
+   path, query, header, cookie, or command line, exactly, with a 400
+   naming the spellings; W4 refuses a route argument text can't carry.
 8e. A union of enums that share a variant name, in a body (`OrderError |
    CustomerError`, both with `NotFound`; ADR 0072 open question 1).
 8f. `fiig openapi`: print the document `GenerateOpenAPI` builds. Likely a

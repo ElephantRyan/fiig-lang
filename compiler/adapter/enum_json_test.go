@@ -2,6 +2,7 @@ package adapter
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
@@ -199,5 +200,30 @@ func TestCorpusShippingQuotes(t *testing.T) {
 		if code, _, body := serve(h, req); code != c.code || strings.TrimSpace(body) != c.out {
 			t.Errorf("POST /quotes %s\n got %d %s\nwant %d %s", c.in, code, body, c.code, c.out)
 		}
+	}
+
+	// ADR 0080 §3-§4: Speed read from the path, exactly, and an unknown
+	// one a 400 naming the ones it may be.
+	for path, want := range map[string]string{
+		"/rates/Express?weightGrams=2500":   `200 1600`,
+		"/rates/Standard?weightGrams=2500":  `200 800`,
+		"/rates/express?weightGrams=2500":   `400 {"error":"path value \"speed\": \"express\" isn't a Speed; expected Standard or Express"}`,
+		"/rates/Overnight?weightGrams=2500": `400 {"error":"path value \"speed\": \"Overnight\" isn't a Speed; expected Standard or Express"}`,
+	} {
+		code, _, body := serve(h, httptest.NewRequest("GET", path, nil))
+		if got := fmt.Sprintf("%d %s", code, strings.TrimSpace(body)); got != want {
+			t.Errorf("GET %s\n got %s\nwant %s", path, got, want)
+		}
+	}
+
+	// §5: the path parameter's schema lists the variants.
+	doc, err := GenerateOpenAPI(findAdapter(t, files, "shippingApi"), u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	op := doc["paths"].(map[string]any)["/rates/{speed}"].(map[string]any)["get"].(map[string]any)
+	speed, _ := json.Marshal(op["parameters"].([]any)[0])
+	if !strings.Contains(string(speed), `"schema":{"enum":["Standard","Express"],"type":"string"}`) {
+		t.Errorf("speed's parameter doesn't list the variants: %s", speed)
 	}
 }
