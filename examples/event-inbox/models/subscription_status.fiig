@@ -1,0 +1,14 @@
+// ADR 0080: Stripe sends a subscription's status in snake_case, and a
+// variant must be capitalized, so each one declares the spelling it's
+// sent as. Every place the enum meets text uses that spelling: JSON both
+// ways, a route argument, config, and the OpenAPI enum.
+enum SubscriptionStatus {
+    Incomplete from json "incomplete"
+    IncompleteExpired from json "incomplete_expired"
+    Trialing from json "trialing"
+    Active from json "active"
+    PastDue from json "past_due"
+    Canceled from json "canceled"
+    Unpaid from json "unpaid"
+    Paused from json "paused"
+}

@@ -1,4 +1,5 @@
-// ADR 0072: enums in HTTP request and response bodies. No capabilities:
+// ADR 0072: enums in HTTP request and response bodies, and ADR 0080: an
+// enum read from the path. No capabilities:
 // fiig serve . shippingApi
 adapter http shippingApi {
     POST "/quotes" -> quoteShipping(request: QuoteRequest)
@@ -6,6 +7,12 @@ adapter http shippingApi {
         produces "application/json"
     {
         Ok(quote) -> 200 quote
+        Err(error) -> 422 error
+    }
+    GET "/rates/{speed}?weightGrams={weightGrams}" -> domesticRate(speed: Speed, weightGrams: int)
+        produces "application/json"
+    {
+        Ok(cents) -> 200 cents
         Err(error) -> 422 error
     }
 }

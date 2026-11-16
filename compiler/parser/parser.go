@@ -405,18 +405,8 @@ func (p *Parser) parseField(jsonName bool) syntax.Field {
 	p.expect(lexer.Colon)
 	typ := p.parseType()
 	f := syntax.Field{Name: name.Text, Type: typ}
-	if jsonName && p.atContextual("from") && p.peek(1).Kind == lexer.Ident && p.peek(1).Text == "json" {
-		p.advance()
-		p.advance()
-		lit := p.parseStringLit()
-		if hasInterp(lit) {
-			p.errorf(lit.Start, "interpolation is not allowed in a JSON member name")
-		}
-		f.JSON = plainText(lit)
-		if f.JSON == "" {
-			// "" would read as no `from json` at all; no producer sends it.
-			p.errorf(lit.Start, "a JSON member name can't be empty")
-		}
+	if jsonName {
+		f.JSON = p.parseJSONName("a JSON member name")
 	}
 	f.Span = syntax.Span{Start: start, End: p.cur().Start}
 	return f
@@ -563,7 +553,8 @@ func (p *Parser) parseEnumVariant(headed bool) syntax.EnumVariant {
 		if p.at(lexer.LParen) {
 			values = p.parseArguments()
 		}
-		return syntax.EnumVariant{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: name.Text, Values: values}
+		json := p.parseJSONName("an enum variant's spelling")
+		return syntax.EnumVariant{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: name.Text, Values: values, JSON: json}
 	}
 	var fields []syntax.Field
 	if p.at(lexer.LParen) {
@@ -577,7 +568,29 @@ func (p *Parser) parseEnumVariant(headed bool) syntax.EnumVariant {
 		}
 		p.expect(lexer.RParen)
 	}
-	return syntax.EnumVariant{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: name.Text, Fields: fields}
+	json := p.parseJSONName("an enum variant's spelling")
+	return syntax.EnumVariant{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: name.Text, Fields: fields, JSON: json}
+}
+
+// parseJSONName parses an optional `from json "text"` clause: a field's
+// member name (ADR 0073 §7b) or a variant's spelling (ADR 0080 §1). what
+// names it in errors. "" when there is none.
+func (p *Parser) parseJSONName(what string) string {
+	if !p.atContextual("from") || p.peek(1).Kind != lexer.Ident || p.peek(1).Text != "json" {
+		return ""
+	}
+	p.advance()
+	p.advance()
+	lit := p.parseStringLit()
+	if hasInterp(lit) {
+		p.errorf(lit.Start, "interpolation is not allowed in %s", what)
+	}
+	text := plainText(lit)
+	if text == "" {
+		// "" would read as no `from json` at all; no producer sends it.
+		p.errorf(lit.Start, "%s can't be empty", what)
+	}
+	return text
 }
 
 func (p *Parser) parseRuleDecl() *syntax.RuleDecl {

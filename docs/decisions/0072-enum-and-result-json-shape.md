@@ -244,6 +244,7 @@ item 7's library uses.
 2. **An enum in a path segment or query value**, such as
    `GET "/regions/{region}"` with `region: Region`. The natural form is the
    variant name, as in §1, but route arguments bind only primitives today.
+   Resolved by ADR 0080: by its text form, exactly.
 
 ## Implementation notes (2026-11-08)
 

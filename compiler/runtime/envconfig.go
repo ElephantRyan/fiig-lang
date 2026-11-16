@@ -152,7 +152,7 @@ func (in *Interp) readConfigValue(src ConfigSource, text, env string, t types.Ty
 		if e, ok := t.Decl.(*syntax.EnumDecl); ok {
 			var names []string
 			for _, v := range e.Variants {
-				if v.Name == text && len(v.Fields) == 0 {
+				if v.Text() == text && len(v.Fields) == 0 {
 					ctx := withScope(context.Background(), scope{universe: src.Universe})
 					val, _, fault := in.constructEnum(ctx, e, v, nil, NewEnv())
 					if fault != nil {
@@ -161,7 +161,7 @@ func (in *Interp) readConfigValue(src ConfigSource, text, env string, t types.Ty
 					return val, ""
 				}
 				if len(v.Fields) == 0 {
-					names = append(names, v.Name)
+					names = append(names, v.Text())
 				}
 			}
 			return nil, fmt.Sprintf("a %s (%s)", e.Name, strings.Join(names, ", "))

@@ -146,6 +146,19 @@ type EnumVariant struct {
 	// constant per header field (ADR 0046 §4). Fields and Values are never
 	// both set: a headed enum's variants carry no payload (§6).
 	Values []Arg
+	// JSON is the spelling a `from json "text"` clause gives the variant
+	// (ADR 0080 §1); "" when it has none. Use Text.
+	JSON string
+}
+
+// Text is the variant's text form (ADR 0080 §2): its `from json`
+// spelling, or its own name. JSON, route arguments read from text, and
+// config all read and write it.
+func (v EnumVariant) Text() string {
+	if v.JSON != "" {
+		return v.JSON
+	}
+	return v.Name
 }
 
 // Value returns the constant this variant supplies for header field name.
@@ -182,6 +195,27 @@ func (d *EnumDecl) Variant(name string) (EnumVariant, bool) {
 		}
 	}
 	return EnumVariant{}, false
+}
+
+// VariantByText returns the variant whose text form (ADR 0080 §2) is
+// text: its `from json` spelling, or its name when it declares none.
+func (d *EnumDecl) VariantByText(text string) (EnumVariant, bool) {
+	for _, v := range d.Variants {
+		if v.Text() == text {
+			return v, true
+		}
+	}
+	return EnumVariant{}, false
+}
+
+// Texts is every variant's text form, in declared order, for a message
+// or a schema listing what may be sent.
+func (d *EnumDecl) Texts() []string {
+	out := make([]string, len(d.Variants))
+	for i, v := range d.Variants {
+		out[i] = v.Text()
+	}
+	return out
 }
 
 // HasPayload reports whether any variant carries a payload, which decides

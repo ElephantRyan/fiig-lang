@@ -73,7 +73,8 @@ func buildOperation(route *syntax.Route, u *types.Universe) (map[string]any, err
 		params = append(params, map[string]any{"name": n, "in": "path", "required": true, "schema": schemaFor(paramType[n], u)})
 	}
 	for _, n := range plan.queryNames {
-		params = append(params, map[string]any{"name": n, "in": "query", "required": true, "schema": schemaFor(paramType[n], u)})
+		pt := paramType[n]
+		params = append(params, map[string]any{"name": n, "in": "query", "required": !runtime.IsOptional(pt), "schema": schemaFor(nonNone(pt), u)})
 	}
 	// ADR 0069 §1: header and cookie arguments, which OpenAPI has its own
 	// `in` for. A `T | None` argument is optional.
@@ -407,7 +408,7 @@ func enumSchema(d *syntax.EnumDecl, u *types.Universe) map[string]any {
 	if !d.HasPayload() {
 		names := make([]any, len(d.Variants))
 		for i, v := range d.Variants {
-			names[i] = v.Name
+			names[i] = v.Text() // ADR 0080 §5
 		}
 		return map[string]any{"type": "string", "enum": names}
 	}
@@ -426,7 +427,7 @@ func enumSchema(d *syntax.EnumDecl, u *types.Universe) map[string]any {
 			}
 		}
 		sort.Strings(required)
-		variants[i] = variantSchema(v.Name, props, required)
+		variants[i] = variantSchema(v.Text(), props, required)
 	}
 	return taggedUnion(variants)
 }

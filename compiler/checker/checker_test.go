@@ -137,12 +137,13 @@ func TestInvalidProgramsCatchEveryAttestedBugClass(t *testing.T) {
 			"W1": 1, // htmlPage: sets Content-Type, which produces owns
 			"W2": 1, // embedCookie: SameSite=None over plain HTTP
 			"W3": 1, // Delivery.Shipped: a payload field named variant
-			"G1": 2, // three declarations packed into one file, incidental but real
+			"W4": 1, // deliveryApi: a Delivery, with payloads, read from a path
+			"G1": 4, // five declarations packed into one file, incidental but real
 		}},
 		{"invalid-programs/json_error.fiig", map[string]int{
 			"J1": 1, // readCounts: a Map with int keys from a JSON object
-			"J2": 1, // Upload.type: a second field reading "type"
-			"G1": 1, // two declarations packed into one file, incidental but real
+			"J2": 2, // Upload.type: a second field reading "type"; ShipmentState.Delivered: a second variant spelled "sent"
+			"G1": 2, // three declarations packed into one file, incidental but real
 		}},
 		{"invalid-programs/config_error.fiig", map[string]int{
 			"V1":  1, // Billing.apiKey: a Secret with a default

@@ -217,9 +217,18 @@ field-name ::= identifier | keyword                                  // ADR 0073
 enum-decl    ::= 'enum' identifier [ enum-header ] '{' { enum-variant } '}'
 enum-header  ::= '(' enum-field { ',' enum-field } ')'      // ADR 0046 §4
 enum-field   ::= [ 'key' ] identifier ':' type               // `key` is contextual
-enum-variant ::= identifier [ '(' [ field { ',' field } ] ')' ]   // no header: a payload
-               | identifier [ arguments ]                         // header: a row of constants
+enum-variant ::= identifier [ '(' [ field { ',' field } ] ')' ] [ spelling ]   // no header: a payload
+               | identifier [ arguments ] [ spelling ]                         // header: a row of constants
+spelling     ::= 'from' 'json' string-literal                                   // ADR 0080 §1; contextual
 ```
+
+A variant's `from json "text"` is its spelling, its text form wherever it
+meets text (ADR 0080 §2): JSON both ways (a payload-free enum is the
+string, an enum with payloads names its variant with it), a route
+argument read from a path, query, header, cookie, or command line, a
+config value, and OpenAPI's `enum`. A variant without one is spelled as
+its name. Two variants of one enum with one spelling are J2. Attested:
+`examples/event-inbox/models/subscription_status.fiig`.
 
 On an enum with a header, a variant's parentheses hold `name: value`, one
 constant per header field, in the same form as a call's named arguments; on
@@ -374,7 +383,7 @@ http-route    ::= http-method string-literal '->' route-call { media-clause } [ 
 http-method   ::= 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'QUERY'
 cli-route     ::= 'command' string-literal '->' route-call [ response-mapping ]
 route-call    ::= identifier '(' [ route-arg { ',' route-arg } [ ',' ] ] ')'
-route-arg     ::= identifier ':' type [ 'from' ( 'header' | 'cookie' ) string-literal ]   -- ADR 0069 §1
+route-arg     ::= identifier ':' type [ 'from' ( 'header' | 'cookie' ) string-literal ]   -- ADR 0069 §1; read from text, so string, int, float, decimal, bool, or a payload-free enum, optionally | None (W4, ADR 0080)
 media-clause  ::= ( 'consumes' | 'produces' ) string-literal                              -- ADR 0069 §5
 
 response-mapping ::= '{' response-arm { response-arm } '}'

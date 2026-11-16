@@ -93,7 +93,7 @@ func TestRouteBindingErrors(t *testing.T) {
 		{`adapter http a {
     POST "/orders" -> placeOrder(input: NewOrder from header "X-Order", token: string from header "Authorization", requestId: string | None from header "X-Request-Id")
         produces "application/json"
-}`, "", `"input" is read from a header, so it must be string, int, float, decimal, or bool, optionally | None; got NewOrder`},
+}`, "W4", `"input" is read from a header, so it must be string, int, float, decimal, bool, or an enum without payloads, optionally | None; got NewOrder`},
 		{`adapter http a {
     GET "/orders/{id}" -> readOrder(id: string, token: string from header "Bad Name")
         produces "application/json"

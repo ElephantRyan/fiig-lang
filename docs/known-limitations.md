@@ -45,8 +45,11 @@ doesn't have to discover them.
   (`OrderError | CustomerError`, both with `NotFound`): the JSON doesn't
   say which enum it is, so decoding takes the first member that matches
   (ADR 0072, open question 1).
-- **An enum can't be a path segment or query value** yet; route arguments
-  from the path and query bind only primitives (ADR 0072, open question 2).
+- **An enum value a producer adds later is refused** (ADR 0080 open
+  question 1): Stripe adding a subscription status the program's enum
+  doesn't list makes the delivery a `JsonError.Mismatch`, not a value the
+  program can handle. Read the member as a `string` where a producer
+  documents that it adds values.
 - **The HTTP client opens a connection per request** (ADR 0074 §8):
   `fiig.http` has no pool, so every `send` pays a TCP and, for `https`, a
   TLS handshake. No HTTP/2, compression, proxies, cookie jar, streaming

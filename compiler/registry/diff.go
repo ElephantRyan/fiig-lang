@@ -366,6 +366,11 @@ func variantChanges(name string, old, newer []Variant) []Change {
 		if !sameParams(ov.Fields, nv.Fields) {
 			out = append(out, Change{Name: name, Bump: Major, Msg: fmt.Sprintf("variant %q fields changed from %s to %s", n, paramsString(ov.Fields), paramsString(nv.Fields))})
 		}
+		// A client sends and reads the spelling, so changing it is a
+		// rename on the wire (ADR 0080 §2).
+		if textOf(ov) != textOf(nv) {
+			out = append(out, Change{Name: name, Bump: Major, Msg: fmt.Sprintf("variant %q is spelled %q, not %q (ADR 0080)", n, textOf(nv), textOf(ov))})
+		}
 	}
 	for n := range newByName {
 		if _, ok := oldByName[n]; !ok {
@@ -376,6 +381,14 @@ func variantChanges(name string, old, newer []Variant) []Change {
 		out = append(out, Change{Name: name, Bump: Major, Msg: "gained its first payload, so every variant is now sent in JSON as an object naming it, not a string (ADR 0072 §2)"})
 	}
 	return out
+}
+
+// textOf is a variant's text form: its spelling, or its name.
+func textOf(v Variant) string {
+	if v.Text != "" {
+		return v.Text
+	}
+	return v.Name
 }
 
 func anyPayload(variants []Variant) bool {

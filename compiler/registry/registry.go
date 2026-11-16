@@ -75,6 +75,9 @@ type Variant struct {
 	Name      string     `json:"name"`
 	Fields    []Param    `json:"fields,omitempty"`
 	Constants []Constant `json:"constants,omitempty"` // a headed enum's row (ADR 0046 §4)
+	// Text is the variant's text form when it declares a spelling (ADR
+	// 0080 §1): what a client sends and reads for it.
+	Text string `json:"text,omitempty"`
 }
 
 // Card is a compact contract card for one exported declaration
@@ -528,7 +531,7 @@ func paramParams(params []syntax.Param) []Param {
 func variantsOf(d *syntax.EnumDecl) []Variant {
 	out := make([]Variant, len(d.Variants))
 	for i, v := range d.Variants {
-		out[i] = Variant{Name: v.Name, Fields: fieldParams(v.Fields)}
+		out[i] = Variant{Name: v.Name, Fields: fieldParams(v.Fields), Text: v.JSON}
 		// In header order, not as written, so two cards compare field by field.
 		for _, f := range d.Header {
 			if e, ok := v.Value(f.Name); ok {

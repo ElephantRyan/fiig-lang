@@ -1,0 +1,6 @@
+// A "customer.subscription.updated" payload, as Stripe sends its
+// subscription object: {"id": "sub_1", "status": "past_due", ...}.
+model SubscriptionUpdated {
+    id: string
+    status: SubscriptionStatus
+}

@@ -12,3 +12,10 @@ model Upload {
     contentType: string from json "type"
     type: string
 }
+
+// ADR 0080 §1: J2 for an enum, two variants with one spelling. Reading
+// "sent" couldn't say which variant it is.
+enum ShipmentState {
+    Sent from json "sent"
+    Delivered from json "sent"
+}

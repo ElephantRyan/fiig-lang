@@ -116,7 +116,13 @@ func (c *checker) checkRouteBinding(route *syntax.Route, wd *syntax.WorkflowDecl
 		}
 		if arg.Source != "" {
 			c.report(arg.Start, "", "%q is bound by a %s placeholder and from a %s; bind it once", n, where, arg.Source)
+			return
 		}
+		from := "a " + where + " placeholder"
+		if !isHTTP {
+			from = "the command line"
+		}
+		c.checkReadFromText(*arg, argTypes[n], from)
 	}
 	for _, n := range pathNames {
 		claim(n, "path")
@@ -180,12 +186,44 @@ func (c *checker) checkSourcedArg(arg syntax.RouteArg, t types.Type, isHTTP bool
 		c.report(arg.Start, "", "a cli route has no %ss; `from %s` is for http routes", arg.Source, arg.Source)
 		return
 	}
-	if !isUnknown(t) && !isWireScalar(withoutNone(t)) {
-		c.report(arg.Start, "", "%q is read from a %s, so it must be string, int, float, decimal, or bool, optionally | None; got %s", arg.Name, arg.Source, t)
-	}
+	c.checkReadFromText(arg, t, "a "+arg.Source)
 	if !httpspec.IsToken(arg.SourceName) {
 		c.report(arg.Start, "", "%s name %q isn't an HTTP token (letters, digits, and !#$%%&'*+-.^_`|~)", arg.Source, arg.SourceName)
 	}
+}
+
+// checkReadFromText is W4 (ADR 0080 §6): an argument read from a path
+// segment, query value, header, cookie, or command-line word has a type
+// text can be read as. from says where it is read from.
+func (c *checker) checkReadFromText(arg syntax.RouteArg, t types.Type, from string) {
+	if isUnknown(t) {
+		return
+	}
+	bare := withoutNone(t)
+	if isWireScalar(bare) || isTextEnum(bare) {
+		return
+	}
+	if d, ok := enumOf(bare); ok {
+		c.report(arg.Start, "W4", "%q is read from %s, but %s has variants with payloads, which no single text can carry; bind the fields as separate arguments, or send it in a body (ADR 0080 §6)", arg.Name, from, d.Name)
+		return
+	}
+	c.report(arg.Start, "W4", "%q is read from %s, so it must be string, int, float, decimal, bool, or an enum without payloads, optionally | None; got %s (ADR 0080 §6)", arg.Name, from, t)
+}
+
+// isTextEnum reports whether t is an enum whose variants carry no payload,
+// which binds from text by its text form (ADR 0080 §3).
+func isTextEnum(t types.Type) bool {
+	d, ok := enumOf(t)
+	return ok && !d.HasPayload()
+}
+
+func enumOf(t types.Type) (*syntax.EnumDecl, bool) {
+	n, ok := t.(types.Named)
+	if !ok {
+		return nil, false
+	}
+	d, ok := n.Decl.(*syntax.EnumDecl)
+	return d, ok
 }
 
 // isWireScalar reports whether t is one of the primitives a path, query,

@@ -389,7 +389,7 @@ func enumRows(variants []syntax.EnumVariant) []string {
 	out := make([]string, len(variants))
 	for i, v := range variants {
 		if len(v.Values) == 0 {
-			out[i] = v.Name
+			out[i] = v.Name + printSpelling(v)
 			continue
 		}
 		var b strings.Builder
@@ -409,6 +409,7 @@ func enumRows(variants []syntax.EnumVariant) []string {
 			}
 		}
 		b.WriteString(")")
+		b.WriteString(printSpelling(v))
 		out[i] = b.String()
 	}
 	return out
@@ -416,13 +417,21 @@ func enumRows(variants []syntax.EnumVariant) []string {
 
 func printEnumVariant(v syntax.EnumVariant) string {
 	if len(v.Fields) == 0 {
-		return v.Name
+		return v.Name + printSpelling(v)
 	}
 	parts := make([]string, len(v.Fields))
 	for i, f := range v.Fields {
 		parts[i] = printField(f)
 	}
-	return fmt.Sprintf("%s(%s)", v.Name, strings.Join(parts, ", "))
+	return fmt.Sprintf("%s(%s)%s", v.Name, strings.Join(parts, ", "), printSpelling(v))
+}
+
+// printSpelling is a variant's `from json` clause (ADR 0080 §1), or "".
+func printSpelling(v syntax.EnumVariant) string {
+	if v.JSON == "" {
+		return ""
+	}
+	return " from json " + strconv.Quote(v.JSON)
 }
 
 // printCallableDecl handles rule/conversion/workflow, whose header is
