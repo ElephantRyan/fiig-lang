@@ -1,0 +1,22 @@
+// ADR 0085 §2: protocol 3.0, the user and database, and the settings that
+// keep text results independent of the server's configuration.
+conversion startupMessage(settings: PgSettings) -> bytes {
+    body: bytes = <<
+        cString("user"): bytes,
+        cString(settings.user): bytes,
+        cString("database"): bytes,
+        cString(settings.database): bytes,
+        cString("client_encoding"): bytes,
+        cString("UTF8"): bytes,
+        cString("DateStyle"): bytes,
+        cString("ISO"): bytes,
+    >>
+    match settings.applicationName {
+        None -> None
+        name -> {
+            body = <<body: bytes, cString("application_name"): bytes, cString(name): bytes>>
+        }
+    }
+    length = body.length() + 9
+    return <<length: i32be, 196608: i32be, body: bytes, 0: u8>>
+}

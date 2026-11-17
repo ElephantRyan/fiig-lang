@@ -1,0 +1,33 @@
+use fiig.sql as db
+
+// An ErrorResponse's fields: C is the SQLSTATE, M the message (§9).
+conversion serverError(body: bytes) -> db.DatabaseError {
+    code: string = "XX000"
+    message: string = "the server reported an error"
+    rest: bytes = body
+    while rest.length() > 0 {
+        match rest {
+            <<field: u8, after: bytes>> -> {
+                end = cStringEnd(after)
+                if field == 0 or end < 0 {
+                    break
+                }
+                match after.slice(0, end).utf8() {
+                    None -> None
+                    value -> {
+                        if field == 67 {
+                            code = value
+                        } else if field == 77 {
+                            message = value
+                        }
+                    }
+                }
+                rest = after.slice(end + 1, after.length())
+            }
+            _ -> {
+                break
+            }
+        }
+    }
+    return db.DatabaseError.Server(code: code, message: message)
+}

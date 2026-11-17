@@ -21,6 +21,8 @@ var cryptoFormulas = map[string]Method{
 	"sha256":     {[]Param{p("data", bytesType)}, bytesType},
 	"hmacSha256": {[]Param{p("key", Union{Members: []Type{SecretType, bytesType}}), p("data", bytesType)}, bytesType},
 	"equal":      {[]Param{p("a", bytesType), p("b", bytesType)}, boolType},
+	// ADR 0085 §7: for protocols that specify PBKDF2, such as SCRAM.
+	"pbkdf2Sha256": {[]Param{p("password", Union{Members: []Type{SecretType, bytesType}}), p("salt", bytesType), p("iterations", intType)}, bytesType},
 
 	HashPasswordFormula: {[]Param{p("password", stringType)}, stringType},
 	"passwordMatches":   {[]Param{p("password", stringType), p("stored", stringType)}, boolType},

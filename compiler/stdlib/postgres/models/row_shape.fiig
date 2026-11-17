@@ -1,0 +1,5 @@
+// A RowDescription: each column's name and its type's OID (§8).
+model RowShape {
+    names: List<string>
+    types: List<int>
+}

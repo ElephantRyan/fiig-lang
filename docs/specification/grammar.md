@@ -328,7 +328,10 @@ compile error.
 The prelude `crypto` group (ADR 0075) is listed in
 `compiler/types/crypto.go`. It takes and returns `bytes`, never `string`:
 `sha256(data)`; `hmacSha256(key: Secret | bytes, data)`, whose `Secret` key
-is its value's UTF-8; `equal(a, b)`, which compares in time that depends
+is its value's UTF-8; `pbkdf2Sha256(password: Secret | bytes, salt,
+iterations)`, 32 bytes of RFC 8018 PBKDF2 for protocols that specify it,
+such as SCRAM (ADR 0085 §7), faulting outside 1 to 10,000,000 iterations;
+`equal(a, b)`, which compares in time that depends
 only on the lengths, for a signature (`==` stops at the first differing
 byte); `hashPassword(password: string) -> string`, Argon2id at 19 MiB, 2
 passes, 1 lane, written as a PHC string (`$argon2id$v=19$m=19456,t=2,p=1$...`);
@@ -695,8 +698,8 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
   `lowercase`, `uppercase`, `equalsIgnoringCase`, `split`, `replaceAll`,
   `toIntOrNone`, `toFloatOrNone`; ADR 0069 §7's `fromHex`, `fromBase64`,
   `fromBase64Url`, each `bytes | None`), `bytes` (`length`,
-  `at`, `slice`, `utf8`; ADR 0058; and ADR 0068's `toHex`, `toBase64`,
-  `toBase64Url`), and `List<T>` (`length`, `at`,
+  `at`, `slice`, `utf8`; ADR 0058; ADR 0068's `toHex`, `toBase64`,
+  `toBase64Url`; and ADR 0085's `xor`, which faults on two lengths), and `List<T>` (`length`, `at`,
   `atOrNone`, `slice`, and ADR 0065's `first`, `firstOrNone`, `last`,
   `lastOrNone`, `contains`, `sorted`, `sortedDescending`, and `join` on a
   `List<string>`). Anything else is K1. A string's `length` and `slice`

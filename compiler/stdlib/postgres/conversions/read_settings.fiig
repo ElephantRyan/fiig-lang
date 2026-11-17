@@ -1,0 +1,43 @@
+use fiig.sql as db
+
+// ADR 0085 §2: the settings a capabilities file gives the driver.
+conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.DatabaseError> {
+    if not settings.containsKey("host") {
+        return Err(db.DatabaseError.Protocol(reason: "fiig.postgres needs a host setting"))
+    }
+    if not settings.containsKey("user") {
+        return Err(db.DatabaseError.Protocol(reason: "fiig.postgres needs a user setting"))
+    }
+    user = settings.at("user")
+    port: int = 5432
+    if settings.containsKey("port") {
+        match settings.at("port").toIntOrNone() {
+            None -> {
+                return Err(
+                    db.DatabaseError.Protocol(reason: "the port setting must be a number, not ${settings.at("port")}"),
+                )
+            }
+            number -> {
+                port = number
+            }
+        }
+    }
+    database: string = user
+    if settings.containsKey("database") {
+        database = settings.at("database")
+    }
+    secure: bool = true
+    if settings.containsKey("sslmode") {
+        mode = settings.at("sslmode")
+        if mode == "disable" {
+            secure = false
+        } else if mode != "verify-full" {
+            return Err(
+                db.DatabaseError.Protocol(reason: "sslmode must be verify-full or disable, not ${mode} (ADR 0085 §5)"),
+            )
+        }
+    }
+    return Ok(
+        PgSettings(host: settings.at("host"), port: port, user: user, password: settings.atOrNone("password"), database: database, secure: secure, applicationName: settings.atOrNone("applicationName")),
+    )
+}

@@ -1,0 +1,21 @@
+// Past a /* */ comment starting at i; Postgres nests them.
+conversion blockCommentEnd(data: bytes, i: int) -> int {
+    n = data.length()
+    depth: int = 1
+    j: int = i + 2
+    while j < n {
+        if data.at(j) == 47 and j + 1 < n and data.at(j + 1) == 42 {
+            depth = depth + 1
+            j = j + 2
+        } else if data.at(j) == 42 and j + 1 < n and data.at(j + 1) == 47 {
+            depth = depth - 1
+            j = j + 2
+            if depth == 0 {
+                return j
+            }
+        } else {
+            j = j + 1
+        }
+    }
+    return n
+}

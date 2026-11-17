@@ -1,0 +1,16 @@
+use fiig.sql as db
+
+// Where connect is in startup and authentication (§6). send is what to
+// write before reading on; expectSignature is the server's SCRAM
+// signature, once the client's proof is sent, and verified says the
+// server proved it.
+model Handshake {
+    settings: PgSettings
+    clientNonce: string
+    clientFirstBare: string
+    expectSignature: bytes
+    verified: bool
+    send: bytes
+    failed: db.DatabaseError | None
+    ready: bool
+}

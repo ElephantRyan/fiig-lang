@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/pbkdf2"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
@@ -55,6 +56,9 @@ func argonKey(ctx context.Context, password string, salt []byte, passes, memory 
 	return argon2.IDKey([]byte(password), salt, passes, memory, lanes, keyLen), nil
 }
 
+// maxPbkdf2Iterations bounds one PBKDF2 call (ADR 0085 §7).
+const maxPbkdf2Iterations = 10_000_000
+
 type cryptoFunc func(ctx context.Context, in *Interp, args []Value) (Value, *Fault)
 
 var cryptoFormulas = map[string]cryptoFunc{
@@ -75,6 +79,27 @@ var cryptoFormulas = map[string]cryptoFunc{
 		mac := hmac.New(sha256.New, key)
 		mac.Write(args[1].(Bytes).B)
 		return Bytes{B: mac.Sum(nil)}, nil
+	},
+	// ADR 0085 §7: RFC 8018 PBKDF2-HMAC-SHA-256, 32 bytes out.
+	"pbkdf2Sha256": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
+		var password []byte
+		switch k := args[0].(type) {
+		case Secret:
+			password = []byte(k.value)
+		case Bytes:
+			password = k.B
+		default:
+			return nil, Faultf("crypto.pbkdf2Sha256's password is a %T, not a Secret or bytes", args[0])
+		}
+		n := int64(args[2].(Int))
+		if n < 1 || n > maxPbkdf2Iterations {
+			return nil, Faultf("crypto.pbkdf2Sha256: %d iterations is outside 1 to %d", n, maxPbkdf2Iterations)
+		}
+		key, err := pbkdf2.Key(sha256.New, string(password), args[1].(Bytes).B, int(n), sha256.Size)
+		if err != nil {
+			return nil, Faultf("crypto.pbkdf2Sha256: %v", err)
+		}
+		return Bytes{B: key}, nil
 	},
 	// Time depends only on the lengths; different lengths answer false at
 	// once, like hmac.Equal.
@@ -149,6 +174,9 @@ func cryptoArgFits(v Value, t types.Type) bool {
 			return ok
 		case "string":
 			_, ok := v.(Str)
+			return ok
+		case "int":
+			_, ok := v.(Int)
 			return ok
 		}
 	}

@@ -1,0 +1,6 @@
+// One backend message: its type byte, its body, and the bytes after it.
+model PgFrame {
+    kind: int
+    body: bytes
+    rest: bytes
+}

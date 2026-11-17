@@ -1,0 +1,11 @@
+{
+    "path": "fiig.postgres",
+    "kind": "library",
+    "version": "1.0.0",
+    "dependencies": {
+        "fiig.sql": "1.0.0"
+    },
+    "provides": {
+        "fiig.sql.SqlDriver": "Postgres"
+    }
+}

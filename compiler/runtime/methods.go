@@ -166,6 +166,18 @@ var builtinMethods = map[string]map[string]builtinFunc{
 		"toBase64Url": func(recv Value, _ []Value) (Value, *Fault) {
 			return Str(base64.RawURLEncoding.EncodeToString(recv.(Bytes).B)), nil
 		},
+		// ADR 0085 §7.
+		"xor": func(recv Value, args []Value) (Value, *Fault) {
+			a, b := recv.(Bytes).B, args[0].(Bytes).B
+			if len(a) != len(b) {
+				return nil, Faultf("bytes.xor: the two are %d and %d bytes; xor needs the same length", len(a), len(b))
+			}
+			out := make([]byte, len(a))
+			for i := range a {
+				out[i] = a[i] ^ b[i]
+			}
+			return Bytes{B: out}, nil
+		},
 	},
 	// ADR 0049 §2.6.
 	"List": {

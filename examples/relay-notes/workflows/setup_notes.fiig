@@ -1,5 +1,9 @@
-// Start the relay first: go run ./libraries/sql/cmd/fiig-sql-relay
-// then: fiig run -workspace .. -caps caps.json . setupNotes
+// The same program on two drivers written in fiig (ADR 0084, 0085); only
+// the capabilities file differs. On the relay: start
+// go run ./libraries/sql/cmd/fiig-sql-relay, then
+// fiig run -workspace .. -caps caps.json . setupNotes
+// On Postgres, with PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE and
+// PGSSLMODE set: fiig run -workspace .. -caps caps.postgres.json . setupNotes
 workflow setupNotes() -> int {
     return createNotesTable()
 }

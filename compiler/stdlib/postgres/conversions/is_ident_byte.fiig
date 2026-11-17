@@ -1,0 +1,5 @@
+// A byte that can be part of an identifier: a letter, a digit, _, or any
+// byte of a non-ASCII character.
+conversion isIdentByte(b: int) -> bool {
+    return b >= 48 and b <= 57 or b >= 65 and b <= 90 or b >= 97 and b <= 122 or b == 95 or b >= 128
+}
