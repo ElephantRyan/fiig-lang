@@ -5,7 +5,7 @@
       "path": "examples.sqlrelay",
       "version": "1.0.0",
       "hash": "sha256:9e897d7b59a106fab6d4aa0e52051de8540d205af9c8111e7b9024418b6271ab",
-      "source": "examples/sql-relay",
+      "source": "../sql-relay",
       "capabilities": [
         "Socket"
       ]

@@ -151,11 +151,6 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	if caps == nil {
 		caps = runtime.NewCapabilityRegistry()
 	}
-	// Socket is a primitive (ADR 0042), so the real one is the default; a
-	// -caps entry for it (socket-script, for instance) replaces it.
-	if _, configured := caps.Lookup("Socket"); !configured {
-		caps.Register("Socket", runtime.NewSocketProvider())
-	}
 	runprogram.RegisterDefaults(caps)
 
 	in := runtime.New(universe, caps)

@@ -282,7 +282,9 @@ func describeDatabaseError(v Value) (bool, string) {
 	case e.Variant == "Broken" && len(e.Fields) == 1:
 		return false, fmt.Sprintf("the connection failed: %s", e.Fields[0])
 	case e.Variant == "Protocol" && len(e.Fields) == 1:
-		return false, fmt.Sprintf("the driver couldn't read the server's reply: %s", plain(e.Fields[0]))
+		// The driver's reason says what went wrong: a reply it couldn't
+		// read, a setting, or a server it won't talk to.
+		return false, plain(e.Fields[0])
 	}
 	return false, e.String()
 }
