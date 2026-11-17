@@ -9,10 +9,11 @@ doesn't have to discover them.
 - **SQLite and Postgres are the databases built in.** SQLite through
   `libraries/sql` (Go), Postgres through `fiig.postgres`, written in fiig
   (ADR 0085). No MySQL, Redis, Kafka, or queues.
-- **`fiig.postgres` trusts only the system's certificate authorities**
-  (ADR 0085 open question 2), so a managed database signed by its own CA
-  (Amazon RDS's) can't be reached with `verify-full` yet. It doesn't cancel
-  a query whose call timed out (the server finishes it), caches no prepared
+- **No certificate revocation checks** (CRL, OCSP), certificate pinning,
+  keys in an HSM or cloud KMS, or encrypted private keys (ADR 0086 open
+  questions). Custom CAs and client certificates are configured on
+  `Socket` (ADR 0086).
+- **`fiig.postgres` doesn't cancel a query whose call timed out (the server finishes it), caches no prepared
   statements, normalizes no non-ASCII passwords (SASLprep), and has no
   `COPY` or `LISTEN`/`NOTIFY`. One `execute` runs one statement.
 - **A driver's pool has no isolation levels or savepoints** (ADR 0084

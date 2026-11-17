@@ -190,6 +190,7 @@ the connection (ADR 0084 §3).
 1. **Cached prepared statements** (§3), and the cache's place: in the
    driver, keyed by connection, or in the runtime's pool.
 2. **Custom certificate authorities** (ADR 0060 open question 2).
+   *Answered by ADR 0086, on `Socket`, for every TLS connection.*
    Managed databases often sign with their own CA (Amazon RDS's isn't in
    the system roots), so `verify-full` against one needs a CA bundle, set
    in the capabilities file, not in fiig source.

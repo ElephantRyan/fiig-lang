@@ -76,6 +76,37 @@ The primitives need no entry: `Socket` is the real network, and `Clock`
 and `Random` the real clock and the secure generator, unless the file
 names a replacement.
 
+### Certificates
+
+Every TLS connection, a Postgres one, an `https` call through
+`fiig.http`, or any other, goes through `Socket`, and `Socket`'s entry
+says which certificate authorities to trust beyond the system's and which
+client certificate to present to whom (ADR 0086):
+
+```json
+{"Socket": {"type": "socket",
+  "trust": ["/etc/ssl/rds-global-bundle.pem", "${CORP_CA_FILE}"],
+  "clientCertificates": [
+    {"hosts": ["db.internal", "*.mesh.internal"],
+     "certificate": "/var/run/secrets/db/tls.crt",
+     "key": "/var/run/secrets/db/tls.key"}]}}
+```
+
+- `trust` lists PEM files of CA certificates, added to the system's. With
+  `"systemRoots": false`, only the listed ones are trusted.
+- A client certificate is presented only to the hosts listed for it: a
+  name, or `*.domain` for one label below it. Any other server that asks
+  gets none.
+- Everything is a file, as a Kubernetes secret, cert-manager, or a Vault
+  agent writes it; a path may come from the environment. Files are
+  reread when they change, so a renewed certificate is used without a
+  restart (a renewal that doesn't parse keeps the last good one, logged).
+- A missing file, PEM with no certificate, or a key that doesn't match
+  its certificate stops the program at startup, in the one configuration
+  report.
+- Host names are always verified, and nothing turns verification off; a
+  development server's CA goes in `trust`.
+
 A capability can also be bound for one package's workflows, so each
 domain of a modular monolith keeps its own database (ADR 0079 §6a); see
 [A modular monolith in fiig](modular-monolith.md):
