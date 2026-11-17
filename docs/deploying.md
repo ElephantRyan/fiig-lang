@@ -68,10 +68,13 @@ not the file:
 
 ```json
 {
-  "Database": {"type": "sql", "driver": "sqlite", "dsn": "file:${DB_PATH}"},
-  "Socket":   {"type": "socket"}
+  "Database": {"type": "sql", "driver": "sqlite", "dsn": "file:${DB_PATH}"}
 }
 ```
+
+The primitives need no entry: `Socket` is the real network, and `Clock`
+and `Random` the real clock and the secure generator, unless the file
+names a replacement.
 
 A capability can also be bound for one package's workflows, so each
 domain of a modular monolith keeps its own database (ADR 0079 §6a); see

@@ -30,6 +30,14 @@ func RandomSeededFactory(config map[string]any) (runtime.CapabilityProvider, err
 // no configuration, unless caps already has one: the secure Random (§6)
 // and the wall clock.
 func RegisterDefaults(caps *runtime.CapabilityRegistry) {
+	// Socket is a primitive (ADR 0042), so the real one is the default for
+	// fiig run and fiig serve alike; a capabilities-file entry (socket-
+	// script, for instance) replaces it. fiig serve had none, so a served
+	// program using fiig.http or a driver written in fiig (ADR 0084) failed
+	// until the file named Socket.
+	if _, configured := caps.Lookup("Socket"); !configured {
+		caps.Register("Socket", runtime.NewSocketProvider())
+	}
 	if _, configured := caps.Lookup("Random"); !configured {
 		caps.Register("Random", runtime.NewRandomProvider())
 	}

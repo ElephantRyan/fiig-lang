@@ -225,3 +225,22 @@ the connection (ADR 0084 §3).
   `compiler/runtime`'s `TestPbkdf2AndXor` checks RFC 7914's vector.
 - **Corpus:** `examples/relay-notes` depends on `fiig.postgres` too and has
   `caps.postgres.json`, reading the libpq variable names (`PGHOST`, ...).
+- **Dogfooded on Postgres 17.12** (the `postgres:17` image, SCRAM-SHA-256
+  password encryption), with a `fiig` binary built from `cmd/fiig`:
+  `relay-notes` through `caps.postgres.json` (create, a transactional
+  batch, typed reads with non-ASCII text, a batch rolled back on `Err`
+  and confirmed absent with psql, no session left idle in a transaction,
+  a duplicate key faulting as `23505`, `None`); a wrong password
+  (`28P01`); `verify-full` against a server without TLS; every column type
+  round-tripped (`numeric(10,2)` as exactly `19.90`, an `int8` above 2^53,
+  `bytea`, `bool`, NULL, a date as text, `'?'` in literals left alone, a
+  stored `NaN` refused by name); and 12 concurrent requests through `fiig
+  serve` on a pool of 4, which Postgres saw as 4 connections and which
+  took the expected 0.9 s.
+- **Found by dogfooding:** `fiig serve` registered no default `Socket`,
+  though `fiig run` did, so a served program using `fiig.postgres` or
+  `fiig.http` failed until its capabilities file named `Socket`; the real
+  `Socket` is now a default beside `Clock` and `Random`
+  (`runprogram.RegisterDefaults`). And every `Protocol` error was
+  prefixed "couldn't read the server's reply", wrong for a setting or a
+  refused TLS; the driver's reason is now the message.
