@@ -1,0 +1,11 @@
+// ADR 0085 §2: the driver's settings, from the capabilities file. secure
+// is sslmode verify-full, the default; false is sslmode disable.
+model PgSettings {
+    host: string
+    port: int
+    user: string
+    password: string | None
+    database: string
+    secure: bool
+    applicationName: string | None
+}

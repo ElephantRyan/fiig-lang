@@ -197,3 +197,28 @@ func TestPasswordHashesWaitForASlot(t *testing.T) {
 		<-hashSlots
 	}
 }
+
+// ADR 0085 §7: PBKDF2-HMAC-SHA-256 against RFC 7914 §11's first vector
+// (P "passwd", S "salt", c 1; its first 32 bytes), and xor.
+func TestPbkdf2AndXor(t *testing.T) {
+	in := checkedInterp(t,
+		`rule derive(password: bytes, salt: bytes, iterations: int) -> string {
+    return crypto.pbkdf2Sha256(password, salt, iterations).toHex()
+}`,
+		`rule flip(a: bytes, b: bytes) -> bytes {
+    return a.xor(b)
+}`)
+	got := callOK(t, in, "derive", map[string]Value{"password": Bytes{B: []byte("passwd")}, "salt": Bytes{B: []byte("salt")}, "iterations": Int(1)})
+	if got != Value(Str("55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc")) {
+		t.Errorf("pbkdf2Sha256 = %v", got)
+	}
+	if _, f := in.Call(context.Background(), "derive", map[string]Value{"password": Bytes{}, "salt": Bytes{}, "iterations": Int(0)}); f == nil || !strings.Contains(f.Message, "outside 1 to") {
+		t.Errorf("0 iterations: fault = %v", f)
+	}
+	if got := callOK(t, in, "flip", map[string]Value{"a": Bytes{B: []byte{0xf0, 0x0f}}, "b": Bytes{B: []byte{0xff, 0xff}}}); !Equal(got, Bytes{B: []byte{0x0f, 0xf0}}) {
+		t.Errorf("xor = %v", got)
+	}
+	if _, f := in.Call(context.Background(), "flip", map[string]Value{"a": Bytes{B: []byte{1}}, "b": Bytes{B: []byte{1, 2}}}); f == nil || !strings.Contains(f.Message, "same length") {
+		t.Errorf("xor of different lengths: fault = %v", f)
+	}
+}

@@ -3,7 +3,8 @@
     "kind": "application",
     "version": "1.0.0",
     "dependencies": {
-        "examples.sqlrelay": "1.0.0"
+        "examples.sqlrelay": "1.0.0",
+        "fiig.postgres": "1.0.0"
     },
     "capabilities": ["Database", "Socket"],
     "nativeCapabilities": ["Database"]

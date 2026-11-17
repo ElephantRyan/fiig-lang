@@ -1,0 +1,37 @@
+// Each column's name and type OID; the other fields are skipped.
+conversion rowDescription(body: bytes) -> RowShape | None {
+    match body {
+        <<count: i16be, fields: bytes>> -> {
+            names: List<string> = []
+            types: List<int> = []
+            rest: bytes = fields
+            i: int = 0
+            while i < count {
+                end = cStringEnd(rest)
+                if end < 0 {
+                    return None
+                }
+                match rest.slice(0, end).utf8() {
+                    None -> {
+                        return None
+                    }
+                    name -> {
+                        names = append(names, name)
+                    }
+                }
+                match rest.slice(end + 1, rest.length()) {
+                    <<skipped: bytes(6), oid: i32be, more: bytes(8), after: bytes>> -> {
+                        types = append(types, oid)
+                        rest = after
+                    }
+                    _ -> {
+                        return None
+                    }
+                }
+                i = i + 1
+            }
+            return RowShape(names: names, types: types)
+        }
+        _ -> None
+    }
+}

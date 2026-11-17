@@ -1,0 +1,27 @@
+// Past a '...' string or a "..." identifier starting at i, where a
+// doubled quote stays inside. An E'...' string also skips a byte after
+// each backslash.
+conversion quotedEnd(data: bytes, i: int) -> int {
+    n = data.length()
+    quote = data.at(i)
+    escapes: bool = false
+    if quote == 39 and i > 0 and (data.at(i - 1) == 69 or data.at(i - 1) == 101) {
+        escapes = i == 1 or not isIdentByte(data.at(i - 2))
+    }
+    j: int = i + 1
+    while j < n {
+        c = data.at(j)
+        if escapes and c == 92 {
+            j = j + 2
+        } else if c == quote {
+            if j + 1 < n and data.at(j + 1) == quote {
+                j = j + 2
+            } else {
+                return j + 1
+            }
+        } else {
+            j = j + 1
+        }
+    }
+    return n
+}

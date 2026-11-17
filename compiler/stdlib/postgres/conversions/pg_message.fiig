@@ -1,0 +1,5 @@
+// A frontend message: its type byte, then its length and body.
+conversion pgMessage(kind: int, body: bytes) -> bytes {
+    length = body.length() + 4
+    return <<kind: u8, length: i32be, body: bytes>>
+}

@@ -6,11 +6,15 @@ doesn't have to discover them.
 
 ## Capabilities and data
 
-- **SQLite is the only database built in.** `libraries/sql` works with any
-  Go `database/sql` driver, but `fiig` bundles only SQLite. A database
-  driver can be written in fiig and pooled by the runtime (ADR 0084), but
-  no Postgres driver exists yet (Milestone 7 writes its wire protocol in
-  fiig). No Redis, Kafka, or queues.
+- **SQLite and Postgres are the databases built in.** SQLite through
+  `libraries/sql` (Go), Postgres through `fiig.postgres`, written in fiig
+  (ADR 0085). No MySQL, Redis, Kafka, or queues.
+- **`fiig.postgres` trusts only the system's certificate authorities**
+  (ADR 0085 open question 2), so a managed database signed by its own CA
+  (Amazon RDS's) can't be reached with `verify-full` yet. It doesn't cancel
+  a query whose call timed out (the server finishes it), caches no prepared
+  statements, normalizes no non-ASCII passwords (SASLprep), and has no
+  `COPY` or `LISTEN`/`NOTIFY`. One `execute` runs one statement.
 - **A driver's pool has no isolation levels or savepoints** (ADR 0084
   open question 3), and two packages bound to one database get a pool
   each (open question 4).

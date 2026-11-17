@@ -1,0 +1,13 @@
+use fiig.sql as db
+
+// Where run is in reading a statement's reply (§3, §9). row is the row the
+// last message carried, which run appends to its own list; failed is the
+// statement's error, kept until ReadyForQuery ends the reply.
+model Reply {
+    columns: List<string>
+    types: List<int>
+    row: List<db.SqlValue> | None
+    affected: int
+    failed: db.DatabaseError | None
+    ready: bool
+}

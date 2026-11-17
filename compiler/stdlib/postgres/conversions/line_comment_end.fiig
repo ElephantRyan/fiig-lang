@@ -1,0 +1,11 @@
+// The newline ending a -- comment starting at i.
+conversion lineCommentEnd(data: bytes, i: int) -> int {
+    j: int = i + 2
+    while j < data.length() {
+        if data.at(j) == 10 {
+            return j
+        }
+        j = j + 1
+    }
+    return data.length()
+}

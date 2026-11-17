@@ -211,6 +211,8 @@ method on its data, `equal` has no subject, and `hashPassword` doesn't
 belong on `string`. One group keeps them findable together.
 
 **B. PBKDF2-HMAC-SHA-256 (Go 1.24's `crypto/pbkdf2`) instead of Argon2id.**
+*(ADR 0085 §7 later added `crypto.pbkdf2Sha256` for protocols that
+specify it, such as SCRAM; for storing passwords this choice stands.)*
 In the standard library, so no dependency, and FIPS-approved. But it
 isn't memory-hard, so a GPU tries guesses far more cheaply, and OWASP
 needs 600,000 iterations to rank it last of four. Rejected unless the

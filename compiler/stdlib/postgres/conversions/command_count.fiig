@@ -1,0 +1,11 @@
+// The rows a CommandComplete tag counts: INSERT 0 3, UPDATE 2, DELETE 1.
+// A query's is 0 (ADR 0085 §8).
+conversion commandCount(tag: string) -> int {
+    if tag.startsWith("SELECT") {
+        return 0
+    }
+    match tag.split(" ").last().toIntOrNone() {
+        None -> 0
+        n -> n
+    }
+}

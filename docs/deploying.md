@@ -96,6 +96,23 @@ Database` block, and closes them when the process stops:
               "maxConnections": 10, "idleTimeout": "5m", "maxLifetime": "30m"}}
 ```
 
+Postgres is such a driver, built into `fiig` as `fiig.postgres` (ADR
+0085): add `"fiig.postgres": "1.0.0"` to the application's dependencies
+and bind it.
+
+```json
+{"Database": {"type": "driver", "driver": "fiig.postgres",
+              "settings": {"host": "db.internal", "user": "app",
+                           "password": "${DB_PASSWORD}", "database": "orders"}}}
+```
+
+Its settings are `host` and `user` (required), `port` (5432), `password`,
+`database` (the user's name), `sslmode` (`verify-full`, the default, or
+`disable`), and `applicationName`. It logs in with SCRAM-SHA-256, a
+password in clear text only over TLS, or none, and refuses MD5. Programs
+keep writing `?`; the driver numbers them `$1`, `$2`, ... (write `??` for a
+literal `?`, as JSONB's operators need).
+
 `settings` is handed to the driver's `connect` as strings; the other
 three are the pool's, shown with their defaults. A call that finds every
 connection busy waits for one until its request deadline. The

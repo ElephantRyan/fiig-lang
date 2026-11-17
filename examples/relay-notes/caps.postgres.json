@@ -1,0 +1,5 @@
+{"Database": {"type": "driver", "driver": "fiig.postgres",
+              "settings": {"host": "${PGHOST}", "port": "${PGPORT}", "user": "${PGUSER}",
+                           "password": "${PGPASSWORD}", "database": "${PGDATABASE}",
+                           "sslmode": "${PGSSLMODE}"},
+              "maxConnections": 4}}

@@ -695,7 +695,9 @@ Deliverables:
   `examples/sql-relay` is one over a test relay to SQLite
 - One reference wire protocol written in fiig
 - JSON encoding and decoding in fiig
-- Postgres wire protocol in fiig, replacing `libraries/sql`
+- Postgres wire protocol in fiig — done (ADR 0085, 2026-11-17):
+  `fiig.postgres`, built into the toolchain, with SCRAM-SHA-256, TLS, the
+  extended protocol, and `?` numbering; `libraries/sql` stays for SQLite
 - Interpreter performance work for byte-stream workloads
 
 Exit criteria:

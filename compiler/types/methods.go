@@ -66,6 +66,8 @@ var primitiveMethods = map[string]map[string]Method{
 		"toHex":       {nil, stringType},
 		"toBase64":    {nil, stringType},
 		"toBase64Url": {nil, stringType},
+		// ADR 0085 §7: two strings of the same length, XORed.
+		"xor": {[]Param{p("other", bytesType)}, bytesType},
 	},
 	"string": {
 		"utf8": {nil, bytesType},

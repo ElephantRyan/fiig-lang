@@ -1,0 +1,8 @@
+use fiig.sql as db
+
+conversion bytesOr(result: Result<bytes, SocketError>) -> Result<bytes, db.DatabaseError> {
+    match result {
+        Ok(data) -> Ok(data)
+        Err(failure) -> Err(db.DatabaseError.Broken(failure: failure))
+    }
+}
