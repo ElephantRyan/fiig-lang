@@ -68,6 +68,11 @@ type Package struct {
 	// Dependencies is the packages this one was built against, by path:
 	// what its Imports' universes belong to.
 	Dependencies Packages
+	// Provides is the package manifest's `provides`, interface path ->
+	// the capability group fulfilling it (ADR 0043 §2), already verified
+	// by the checker; the runtime finds a database driver's group here
+	// (ADR 0084 §1). nil for a package built without a manifest.
+	Provides map[string]string
 }
 
 // Packages maps a canonical dotted package path (manifest.Manifest.Path)

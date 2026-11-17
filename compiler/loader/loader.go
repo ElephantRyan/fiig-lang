@@ -508,6 +508,7 @@ func (l *loaderState) build(key reqKey) (*types.Package, []error) {
 	}
 
 	pkg.Path = key.path
+	pkg.Provides = inst.manifest.Provides
 	l.built[key] = pkg
 	l.entries[key] = lockfile.Entry{
 		Path:         key.path,

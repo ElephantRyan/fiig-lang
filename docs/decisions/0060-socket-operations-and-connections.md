@@ -207,6 +207,10 @@ stops a `while true` (ADR 0059 §4).
 
 ### 5. Connections belong to the top-level call that opened them
 
+> **Amended by ADR 0084 §4 (2026-11-16):** a connection a database
+> driver's `connect` opens for the runtime's pool belongs to the pool,
+> which closes it; every other connection still belongs to its call.
+
 Fiig has no destructors (Rust's `Drop`), no `defer` (Go) and no
 `try`-with-resources (Java), and finalizers run at times nobody can
 predict. Erlang's model fits best: a port is owned by the process that

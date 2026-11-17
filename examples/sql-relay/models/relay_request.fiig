@@ -1,0 +1,7 @@
+use fiig.sql as db
+
+// One statement, as the relay reads it.
+model RelayRequest {
+    sql: string
+    values: List<db.SqlValue>
+}

@@ -1,0 +1,11 @@
+// ADR 0084 §1: one value bound to a query, or one column of a row, as the
+// driver sends or receives it. The runtime turns a program's arguments
+// into these and reads rows of them into the query's row type (ADR 0082).
+enum SqlValue {
+    Null
+    Int(value: int)
+    Float(value: float)
+    Text(value: string)
+    Bytes(value: bytes)
+    Bool(value: bool)
+}

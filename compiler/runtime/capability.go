@@ -40,6 +40,46 @@ func NewCapabilityRegistry() *CapabilityRegistry {
 	return &CapabilityRegistry{providers: map[string]CapabilityProvider{}, packages: map[string]map[string]CapabilityProvider{}}
 }
 
+// interpBound is a provider whose code runs on the program's interpreter:
+// a database driver written in fiig (ADR 0084).
+type interpBound interface{ bindInterp(*Interp) }
+
+// bindInterp hands in to every provider that runs fiig code.
+func (r *CapabilityRegistry) bindInterp(in *Interp) {
+	if r == nil {
+		return
+	}
+	r.each(func(p CapabilityProvider) {
+		if b, ok := p.(interpBound); ok {
+			b.bindInterp(in)
+		}
+	})
+}
+
+func (r *CapabilityRegistry) each(f func(CapabilityProvider)) {
+	for _, p := range r.providers {
+		f(p)
+	}
+	for _, byCap := range r.packages {
+		for _, p := range byCap {
+			f(p)
+		}
+	}
+}
+
+// Close stops every provider that holds connections between calls, a
+// driver's pool (ADR 0084 §3), when the program stops.
+func (r *CapabilityRegistry) Close() {
+	if r == nil {
+		return
+	}
+	r.each(func(p CapabilityProvider) {
+		if c, ok := p.(interface{ Close() }); ok {
+			c.Close()
+		}
+	})
+}
+
 // Register installs provider as the process-wide backing for capability.
 func (r *CapabilityRegistry) Register(capability string, provider CapabilityProvider) {
 	r.providers[capability] = provider

@@ -1,0 +1,11 @@
+{
+  "toolchain": "dev",
+  "dependencies": [
+    {
+      "path": "fiig.sql",
+      "version": "1.0.0",
+      "hash": "sha256:eb1e106108d4219f5b5a9aad952c5d7a6fa272901234f6728b7e7490f21a1436",
+      "source": "builtin:sql"
+    }
+  ]
+}

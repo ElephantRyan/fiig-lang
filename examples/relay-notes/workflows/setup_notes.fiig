@@ -1,0 +1,5 @@
+// Start the relay first: go run ./libraries/sql/cmd/fiig-sql-relay
+// then: fiig run -workspace .. -caps caps.json . setupNotes
+workflow setupNotes() -> int {
+    return createNotesTable()
+}

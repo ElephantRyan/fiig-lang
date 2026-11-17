@@ -92,7 +92,7 @@ func (in *Interp) maxCallDepth() int {
 // NewDeterministic (clock.go) is what tests actually want instead, for
 // reproducible retry/concurrency behavior.
 func New(universe *types.Universe, caps *CapabilityRegistry) *Interp {
-	return &Interp{
+	in := &Interp{
 		Universe:                universe,
 		Capabilities:            caps,
 		Clock:                   RealClock{},
@@ -100,6 +100,10 @@ func New(universe *types.Universe, caps *CapabilityRegistry) *Interp {
 		DefaultConcurrencyLimit: 16,
 		MaxCallDepth:            DefaultMaxCallDepth,
 	}
+	// A provider written in fiig, such as a database driver's pool (ADR
+	// 0084), runs its code on this interpreter.
+	caps.bindInterp(in)
+	return in
 }
 
 // Call invokes a top-level rule/conversion/activity/gateway/workflow by

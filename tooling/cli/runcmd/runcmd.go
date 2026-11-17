@@ -161,6 +161,8 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	in := runtime.New(universe, caps)
 	in.Imports = imports
 	in.Groups = runprogram.BuildGroups(files, packages)
+	// A driver package the root never imports still runs (ADR 0084 §2).
+	in.Packages = packages
 	program := runprogram.Program{Universe: universe, Imports: in.Imports, Groups: in.Groups, Renames: runprogram.Renames(root)}
 	problems = append(problems, in.LoadConfig(runprogram.ReachableConfig(program, []string{name}), env.Lookup)...)
 	if err := runprogram.ConfigReport(problems); err != nil {
@@ -173,6 +175,8 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 		in.Tracer = rec
 	}
 	val, fault := in.Call(context.Background(), name, args)
+	// A driver's pool says goodbye to the server (ADR 0084 §3).
+	caps.Close()
 	if rec != nil {
 		printTrace(rec.Spans())
 	}

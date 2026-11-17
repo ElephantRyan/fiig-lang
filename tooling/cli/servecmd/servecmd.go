@@ -102,7 +102,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	}
 	limits, limitProblems := readLimits(env, *maxBody, *maxRequests, *requestTimeout)
 	originProblems = append(originProblems, limitProblems...)
-	handler, bindings, err := load(fs.Arg(0), fs.Args()[1:], *capsPath, workspaces, factories, cors, limits, env, originProblems)
+	handler, bindings, caps, err := load(fs.Arg(0), fs.Args()[1:], *capsPath, workspaces, factories, cors, limits, env, originProblems)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -132,6 +132,9 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
+	// Requests have drained; a driver's pool closes its connections (ADR
+	// 0084 §3).
+	caps.Close()
 	log.Print("fiig: stopped")
 }
 
@@ -139,16 +142,16 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 // names, with every configuration problem (ADR 0071 §3's one report)
 // found first. It returns ADR 0079 §6a's listing of each domain's
 // capability bindings, for the startup log.
-func load(root string, names []string, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string) (http.Handler, []string, error) {
+func load(root string, names []string, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string) (http.Handler, []string, *runtime.CapabilityRegistry, error) {
 	p, err := check(root, names, workspaces, "serve")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	files, packages, universe, served := p.files, p.packages, p.universe, p.served
 
 	caps, capProblems, err := runprogram.LoadCapabilitiesFileWith(capsPath, factories, env.Lookup)
 	if err != nil {
-		return nil, nil, fmt.Errorf("-caps: %w", err)
+		return nil, nil, nil, fmt.Errorf("-caps: %w", err)
 	}
 	problems = append(capProblems, problems...)
 	if caps == nil {
@@ -156,7 +159,7 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	}
 	problems = append(problems, runprogram.UnknownPackages(caps.Packages(), packages)...)
 	if err := runprogram.RefuseSeededRandom(caps); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	runprogram.RegisterDefaults(caps)
 	in := runtime.New(universe, caps)
@@ -170,17 +173,17 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	}
 	problems = append(problems, in.LoadConfig(runprogram.ReachableConfigFrom(program, entries), env.Lookup)...)
 	if err := runprogram.ConfigReport(problems); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	h, err := adapter.HTTPHandlerFor(served, universe, in, limits)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	h, err = adapter.WithCORSFor(h, served, cors)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return h, runprogram.Bindings(packages, caps.BoundFor, caps.Packages()), nil
+	return h, runprogram.Bindings(packages, caps.BoundFor, caps.Packages()), caps, nil
 }
 
 // checked is a program loaded and checked, with the adapters it was asked

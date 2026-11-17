@@ -1,0 +1,12 @@
+{
+    "path": "examples.sqlrelay",
+    "kind": "library",
+    "version": "1.0.0",
+    "dependencies": {
+        "fiig.sql": "1.0.0"
+    },
+    "capabilities": ["Socket"],
+    "provides": {
+        "fiig.sql.SqlDriver": "SqlRelay"
+    }
+}

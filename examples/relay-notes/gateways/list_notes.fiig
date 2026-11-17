@@ -1,0 +1,6 @@
+gateway listNotes() -> List<Note>
+    requires Database
+    idempotent
+{
+    return Database.queryMany("SELECT id, text FROM notes ORDER BY id")
+}

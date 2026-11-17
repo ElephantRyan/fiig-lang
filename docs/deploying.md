@@ -84,6 +84,24 @@ domain of a modular monolith keeps its own database (ADR 0079 §6a); see
 }
 ```
 
+`Database` can also be backed by a driver written in fiig (ADR 0084): a
+package the application depends on whose manifest provides
+`fiig.sql.SqlDriver`. The runtime keeps a pool of its connections, opened
+on first use and reused across requests, holds one for each `transaction
+Database` block, and closes them when the process stops:
+
+```json
+{"Database": {"type": "driver", "driver": "examples.sqlrelay",
+              "settings": {"host": "127.0.0.1", "port": "${RELAY_PORT}"},
+              "maxConnections": 10, "idleTimeout": "5m", "maxLifetime": "30m"}}
+```
+
+`settings` is handed to the driver's `connect` as strings; the other
+three are the pool's, shown with their defaults. A call that finds every
+connection busy waits for one until its request deadline. The
+application's manifest lists `Socket` among its capabilities, since the
+driver's gateways require it.
+
 `fiig serve` takes every adapter the process serves, a dependency's by
 its package path: `fiig serve . ordersApi shop.payments.paymentsApi`.
 They share the listener, the limits below, and the CORS policy, and two
@@ -93,7 +111,7 @@ routes that would serve the same requests stop it at startup.
 `$ALLOW_ORIGINS`, and the request limits to theirs (see below); all read
 the same lookup. SIGINT or SIGTERM stops
 accepting connections and gives in-flight requests `-shutdown` (10s) to
-finish.
+finish, then closes a driver's pooled connections.
 
 ## As a container
 

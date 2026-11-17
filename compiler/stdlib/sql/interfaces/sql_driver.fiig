@@ -1,0 +1,9 @@
+// ADR 0084 §1: what a database driver written in fiig provides. A program
+// never calls it: it calls Database, and the runtime runs these on pooled
+// connections (§2-§5). A driver's manifest names the group that fulfils it:
+// "provides": {"fiig.sql.SqlDriver": "Postgres"}.
+interface SqlDriver {
+    connect(settings: Map<string, string>) -> Result<Connection, DatabaseError>
+    run(connection: Connection, sql: string, values: List<SqlValue>) -> Result<SqlResult, DatabaseError>
+    close(connection: Connection) -> None
+}
