@@ -1,0 +1,5 @@
+gateway saveNote(note: Note) -> int
+    requires Database
+{
+    return Database.execute("INSERT INTO notes (id, text) VALUES (?, ?)", note.id, note.text)
+}

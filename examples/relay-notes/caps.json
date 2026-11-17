@@ -1,0 +1,3 @@
+{"Database": {"type": "driver", "driver": "examples.sqlrelay",
+              "settings": {"host": "127.0.0.1", "port": "5433"},
+              "maxConnections": 4}}

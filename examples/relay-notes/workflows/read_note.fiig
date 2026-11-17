@@ -1,0 +1,3 @@
+workflow readNote(id: string) -> Note | None {
+    return findNote(id)
+}

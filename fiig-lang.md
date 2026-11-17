@@ -689,6 +689,10 @@ Deliverables:
   (ADR 0043, 2026-10-23): `return Stripe`, `Provider.charge(...)`, P1/P2
 - Activity as reusable effectful coordinator; workflow as the uncallable adapter boundary (ADR 0044)
 - Model embedding, Go-style: explicit, flattening, no subtyping
+- Database drivers written in fiig — done (ADR 0084, 2026-11-16): a
+  package provides `fiig.sql.SqlDriver` (`connect`, `run`, `close`); the
+  runtime owns the pool and pins a connection per `transaction Database`;
+  `examples/sql-relay` is one over a test relay to SQLite
 - One reference wire protocol written in fiig
 - JSON encoding and decoding in fiig
 - Postgres wire protocol in fiig, replacing `libraries/sql`

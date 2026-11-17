@@ -1,0 +1,21 @@
+// Where the relay listens, from the driver's settings in the capabilities
+// file: {"host": "127.0.0.1", "port": "5433"}. None when either is
+// missing, or the port isn't a number.
+conversion relayAddress(settings: Map<string, string>) -> RelayAddress | None {
+    host = settings.atOrNone("host")
+    port = settings.atOrNone("port")
+    match host {
+        None -> None
+        givenHost -> {
+            match port {
+                None -> None
+                givenPort -> {
+                    match givenPort.toIntOrNone() {
+                        None -> None
+                        number -> RelayAddress(host: givenHost, port: number)
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,10 @@
+{
+    "path": "examples.relaynotes",
+    "kind": "application",
+    "version": "1.0.0",
+    "dependencies": {
+        "examples.sqlrelay": "1.0.0"
+    },
+    "capabilities": ["Database", "Socket"],
+    "nativeCapabilities": ["Database"]
+}

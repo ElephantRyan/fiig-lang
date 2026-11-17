@@ -9,6 +9,13 @@ import "fiig-lang/compiler/syntax"
 // matches a workflow's actual Result against a route's response-mapping
 // arms (ADR 0017) the same way a `match` statement does.
 func MatchPattern(p syntax.Pattern, v Value, env *Env) bool {
+	return matchPattern(p, v, env, true)
+}
+
+// matchPattern is MatchPattern; top is false for a pattern nested inside
+// another (`reply` in `Ok(reply)`), which binds the value it is given even
+// when that value is itself a Result.
+func matchPattern(p syntax.Pattern, v Value, env *Env, top bool) bool {
 	switch p := p.(type) {
 	case *syntax.WildcardPattern:
 		return true
@@ -59,7 +66,9 @@ func MatchPattern(p syntax.Pattern, v Value, env *Env) bool {
 		// a catch-all name arm is even reached, the Result's payload
 		// (whichever case remains) is what the corpus actually means by
 		// that name, not the Result wrapper itself.
-		if rv, ok := v.(Result); ok {
+		// Only at the top: inside Ok(...) the name is the payload already,
+		// and a payload that is a Result stays one (Ok(Ok(5)) binds Ok(5)).
+		if rv, ok := v.(Result); ok && top {
 			env.Bind(p.Path[0], rv.Value)
 			return true
 		}
@@ -81,7 +90,7 @@ func matchConstructorPattern(p *syntax.ConstructorPattern, v Value, env *Env) bo
 			return false
 		}
 		if len(p.Args) == 1 {
-			return MatchPattern(p.Args[0], rv.Value, env)
+			return matchPattern(p.Args[0], rv.Value, env, false)
 		}
 		return true
 	}
@@ -94,7 +103,7 @@ func matchConstructorPattern(p *syntax.ConstructorPattern, v Value, env *Env) bo
 			if i >= len(ev.Fields) {
 				break
 			}
-			if !MatchPattern(sub, ev.Fields[i], env) {
+			if !matchPattern(sub, ev.Fields[i], env, false) {
 				return false
 			}
 		}

@@ -1,0 +1,3 @@
+workflow addNotes(notes: List<Note>) -> Result<int, string> {
+    return saveNotes(notes)
+}

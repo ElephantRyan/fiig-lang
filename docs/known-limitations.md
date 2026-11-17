@@ -7,8 +7,13 @@ doesn't have to discover them.
 ## Capabilities and data
 
 - **SQLite is the only database built in.** `libraries/sql` works with any
-  Go `database/sql` driver, but `fiig` bundles only SQLite. No Postgres
-  (Milestone 7 writes its wire protocol in fiig), Redis, Kafka, or queues.
+  Go `database/sql` driver, but `fiig` bundles only SQLite. A database
+  driver can be written in fiig and pooled by the runtime (ADR 0084), but
+  no Postgres driver exists yet (Milestone 7 writes its wire protocol in
+  fiig). No Redis, Kafka, or queues.
+- **A driver's pool has no isolation levels or savepoints** (ADR 0084
+  open question 3), and two packages bound to one database get a pool
+  each (open question 4).
 - **Queries aren't checked against the schema.** A query's rows read into
   the row type its context gives (ADR 0082), but whether the columns fit is
   found at the query, as a fault naming the column, not by `fiig check`:

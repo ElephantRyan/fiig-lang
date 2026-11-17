@@ -1,0 +1,8 @@
+// One frame: a 4-byte length, then that many bytes. None until the buffer
+// holds a whole one.
+conversion readRelayFrame(buffer: bytes) -> bytes | None {
+    match buffer {
+        <<length: i32be, body: bytes(length), rest: bytes>> -> body
+        _ -> None
+    }
+}

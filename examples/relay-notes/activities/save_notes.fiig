@@ -1,0 +1,11 @@
+// All or nothing, on one pooled connection: the runtime sends BEGIN when
+// the block starts and ROLLBACK when `?` returns the Err (ADR 0084 §5).
+activity saveNotes(notes: List<Note>) -> Result<int, string> {
+    transaction Database {
+        for note in notes {
+            checkNote(note)?
+            saveNote(note)
+        }
+    }
+    return Ok(notes.length())
+}
