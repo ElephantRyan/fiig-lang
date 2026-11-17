@@ -153,7 +153,16 @@ func LoadCapabilitiesFileWith(path string, extraFactories runtime.FactoryRegistr
 	}
 	providers, err := buildProviders(top, factories, "")
 	if err != nil {
-		return nil, nil, err
+		// A provider's own configuration problems (Socket's certificate
+		// files, ADR 0086 §6) join the one startup report, one per line.
+		lines := strings.Split(err.Error(), "\n")
+		// LoadCapabilities names the capability on the first line only.
+		if head, _, ok := strings.Cut(lines[0], ": "); ok && strings.HasPrefix(head, "capability ") {
+			for i := 1; i < len(lines); i++ {
+				lines[i] = head + ": " + lines[i]
+			}
+		}
+		return nil, lines, nil
 	}
 	for capability, p := range providers {
 		reg.Register(capability, p)

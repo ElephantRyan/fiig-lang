@@ -427,8 +427,11 @@ func socketFailureOf(err error) *SocketFailure {
 }
 
 // NetBackend is the real backend: net for TCP, crypto/tls for TLS, verified
-// against the host's trust store.
-type NetBackend struct{}
+// against the host's trust store and any CAs TLS adds, presenting TLS's
+// client certificates (ADR 0086). A nil TLS is the system's roots alone.
+type NetBackend struct {
+	TLS *TLSSettings
+}
 
 func (NetBackend) Dial(ctx context.Context, host string, port int) (Transport, error) {
 	var d net.Dialer
@@ -439,12 +442,12 @@ func (NetBackend) Dial(ctx context.Context, host string, port int) (Transport, e
 	return c, nil
 }
 
-func (NetBackend) StartTLS(ctx context.Context, t Transport, serverName string) (Transport, error) {
+func (b NetBackend) StartTLS(ctx context.Context, t Transport, serverName string) (Transport, error) {
 	nc, ok := t.(net.Conn)
 	if !ok {
 		return nil, fmt.Errorf("startTls: transport %T is not a net.Conn", t)
 	}
-	tc := tls.Client(nc, &tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12})
+	tc := tls.Client(nc, b.TLS.config(serverName))
 	if err := tc.HandshakeContext(ctx); err != nil {
 		var sf *SocketFailure
 		if errors.As(err, &sf) || ctx.Err() != nil {

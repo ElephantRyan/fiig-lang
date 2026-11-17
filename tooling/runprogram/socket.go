@@ -3,7 +3,9 @@ package runprogram
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 
 	"fiig-lang/compiler/runtime"
 )
@@ -69,8 +71,69 @@ func SocketScriptFactory(config map[string]any) (runtime.CapabilityProvider, err
 
 // SocketFactory builds the real Socket; it takes no configuration yet (host
 // allowlists and custom CAs are ADR 0060's open questions 1 and 2).
-func SocketFactory(map[string]any) (runtime.CapabilityProvider, error) {
-	return runtime.NewSocketProvider(), nil
+func SocketFactory(cfg map[string]any) (runtime.CapabilityProvider, error) {
+	var problems []string
+	strs := func(field string, v any) []string {
+		list, ok := v.([]any)
+		if !ok {
+			problems = append(problems, fmt.Sprintf("%q must be a list of strings", field))
+			return nil
+		}
+		out := make([]string, 0, len(list))
+		for _, e := range list {
+			s, ok := e.(string)
+			if !ok {
+				problems = append(problems, fmt.Sprintf("%q must be a list of strings", field))
+				return nil
+			}
+			out = append(out, s)
+		}
+		return out
+	}
+	var trust []string
+	if v, ok := cfg["trust"]; ok {
+		trust = strs("trust", v)
+	}
+	systemRoots := true
+	if v, ok := cfg["systemRoots"]; ok {
+		b, isBool := v.(bool)
+		if !isBool {
+			problems = append(problems, `"systemRoots" must be true or false`)
+		}
+		systemRoots = b
+	}
+	var clients []runtime.ClientCertificate
+	if v, ok := cfg["clientCertificates"]; ok {
+		list, isList := v.([]any)
+		if !isList {
+			problems = append(problems, `"clientCertificates" must be a list of objects`)
+		}
+		for _, e := range list {
+			m, ok := e.(map[string]any)
+			if !ok {
+				problems = append(problems, `each "clientCertificates" entry must be an object`)
+				continue
+			}
+			cert, _ := m["certificate"].(string)
+			key, _ := m["key"].(string)
+			if cert == "" || key == "" {
+				problems = append(problems, `a client certificate needs "certificate" and "key" file paths`)
+				continue
+			}
+			clients = append(clients, runtime.ClientCertificate{Hosts: strs("hosts", m["hosts"]), Certificate: cert, Key: key})
+		}
+	}
+	if len(problems) > 0 {
+		return nil, errors.New(strings.Join(problems, "\n"))
+	}
+	if len(trust) == 0 && systemRoots && len(clients) == 0 {
+		return runtime.NewSocketProvider(), nil
+	}
+	settings, tlsProblems := runtime.NewTLSSettings(trust, systemRoots, clients)
+	if len(tlsProblems) > 0 {
+		return nil, errors.New(strings.Join(tlsProblems, "\n"))
+	}
+	return runtime.SocketProvider{Backend: runtime.NetBackend{TLS: settings}}, nil
 }
 
 func textOrHex(text, hexText *string) ([]byte, error) {

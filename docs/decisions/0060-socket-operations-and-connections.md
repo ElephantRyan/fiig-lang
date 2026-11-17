@@ -319,7 +319,9 @@ of the buffer anyway (ADR 0059's `readFrames`).
    declarative capability configuration, e.g. `"Socket": {"hosts":
    ["db.internal:5432", "api.stripe.com:443"]}`, enforced by the provider
    at `connect`. Recommended as a follow-up, not part of this ADR.
-2. **Custom CAs and unverified TLS.** A local Postgres with a self-signed
+2. **Custom CAs and unverified TLS.** *(Custom CAs and client
+   certificates: ADR 0086, on `Socket` in the capabilities file;
+   unverified TLS stays out.)* A local Postgres with a self-signed
    certificate needs one or the other. Both belong in ADR 0027 provider
    configuration, not in fiig source, so a package can't quietly turn off
    verification. Deferred until the Postgres example needs it.
