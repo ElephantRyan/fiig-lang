@@ -1,0 +1,59 @@
+<idea-plugin>
+    <id>dev.fiig.lang</id>
+    <name>fiig</name>
+    <vendor>fiig</vendor>
+    <description><![CDATA[
+    Support for the fiig language: highlighting, run configurations, and
+    new-file templates, with errors, navigation, and formatting from
+    <code>fiig lsp</code> (ADR 0089, ADR 0090).
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lsp</depends>
+    <depends>com.intellij.modules.json</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="fiig" language="fiig" extensions="fiig" fieldName="INSTANCE"
+                  implementationClass="dev.fiig.intellij.FiigFileType"/>
+        <lang.parserDefinition language="fiig" implementationClass="dev.fiig.intellij.FiigParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="fiig" implementationClass="dev.fiig.intellij.FiigSyntaxHighlighterFactory"/>
+        <colorSettingsPage implementation="dev.fiig.intellij.FiigColorSettingsPage"/>
+        <lang.commenter language="fiig" implementationClass="dev.fiig.intellij.FiigCommenter"/>
+        <lang.braceMatcher language="fiig" implementationClass="dev.fiig.intellij.FiigBraceMatcher"/>
+        <lang.foldingBuilder language="fiig" implementationClass="dev.fiig.intellij.FiigFoldingBuilder"/>
+        <indexPatternBuilder implementation="dev.fiig.intellij.FiigIndexPatternBuilder"/>
+
+        <platform.lsp.integrationProvider implementation="dev.fiig.intellij.FiigLspIntegrationProvider"/>
+        <applicationService serviceImplementation="dev.fiig.intellij.FiigSettings"/>
+        <applicationConfigurable parentId="language" instance="dev.fiig.intellij.FiigConfigurable"
+                                 id="dev.fiig.settings" displayName="fiig"/>
+        <notificationGroup id="fiig" displayType="BALLOON"/>
+
+        <configurationType implementation="dev.fiig.intellij.FiigRunConfigurationType"/>
+        <runConfigurationProducer implementation="dev.fiig.intellij.FiigRunConfigurationProducer"/>
+        <runLineMarkerContributor language="fiig" implementationClass="dev.fiig.intellij.FiigRunLineMarkerContributor"/>
+
+        <internalFileTemplate name="fiig Model"/>
+        <internalFileTemplate name="fiig Enum"/>
+        <internalFileTemplate name="fiig Rule"/>
+        <internalFileTemplate name="fiig Conversion"/>
+        <internalFileTemplate name="fiig Activity"/>
+        <internalFileTemplate name="fiig Gateway"/>
+        <internalFileTemplate name="fiig Workflow"/>
+        <internalFileTemplate name="fiig Adapter"/>
+        <internalFileTemplate name="fiig Config"/>
+        <internalFileTemplate name="fiig Capability"/>
+        <internalFileTemplate name="fiig Interface"/>
+        <internalFileTemplate name="fiig Formulas"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="JavaScript.JsonSchema">
+        <ProviderFactory implementation="dev.fiig.intellij.FiigJsonSchemas"/>
+    </extensions>
+
+    <actions>
+        <action id="dev.fiig.NewFile" class="dev.fiig.intellij.FiigNewFileAction">
+            <add-to-group group-id="NewGroup" anchor="before" relative-to-action="NewFile"/>
+        </action>
+    </actions>
+</idea-plugin>

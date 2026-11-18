@@ -1,0 +1,2 @@
+adapter http ${DECL_NAME} {
+}

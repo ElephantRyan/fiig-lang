@@ -2,7 +2,10 @@
 // (docs/specification/grammar.md §1).
 package lexer
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // Kind identifies the lexical category of a Token.
 type Kind int
@@ -143,6 +146,17 @@ var keywords = map[string]Kind{
 	"formulas":      KwFormulas,
 	"formula":       KwFormula,
 	"config":        KwConfig,
+}
+
+// Keywords is every reserved word, sorted; tools that highlight fiig
+// read it (ADR 0090 §2).
+func Keywords() []string {
+	out := make([]string, 0, len(keywords))
+	for word := range keywords {
+		out = append(out, word)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // IsKeyword reports whether k is a reserved word's kind.

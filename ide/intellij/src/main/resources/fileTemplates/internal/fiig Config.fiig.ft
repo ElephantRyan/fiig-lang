@@ -1,0 +1,3 @@
+config ${DECL_NAME} {
+    value: string from env "VALUE" = ""
+}

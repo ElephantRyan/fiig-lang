@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://fiig.dev/schemas/fiig.pkg.schema.json",
+  "title": "fiig package manifest (fiig.pkg.json)",
+  "description": "A fiig package: its path, kind, version, and what it depends on and provides (ADR 0032, ADR 0035, ADR 0043).",
+  "type": "object",
+  "required": ["path", "kind", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "path": {
+      "description": "The package's canonical dotted path, e.g. acme.payments. Paths starting with fiig. are reserved for packages the toolchain ships.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)*$"
+    },
+    "kind": {
+      "description": "An application is a program that runs; a library is used by applications.",
+      "enum": ["application", "library"]
+    },
+    "version": {
+      "description": "The package's semantic version (ADR 0032).",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+    },
+    "dependencies": {
+      "description": "Package path to the minimum version required (ADR 0032's minimal version selection).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+      }
+    },
+    "capabilities": {
+      "description": "Every capability this application's code and dependencies may require (ADR 0035).",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "nativeCapabilities": {
+      "description": "Capabilities backed by the host rather than a fiig provider, such as Database (ADR 0042's grandfather list).",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "deprecations": {
+      "description": "Declaration name to its deprecation (ADR 0036).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["since"],
+        "additionalProperties": false,
+        "properties": {
+          "since": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "origin": {
+      "description": "Where the package comes from, recorded in the lockfile (ADR 0037).",
+      "type": "string"
+    },
+    "provides": {
+      "description": "Interface (by package path and name, e.g. fiig.sql.SqlDriver) to the capability group in this package that fulfils it (ADR 0043).",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "environment": {
+      "description": "In an application: package path to renamed environment variables, old name to new (ADR 0071 §5).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "type": "string" }
+      }
+    }
+  }
+}

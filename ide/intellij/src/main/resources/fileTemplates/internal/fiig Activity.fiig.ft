@@ -1,0 +1,3 @@
+activity ${DECL_NAME}() -> int {
+    return 0
+}

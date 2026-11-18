@@ -1,6 +1,7 @@
 # A version tag (v0.1.0-alpha.1) builds the release: tests, the archives
 # for every platform with SHA256SUMS (tooling/release), a GitHub release
-# marked as a pre-release, and the fiig image for linux/amd64 and
+# marked as a pre-release with the IntelliJ plugin's zip (ADR 0090 §7),
+# and the fiig image for linux/amd64 and
 # linux/arm64 at ghcr.io/<owner>/fiig:<tag>.
 name: release
 
@@ -27,6 +28,17 @@ jobs:
 
       - name: Build archives
         run: go run ./tooling/release -version "${GITHUB_REF_NAME}" -out dist
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Build the IntelliJ plugin
+        working-directory: ide/intellij
+        run: |
+          ./gradlew buildPlugin -PpluginVersion="${GITHUB_REF_NAME#v}" --console=plain
+          cp build/distributions/fiig-intellij-*.zip "../../dist/fiig-intellij-${GITHUB_REF_NAME}.zip"
 
       - name: Publish release
         env:

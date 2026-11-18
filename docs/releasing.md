@@ -8,7 +8,8 @@ A release is a version tag. Pushing `v0.1.0-alpha.1` runs
    `fiig` for linux, darwin (amd64, arm64) and windows (amd64), each with
    the README, license, guides, and the getting-started example, plus
    `SHA256SUMS`;
-3. publishes them as a GitHub pre-release;
+3. builds the IntelliJ plugin, `fiig-intellij-<tag>.zip` (ADR 0090), and
+   publishes it with the archives as a GitHub pre-release;
 4. pushes the image `ghcr.io/<owner>/fiig:<tag>` for linux/amd64 and
    linux/arm64.
 

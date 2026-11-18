@@ -1,0 +1,5 @@
+gateway ${DECL_NAME}() -> int
+    requires Database
+{
+    return 0
+}
