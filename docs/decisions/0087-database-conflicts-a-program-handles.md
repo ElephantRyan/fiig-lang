@@ -183,7 +183,8 @@ Retrying a whole transaction is open question 1.
 
 ## Open questions
 
-1. **Retrying a whole transaction** after `Retryable`, or after a
+1. *(Answered by ADR 0088: `retry(attempts: N)` on the block.)*
+   **Retrying a whole transaction** after `Retryable`, or after a
    serialization failure at `COMMIT`: fiig's `retry` applies to an
    idempotent gateway (ADR 0014), not to a `transaction` block.
 2. **Exclusion constraints** (`23P01`) and other integrity classes, which

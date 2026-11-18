@@ -54,6 +54,41 @@ func (e *Env) BindReassignable(name string, v Value) {
 	e.reassignable[name] = true
 }
 
+// envSnapshot is the reassignable locals visible from an Env, by scope.
+type envSnapshot []struct {
+	scope *Env
+	vars  map[string]Value
+}
+
+// snapshot records every reassignable local visible from e, so a rerun
+// transaction block starts from them (ADR 0088 §4). Values are immutable,
+// so recording each binding is enough.
+func (e *Env) snapshot() envSnapshot {
+	var out envSnapshot
+	for cur := e; cur != nil; cur = cur.parent {
+		vars := map[string]Value{}
+		for name := range cur.reassignable {
+			vars[name] = cur.vars[name]
+		}
+		if len(vars) > 0 {
+			out = append(out, struct {
+				scope *Env
+				vars  map[string]Value
+			}{cur, vars})
+		}
+	}
+	return out
+}
+
+// restore puts back what snapshot recorded.
+func (e *Env) restore(s envSnapshot) {
+	for _, scope := range s {
+		for name, v := range scope.vars {
+			scope.scope.vars[name] = v
+		}
+	}
+}
+
 // Reassign sets name to v in the scope that owns it and reports true. It
 // reports false, leaving everything unchanged, when that binding is immutable
 // or no scope binds name. The checker rejects both cases before run time, so

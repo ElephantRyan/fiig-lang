@@ -128,7 +128,7 @@ func (db *adapterFakeDB) Call(_ context.Context, method string, args []runtime.V
 	}
 }
 
-func (db *adapterFakeDB) Begin(context.Context) (runtime.Tx, *runtime.Fault) {
+func (db *adapterFakeDB) Begin(context.Context, string) (runtime.Tx, *runtime.Fault) {
 	return adapterFakeTx{db}, nil
 }
 

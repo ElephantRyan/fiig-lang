@@ -36,6 +36,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"fiig-lang/compiler/runtime"
 )
@@ -62,10 +63,22 @@ func (p *Provider) Call(ctx context.Context, method string, args []runtime.Value
 // returned Tx instead of back to Provider, so writes are visible to
 // later reads in the same block (fiig-lang.md §3.8) for exactly the same
 // reason database/sql's own *sql.Tx works that way.
-func (p *Provider) Begin(ctx context.Context) (runtime.Tx, *runtime.Fault) {
-	tx, err := p.db.BeginTx(ctx, nil)
+func (p *Provider) Begin(ctx context.Context, isolation string) (runtime.Tx, *runtime.Fault) {
+	opts := &sql.TxOptions{}
+	switch isolation {
+	case "serializable":
+		opts.Isolation = sql.LevelSerializable
+	case "repeatableRead":
+		opts.Isolation = sql.LevelRepeatableRead
+	}
+	// SQLite's transactions are already serializable, and its drivers
+	// refuse other levels (ADR 0088 §6).
+	if strings.Contains(fmt.Sprintf("%T", p.db.Driver()), "sqlite") {
+		opts = nil
+	}
+	tx, err := p.db.BeginTx(ctx, opts)
 	if err != nil {
-		return nil, runtime.Faultf("begin transaction: %v", err)
+		return nil, dbFault("begin transaction", err)
 	}
 	return &txHandle{tx: tx}, nil
 }
@@ -78,7 +91,7 @@ func (t *txHandle) Call(ctx context.Context, method string, args []runtime.Value
 
 func (t *txHandle) Commit() *runtime.Fault {
 	if err := t.tx.Commit(); err != nil {
-		return runtime.Faultf("commit: %v", err)
+		return dbFault("commit", err)
 	}
 	return nil
 }

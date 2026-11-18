@@ -565,7 +565,7 @@ func (p *DriverProvider) Close() {
 
 // Begin pins one connection for a transaction block and starts it with
 // BEGIN (§5).
-func (p *DriverProvider) Begin(ctx context.Context) (Tx, *Fault) {
+func (p *DriverProvider) Begin(ctx context.Context, isolation string) (Tx, *Fault) {
 	if f := p.resolve(); f != nil {
 		return nil, f
 	}
@@ -573,7 +573,14 @@ func (p *DriverProvider) Begin(ctx context.Context) (Tx, *Fault) {
 	if f != nil {
 		return nil, f
 	}
-	if _, keep, f := p.run(ctx, pc, "transaction Database", "BEGIN", nil); f != nil {
+	begin := "BEGIN"
+	switch isolation {
+	case "serializable":
+		begin = "BEGIN ISOLATION LEVEL SERIALIZABLE"
+	case "repeatableRead":
+		begin = "BEGIN ISOLATION LEVEL REPEATABLE READ"
+	}
+	if _, keep, f := p.run(ctx, pc, "transaction Database", begin, nil); f != nil {
 		p.finish(ctx, pc, keep)
 		return nil, f
 	}

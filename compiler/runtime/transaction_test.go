@@ -42,7 +42,7 @@ func (p *kvProvider) Call(ctx context.Context, method string, args []Value) (Val
 	}
 }
 
-func (p *kvProvider) Begin(ctx context.Context) (Tx, *Fault) {
+func (p *kvProvider) Begin(ctx context.Context, _ string) (Tx, *Fault) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	staged := make(map[string]Value, len(p.data))

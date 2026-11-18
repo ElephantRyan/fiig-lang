@@ -135,7 +135,7 @@ func TestTransactionCommits(t *testing.T) {
 	db := openTestDB(t)
 	p := New(db)
 
-	tx, fault := p.Begin(context.Background())
+	tx, fault := p.Begin(context.Background(), "")
 	if fault != nil {
 		t.Fatalf("Begin: %v", fault)
 	}
@@ -176,7 +176,7 @@ func TestTransactionRollsBack(t *testing.T) {
 	db := openTestDB(t)
 	p := New(db)
 
-	tx, fault := p.Begin(context.Background())
+	tx, fault := p.Begin(context.Background(), "")
 	if fault != nil {
 		t.Fatalf("Begin: %v", fault)
 	}

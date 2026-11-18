@@ -1258,8 +1258,27 @@ func (p *Parser) parsePattern() syntax.Pattern {
 func (p *Parser) parseTransactionStmt() *syntax.TransactionStmt {
 	start := p.advance().Start // 'transaction'
 	cap_ := p.expectName()
-	body := p.parseBlock()
-	return &syntax.TransactionStmt{Span: syntax.Span{Start: start, End: body.End}, Capability: cap_.Text, Body: body}
+	s := &syntax.TransactionStmt{Capability: cap_.Text}
+	// ADR 0088 §1: an isolation level, then retry(attempts: N), each
+	// optional; the levels are contextual words.
+	if p.atContextual("serializable") || p.atContextual("repeatableRead") {
+		s.Isolation = p.advance().Text
+	}
+	if p.at(lexer.KwRetry) {
+		p.advance()
+		p.expect(lexer.LParen)
+		p.expect(lexer.KwAttempts)
+		p.expect(lexer.Colon)
+		countTok := p.expect(lexer.Int)
+		p.expect(lexer.RParen)
+		s.AttemptsPos = countTok.Start
+		if n, err := syntax.IntValue(countTok.Text); err == nil {
+			s.Attempts = n
+		}
+	}
+	s.Body = p.parseBlock()
+	s.Span = syntax.Span{Start: start, End: s.Body.End}
+	return s
 }
 
 // parseBody parses the `( expression | block )` alternative shared by if
