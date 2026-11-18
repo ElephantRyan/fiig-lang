@@ -11,6 +11,7 @@
 //	fiig config  [-caps FILE] [-workspace DIR]... <root> [entry]
 //	fiig fmt     [-w] [-json] <file.fiig>...
 //	fiig catalog generate|find|explain|diff ...
+//	fiig lsp
 //	fiig version
 //
 // The separate tools (check-cli, run-cli, fmt-cli, catalog-cli,
@@ -34,6 +35,7 @@ import (
 	"fiig-lang/tooling/cli/fmtcmd"
 	"fiig-lang/tooling/cli/runcmd"
 	"fiig-lang/tooling/cli/servecmd"
+	"fiig-lang/tooling/lsp"
 )
 
 const usage = `usage: fiig <command> [arguments]
@@ -46,6 +48,7 @@ commands:
   config    list the environment variables a program reads
   fmt       format .fiig files
   catalog   generate, search, and compare a program's registry
+  lsp       run the language server an editor starts (stdin/stdout)
   version   print the toolchain version
 
 Run "fiig <command> -h" for a command's flags.`
@@ -72,6 +75,11 @@ func main() {
 		fmtcmd.Main("fiig fmt", args)
 	case "catalog":
 		catalogcmd.Main("fiig catalog", args)
+	case "lsp":
+		if err := lsp.Main(os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "fiig lsp:", err)
+			os.Exit(1)
+		}
 	case "version", "-version", "--version":
 		fmt.Printf("fiig %s (Unicode %s)\n", version.Version, text.UnicodeVersion)
 	case "help", "-h", "--help":

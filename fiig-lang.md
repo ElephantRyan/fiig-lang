@@ -734,10 +734,10 @@ Objective: Make fiig fully usable in IntelliJ IDEA with the same feedback the co
 
 Deliverables:
 
-- Stable machine-readable diagnostics from `check-cli` (JSON: file, line, column, end position, message, code)
+- Stable machine-readable diagnostics from `check-cli` (JSON: file, line, column, end position, message, code) — done (ADR 0089 §5, 2026-11-17)
 - `.fiig` file type with registered extension, decided per the prototype backlog
 - TextMate grammar generated from or checked against the lexer's token definitions, for syntax highlighting
-- Language server wrapping the compiler: live diagnostics, hover, and go-to-definition
+- Language server wrapping the compiler: live diagnostics, hover, and go-to-definition — done (ADR 0089, 2026-11-17): `fiig lsp`, also find usages, symbols, and formatting
 - Completion driven by registry contracts and values in scope
 - Caller views and find-usages on registry identities
 - Rename across references, including across packages from Milestone 6

@@ -1512,7 +1512,7 @@ func (p *Parser) parsePrimary() syntax.Expr {
 	default:
 		p.errorf(start, "expected an expression, got %s", p.cur().Kind)
 		p.advance()
-		return &syntax.Ident{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: "<error>"}
+		return &syntax.Ident{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: syntax.ErrorName}
 	}
 }
 
