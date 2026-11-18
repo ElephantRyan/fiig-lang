@@ -185,3 +185,33 @@ func TestDatabaseConflictsOptInByContext(t *testing.T) {
 	wantDiag(t, checkSrc(t, gatewayWith(`    row: Result<Shipment, DatabaseConflict> = Database.queryOne("SELECT id FROM t")
     return 0`), shipmentModel, shipStateEnum), "A1", "read it as `Shipment | None`")
 }
+
+// ADR 0088 §1, §4: an isolation word and retry on a transaction block.
+func TestTransactionRetryAndIsolationCheck(t *testing.T) {
+	ok := `activity a() -> int {
+    transaction Database serializable retry(attempts: 3) {
+        b()
+    }
+    transaction Database repeatableRead {
+        b()
+    }
+    transaction Database retry(attempts: 2) {
+        b()
+    }
+    return 1
+}`
+	gw := `gateway b() -> int
+    requires Database
+{
+    return Database.execute("DELETE FROM t")
+}`
+	if diags := checkSrc(t, ok, gw); len(diags) != 0 {
+		t.Fatalf("diags = %v", diags)
+	}
+	wantDiag(t, checkSrc(t, `activity a() -> int {
+    transaction Database retry(attempts: 0) {
+        b()
+    }
+    return 1
+}`, gw), "", "at least 1")
+}

@@ -677,7 +677,14 @@ func (p *printer) printStmt(s syntax.Stmt) {
 		p.printMatchStmt(s)
 	case *syntax.TransactionStmt:
 		line := startLine(s)
-		p.emitLine(fmt.Sprintf("transaction %s {", s.Capability), line, line)
+		head := "transaction " + s.Capability
+		if s.Isolation != "" {
+			head += " " + s.Isolation
+		}
+		if s.Attempts != 0 {
+			head += fmt.Sprintf(" retry(attempts: %d)", s.Attempts)
+		}
+		p.emitLine(head+" {", line, line)
 		p.printBlockBody(s.Body)
 	}
 }

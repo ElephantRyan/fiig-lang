@@ -578,7 +578,7 @@ func TestPostgresServerErrorKeepsTheConnection(t *testing.T) {
 func TestPostgresTransactionSendsBeginAndCommit(t *testing.T) {
 	server := &fakePostgres{t: t, auth: authTrust, handle: pets}
 	_, pool := pgInterp(t, pgSettings(server.listen(t), ""))
-	tx, f := pool.Begin(context.Background())
+	tx, f := pool.Begin(context.Background(), "")
 	if f != nil {
 		t.Fatal(f)
 	}

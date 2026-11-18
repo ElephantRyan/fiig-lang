@@ -233,7 +233,8 @@ caused them, so a slow server can't outlast a request.
    Milestone 7's exit criterion "no domain capability is backed by Go"
    either excepts embedded databases or drops SQLite from the toolchain.
 2. **The program-level error channel** (§6; ADR 0082 open question 2).
-3. **Isolation levels and savepoints** (`transaction Database
+3. *(Isolation levels: ADR 0088. Savepoints stay open.)*
+   **Isolation levels and savepoints** (`transaction Database
    serializable { }`), and retrying a serialization failure.
 4. **One pool per package** under ADR 0079's per-package bindings: two
    domains bound to the same database URL get two pools, which is

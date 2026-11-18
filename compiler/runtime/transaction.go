@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 
 	"fiig-lang/compiler/syntax"
 )
@@ -25,7 +26,9 @@ type Tx interface {
 // transaction semantics exist to fall back *to*.
 type TransactionalProvider interface {
 	CapabilityProvider
-	Begin(ctx context.Context) (Tx, *Fault)
+	// Begin opens a transaction at isolation: "serializable",
+	// "repeatableRead", or "" for the database's default (ADR 0088 §6).
+	Begin(ctx context.Context, isolation string) (Tx, *Fault)
 }
 
 // activeTx is a context value: the Tx currently open for one specific
@@ -90,11 +93,40 @@ func (in *Interp) evalTransaction(ctx context.Context, s *syntax.TransactionStmt
 	if !ok {
 		return nil, false, Faultf("capability %q does not support transactions", s.Capability)
 	}
-	tx, fault := txProvider.Begin(ctx)
+	// ADR 0088 §3-§4: with retry, a block that ends in a retryable
+	// failure the program didn't handle runs again from the start, its
+	// assigned locals restored, up to Attempts runs in all.
+	attempts := max(s.Attempts, 1)
+	saved := env.snapshot()
+	for attempt := int64(1); ; attempt++ {
+		val, returned, fault := in.runTransactionOnce(ctx, txProvider, s, env, producingHere)
+		if fault == nil || !retryable(fault) || attempt >= attempts {
+			if fault != nil && attempts > 1 && retryable(fault) {
+				fault.Message = fmt.Sprintf("transaction %s gave up after %d attempts: %s", s.Capability, attempts, fault.Message)
+			}
+			return val, returned, fault
+		}
+		env.restore(saved)
+		in.backoff(attempt - 1)
+		if f := checkCancelled(ctx); f != nil {
+			return nil, false, f
+		}
+	}
+}
+
+// retryable is a fault from a serialization failure or deadlock (ADR 0087
+// §2) that no opted-in call handled.
+func retryable(f *Fault) bool {
+	return f.Conflict != nil && f.Conflict.Variant == "Retryable"
+}
+
+// runTransactionOnce is one attempt: Begin, the block, then Commit or
+// Rollback by how it finished.
+func (in *Interp) runTransactionOnce(ctx context.Context, txProvider TransactionalProvider, s *syntax.TransactionStmt, env *Env, producingHere bool) (Value, bool, *Fault) {
+	tx, fault := txProvider.Begin(ctx, s.Isolation)
 	if fault != nil {
 		return nil, false, fault
 	}
-
 	txCtx := withActiveTx(ctx, s.Capability, tx)
 	val, returned, blockFault := in.evalBlock(txCtx, s.Body, env.Child(), producingHere)
 	if blockFault != nil {
@@ -114,3 +146,8 @@ func (in *Interp) evalTransaction(ctx context.Context, s *syntax.TransactionStmt
 	}
 	return val, returned, nil
 }
+
+// Every provider in this package that backs `transaction` blocks: a
+// changed Begin signature fails here at compile time, not as "does not
+// support transactions" at run time.
+var _ TransactionalProvider = (*DriverProvider)(nil)

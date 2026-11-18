@@ -170,7 +170,7 @@ func TestDriverClosesExpiredConnections(t *testing.T) {
 
 func TestDriverWaitsForAConnectionNoLongerThanTheDeadline(t *testing.T) {
 	r := startRelay(t, map[string]any{"maxConnections": 1})
-	tx, f := r.pool.Begin(context.Background())
+	tx, f := r.pool.Begin(context.Background(), "")
 	if f != nil {
 		t.Fatal(f)
 	}

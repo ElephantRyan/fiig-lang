@@ -269,6 +269,9 @@ func (c *checker) checkTransactionStmt(s *syntax.TransactionStmt, declReturn typ
 	if c.activeTransaction != "" {
 		c.report(s.Start, "C2", "transaction %s is nested inside transaction %s; transaction blocks may not nest", s.Capability, c.activeTransaction)
 	}
+	if s.AttemptsPos != (lexer.Pos{}) && s.Attempts < 1 {
+		c.report(s.AttemptsPos, "", "transaction %s retries with attempts: %d; attempts counts every run, the first included, so it must be at least 1 (ADR 0088 §4)", s.Capability, s.Attempts)
+	}
 	saved := c.activeTransaction
 	c.activeTransaction = s.Capability
 	savedLoops := c.loops

@@ -16,9 +16,10 @@ doesn't have to discover them.
 - **`fiig.postgres` doesn't cancel a query whose call timed out (the server finishes it), caches no prepared
   statements, normalizes no non-ASCII passwords (SASLprep), and has no
   `COPY` or `LISTEN`/`NOTIFY`. One `execute` runs one statement.
-- **A driver's pool has no isolation levels or savepoints** (ADR 0084
-  open question 3), and two packages bound to one database get a pool
-  each (open question 4).
+- **No savepoints or read-only transactions** in fiig source (ADR 0088
+  open questions); isolation levels and retrying a whole transaction are
+  `transaction Database serializable retry(attempts: N)`. Two packages
+  bound to one database get a pool each (ADR 0084 open question 4).
 - **Queries aren't checked against the schema.** A query's rows read into
   the row type its context gives (ADR 0082), but whether the columns fit is
   found at the query, as a fault naming the column, not by `fiig check`:
@@ -27,8 +28,8 @@ doesn't have to discover them.
   gets a unique, foreign-key, not-null, or check violation, a
   serialization failure, or a deadlock as `Err(DatabaseConflict...)`; bad
   SQL and a lost connection still fault, and a conflict at `COMMIT` faults.
-  Retrying a whole transaction is up to the program (ADR 0087 open
-  question 1).
+  A whole transaction retries with `retry(attempts: N)` on the block
+  (ADR 0088).
 - **No SQL whose shape depends on data.** The SQL text is a literal (Q1), so
   a sort column or table chosen at run time has no form; an `IN` list of
   varying length can bind one parameter with SQLite's `json_each(?)` (ADR

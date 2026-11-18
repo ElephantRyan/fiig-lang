@@ -782,8 +782,16 @@ rule call instead is already legal syntax, just unattested so far.
 ### Transaction blocks
 
 ```ebnf
-transaction-block ::= 'transaction' identifier block
+transaction-block ::= 'transaction' identifier [ isolation ] [ 'retry' '(' 'attempts' ':' integer-literal ')' ] block
+isolation         ::= 'serializable' | 'repeatableRead'
 ```
+
+ADR 0088: the isolation words are contextual, keywords only here. With
+`retry`, a block that ends in a `DatabaseConflict.Retryable` the program
+didn't handle, or whose `COMMIT` fails with one, is rolled back and run
+again from the locals it started with, up to `attempts` runs; a domain
+`Err` or any other fault ends it at once. No `idempotent` is needed: C1,
+C4, and C5 already keep a block's effects inside the database.
 
 The identifier names a capability (`transaction Database { ... }` — every
 attested use). Nesting (`transaction_error.fiig`'s `doubleReserve`) and a

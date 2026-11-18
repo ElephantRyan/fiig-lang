@@ -695,7 +695,14 @@ type ContinueStmt struct {
 type TransactionStmt struct {
 	Span
 	Capability string
-	Body       *Block
+	// Isolation is "serializable", "repeatableRead", or "" for the
+	// database's default (ADR 0088 §6).
+	Isolation string
+	// Attempts is retry(attempts: N)'s N, or 0 with no retry (§1).
+	Attempts int64
+	// AttemptsPos is where N is written, for the checker.
+	AttemptsPos lexer.Pos
+	Body        *Block
 }
 
 // ExprStmt is an expression used for its side effect (a bare call, or a

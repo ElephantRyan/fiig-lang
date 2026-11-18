@@ -158,6 +158,10 @@ func (s *Server) answer(ctx context.Context, session *sql.Conn, body []byte) map
 		}
 		args[i] = v
 	}
+	// SQLite is serializable already and has no BEGIN ISOLATION LEVEL.
+	if strings.HasPrefix(strings.ToUpper(req.SQL), "BEGIN ISOLATION LEVEL") {
+		req.SQL = "BEGIN"
+	}
 	if !returnsRows(req.SQL) {
 		res, err := session.ExecContext(ctx, req.SQL, args...)
 		if err != nil {

@@ -211,6 +211,16 @@ match inserted {
 // DatabaseConflict: Unique, ForeignKey, NotNull, Check, Retryable
 ```
 
+```fiig
+// A transaction may ask for an isolation level, and retry itself when the
+// database aborts it as a serialization failure or a deadlock; each
+// attempt starts over from the block's starting locals (ADR 0088).  [built]
+transaction Database serializable retry(attempts: 5) {
+    number = nextNumber()
+    takeNumber(number, holder)
+}
+```
+
 ### Composition matrix
 
 Who may call what. **ADR 0044 is accepted but not yet implemented**, so the

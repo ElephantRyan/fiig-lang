@@ -87,7 +87,7 @@ func selectColumns(query Value, row Value) Value {
 	return Record{Fields: fields}
 }
 
-func (db *fakeDatabase) Begin(ctx context.Context) (Tx, *Fault) {
+func (db *fakeDatabase) Begin(ctx context.Context, _ string) (Tx, *Fault) {
 	return fakeTx{db}, nil
 }
 
