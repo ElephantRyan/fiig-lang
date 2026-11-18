@@ -22,6 +22,10 @@ type Fault struct {
 	// deep inside a nested workflow call still reports the whole call chain
 	// that led to it, not just the innermost frame.
 	Stack []string
+	// Conflict is set when a Database call failed with a conflict a
+	// program may opt in to handling (ADR 0087 §2); a call that opted in
+	// returns it as Err(DatabaseConflict...) instead of faulting.
+	Conflict *Conflict
 }
 
 func Faultf(format string, args ...any) *Fault {

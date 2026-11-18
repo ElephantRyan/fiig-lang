@@ -49,6 +49,15 @@ func (db *fakeDatabase) Call(ctx context.Context, method string, args []Value) (
 		}
 		return None{}, nil
 	case "execute":
+		// insert_customer.fiig: a taken email is the unique constraint's
+		// conflict, as a database reports it (ADR 0087).
+		if text, ok := args[0].(Str); ok && strings.HasPrefix(string(text), "INSERT INTO customers") && len(args) >= 4 {
+			if _, taken := db.rowsByEmail[keyString(args[3])]; taken {
+				f := Faultf("execute: UNIQUE constraint failed: customers.email")
+				f.Conflict = &Conflict{Variant: "Unique", Name: "customers.email"}
+				return nil, f
+			}
+		}
 		return Int(db.executeRowsAffected), nil // rows affected
 	default:
 		return nil, Faultf("fakeDatabase has no method %q", method)
@@ -196,7 +205,8 @@ func TestCreateCustomerWorkflowComposesGatewaysAndRules(t *testing.T) {
 		t.Fatalf("got Ok for blank name, want Err")
 	}
 
-	// Email already in use -> checkEmailUnique's Err propagates.
+	// Email already in use -> insertCustomer's unique conflict, handled as
+	// CustomerError.EmailAlreadyInUse (ADR 0087).
 	taken := Record{TypeName: "NewCustomer", Fields: map[string]Value{
 		"name":  Str("Bob"),
 		"email": emailAddress("taken@example.com"),

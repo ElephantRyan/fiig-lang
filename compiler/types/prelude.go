@@ -82,6 +82,13 @@ var preludeSources = []string{`enum SocketError {
     Syntax(offset: int, reason: string)
     Mismatch(path: string, reason: string)
 }
+`, `enum DatabaseConflict {
+    Unique(constraint: string)
+    ForeignKey(constraint: string)
+    NotNull(column: string)
+    Check(constraint: string)
+    Retryable(reason: string)
+}
 `}
 
 // preludeDecls holds the prelude's declarations, found by every Universe's
@@ -99,6 +106,13 @@ var preludeDecls = func() map[string]syntax.Decl {
 	}
 	return out
 }()
+
+// DatabaseConflictDecl is the prelude's `DatabaseConflict` enum (ADR 0087
+// §2): the failures of a Database call a program may opt in to handling.
+var DatabaseConflictDecl = preludeDecls["DatabaseConflict"].(*syntax.EnumDecl)
+
+// DatabaseConflictType is `DatabaseConflict` as a type.
+var DatabaseConflictType = Named{Name: "DatabaseConflict", Decl: DatabaseConflictDecl}
 
 // SocketErrorDecl is the prelude's `SocketError` enum.
 var SocketErrorDecl = preludeDecls["SocketError"].(*syntax.EnumDecl)

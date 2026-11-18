@@ -147,6 +147,12 @@ password in clear text only over TLS, or none, and refuses MD5. Programs
 keep writing `?`; the driver numbers them `$1`, `$2`, ... (write `??` for a
 literal `?`, as JSONB's operators need).
 
+Inside a `transaction Database` block, a call that handles its conflicts
+(ADR 0087) runs inside a savepoint, so Postgres's transaction survives a
+conflict the program handled. On SQLite the same names come back as the
+column list, `customers.email`, since SQLite names no constraint; match
+on the variant to stay portable.
+
 `settings` is handed to the driver's `connect` as strings; the other
 three are the pool's, shown with their defaults. A call that finds every
 connection busy waits for one until its request deadline. The

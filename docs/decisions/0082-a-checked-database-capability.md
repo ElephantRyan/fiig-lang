@@ -299,7 +299,8 @@ foreclose it, since a model already names every column a query reads.
    name has no form under Q1. Candidates: an enum whose text forms are
    the allowed identifiers, or a separately named unsafe operation, as
    Prisma does.
-2. **An error channel.** `Result<T, DatabaseError>` for the failures a
+2. **An error channel.** *(Answered by ADR 0087: a call opts in to its
+   conflicts by its context's type.)* `Result<T, DatabaseError>` for the failures a
    program expects (a unique violation, a serialization failure to
    retry) instead of a fault. ADR 0048 §2.3's non-finite float is the
    same gap.

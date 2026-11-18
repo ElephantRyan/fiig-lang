@@ -34,6 +34,7 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"fiig-lang/compiler/runtime"
@@ -136,18 +137,18 @@ func queryOne(ctx context.Context, e execer, args []runtime.Value) (runtime.Valu
 	}
 	rows, err := e.QueryContext(ctx, text, driverArgs...)
 	if err != nil {
-		return nil, runtime.Faultf("queryOne: %v", err)
+		return nil, dbFault("queryOne", err)
 	}
 	defer rows.Close()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return nil, runtime.Faultf("queryOne: %v", err)
+			return nil, dbFault("queryOne", err)
 		}
 		return runtime.None{}, nil
 	}
 	rec, err := scanRow(rows)
 	if err != nil {
-		return nil, runtime.Faultf("queryOne: %v", err)
+		return nil, dbFault("queryOne", err)
 	}
 	return rec, nil
 }
@@ -159,19 +160,19 @@ func queryMany(ctx context.Context, e execer, args []runtime.Value) (runtime.Val
 	}
 	rows, err := e.QueryContext(ctx, text, driverArgs...)
 	if err != nil {
-		return nil, runtime.Faultf("queryMany: %v", err)
+		return nil, dbFault("queryMany", err)
 	}
 	defer rows.Close()
 	var elems []runtime.Value
 	for rows.Next() {
 		rec, err := scanRow(rows)
 		if err != nil {
-			return nil, runtime.Faultf("queryMany: %v", err)
+			return nil, dbFault("queryMany", err)
 		}
 		elems = append(elems, rec)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, runtime.Faultf("queryMany: %v", err)
+		return nil, dbFault("queryMany", err)
 	}
 	return runtime.List{Elems: elems}, nil
 }
@@ -183,13 +184,25 @@ func execute(ctx context.Context, e execer, args []runtime.Value) (runtime.Value
 	}
 	result, err := e.ExecContext(ctx, text, driverArgs...)
 	if err != nil {
-		return nil, runtime.Faultf("execute: %v", err)
+		return nil, dbFault("execute", err)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return nil, runtime.Faultf("execute: %v", err)
+		return nil, dbFault("execute", err)
 	}
 	return runtime.Int(affected), nil
+}
+
+// dbFault is a database error as a fault, carrying the conflict SQLite's
+// extended result code reports, so a call that opted in gets it as a value
+// (ADR 0087 §4).
+func dbFault(op string, err error) *runtime.Fault {
+	f := runtime.Faultf("%s: %v", op, err)
+	var coded interface{ Code() int }
+	if errors.As(err, &coded) {
+		f.Conflict = runtime.SQLiteConflict(coded.Code(), err.Error())
+	}
+	return f
 }
 
 // toDriverValue converts a fiig argument into whatever database/sql

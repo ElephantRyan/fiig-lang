@@ -722,7 +722,9 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
   and `Database`'s are typed (ADR 0082): the SQL text is a string literal
   with no `${...}` (Q1), the values after it are bound by position (Q2),
   and a query's row type comes from context (A12 without one, Q3 for a
-  type SQL can't fill).
+  type SQL can't fill). A context expecting `Result<X, DatabaseConflict>`
+  opts the call in to its integrity and retryable conflicts (ADR 0087),
+  which it then returns as `Err` instead of faulting.
 
 ### Concurrency and retry
 

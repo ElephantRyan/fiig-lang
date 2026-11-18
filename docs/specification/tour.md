@@ -194,9 +194,21 @@ gateway getCustomer(id: string) -> Result<Customer, CustomerError>
 // enclosing declaration.                                             [built]
 workflow createCustomer(input: NewCustomer) -> Result<Customer, CustomerError> {
     validated = validateNewCustomer(input)?
-    checkEmailUnique(validated.email)?
     return insertCustomer(validated)
 }
+```
+
+```fiig
+// A Database call opts in to the conflicts a program decides on by the
+// type its context expects; every other call still faults on them
+// (ADR 0087).                                                        [built]
+inserted: Result<int, DatabaseConflict> = Database.execute("INSERT INTO customers ...", id, name, email)
+match inserted {
+    Ok(_) -> Ok(Customer(id: id, name: name, email: email))
+    Err(DatabaseConflict.Unique(constraint)) -> Err(CustomerError.EmailAlreadyInUse(email))
+    Err(other) -> Err(CustomerError.Invalid("customer", "${other}"))
+}
+// DatabaseConflict: Unique, ForeignKey, NotNull, Check, Retryable
 ```
 
 ### Composition matrix

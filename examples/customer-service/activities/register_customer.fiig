@@ -1,8 +1,9 @@
 // Required example 4: create a customer using pure validation and an external
 // uniqueness check. The reusable unit (ADR 0044); createCustomer, the workflow
-// an adapter attaches to, is a thin boundary over it.
+// an adapter attaches to, is a thin boundary over it. The uniqueness check is
+// the database's own constraint, reported by insertCustomer (ADR 0087): a
+// SELECT before the INSERT would let two requests with one email both pass.
 activity registerCustomer(input: NewCustomer) -> Result<Customer, CustomerError> {
     validated = validateNewCustomer(input)?
-    checkEmailUnique(validated.email)?
     return insertCustomer(validated)
 }

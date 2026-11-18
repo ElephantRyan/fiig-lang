@@ -23,9 +23,12 @@ doesn't have to discover them.
   the row type its context gives (ADR 0082), but whether the columns fit is
   found at the query, as a fault naming the column, not by `fiig check`:
   that needs tables declared in fiig (ADR 0082 open question 3).
-- **`Database` calls have no error channel.** A duplicate key or a lost
-  connection is a fault, not a `Result` a program can handle (ADR 0082
-  open question 2).
+- **Only conflicts are values.** A `Database` call that opts in (ADR 0087)
+  gets a unique, foreign-key, not-null, or check violation, a
+  serialization failure, or a deadlock as `Err(DatabaseConflict...)`; bad
+  SQL and a lost connection still fault, and a conflict at `COMMIT` faults.
+  Retrying a whole transaction is up to the program (ADR 0087 open
+  question 1).
 - **No SQL whose shape depends on data.** The SQL text is a literal (Q1), so
   a sort column or table chosen at run time has no form; an `IN` list of
   varying length can bind one parameter with SQLite's `json_each(?)` (ADR

@@ -141,3 +141,47 @@ func TestNativeCapabilitiesOutsideGatewaysAreB10(t *testing.T) {
     return None
 }`), "B10", "PaymentGateway.charge")
 }
+
+// ADR 0087 §1: Result<..., DatabaseConflict> from context opts a call in;
+// everything else is unchanged.
+func TestDatabaseConflictsOptInByContext(t *testing.T) {
+	clean := []string{
+		`gateway g(id: string) -> Result<int, DatabaseConflict>
+    requires Database
+{
+    return Database.execute("DELETE FROM t WHERE id = ?", id)
+}`,
+		gatewayWith(`    inserted: Result<int, DatabaseConflict> = Database.execute("INSERT INTO t VALUES (?)", id)
+    match inserted {
+        Ok(n) -> {
+            return n
+        }
+        Err(DatabaseConflict.Unique(constraint)) -> {
+            return 0
+        }
+        Err(other) -> {
+            return -1
+        }
+    }`),
+		gatewayWith(`    claimed: Result<string | None, DatabaseConflict> = Database.queryOne("INSERT INTO t VALUES (?) RETURNING id", id)
+    rows: Result<List<Shipment>, DatabaseConflict> = Database.queryMany("SELECT id, weight, note, state, fragile, label FROM shipments")
+    return 0`),
+	}
+	for _, src := range clean {
+		if diags := checkSrc(t, src, shipmentModel, shipStateEnum); len(diags) != 0 {
+			t.Errorf("diags = %v, want none for\n%s", diags, src)
+		}
+	}
+	f := mustParse(t, clean[0])
+	if diags := Check([]*syntax.File{f}, nil); len(diags) != 0 {
+		t.Fatal(diags)
+	}
+	ret := f.Decls[0].(*syntax.GatewayDecl).Body.Stmts[0].(*syntax.ReturnStmt)
+	if !ret.Value.(*syntax.CallExpr).HandlesConflicts {
+		t.Error("the returned call wasn't recorded as handling conflicts")
+	}
+	wantDiag(t, checkSrc(t, gatewayWith(`    n: Result<string, DatabaseConflict> = Database.execute("DELETE FROM t")
+    return 0`)), "A1", "expected Result<string, DatabaseConflict>")
+	wantDiag(t, checkSrc(t, gatewayWith(`    row: Result<Shipment, DatabaseConflict> = Database.queryOne("SELECT id FROM t")
+    return 0`), shipmentModel, shipStateEnum), "A1", "read it as `Shipment | None`")
+}
