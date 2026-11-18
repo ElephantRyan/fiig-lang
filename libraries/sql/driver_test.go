@@ -133,7 +133,7 @@ func TestDriverServerErrorKeepsTheConnection(t *testing.T) {
 	r := startRelay(t, nil)
 	r.call(t, "addNotes", notes(note("a", "first")))
 	_, f := r.in.Call(context.Background(), "addNotes", notes(note("a", "again")))
-	if f == nil || !strings.Contains(f.Error(), "UNIQUE constraint failed") || !strings.Contains(f.Error(), "sqlite") {
+	if f == nil || !strings.Contains(f.Error(), "UNIQUE constraint failed") || !strings.Contains(f.Error(), "23505") {
 		t.Fatalf("fault = %v, want the server's error with its code", f)
 	}
 	r.call(t, "readNotes", nil)

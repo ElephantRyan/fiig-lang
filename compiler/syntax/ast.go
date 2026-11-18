@@ -852,6 +852,10 @@ type CallExpr struct {
 	// records here for the runtime; nil on every other call, and before
 	// checking.
 	DecodeInto any
+	// HandlesConflicts is set by the checker on a Database call whose
+	// context expects Result<..., DatabaseConflict> (ADR 0087 §1): the call
+	// returns its conflicts instead of faulting.
+	HandlesConflicts bool
 }
 
 // NotExpr is the prefix `not` (grammar.md §5 `primary`).

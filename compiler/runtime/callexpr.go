@@ -20,6 +20,9 @@ func (in *Interp) evalCall(ctx context.Context, e *syntax.CallExpr, env *Env) (V
 				return in.callJson(ctx, e, fa.Field, env)
 			}
 		}
+		if e.HandlesConflicts {
+			return in.evalHandlingConflicts(ctx, e, fa, env)
+		}
 		v, earlyReturn, f := in.evalQualifiedCall(ctx, fa, e.Args, env)
 		// ADR 0082 §5: a Database query the checker typed reads its rows
 		// into the row type it recorded.

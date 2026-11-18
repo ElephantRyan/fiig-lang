@@ -259,7 +259,9 @@ func (p *DriverProvider) run(ctx context.Context, pc *pooledConn, what, sql stri
 	}
 	if !r.Ok {
 		keep, msg := describeDatabaseError(r.Value)
-		return Record{}, keep, Faultf("%s: %s", what, msg)
+		f := Faultf("%s: %s", what, msg)
+		f.Conflict = serverConflict(r.Value)
+		return Record{}, keep, f
 	}
 	rec, ok := r.Value.(Record)
 	if !ok {
@@ -277,7 +279,7 @@ func describeDatabaseError(v Value) (bool, string) {
 		return false, fmt.Sprintf("driver error %s", v)
 	}
 	switch {
-	case e.Variant == "Server" && len(e.Fields) == 2:
+	case e.Variant == "Server" && len(e.Fields) >= 2:
 		return true, fmt.Sprintf("%s %s", plain(e.Fields[0]), plain(e.Fields[1]))
 	case e.Variant == "Broken" && len(e.Fields) == 1:
 		return false, fmt.Sprintf("the connection failed: %s", e.Fields[0])
@@ -287,6 +289,25 @@ func describeDatabaseError(v Value) (bool, string) {
 		return false, plain(e.Fields[0])
 	}
 	return false, e.String()
+}
+
+// serverConflict is the conflict a Server error reports (ADR 0087 §4):
+// Server(code, message, constraint, table, column), the last three
+// string | None.
+func serverConflict(v Value) *Conflict {
+	e, ok := v.(EnumValue)
+	if !ok || e.Variant != "Server" || len(e.Fields) < 2 {
+		return nil
+	}
+	field := func(i int) string {
+		if i < len(e.Fields) {
+			if s, ok := e.Fields[i].(Str); ok {
+				return string(s)
+			}
+		}
+		return ""
+	}
+	return SQLStateConflict(field(0), field(2), field(4), field(1))
 }
 
 func plain(v Value) string {

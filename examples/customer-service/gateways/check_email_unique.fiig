@@ -1,9 +1,0 @@
-gateway checkEmailUnique(email: string) -> Result<None, CustomerError>
-    requires Database
-{
-    existing: string | None = Database.queryOne("SELECT id FROM customers WHERE email = ?", email)
-    match existing {
-        found -> Err(CustomerError.EmailAlreadyInUse(email))
-        None -> Ok(None)
-    }
-}

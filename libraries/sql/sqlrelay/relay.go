@@ -25,6 +25,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"fiig-lang/compiler/runtime"
 )
 
 // Server relays statements to db.
@@ -120,6 +122,29 @@ func failure(code, message string) map[string]any {
 	return map[string]any{"variant": "Err", "error": map[string]any{"variant": "Server", "code": code, "message": message}}
 }
 
+// dbFailure reports a database error as Postgres would: a SQLSTATE, and
+// for a conflict the name ADR 0087 §2 gives it on SQLite, the column list,
+// as the constraint (or, for NOT NULL, the column).
+func dbFailure(err error) map[string]any {
+	reply := failure(code(err), err.Error())
+	var coded interface{ Code() int }
+	if !errors.As(err, &coded) {
+		return reply
+	}
+	c := runtime.SQLiteConflict(coded.Code(), err.Error())
+	if c == nil {
+		return reply
+	}
+	state := map[string]string{"Unique": "23505", "ForeignKey": "23503", "NotNull": "23502", "Check": "23514", "Retryable": "40001"}[c.Variant]
+	e := map[string]any{"variant": "Server", "code": state, "message": err.Error()}
+	if c.Variant == "NotNull" {
+		e["column"] = c.Name
+	} else {
+		e["constraint"] = c.Name
+	}
+	return map[string]any{"variant": "Err", "error": e}
+}
+
 func (s *Server) answer(ctx context.Context, session *sql.Conn, body []byte) map[string]any {
 	var req request
 	if err := json.Unmarshal(body, &req); err != nil {
@@ -136,14 +161,14 @@ func (s *Server) answer(ctx context.Context, session *sql.Conn, body []byte) map
 	if !returnsRows(req.SQL) {
 		res, err := session.ExecContext(ctx, req.SQL, args...)
 		if err != nil {
-			return failure(code(err), err.Error())
+			return dbFailure(err)
 		}
 		n, _ := res.RowsAffected()
 		return ok(map[string]any{"columns": []string{}, "rows": [][]any{}, "affected": n})
 	}
 	rows, err := session.QueryContext(ctx, req.SQL, args...)
 	if err != nil {
-		return failure(code(err), err.Error())
+		return dbFailure(err)
 	}
 	defer rows.Close()
 	cols, _ := rows.Columns()
@@ -155,7 +180,7 @@ func (s *Server) answer(ctx context.Context, session *sql.Conn, body []byte) map
 			ptrs[i] = &raw[i]
 		}
 		if err := rows.Scan(ptrs...); err != nil {
-			return failure(code(err), err.Error())
+			return dbFailure(err)
 		}
 		row := make([]any, len(cols))
 		for i, v := range raw {
@@ -164,7 +189,7 @@ func (s *Server) answer(ctx context.Context, session *sql.Conn, body []byte) map
 		out = append(out, row)
 	}
 	if err := rows.Err(); err != nil {
-		return failure(code(err), err.Error())
+		return dbFailure(err)
 	}
 	return ok(map[string]any{"columns": cols, "rows": out, "affected": 0})
 }

@@ -16,8 +16,7 @@ func spanByName(spans []Span, name string) (Span, bool) {
 
 func TestTracingRecordsNestedCallSpans(t *testing.T) {
 	// createCustomer (workflow) -> registerCustomer (activity) ->
-	// validateNewCustomer (activity), checkEmailUnique (gateway),
-	// insertCustomer (gateway) — a real 3-level call tree from the actual
+	// validateNewCustomer (activity), insertCustomer (gateway) — a real 3-level call tree from the actual
 	// corpus, not a synthetic one.
 	u := loadUniverse(t,
 		"customer-service/models", "customer-service/errors",
@@ -58,7 +57,7 @@ func TestTracingRecordsNestedCallSpans(t *testing.T) {
 		t.Fatalf("registerCustomer span = %+v, want an activity span under createCustomer (%d)", register, top.ID)
 	}
 
-	for _, name := range []string{"validateNewCustomer", "checkEmailUnique", "insertCustomer"} {
+	for _, name := range []string{"validateNewCustomer", "insertCustomer"} {
 		child, ok := spanByName(spans, name)
 		if !ok {
 			t.Fatalf("no span for %s; got %+v", name, spans)
@@ -75,9 +74,9 @@ func TestTracingRecordsNestedCallSpans(t *testing.T) {
 	if validate.Kind != SpanActivity {
 		t.Fatalf("validateNewCustomer.Kind = %s, want activity", validate.Kind)
 	}
-	checkEmail, _ := spanByName(spans, "checkEmailUnique")
+	checkEmail, _ := spanByName(spans, "insertCustomer")
 	if checkEmail.Kind != SpanGateway {
-		t.Fatalf("checkEmailUnique.Kind = %s, want gateway", checkEmail.Kind)
+		t.Fatalf("insertCustomer.Kind = %s, want gateway", checkEmail.Kind)
 	}
 }
 

@@ -1,9 +1,14 @@
 use fiig.sql as db
 
-// An ErrorResponse's fields: C is the SQLSTATE, M the message (§9).
+// An ErrorResponse's fields (§9): C is the SQLSTATE, M the message, and n,
+// t, and c the constraint, table, and column a conflict is in, when the
+// server names them (ADR 0087 §4).
 conversion serverError(body: bytes) -> db.DatabaseError {
     code: string = "XX000"
     message: string = "the server reported an error"
+    constraint: string | None = None
+    table: string | None = None
+    column: string | None = None
     rest: bytes = body
     while rest.length() > 0 {
         match rest {
@@ -19,6 +24,12 @@ conversion serverError(body: bytes) -> db.DatabaseError {
                             code = value
                         } else if field == 77 {
                             message = value
+                        } else if field == 110 {
+                            constraint = value
+                        } else if field == 116 {
+                            table = value
+                        } else if field == 99 {
+                            column = value
                         }
                     }
                 }
@@ -29,5 +40,11 @@ conversion serverError(body: bytes) -> db.DatabaseError {
             }
         }
     }
-    return db.DatabaseError.Server(code: code, message: message)
+    return db.DatabaseError.Server(
+        code: code,
+        message: message,
+        constraint: constraint,
+        table: table,
+        column: column,
+    )
 }

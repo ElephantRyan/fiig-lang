@@ -61,8 +61,27 @@ func (c *checker) checkExpectedQuery(e syntax.Expr, expected types.Type, env map
 		return false
 	}
 	call, op, ok := c.databaseCall(e, env)
-	if !ok || (op != "queryOne" && op != "queryMany") {
+	if !ok {
 		return false
+	}
+	// ADR 0087 §1: Result<X, DatabaseConflict> opts in; X is what the call
+	// returns otherwise.
+	handles := false
+	if inner, isConflict := conflictResult(expected); isConflict {
+		handles, expected = true, inner
+	}
+	if op != "queryOne" && op != "queryMany" {
+		if !handles || op != "execute" {
+			return false
+		}
+		start, _ := call.Bounds()
+		c.checkPrimitiveCaller(types.DatabaseName, op, start)
+		got := c.callDatabase(call, op, nil, start, env)
+		if !types.AssignableTo(got, expected) && !isUnknown(got) {
+			c.report(start, "A1", "type mismatch: got Result<%s, DatabaseConflict>, expected Result<%s, DatabaseConflict>", got, expected)
+		}
+		call.HandlesConflicts = true
+		return true
 	}
 	start, _ := call.Bounds()
 	c.checkPrimitiveCaller(types.DatabaseName, op, start)
@@ -99,7 +118,20 @@ func (c *checker) checkExpectedQuery(e syntax.Expr, expected types.Type, env map
 		row = types.Unknown{} // reported above; not A12 as well
 	}
 	c.callDatabase(call, op, row, start, env)
+	call.HandlesConflicts = handles
 	return true
+}
+
+// conflictResult is X when t is Result<X, DatabaseConflict> (ADR 0087 §1).
+func conflictResult(t types.Type) (types.Type, bool) {
+	g, ok := t.(types.Generic)
+	if !ok || g.Name != "Result" || len(g.Args) != 2 {
+		return nil, false
+	}
+	if named, ok := g.Args[1].(types.Named); ok && named.Decl == types.DatabaseConflictDecl {
+		return g.Args[0], true
+	}
+	return nil, false
 }
 
 // callDatabase checks a Database call's arguments and, for a query, the

@@ -210,12 +210,13 @@ type pgParam struct {
 }
 
 type pgReply struct {
-	columns []string
-	oids    []int32
-	rows    [][]*string
-	tag     string
-	errCode string
-	errMsg  string
+	columns       []string
+	oids          []int32
+	rows          [][]*string
+	tag           string
+	errCode       string
+	errMsg        string
+	errConstraint string
 }
 
 type fakePostgres struct {
@@ -270,6 +271,17 @@ func errorResponse(code, message string) []byte {
 	body = append(body, cstr(code)...)
 	body = append(body, 'M')
 	body = append(body, cstr(message)...)
+	return msg('E', append(body, 0))
+}
+
+// errorResponseNamed is errorResponse with the constraint's name, field n.
+func errorResponseNamed(code, message, constraint string) []byte {
+	if constraint == "" {
+		return errorResponse(code, message)
+	}
+	e := errorResponse(code, message)
+	body := append(e[5:len(e)-1], 'n')
+	body = append(body, cstr(constraint)...)
 	return msg('E', append(body, 0))
 }
 
@@ -433,7 +445,7 @@ func (s *fakePostgres) respond(sql string, params []pgParam) []byte {
 	out = append(out, msg('1', nil)...)
 	out = append(out, msg('N', append(append([]byte{'S'}, cstr("NOTICE")...), 0))...)
 	if reply.errCode != "" {
-		out = append(out, errorResponse(reply.errCode, reply.errMsg)...)
+		out = append(out, errorResponseNamed(reply.errCode, reply.errMsg, reply.errConstraint)...)
 		return append(out, msg('Z', []byte{'I'})...)
 	}
 	out = append(out, msg('2', nil)...)
@@ -480,6 +492,8 @@ func pets(sql string, params []pgParam) pgReply {
 		}
 		return pgReply{columns: []string{"name", "weight", "born"}, oids: []int32{25, 1700, 1082},
 			rows: [][]*string{{text("Rex"), text("12.50"), nil}}, tag: "SELECT 1"}
+	case strings.HasPrefix(sql, "INSERT INTO pets"):
+		return pgReply{errCode: "23505", errMsg: `duplicate key value violates unique constraint "pets_pkey"`, errConstraint: "pets_pkey"}
 	case strings.HasPrefix(sql, "INSERT"):
 		return pgReply{tag: "INSERT 0 " + strconv.Itoa(len(params)/2)}
 	case strings.HasPrefix(sql, "BAD"):
@@ -607,5 +621,22 @@ func TestPostgresRefusals(t *testing.T) {
 		if f == nil || !strings.Contains(f.Error(), tc.fragment) {
 			t.Errorf("%s %v: fault = %v, want %q", tc.auth, tc.settings, f, tc.fragment)
 		}
+	}
+}
+
+// ADR 0087 §4: fiig.postgres reads the constraint's name from the
+// ErrorResponse, so the conflict names it.
+func TestPostgresReportsTheConstraint(t *testing.T) {
+	server := &fakePostgres{t: t, auth: authTrust, handle: pets}
+	in, pool := pgInterp(t, pgSettings(server.listen(t), ""))
+	_, f := in.Capabilities.Call(context.Background(), "Database", "execute", []runtime.Value{runtime.Str("INSERT INTO pets VALUES (?)"), runtime.Str("Rex")})
+	if f == nil || f.Conflict == nil {
+		t.Fatalf("fault = %v, want one carrying a conflict", f)
+	}
+	if f.Conflict.Variant != "Unique" || f.Conflict.Name != "pets_pkey" {
+		t.Fatalf("conflict = %+v, want Unique(pets_pkey)", f.Conflict)
+	}
+	if pool.Idle() != 1 {
+		t.Errorf("idle = %d; a conflict leaves the connection usable", pool.Idle())
 	}
 }
