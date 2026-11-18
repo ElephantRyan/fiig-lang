@@ -735,17 +735,17 @@ Objective: Make fiig fully usable in IntelliJ IDEA with the same feedback the co
 Deliverables:
 
 - Stable machine-readable diagnostics from `check-cli` (JSON: file, line, column, end position, message, code) — done (ADR 0089 §5, 2026-11-17)
-- `.fiig` file type with registered extension, decided per the prototype backlog
-- TextMate grammar generated from or checked against the lexer's token definitions, for syntax highlighting
+- `.fiig` file type with registered extension, decided per the prototype backlog — done (ADR 0090 §2, 2026-11-18)
+- TextMate grammar generated from or checked against the lexer's token definitions, for syntax highlighting — superseded by a native lexer whose keywords are generated from the compiler's (ADR 0090 §2, 2026-11-18)
 - Language server wrapping the compiler: live diagnostics, hover, and go-to-definition — done (ADR 0089, 2026-11-17): `fiig lsp`, also find usages, symbols, and formatting
 - Completion driven by registry contracts and values in scope
 - Caller views and find-usages on registry identities
 - Rename across references, including across packages from Milestone 6
 - Quick fixes for compiler diagnostics where the fix is mechanical, such as adding a missing import or handling an unhandled `Result`
-- Comment toggling, with the line comment prefix declared in the file type
-- Format on save through `fmt-cli`
-- IntelliJ plugin connecting to the language server through the platform's LSP API, or a direct integration if the LSP API is unavailable in the target IDE edition
-- Plugin packaging and a README covering installation from disk
+- Comment toggling, with the line comment prefix declared in the file type — done (ADR 0090 §2, 2026-11-18)
+- Format on save through `fmt-cli` — done (ADR 0089 §7, ADR 0090 §3, 2026-11-18): Reformat Code and Actions on Save run `fiig fmt` through `fiig lsp`
+- IntelliJ plugin connecting to the language server through the platform's LSP API, or a direct integration if the LSP API is unavailable in the target IDE edition — done (ADR 0090, 2026-11-18): the platform's LSP API in IntelliJ IDEA 2026.2
+- Plugin packaging and a README covering installation from disk — done (ADR 0090 §7, 2026-11-18): a zip on each release, docs/intellij.md
 
 Exit criteria:
 

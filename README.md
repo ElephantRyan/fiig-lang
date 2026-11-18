@@ -42,6 +42,12 @@ fiig serve -caps caps.json <dir> <adapter>...   serve http adapters
 fiig openapi <dir> <adapter>...                 print their OpenAPI document
 fiig fmt -w <file.fiig>...                      format files
 fiig lsp                                        the language server an editor starts
+```
+
+In IntelliJ IDEA 2026.2, install the fiig plugin: see
+[docs/intellij.md](docs/intellij.md).
+
+```
 fiig catalog explain <dir> <name>               a declaration's contract
 ```
 

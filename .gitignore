@@ -2,8 +2,16 @@
 *.exe
 /dist/
 /spikes/dist/
-fiig
-!cmd/fiig/
+# the fiig binary, built at the root or in cmd/fiig (not the plugin's
+# dev/fiig source directory)
+/fiig
+/cmd/fiig/fiig
+
+# The IntelliJ plugin's Gradle output (ADR 0090)
+/ide/intellij/build/
+/ide/intellij/.gradle/
+/ide/intellij/.intellijPlatform/
+/ide/intellij/.kotlin/
 
 # Local databases and editor/agent state
 *.db

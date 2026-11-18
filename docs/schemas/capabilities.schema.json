@@ -1,0 +1,168 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://fiig.dev/schemas/capabilities.schema.json",
+  "title": "fiig capabilities file (caps.json)",
+  "description": "Which provider backs each capability (ADR 0027), optionally per package (ADR 0079 §6a). Any string may name an environment variable as ${NAME} (ADR 0071 §6).",
+  "type": "object",
+  "properties": {
+    "packages": {
+      "description": "Package path to capabilities bound only while that package's workflows run (ADR 0079 §6a).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "$ref": "#/definitions/capability" }
+      }
+    }
+  },
+  "additionalProperties": { "$ref": "#/definitions/capability" },
+  "definitions": {
+    "capability": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "description": "The provider that backs this capability.",
+          "enum": ["sql", "driver", "socket", "socket-script", "scripted", "random-seeded"]
+        }
+      },
+      "anyOf": [
+        { "$ref": "#/definitions/sql" },
+        { "$ref": "#/definitions/driver" },
+        { "$ref": "#/definitions/socket" },
+        { "$ref": "#/definitions/socketScript" },
+        { "$ref": "#/definitions/scripted" },
+        { "$ref": "#/definitions/randomSeeded" },
+        { "$ref": "#/definitions/legacyScripted" }
+      ]
+    },
+    "sql": {
+      "description": "A database through Go's database/sql (libraries/sql, ADR 0025).",
+      "type": "object",
+      "required": ["type", "driver", "dsn"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "sql" },
+        "driver": { "description": "The database/sql driver name; fiig ships sqlite.", "type": "string" },
+        "dsn": { "description": "The driver's data source name, e.g. file:app.db.", "type": "string" }
+      }
+    },
+    "driver": {
+      "description": "A database driver written in fiig, pooled by the runtime (ADR 0084), such as fiig.postgres (ADR 0085).",
+      "type": "object",
+      "required": ["type", "driver"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "driver" },
+        "driver": { "description": "The driver package's path, e.g. fiig.postgres.", "type": "string" },
+        "settings": {
+          "description": "Handed to the driver's connect as strings. fiig.postgres reads host, port, user, password, database, sslmode, and applicationName.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "maxConnections": { "description": "The most connections the pool opens (default 10).", "type": "integer", "minimum": 1 },
+        "idleTimeout": { "description": "How long a connection may sit unused, e.g. 5m (default).", "type": "string" },
+        "maxLifetime": { "description": "How long any connection is kept, e.g. 30m (default).", "type": "string" }
+      }
+    },
+    "socket": {
+      "description": "The real network. Only needed to add certificate authorities or client certificates (ADR 0086).",
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "socket" },
+        "trust": {
+          "description": "PEM files of CA certificates, added to the system's.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "systemRoots": { "description": "false trusts only the CAs in trust.", "type": "boolean" },
+        "clientCertificates": {
+          "description": "Certificates presented only to the hosts listed for each.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["hosts", "certificate", "key"],
+            "additionalProperties": false,
+            "properties": {
+              "hosts": {
+                "description": "Host names, or *.domain for one label below it.",
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "certificate": { "description": "The certificate's PEM file.", "type": "string" },
+              "key": { "description": "The private key's PEM file.", "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "socketScript": {
+      "description": "A scripted network for tests: each peer's expected writes and canned replies (ADR 0060 §6).",
+      "type": "object",
+      "required": ["type", "peers"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "socket-script" },
+        "peers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["host", "port"],
+            "additionalProperties": false,
+            "properties": {
+              "host": { "type": "string" },
+              "port": { "type": "integer" },
+              "dialError": { "type": "string" },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "expect": { "type": "string" },
+                    "expectHex": { "type": "string" },
+                    "send": { "type": "string" },
+                    "sendHex": { "type": "string" },
+                    "startTls": { "type": "boolean" },
+                    "tlsError": { "type": "string" },
+                    "hangup": { "type": "boolean" },
+                    "stall": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "scripted": {
+      "description": "Canned responses per operation, for tests and fiig run (ADR 0027).",
+      "type": "object",
+      "required": ["type", "responses"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "scripted" },
+        "responses": {
+          "type": "object",
+          "additionalProperties": { "type": "array" }
+        }
+      }
+    },
+    "randomSeeded": {
+      "description": "A repeatable Random for tests; fiig serve refuses it (ADR 0068 §6).",
+      "type": "object",
+      "required": ["type", "seed"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "random-seeded" },
+        "seed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "legacyScripted": {
+      "description": "The older scripted form: operation name to its responses, with no type.",
+      "type": "object",
+      "not": { "required": ["type"] },
+      "additionalProperties": { "type": "array" }
+    }
+  }
+}

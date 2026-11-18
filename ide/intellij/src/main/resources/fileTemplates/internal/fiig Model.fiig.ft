@@ -1,0 +1,3 @@
+model ${DECL_NAME} {
+    id: string
+}

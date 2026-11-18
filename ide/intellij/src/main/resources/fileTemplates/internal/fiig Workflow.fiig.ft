@@ -1,0 +1,3 @@
+workflow ${DECL_NAME}() -> int {
+    return 0
+}
