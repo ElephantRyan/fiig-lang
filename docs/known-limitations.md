@@ -107,4 +107,9 @@ doesn't have to discover them.
 ## Tooling
 
 - **The interpreter walks the tree.** It isn't tuned for throughput.
-- **No editor support** yet (Milestone 9). `fiig fmt -w` formats files.
+- **No IntelliJ plugin yet** (Milestone 9, ADR 0090). `fiig lsp` (ADR
+  0089) gives any LSP editor errors as you type, hover, go to
+  declaration, find usages, symbols, and formatting; completion, rename,
+  and quick fixes aren't built. Go to declaration on a local or parameter
+  works within its declaration; find usages covers declarations, fields,
+  variants, and gateways, not locals.

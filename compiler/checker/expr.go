@@ -92,6 +92,12 @@ func (c *checker) checkOkErr(call *syntax.CallExpr, which string, expected types
 }
 
 func (c *checker) inferExpr(e syntax.Expr, env map[string]types.Type) types.Type {
+	t := c.inferExprType(e, env)
+	c.recordType(e, t)
+	return t
+}
+
+func (c *checker) inferExprType(e syntax.Expr, env map[string]types.Type) types.Type {
 	// A constant with no context to land in takes its default type.
 	if t, ok := c.landConstant(e, nil); ok {
 		return t
@@ -108,6 +114,9 @@ func (c *checker) inferExpr(e syntax.Expr, env map[string]types.Type) types.Type
 			return t
 		}
 		if t, ok := c.groupValue(e.Name); ok {
+			if named, isNamed := t.(types.Named); isNamed {
+				c.ref(e.Start, e.Name, named.Decl, "")
+			}
 			return t
 		}
 		c.report(e.Start, "", "undefined name %q", e.Name)
@@ -205,6 +214,8 @@ func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.T
 	// Another package's zero-field variant, named with its package
 	// (http.Method.Get).
 	if _, enumDecl, ok := c.importedEnum(e.Target, env); ok {
+		c.refField(e.Target.(*syntax.FieldAccess), enumDecl, "")
+		c.refField(e, enumDecl, e.Field)
 		return c.variantType(enumDecl, e.Field, nil, e, env)
 	}
 	// A zero-field enum variant is constructed with no call parens at all
@@ -235,6 +246,8 @@ func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.T
 			}
 			if decl, found := c.universe.Lookup(targetIdent.Name); found {
 				if enumDecl, ok := decl.(*syntax.EnumDecl); ok {
+					c.ref(targetIdent.Start, targetIdent.Name, enumDecl, "")
+					c.refField(e, enumDecl, e.Field)
 					for _, v := range enumDecl.Variants {
 						if v.Name == e.Field {
 							if len(v.Fields) > 0 {
@@ -271,6 +284,7 @@ func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.T
 	case *syntax.ModelDecl:
 		for _, f := range decl.AllFields() {
 			if f.Name == e.Field {
+				c.refField(e, decl, f.Name)
 				return c.resolveDeclType(decl, f.Type)
 			}
 		}
@@ -481,6 +495,7 @@ func (c *checker) inferCall(e *syntax.CallExpr, env map[string]types.Type) types
 		}
 		return types.Unknown{}
 	}
+	c.ref(ident.Start, ident.Name, decl, "")
 	return c.callDecl(decl, ident.Name, e.Args, start, env)
 }
 
@@ -549,6 +564,8 @@ func (c *checker) callDecl(decl syntax.Decl, name string, args []syntax.Arg, sta
 // is deliberately unchecked rather than guessed at.
 func (c *checker) inferQualifiedCall(fa *syntax.FieldAccess, args []syntax.Arg, start lexer.Pos, env map[string]types.Type) types.Type {
 	if pkg, enumDecl, ok := c.importedEnum(fa.Target, env); ok {
+		c.refField(fa.Target.(*syntax.FieldAccess), enumDecl, "")
+		c.refField(fa, enumDecl, fa.Field)
 		return c.callInScope(pkg, func() types.Type {
 			return c.variantType(enumDecl, fa.Field, args, fa, env)
 		})
@@ -569,6 +586,13 @@ func (c *checker) inferQualifiedCall(fa *syntax.FieldAccess, args []syntax.Arg, 
 		}
 	}
 	if decl, found := c.lookup(targetIdent.Name); found {
+		if _, isEnum := decl.(*syntax.EnumDecl); isEnum {
+			c.ref(targetIdent.Start, targetIdent.Name, decl, "")
+			c.refField(fa, decl, fa.Field)
+		} else if group, isGroup := decl.(*syntax.CapabilityDecl); isGroup {
+			c.ref(targetIdent.Start, targetIdent.Name, decl, "")
+			c.refField(fa, group, fa.Field)
+		}
 		if enumDecl, ok := decl.(*syntax.EnumDecl); ok {
 			for _, v := range enumDecl.Variants {
 				if v.Name == fa.Field {
@@ -584,10 +608,13 @@ func (c *checker) inferQualifiedCall(fa *syntax.FieldAccess, args []syntax.Arg, 
 		}
 	}
 	if g, found := c.groups[targetIdent.Name]; found && g.Decl != nil {
+		c.ref(targetIdent.Start, targetIdent.Name, g.Decl, "")
+		c.refField(fa, g.Decl, fa.Field)
 		return c.callGroup(g.Decl, g.Package, targetIdent.Name, fa.Field, args, start, env)
 	}
 	if pkg, found := c.imports[targetIdent.Name]; found {
 		if decl, declFound := pkg.Universe.Lookup(fa.Field); declFound {
+			c.refField(fa, decl, "")
 			qualifiedName := targetIdent.Name + "." + fa.Field
 			if _, isGateway := decl.(*syntax.GatewayDecl); isGateway {
 				c.report(start, "P4", "gateway %s is not in a capability group, so it is private to its package; only a package's capability groups are reachable from outside it (ADR 0043 §5)", qualifiedName)
@@ -956,6 +983,8 @@ func (c *checker) bindConstructorPattern(p *syntax.ConstructorPattern, subject t
 	if len(p.Path) == 2 {
 		if decl, found := c.lookup(p.Path[0]); found {
 			if enumDecl, ok := decl.(*syntax.EnumDecl); ok {
+				c.ref(p.Start, p.Path[0], enumDecl, "")
+				c.refAfter(p.Start, p.Path[0], p.Path[1], enumDecl, p.Path[1])
 				for _, v := range enumDecl.Variants {
 					if v.Name == p.Path[1] {
 						for i, sub := range p.Args {

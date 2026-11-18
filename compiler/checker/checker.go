@@ -73,6 +73,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -91,6 +92,9 @@ type Diagnostic struct {
 	File string    `json:"file,omitempty"`
 	Msg  string    `json:"message"`
 	At   lexer.Pos `json:"at"`
+	// End is where the token the diagnostic is about ends (ADR 0089 §5),
+	// zero when it isn't in a file's text.
+	End  lexer.Pos `json:"end,omitzero"`
 	Rule string    `json:"rule,omitempty"` // bug-classes.md ID, e.g. "A1" — "" for infrastructure errors (unresolved names, duplicate decls) that aren't one of the catalog's numbered entries.
 	// decl is the declaration a package-level diagnostic is about, for
 	// CheckDir to attribute it to a file.
@@ -121,13 +125,8 @@ func (d Diagnostic) String() string {
 // under root, relative to it, that are programs of their own and are left
 // out.
 func CheckDir(root string, packages types.Packages, skip ...string) ([]Diagnostic, error) {
-	type parsed struct {
-		path string
-		file *syntax.File
-	}
-	var parsedFiles []parsed
-	var diags []Diagnostic
-
+	sources := map[string]string{}
+	var order []string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -151,16 +150,61 @@ func CheckDir(root string, packages types.Packages, skip ...string) ([]Diagnosti
 			rel = path
 		}
 		rel = filepath.ToSlash(rel)
-
-		file, errs := parser.Parse(string(src))
-		for _, e := range errs {
-			diags = append(diags, Diagnostic{File: rel, Msg: e.Msg, At: e.At, Rule: e.Rule})
-		}
-		parsedFiles = append(parsedFiles, parsed{rel, file})
+		sources[rel] = string(src)
+		order = append(order, rel)
 		return nil
 	})
 	if err != nil {
 		return nil, err
+	}
+	var path string
+	var provides map[string]string
+	if m, errs := manifest.Load(root); m != nil && len(errs) == 0 {
+		path, provides = m.Path, m.Provides
+	}
+	diags, _ := checkSourceTexts(order, sources, packages, path, provides, false)
+	return diags, nil
+}
+
+// Checked is one file of a CheckSources run: its syntax tree, its
+// comments, and what the check resolved in it.
+type Checked struct {
+	File     *syntax.File
+	Comments []lexer.Comment
+	Index    *Index
+	// ParseErrors is how many syntax errors the file has; with any, File
+	// is the parser's recovery, missing what it couldn't read.
+	ParseErrors int
+}
+
+// CheckSources is CheckDir for text in hand, keyed by path relative to the
+// package root, as an editor holds unsaved files (ADR 0089 §2): every
+// diagnostic is attributed to its file and has an End, and each file comes
+// back with its index (§4). path and provides are the package manifest's.
+func CheckSources(sources map[string]string, packages types.Packages, path string, provides map[string]string) ([]Diagnostic, map[string]*Checked) {
+	order := make([]string, 0, len(sources))
+	for rel := range sources {
+		order = append(order, rel)
+	}
+	sort.Strings(order)
+	return checkSourceTexts(order, sources, packages, path, provides, true)
+}
+
+func checkSourceTexts(order []string, sources map[string]string, packages types.Packages, path string, provides map[string]string, indexed bool) ([]Diagnostic, map[string]*Checked) {
+	type parsed struct {
+		path string
+		file *syntax.File
+	}
+	var parsedFiles []parsed
+	var diags []Diagnostic
+	checked := map[string]*Checked{}
+	for _, rel := range order {
+		file, comments, errs := parser.ParseWithComments(sources[rel])
+		for _, e := range errs {
+			diags = append(diags, Diagnostic{File: rel, Msg: e.Msg, At: e.At, Rule: e.Rule})
+		}
+		parsedFiles = append(parsedFiles, parsed{rel, file})
+		checked[rel] = &Checked{File: file, Comments: comments, ParseErrors: len(errs)}
 	}
 
 	files := make([]*syntax.File, len(parsedFiles))
@@ -168,11 +212,6 @@ func CheckDir(root string, packages types.Packages, skip ...string) ([]Diagnosti
 		files[i] = pf.file
 	}
 	universe, conflicts := types.BuildUniverse(files)
-	var path string
-	var provides map[string]string
-	if m, errs := manifest.Load(root); m != nil && len(errs) == 0 {
-		path, provides = m.Path, m.Provides
-	}
 	declFile := map[syntax.Decl]string{}
 	for _, pf := range parsedFiles {
 		for _, d := range pf.file.Decls {
@@ -197,12 +236,45 @@ func CheckDir(root string, packages types.Packages, skip ...string) ([]Diagnosti
 		}
 	}
 	for _, pf := range parsedFiles {
-		for _, d := range checkFile(pf.file, universe, packages, path) {
+		var index *Index
+		if indexed {
+			index = &Index{}
+			checked[pf.path].Index = index
+		}
+		for _, d := range checkFileIndexed(pf.file, universe, packages, path, index) {
 			d.File = pf.path
 			diags = append(diags, d)
 		}
 	}
-	return diags, nil
+	setEnds(diags, sources)
+	return diags, checked
+}
+
+// setEnds gives each diagnostic the end of the token it points at.
+func setEnds(diags []Diagnostic, sources map[string]string) {
+	ends := map[string]map[int]lexer.Pos{}
+	for i := range diags {
+		d := &diags[i]
+		src, ok := sources[d.File]
+		if !ok || d.At.Line == 0 {
+			continue
+		}
+		byStart, ok := ends[d.File]
+		if !ok {
+			byStart = map[int]lexer.Pos{}
+			for _, t := range lexer.New(src).AllTokens() {
+				byStart[t.Start.Offset] = t.End
+			}
+			ends[d.File] = byStart
+		}
+		if end, ok := byStart[d.At.Offset]; ok && end.Offset > d.At.Offset {
+			d.End = end
+		} else {
+			d.End = d.At
+			d.End.Column++
+			d.End.Offset++
+		}
+	}
 }
 
 // Check type-checks an already-parsed program.
@@ -358,7 +430,13 @@ func CheckFile(file *syntax.File, universe *types.Universe, packages types.Packa
 // package has no manifest), which is what a `use` of one of the package's
 // own formulas groups names (ADR 0049 §2.5).
 func checkFile(file *syntax.File, universe *types.Universe, packages types.Packages, ownPath string) []Diagnostic {
-	c := &checker{
+	return checkFileIndexed(file, universe, packages, ownPath, nil)
+}
+
+// checkFileIndexed is checkFile filling index, when it isn't nil, with what
+// the check resolves (ADR 0089 §4).
+func checkFileIndexed(file *syntax.File, universe *types.Universe, packages types.Packages, ownPath string, index *Index) []Diagnostic {
+	c := &checker{index: index,
 		universe: universe, imports: ResolveFileImports(file, packages), groups: ResolveFileGroups(file, packages),
 		aliases: map[string]*syntax.Import{}, g4Reported: map[*syntax.Import]bool{}, ownPath: ownPath,
 	}
@@ -548,6 +626,10 @@ func (c *checker) checkActivityCycle(ad *syntax.ActivityDecl) {
 }
 
 type checker struct {
+	// index receives what this check resolves, for tooling (ADR 0089 §4);
+	// nil when nobody asked.
+	index *Index
+
 	// universe is the scope names resolve in: the package Universe, or the
 	// current file's scope when it has a private block (ADR 0054).
 	universe *types.Universe
@@ -651,6 +733,11 @@ func (c *checker) ambiguous(name string) bool {
 }
 
 func (c *checker) report(at lexer.Pos, rule, format string, args ...any) {
+	for _, a := range args {
+		if a == syntax.ErrorName {
+			return // the parser already reported the syntax error this name stands in for
+		}
+	}
 	msg := fmt.Sprintf(format, args...)
 	if c.inSortKey && rule != "" && (rule[0] == 'B' || rule[0] == 'P') {
 		msg += " (a sorted key may call only what a rule may: formulas and methods, ADR 0065 §3)"
@@ -664,6 +751,7 @@ func (c *checker) report(at lexer.Pos, rule, format string, args ...any) {
 // types.Unknown{} as the safe fallback so one bad type name doesn't
 // cascade into unrelated false positives elsewhere in the same signature.
 func (c *checker) resolve(t syntax.Type) types.Type {
+	c.recordTypeRefs(t)
 	rt, ok := types.ResolveWithImports(t, c.universe, universesOf(c.imports))
 	start, _ := t.(syntax.Spanned).Bounds()
 	if !ok {

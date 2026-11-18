@@ -832,6 +832,10 @@ type StringPart struct {
 	Interp Expr   // non-nil for an `${...}` part
 }
 
+// ErrorName is the name of the Ident the parser leaves where it found no
+// expression; the parser has reported the error, so nothing else does.
+const ErrorName = "<error>"
+
 type StringLit struct {
 	Span
 	Parts []StringPart
