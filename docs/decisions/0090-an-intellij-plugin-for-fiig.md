@@ -50,6 +50,16 @@ range, building, and verifying against it; older versions aren't
 back-supported. This is the project owner's decision (2026-11-18): the
 plugin follows the IDE forward, as the toolchain does.
 
+**Amended 2026-11-18 (owner's decision), when 2026.3 shipped:** a new
+release widens the range instead of moving it, so one zip covers 2026.2
+and 2026.3 (`since-build` 262, `until-build` 263.*). The plugin compiles
+against the oldest release in the range and the Plugin Verifier checks it
+against each (`verifyVersions` in `gradle.properties`). Releases before
+2026.2 are still not supported. 2026.3 needed one source change:
+`SyntaxHighlighter.getTokenHighlights` takes a non-null `IElementType`,
+which compiles against 262 as well. `PathEnvironmentVariableUtil.findInPath`,
+scheduled for removal in 263, was replaced by a plain search of `PATH`.
+
 ### 2. The file type and a native lexer
 
 `.fiig` is a file type with its own icon. The plugin's lexer, a

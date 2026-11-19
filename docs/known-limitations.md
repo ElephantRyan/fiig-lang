@@ -107,9 +107,9 @@ doesn't have to discover them.
 ## Tooling
 
 - **The interpreter walks the tree.** It isn't tuned for throughput.
-- **IntelliJ IDEA 2026.2 only** (ADR 0090 §1a): the plugin
-  ([docs/intellij.md](intellij.md)) supports each IntelliJ release from
-  2026.2 on as it ships, and no earlier one. Other editors can use `fiig
+- **IntelliJ IDEA 2026.2 and 2026.3 only** (ADR 0090 §1a): the plugin
+  ([docs/intellij.md](intellij.md)) adds each IntelliJ release as it
+  ships, and supports none before 2026.2. Other editors can use `fiig
   lsp` (ADR 0089) directly. Completion, rename, quick fixes, and a
   debugger aren't built. Go to declaration on a local or parameter
   works within its declaration; find usages covers declarations, fields,

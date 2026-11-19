@@ -1,7 +1,6 @@
 package dev.fiig.intellij
 
 import com.intellij.execution.configurations.GeneralCommandLine
-import com.intellij.execution.configurations.PathEnvironmentVariableUtil
 import com.intellij.execution.util.ExecUtil
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
@@ -37,7 +36,9 @@ object FiigBinary {
             return File(configured).takeIf { it.isFile }?.absolutePath
         }
         val name = if (SystemInfo.isWindows) "fiig.exe" else "fiig"
-        return PathEnvironmentVariableUtil.findInPath(name)?.absolutePath
+        val path = System.getenv("PATH").orEmpty()
+        return path.split(File.pathSeparatorChar).filter { it.isNotBlank() }
+            .map { File(it, name) }.firstOrNull { it.isFile }?.absolutePath
     }
 
     /** `fiig version`'s output, or why it couldn't be read. */
