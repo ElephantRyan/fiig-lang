@@ -86,6 +86,28 @@ when it does, so it doesn't compile. Every diagnostic carries a bug-class
 code; `docs/specification/bug-classes.md` lists them, and
 `examples/invalid-programs` holds a program for each. Put the `?` back.
 
+## 6. Test it
+
+`tests/` holds tests written in fiig. Each one gets its own empty
+in-memory database, so the gateways run their real SQL:
+
+```
+fiig test -v .
+```
+
+```
+ok   badBatchStoresNothing (tests/bad_batch_stores_nothing.fiig:3)
+ok   ratingAboveTenIsRefused (tests/rating_above_ten_is_refused.fiig:2)
+ok   savedRatingIsFound (tests/saved_rating_is_found.fiig:3)
+3 passed, 0 failed
+```
+
+`expect found == ...` checks a value; `expect result is Err(problem)`
+checks a shape and binds what's inside. Change `"great"` to `"grand"` in
+`tests/saved_rating_is_found.fiig` and run it again to see a failure
+with both sides printed. ADR 0091 has the rest, including `fake` blocks
+that stand in for a capability.
+
 ## Next
 
 - `docs/specification/tour.md`: the language in one pass.

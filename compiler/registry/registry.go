@@ -313,6 +313,9 @@ func Generate(root string) ([]*Card, []FileError, error) {
 		if err != nil {
 			return err
 		}
+		if d.IsDir() && path == filepath.Join(root, "tests") {
+			return filepath.SkipDir // tests aren't in the registry (ADR 0091 §2)
+		}
 		if d.IsDir() || filepath.Ext(path) != ".fiig" {
 			return nil
 		}

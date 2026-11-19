@@ -24,7 +24,7 @@ func (c *checker) callCrypto(member string, args []syntax.Arg, start lexer.Pos, 
 	}
 	if member == types.HashPasswordFormula {
 		switch c.callerKind {
-		case kindActivity, kindGateway:
+		case kindActivity, kindGateway, kindTest:
 		case kindWorkflow:
 			c.report(start, "B10", "a workflow may not call crypto.hashPassword, whose salt comes from Random; call an activity that does, so the workflow stays repeatable (ADR 0075 §5)")
 		default:

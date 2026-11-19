@@ -74,6 +74,9 @@ func packageScope(pkg *types.Package) scope {
 // through the group directly, or `Provider.charge(...)` through a value of
 // an interface type, which is the same thing once the value is in hand.
 func (in *Interp) callProvider(ctx context.Context, p Provider, member string, args []syntax.Arg, env *Env) (Value, bool, *Fault) {
+	if v, earlyReturn, fault, faked := in.fakeCall(ctx, p, member, args, env); faked {
+		return v, earlyReturn, fault
+	}
 	gw := p.Group.Gateway(member)
 	if gw == nil {
 		return nil, false, Faultf("capability %s has no operation %q", p.Group.Name, member)

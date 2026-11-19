@@ -107,7 +107,7 @@ func (c *checker) configRef(name string) (*syntax.ConfigDecl, bool) {
 func (c *checker) readConfig(d *syntax.ConfigDecl, e *syntax.FieldAccess) types.Type {
 	start, _ := e.Bounds()
 	switch c.callerKind {
-	case kindActivity, kindGateway:
+	case kindActivity, kindGateway, kindTest:
 	case "":
 		c.report(start, "B10", "a response mapping may not read %s.%s; config is read by an activity or a gateway, and passed on as a value (ADR 0071 §2)", d.Name, e.Field)
 	default:

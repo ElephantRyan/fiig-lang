@@ -35,6 +35,7 @@ import (
 	"fiig-lang/tooling/cli/fmtcmd"
 	"fiig-lang/tooling/cli/runcmd"
 	"fiig-lang/tooling/cli/servecmd"
+	"fiig-lang/tooling/cli/testcmd"
 	"fiig-lang/tooling/lsp"
 )
 
@@ -46,6 +47,7 @@ commands:
   serve     serve a program's http adapters
   openapi   print the OpenAPI document for what serve would serve
   config    list the environment variables a program reads
+  test      run a package's tests (tests/)
   fmt       format .fiig files
   catalog   generate, search, and compare a program's registry
   lsp       run the language server an editor starts (stdin/stdout)
@@ -71,6 +73,8 @@ func main() {
 		servecmd.OpenAPIMain("fiig openapi", args)
 	case "config":
 		configcmd.Main("fiig config", args)
+	case "test":
+		testcmd.Main("fiig test", args, sql)
 	case "fmt":
 		fmtcmd.Main("fiig fmt", args)
 	case "catalog":

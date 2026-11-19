@@ -380,7 +380,9 @@ func (c *checker) callGroup(group *syntax.CapabilityDecl, scope *types.Package, 
 	}
 	name := via + "." + member
 	if c.callerKind == kindGateway {
-		if c.requires != via {
+		if c.inFake && c.requires == "" {
+			c.report(start, "P7", "this fake operation uses %s, so it says `requires %s` (ADR 0091 §4)", via, via)
+		} else if c.requires != via {
 			c.report(start, "P7", "this gateway requires %s, so it may not use %s; a gateway uses exactly the one capability it requires (ADR 0010)", c.requires, via)
 		}
 	} else {

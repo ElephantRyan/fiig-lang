@@ -711,6 +711,36 @@ header constants **or** a payload, never both. Per-client facts go on the
 header; a `match` on the enum is for per-client logic. Corpus:
 `examples/deductions`.
 
+## ADR 0091 — tests `[implemented]`
+
+```fiig
+// tests/rating_above_ten_is_refused.fiig: one test per file, under tests/.
+test ratingAboveTenIsRefused {
+    result = createValidRating(NewRating(item: "dune", score: 11, note: ""))
+    expect result is Err(problem)        // a shape; binds problem
+    expect problem == RatingError.Invalid("score", "must be from 1 to 10")
+}
+
+test chargeIsRecorded {
+    fake LedgerApi {                      // replaces LedgerApi at any depth
+        gateway record(entry: string) -> Result<None, string> {
+            return Ok(None)
+        }
+    }
+    fake StripeAccount {                  // a config's values
+        apiKey: "sk_test_1"
+    }
+
+    expect takePayment(merchant, request) is Ok(_)
+    expect calls(LedgerApi.record) == 1
+}
+```
+
+A fake must match what it replaces (T4), be reached (T5), and have every
+operation the test reaches (T6). Every test gets a clock at 2026-01-01, a
+`Random` seeded from its name, and its own empty in-memory `Database`.
+`fiig test [-run pattern] [-caps file] [-env-file file] [dir]`.
+
 ## Known gaps — no design at all
 
 ```fiig
@@ -721,4 +751,5 @@ header; a `match` on the enum is for per-client logic. Corpus:
 // declaration; how they're written inside it is undesigned.
 
 // LITERAL PATTERNS in `match` (`"ACME" -> ...`). Not decided; `if` covers it.
+// ADR 0091 open question 6: `expect r is Err(Invalid("score", _))` wants them.
 ```

@@ -192,6 +192,8 @@ func (p *printer) printDecl(d syntax.Decl) {
 		})
 	case *syntax.CapabilityDecl:
 		p.printCapabilityDecl(d)
+	case *syntax.TestDecl:
+		p.printTestDecl(d)
 	case *syntax.FormulasDecl:
 		p.printFormulasDecl(d)
 	case *syntax.ConfigDecl:
@@ -235,6 +237,48 @@ func (p *printer) printCapabilityDecl(d *syntax.CapabilityDecl) {
 	p.indent--
 	p.writeIndent()
 	p.out.WriteString("}\n")
+}
+
+// printTestDecl prints a test (ADR 0091): its fakes first, a blank line
+// after each, then its statements.
+func (p *printer) printTestDecl(d *syntax.TestDecl) {
+	line := startLine(d)
+	p.emitLine("test "+d.Name+" {", line, line)
+	p.indent++
+	// Fakes sit together, with one blank line between them and the body.
+	for i, f := range d.Fakes {
+		p.emitLeading(startLine(f))
+		p.printFakeDecl(f)
+		if i == len(d.Fakes)-1 && len(d.Body.Stmts) > 0 {
+			p.out.WriteByte('\n')
+		}
+	}
+	p.indent--
+	p.printBlockBody(d.Body)
+}
+
+// printFakeDecl prints a fake's gateways the way a capability group's are
+// printed, and its values one `name: value` per line.
+func (p *printer) printFakeDecl(f *syntax.FakeDecl) {
+	line := startLine(f)
+	p.emitLine("fake "+f.TargetName()+" {", line, line)
+	p.indent++
+	for i, g := range f.Gateways {
+		if i > 0 {
+			p.out.WriteByte('\n')
+		}
+		p.emitLeading(startLine(g))
+		p.printGatewayDecl(g)
+	}
+	for _, v := range f.Values {
+		vLine := startLine(v.Value.(syntax.Spanned))
+		p.emitLeading(vLine)
+		p.printValueLine(v.Name+": ", v.Value, vLine)
+	}
+	_, end := f.Bounds()
+	p.emitLeading(end.Line)
+	p.indent--
+	p.emitLine("}", end.Line, end.Line)
 }
 
 // printFormulasDecl prints a formulas group (ADR 0049 §2.1) the way
@@ -454,10 +498,18 @@ func (p *printer) printCallableDecl(keyword, name string, params []syntax.Param,
 func (p *printer) printGatewayDecl(d *syntax.GatewayDecl) {
 	sigLine := startLine(d)
 	sig := fmt.Sprintf("gateway %s%s -> %s", d.Name, printParams(d.Params), printType(d.ReturnType))
+	if d.Requires == "" && !d.Idempotent {
+		// A fake's operation (ADR 0091 §4) may require nothing.
+		p.emitLine(sig+" {", sigLine, sigLine)
+		p.printBlockBody(d.Body)
+		return
+	}
 	p.emitLine(sig, sigLine, sigLine)
 	p.indent++
-	p.writeIndent()
-	p.out.WriteString("requires " + d.Requires + "\n")
+	if d.Requires != "" {
+		p.writeIndent()
+		p.out.WriteString("requires " + d.Requires + "\n")
+	}
 	if d.Idempotent {
 		p.writeIndent()
 		p.out.WriteString("idempotent\n")
@@ -671,6 +723,12 @@ func (p *printer) printStmt(s syntax.Stmt) {
 		p.printValueLine("return ", s.Value, startLine(s))
 	case *syntax.ExprStmt:
 		p.printValueLine("", s.Value, startLine(s))
+	case *syntax.ExpectStmt:
+		if s.Pattern != nil {
+			p.emitLine("expect "+printExpr(s.Cond)+" is "+printPattern(s.Pattern), startLine(s), deepestLine(s.Cond))
+			break
+		}
+		p.printValueLine("expect ", s.Cond, startLine(s))
 	case *syntax.IfStmt:
 		p.printIfStmt(s)
 	case *syntax.MatchStmt:

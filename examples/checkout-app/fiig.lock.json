@@ -4,7 +4,7 @@
     {
       "path": "acme.http",
       "version": "1.0.0",
-      "hash": "sha256:da84824aa35f92e4d0b02578673ac63c67aad96c9400a39b91b70ac8ddec92cf",
+      "hash": "sha256:afc92218476e9a6436899c6cde6350d38abb0988951711ae61c91538e0294048",
       "source": "examples/acme-http",
       "capabilities": [
         "Socket"

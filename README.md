@@ -40,6 +40,7 @@ fiig check <dir>                               type-check a program
 fiig run -caps caps.json <dir> <name>           run one declaration
 fiig serve -caps caps.json <dir> <adapter>...   serve http adapters
 fiig openapi <dir> <adapter>...                 print their OpenAPI document
+fiig test <dir>                                run the tests under tests/
 fiig fmt -w <file.fiig>...                      format files
 fiig lsp                                        the language server an editor starts
 ```

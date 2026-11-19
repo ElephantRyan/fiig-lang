@@ -459,6 +459,9 @@ func (c *checker) inferCall(e *syntax.CallExpr, env map[string]types.Type) types
 	if ident, ok := e.Callee.(*syntax.Ident); ok && ident.Name == "copy" {
 		return c.checkCopy(e, env)
 	}
+	if ident, ok := e.Callee.(*syntax.Ident); ok && ident.Name == "calls" && c.inTest() {
+		return c.checkCalls(e, env)
+	}
 	if ident, ok := e.Callee.(*syntax.Ident); ok && ident.Name == types.HttpResponseName {
 		return c.checkHttpResponse(e, nil, env)
 	}
@@ -544,6 +547,9 @@ func (c *checker) callDecl(decl syntax.Decl, name string, args []syntax.Arg, sta
 		}
 		c.checkFieldArgs(paramsToFields(decl.Params), args, name, start, env, false)
 		return c.resolve(decl.ReturnType)
+	case *syntax.TestDecl:
+		c.report(start, "T1", "nothing calls a test; %s runs only under `fiig test` (ADR 0091 §1)", name)
+		return types.Unknown{}
 	case *syntax.HelperDecl:
 		// Only reachable from inside its own file (ADR 0054), where every
 		// call is allowed, so there is no composition check to make.

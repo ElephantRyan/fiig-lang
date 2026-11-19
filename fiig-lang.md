@@ -715,7 +715,7 @@ Deliverables:
 
 - Incremental compilation
 - Debugger or structured workflow trace viewer
-- Test framework with fake capability providers
+- Test framework with fake capability providers — done (ADR 0091, 2026-11-19): `fiig test`, `test` declarations under `tests/`, checked `fake` blocks, `expect` and `expect x is Pattern`
 - Package documentation generation
 - Reproducible builds
 - Security and resource-limit audit

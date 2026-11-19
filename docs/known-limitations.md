@@ -91,8 +91,6 @@ doesn't have to discover them.
 - **One account per provider.** A package's config has one value per
   program, so two Stripe accounts in one program need ADR 0043's
   parameterized providers, which aren't designed.
-- **No `fiig test`** to set config per test; run an activity with `fiig run
-  -env-file test.env`.
 
 ## Language
 
@@ -103,6 +101,24 @@ doesn't have to discover them.
 - **Streams and queue consumers** (ADR 0047) are designed, not built.
 - See `docs/specification/grammar.md`'s "Known gaps" for open syntax
   questions.
+
+## Testing
+
+`fiig test` (ADR 0091) runs a package's `tests/`. What it doesn't do yet:
+
+- **Postgres-only SQL** fails against a test's in-memory SQLite database;
+  point `-caps` at a real Postgres for those tests.
+- **No tests of workflows or adapters**, such as an HTTP request to an
+  adapter in the same process. Test what the workflow calls.
+- **`calls` only counts.** A test that wants the arguments a fake saw
+  stores them in its `Database`.
+- **No shared fakes.** A fake used by many tests is written in each.
+- **No literal patterns**: `expect r is Err(e)` then `expect e == ...`,
+  two lines where one would do.
+- **A test of a rule that chooses a provider fakes every provider** it
+  can return, so it can't run one provider's real gateway against a fake
+  of what that provider uses (`Client` under `Stripe`).
+- No snapshot tests, coverage, or benchmarks.
 
 ## Tooling
 

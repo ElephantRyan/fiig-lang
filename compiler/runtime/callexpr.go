@@ -55,6 +55,10 @@ func (in *Interp) evalIdentCall(ctx context.Context, e *syntax.CallExpr, ident *
 		return in.evalCopy(ctx, e, env)
 	case "append":
 		return in.evalAppend(ctx, e, env)
+	case "calls":
+		if testRunOf(ctx) != nil {
+			return in.evalCalls(ctx, e)
+		}
 	}
 
 	sc := in.scope(ctx)

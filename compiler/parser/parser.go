@@ -243,9 +243,9 @@ func (p *Parser) parseFilePrivateBlock(f *syntax.File) {
 		p.errorf(start, "a private block must follow the file's public declaration (ADR 0054)")
 	default:
 		switch d := f.Decls[0].(type) {
-		case *syntax.RuleDecl, *syntax.ConversionDecl, *syntax.ActivityDecl, *syntax.GatewayDecl, *syntax.WorkflowDecl:
+		case *syntax.RuleDecl, *syntax.ConversionDecl, *syntax.ActivityDecl, *syntax.GatewayDecl, *syntax.WorkflowDecl, *syntax.TestDecl:
 		default:
-			p.errorf(start, "%s %q may not have a private block; only a rule, conversion, activity, gateway, or workflow holds code a helper could serve (ADR 0054)", syntax.DeclKindName(d), syntax.DeclName(d))
+			p.errorf(start, "%s %q may not have a private block; only a rule, conversion, activity, gateway, workflow, or test holds code a helper could serve (ADR 0054)", syntax.DeclKindName(d), syntax.DeclName(d))
 		}
 	}
 	f.Private = block
@@ -379,6 +379,9 @@ func (p *Parser) parseDecl() syntax.Decl {
 	case lexer.KwConfig:
 		return p.parseConfigDecl()
 	default:
+		if p.atContextual("test") && isNameToken(p.peek(1).Kind) {
+			return p.parseTestDecl()
+		}
 		if p.cur().Kind == lexer.Ident && p.cur().Text == "value" {
 			// ADR 0055: `value Name: T` was removed, not renamed — say so
 			// rather than leaving a generic "expected a declaration".
@@ -391,7 +394,7 @@ func (p *Parser) parseDecl() syntax.Decl {
 			}
 			return nil
 		}
-		p.errorf(p.cur().Start, "expected a declaration (model/enum/rule/conversion/activity/gateway/workflow/adapter/interface/capability/formulas/config), got %s", p.cur().Kind)
+		p.errorf(p.cur().Start, "expected a declaration (model/enum/rule/conversion/activity/gateway/workflow/adapter/interface/capability/formulas/config/test), got %s", p.cur().Kind)
 		return nil
 	}
 }
@@ -627,13 +630,23 @@ func (p *Parser) parseActivityDecl() *syntax.ActivityDecl {
 }
 
 func (p *Parser) parseGatewayDecl() *syntax.GatewayDecl {
+	return p.parseGateway(false)
+}
+
+// parseGateway parses a gateway; in a fake (ADR 0091 §4) its `requires`
+// clause is optional, since a fake operation touches nothing unless it
+// says so.
+func (p *Parser) parseGateway(inFake bool) *syntax.GatewayDecl {
 	start := p.advance().Start // 'gateway'
 	name := p.expectName()
 	params := p.parseParams()
 	p.expect(lexer.Arrow)
 	ret := p.parseType()
-	p.expect(lexer.KwRequires)
-	capability := p.expectName()
+	var capability lexer.Token
+	if !inFake || p.at(lexer.KwRequires) {
+		p.expect(lexer.KwRequires)
+		capability = p.expectName()
+	}
 	idempotent := false
 	if p.at(lexer.KwIdempotent) {
 		p.advance()
@@ -729,6 +742,80 @@ func (p *Parser) parseFormulaDecl() *syntax.FormulaDecl {
 		f.Body = p.parseBlock()
 		end = f.Body.End
 	}
+	f.Span = syntax.Span{Start: start, End: end}
+	return f
+}
+
+// parseTestDecl parses `test name { fake ... statements }` (ADR 0091 §1).
+// `test` and `fake` are contextual: a test begins with the word `test`
+// and a name, and its fakes are the `fake Name {` blocks before its first
+// statement.
+func (p *Parser) parseTestDecl() *syntax.TestDecl {
+	start := p.advance().Start // 'test'
+	name := p.expectName()
+	d := &syntax.TestDecl{Name: name.Text}
+	bodyStart := p.expect(lexer.LBrace).Start
+	for p.atFake() {
+		d.Fakes = append(d.Fakes, p.parseFakeDecl())
+	}
+	var stmts []syntax.Stmt
+	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
+		before := p.pos
+		if p.atFake() {
+			p.errorf(p.cur().Start, "a fake comes before the test's first statement (ADR 0091 §4)")
+			p.parseFakeDecl()
+			continue
+		}
+		stmts = append(stmts, p.parseStatement())
+		if p.pos == before {
+			p.errorf(p.cur().Start, "unexpected token %s in statement", p.cur().Kind)
+			p.advance()
+		}
+	}
+	end := p.expect(lexer.RBrace).End
+	d.Body = &syntax.Block{Span: syntax.Span{Start: bodyStart, End: end}, Stmts: stmts}
+	d.Span = syntax.Span{Start: start, End: end}
+	return d
+}
+
+// atFake reports whether a `fake Name {` or `fake pkg.Name {` block starts
+// here.
+func (p *Parser) atFake() bool {
+	if !p.atContextual("fake") || !isNameToken(p.peek(1).Kind) {
+		return false
+	}
+	i := 2
+	for p.peek(i).Kind == lexer.Dot && isNameToken(p.peek(i+1).Kind) {
+		i += 2
+	}
+	return p.peek(i).Kind == lexer.LBrace
+}
+
+// parseFakeDecl parses `fake Target { gateway ... | name: expr ... }`
+// (ADR 0091 §4).
+func (p *Parser) parseFakeDecl() *syntax.FakeDecl {
+	start := p.advance().Start // 'fake'
+	f := &syntax.FakeDecl{Target: []string{p.expectName().Text}}
+	for p.at(lexer.Dot) {
+		p.advance()
+		f.Target = append(f.Target, p.expectName().Text)
+	}
+	p.expect(lexer.LBrace)
+	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
+		p.guardProgress(func() {
+			switch {
+			case p.at(lexer.KwGateway):
+				f.Gateways = append(f.Gateways, p.parseGateway(true))
+			case p.atFieldName() && p.peek(1).Kind == lexer.Colon:
+				field := p.advance().Text
+				p.advance() // ':'
+				f.Values = append(f.Values, syntax.Arg{Name: field, Value: p.parseExpression()})
+			default:
+				p.errorf(p.cur().Start, "a fake holds gateways or `name: value` lines (ADR 0091 §4), got %s", p.cur().Kind)
+			}
+		})
+	}
+	end := p.expect(lexer.RBrace).End
 	f.Span = syntax.Span{Start: start, End: end}
 	return f
 }
@@ -1083,6 +1170,15 @@ func (p *Parser) parseStatement() syntax.Stmt {
 		return p.parseBreakStmt()
 	case p.at(lexer.KwContinue):
 		return p.parseContinueStmt()
+	case p.atExpect():
+		start := p.advance().Start // 'expect'
+		cond := p.parseExpression()
+		var pat syntax.Pattern
+		if p.atContextual("is") && p.cur().Start.Line == p.peek(-1).End.Line {
+			p.advance() // 'is'
+			pat = p.parsePattern()
+		}
+		return &syntax.ExpectStmt{Span: syntax.Span{Start: start, End: p.cur().Start}, Cond: cond, Pattern: pat}
 	case p.atName() && p.peek(1).Kind == lexer.Colon && p.peek(2).Kind == lexer.KwFor:
 		labelTok := p.advance()
 		p.advance() // ':'
@@ -1100,6 +1196,25 @@ func (p *Parser) parseStatement() syntax.Stmt {
 		expr := p.parseExpression()
 		return &syntax.ExprStmt{Span: syntax.Span{Start: start, End: p.cur().Start}, Value: expr}
 	}
+}
+
+// atExpect reports whether an `expect` statement (ADR 0091 §3) starts
+// here: the word `expect` with an expression after it on the same line.
+// `expect = ...`, `expect: T = ...`, and `expect.x` keep their ordinary
+// meanings.
+func (p *Parser) atExpect() bool {
+	if !p.atContextual("expect") {
+		return false
+	}
+	next := p.peek(1)
+	if next.Start.Line != p.cur().Start.Line {
+		return false
+	}
+	switch next.Kind {
+	case lexer.Equals, lexer.Colon, lexer.Dot, lexer.RBrace, lexer.EOF:
+		return false
+	}
+	return true
 }
 
 func (p *Parser) parseBinding() *syntax.Binding {

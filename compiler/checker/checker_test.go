@@ -55,10 +55,18 @@ func rules(diags []Diagnostic) map[string]int {
 //
 // shop-orders-split is shop-orders after a domain is split out (ADR 0079
 // §7), so it repeats shop-orders' names by design; it is checked as the
-// program of its own it is.
+// program of its own it is. An example's tests/ is left out: it is a
+// package's only at its root (ADR 0091 §2), and tooling/cli/testcmd checks
+// and runs each one there, with its dependencies.
 func TestValidCorpusHasNoDiagnostics(t *testing.T) {
 	root := findExamplesDir(t)
-	diags, err := CheckDir(root, nil, "shop-orders-split")
+	skip := []string{"shop-orders-split"}
+	withTests, _ := filepath.Glob(filepath.Join(root, "*", "tests"))
+	for _, dir := range withTests {
+		rel, _ := filepath.Rel(root, dir)
+		skip = append(skip, rel)
+	}
+	diags, err := CheckDir(root, nil, skip...)
 	if err != nil {
 		t.Fatalf("CheckDir: %v", err)
 	}

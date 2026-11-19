@@ -62,6 +62,18 @@ func (s ConfigSource) Where(f syntax.ConfigField) string {
 // first, so one restart finds them all; in reads nothing when there are
 // any. A variable set to the empty string reads as unset (§1).
 func (in *Interp) LoadConfig(sources []ConfigSource, lookup Lookup) []string {
+	return in.loadConfig(sources, lookup, false)
+}
+
+// LoadTestConfig is LoadConfig for `fiig test` (ADR 0091 §5): a field
+// that is unset and has no default is left out instead of reported, so a
+// test that reads it fails naming it, and one that fakes it or never
+// reads it runs.
+func (in *Interp) LoadTestConfig(sources []ConfigSource, lookup Lookup) []string {
+	return in.loadConfig(sources, lookup, true)
+}
+
+func (in *Interp) loadConfig(sources []ConfigSource, lookup Lookup, partial bool) []string {
 	var problems []string
 	values := map[*syntax.ConfigDecl]Record{}
 	for _, src := range sources {
@@ -94,6 +106,7 @@ func (in *Interp) LoadConfig(sources []ConfigSource, lookup Lookup) []string {
 				rec.Fields[f.Name] = v
 			case admitsNoneType(t):
 				rec.Fields[f.Name] = None{}
+			case partial:
 			default:
 				problems = append(problems, fmt.Sprintf("%s is unset; %s needs %s", name, src.Where(f), article(withoutNoneType(t))))
 			}
@@ -234,6 +247,15 @@ func article(t types.Type) string {
 		return "an " + s
 	}
 	return "a " + s
+}
+
+// readConfig is `Name.field` on a config declaration: a test's fake of
+// it first (ADR 0091 §4), then configValue.
+func (in *Interp) readConfig(ctx context.Context, d *syntax.ConfigDecl, field string) (Value, *Fault) {
+	if v, fault, inTest := in.testConfigValue(ctx, d, field); inTest {
+		return v, fault
+	}
+	return in.configValue(d, field)
 }
 
 // configValue is `Name.field` on a config declaration, read once by

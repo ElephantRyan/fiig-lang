@@ -209,6 +209,23 @@ A `Secret` is a config value that must never be shown.
 | Q2 | A value bound to a `Database` call that SQL can't bind (§4): a model, list, map, payload enum, `Connection`, or `Secret` (a gateway that means to store one calls `.reveal()`). Bindable: `int`, `float`, `string`, `bool`, `decimal` (as TEXT), `bytes` (as a BLOB), a payload-free enum (its text form), and `None` | Attested — `database_error.fiig` (`removeBySql`); `TestDatabaseBindsScalarsEnumsAndNone` |
 | Q3 | A query's row type that SQL can't fill (§5): a model with a field one column can't hold (a list, a nested model, a union other than `T \| None`), or a `queryOne` read as two types beside `None`. A row's mismatch with the stored values is a fault at the query instead (§6-§8), since the checker doesn't know the schema | Attested — `database_error.fiig` (`readLedgers`); `TestDatabaseMisuse` |
 
+## T. Test errors (ADR 0091)
+
+A test lives under its package's `tests/` directory, and its fakes are
+checked against what they replace. Each needs a `tests/` path, which no
+`invalid-programs/` file has, so `compiler/checker`'s `TestTestBugClasses`
+attests them (T2 also by any program file).
+
+| # | Bug class | Status |
+|---|---|---|
+| T1 | A file outside `tests/` names a declaration inside it (§2): a test helper leaking into the program | Attested — `TestTestBugClasses` |
+| T2 | A `test`, `fake`, or `expect` outside `tests/` (§2) | Attested — `TestTestBugClasses` |
+| T3 | `expect` on a value that isn't `bool`, or `expect x is P` where no value of x's type can match P: `Ok`/`Err` on a non-Result, a variant of another enum or one that doesn't exist, `None` on a type without it (§3). A `match` arm gets this from A9; an `is` has no other arms | Attested — `TestTestBugClasses` |
+| T4 | A fake operation whose name, parameters, or result differ from the real one's (§4), as P1/P2 check a provider | Attested — `TestTestBugClasses` |
+| T5 | A fake the test never reaches (§4), such as one left behind by a refactor | Attested — `TestTestBugClasses` |
+| T6 | A test reaches an operation its fake lacks, or a provider a rule can return that it doesn't fake (§4) | Attested — `TestTestBugClasses` |
+| T7 | A fake of a capability with no fiig declaration (§4): there's nothing to check it against | Attested — `TestTestBugClasses` |
+
 ## Explicitly out of scope (not statically checkable)
 
 Some §3 statements read like rules but aren't things a compiler can reject —

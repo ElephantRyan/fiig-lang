@@ -351,6 +351,8 @@ func (in *Interp) evalStmt(ctx context.Context, s syntax.Stmt, env *Env, produci
 		return in.evalMatchStmt(ctx, s, env, producingHere)
 	case *syntax.TransactionStmt:
 		return in.evalTransaction(ctx, s, env, producingHere)
+	case *syntax.ExpectStmt:
+		return in.evalExpect(ctx, s, env)
 	default:
 		return nil, false, Faultf("unsupported statement %T", s)
 	}
