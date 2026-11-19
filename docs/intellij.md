@@ -1,7 +1,8 @@
 # fiig in IntelliJ IDEA
 
-The fiig plugin (ADR 0090) supports **IntelliJ IDEA 2026.2** (build 262).
-Each later release is supported when it ships; earlier ones aren't.
+The fiig plugin (ADR 0090) supports **IntelliJ IDEA 2026.2 and 2026.3**
+(builds 262 and 263), from one zip. Each later release is added when it
+ships; releases before 2026.2 aren't supported.
 
 ## Install
 
@@ -35,16 +36,17 @@ binary can be found.
 ## Build it
 
 From `ide/intellij`, with any JDK 17 or newer to run Gradle (the build
-fetches the Java 25 toolchain IntelliJ 2026.2 needs):
+fetches the Java 25 toolchain IntelliJ 2026.2 and 2026.3 need):
 
 ```
 ./gradlew buildPlugin        # build/distributions/fiig-intellij-<version>.zip
 ./gradlew test               # the plugin's tests
-./gradlew verifyPlugin       # JetBrains' Plugin Verifier against 2026.2
+./gradlew verifyPlugin       # JetBrains' Plugin Verifier against 2026.2 and 2026.3
 ./gradlew runIde             # a sandbox IDE with the plugin installed
 ```
 
-By default the build downloads IntelliJ IDEA 2026.2. To build against an
+By default the build compiles against IntelliJ IDEA 2026.2, the oldest
+supported release, and downloads it. To build against an
 installed copy instead, set `localIde` to its directory, for example in
 `~/.gradle/gradle.properties`:
 

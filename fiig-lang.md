@@ -744,7 +744,7 @@ Deliverables:
 - Quick fixes for compiler diagnostics where the fix is mechanical, such as adding a missing import or handling an unhandled `Result`
 - Comment toggling, with the line comment prefix declared in the file type — done (ADR 0090 §2, 2026-11-18)
 - Format on save through `fmt-cli` — done (ADR 0089 §7, ADR 0090 §3, 2026-11-18): Reformat Code and Actions on Save run `fiig fmt` through `fiig lsp`
-- IntelliJ plugin connecting to the language server through the platform's LSP API, or a direct integration if the LSP API is unavailable in the target IDE edition — done (ADR 0090, 2026-11-18): the platform's LSP API in IntelliJ IDEA 2026.2
+- IntelliJ plugin connecting to the language server through the platform's LSP API, or a direct integration if the LSP API is unavailable in the target IDE edition — done (ADR 0090, 2026-11-18): the platform's LSP API in IntelliJ IDEA 2026.2 and 2026.3
 - Plugin packaging and a README covering installation from disk — done (ADR 0090 §7, 2026-11-18): a zip on each release, docs/intellij.md
 
 Exit criteria:

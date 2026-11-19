@@ -39,7 +39,7 @@ object FiigColors {
 class FiigSyntaxHighlighter : SyntaxHighlighterBase() {
     override fun getHighlightingLexer(): Lexer = FiigLexer()
 
-    override fun getTokenHighlights(type: IElementType?): Array<TextAttributesKey> {
+    override fun getTokenHighlights(type: IElementType): Array<TextAttributesKey> {
         val key = when (type) {
             FiigTokens.KEYWORD -> FiigColors.KEYWORD
             FiigTokens.IDENTIFIER -> FiigColors.IDENTIFIER

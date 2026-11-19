@@ -44,7 +44,7 @@ fiig fmt -w <file.fiig>...                      format files
 fiig lsp                                        the language server an editor starts
 ```
 
-In IntelliJ IDEA 2026.2, install the fiig plugin: see
+In IntelliJ IDEA 2026.2 or 2026.3, install the fiig plugin: see
 [docs/intellij.md](docs/intellij.md).
 
 ```

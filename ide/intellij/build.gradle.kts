@@ -33,7 +33,7 @@ dependencies {
 }
 
 kotlin {
-    // IntelliJ 2026.2's classes are Java 25 (class file 69).
+    // IntelliJ 2026.2's and 2026.3's classes are Java 25 (class file 69).
     jvmToolchain(25)
     compilerOptions {
         jvmTarget = JvmTarget.JVM_21
@@ -46,12 +46,19 @@ intellijPlatform {
         version = providers.gradleProperty("pluginVersion")
         ideaVersion {
             sinceBuild = "262"
-            untilBuild = "262.*"
+            untilBuild = "263.*"
         }
     }
     pluginVerification {
+        // ADR 0090 §1a: every release in the range.
         ides {
-            if (localIde != null) local(localIde) else create(IntelliJPlatformType.IntellijIdeaUltimate, providers.gradleProperty("platformVersion").get())
+            if (localIde != null) {
+                local(localIde)
+            } else {
+                for (v in providers.gradleProperty("verifyVersions").get().split(",")) {
+                    create(IntelliJPlatformType.IntellijIdeaUltimate, v.trim())
+                }
+            }
         }
     }
 }
