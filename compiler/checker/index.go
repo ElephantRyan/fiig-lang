@@ -36,6 +36,7 @@ type TypeAt struct {
 // its member). Names are on one line, so End is start moved by the
 // name's length.
 func (c *checker) ref(start lexer.Pos, text string, decl syntax.Decl, member string) {
+	c.checkTestRef(start, text, decl)
 	if c.index == nil || decl == nil || start.Line == 0 {
 		return
 	}
@@ -82,7 +83,7 @@ func (c *checker) recordType(e syntax.Expr, t types.Type) {
 // recordTypeRefs records every declaration a written type names:
 // `Customer`, `http.Reply`, and the arguments of `List<Customer>`.
 func (c *checker) recordTypeRefs(t syntax.Type) {
-	if c.index == nil || t == nil {
+	if (c.index == nil && c.testOnly == nil) || t == nil {
 		return
 	}
 	switch t := t.(type) {

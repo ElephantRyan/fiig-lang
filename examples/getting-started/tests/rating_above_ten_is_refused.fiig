@@ -1,0 +1,6 @@
+// A rule needs no setup: pass it values and expect what it returns.
+test ratingAboveTenIsRefused {
+    result = createValidRating(NewRating(item: "dune", score: 11, note: ""))
+    expect result is Err(problem)
+    expect problem == RatingError.Invalid("score", "must be from 1 to 10")
+}

@@ -531,6 +531,9 @@ func parsePackageDir(fsys fs.FS, dir string) ([]*syntax.File, map[string][]byte,
 		if err != nil {
 			return err
 		}
+		if d.IsDir() && path == "tests" {
+			return fs.SkipDir // a dependency's tests aren't part of it (ADR 0091 §2)
+		}
 		if d.IsDir() || pathpkg.Ext(path) != ".fiig" {
 			return nil
 		}

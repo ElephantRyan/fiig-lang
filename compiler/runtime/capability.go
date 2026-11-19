@@ -80,6 +80,22 @@ func (r *CapabilityRegistry) Close() {
 	})
 }
 
+// Copy is a registry holding r's bindings, to which one test adds its own
+// (ADR 0091 §5) without touching r.
+func (r *CapabilityRegistry) Copy() *CapabilityRegistry {
+	out := NewCapabilityRegistry()
+	for name, p := range r.providers {
+		out.providers[name] = p
+	}
+	for path, byCap := range r.packages {
+		out.packages[path] = map[string]CapabilityProvider{}
+		for name, p := range byCap {
+			out.packages[path][name] = p
+		}
+	}
+	return out
+}
+
 // Register installs provider as the process-wide backing for capability.
 func (r *CapabilityRegistry) Register(capability string, provider CapabilityProvider) {
 	r.providers[capability] = provider
@@ -138,6 +154,9 @@ func (r *CapabilityRegistry) LookupIn(ctx context.Context, capability string) (C
 func (r *CapabilityRegistry) Call(ctx context.Context, capability, method string, args []Value) (Value, *Fault) {
 	p, ok := r.LookupIn(ctx, capability)
 	if !ok {
+		if f, inTest := unprovided(ctx, capability); inTest {
+			return nil, f
+		}
 		return nil, Faultf("no provider registered for capability %q", capability)
 	}
 	return p.Call(ctx, method, args)

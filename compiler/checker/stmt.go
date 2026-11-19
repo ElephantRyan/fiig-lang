@@ -195,6 +195,8 @@ func (c *checker) checkStmt(s syntax.Stmt, declReturn types.Type, env map[string
 		c.checkReturnValue(s, declReturn, env)
 	case *syntax.ExprStmt:
 		c.checkUnhandledResult(s, env)
+	case *syntax.ExpectStmt:
+		c.checkExpect(s, env)
 	case *syntax.ForStmt:
 		c.checkForStmt(s, declReturn, env)
 	case *syntax.WhileStmt:
@@ -301,6 +303,11 @@ func (c *checker) checkProducingStmt(s syntax.Stmt, declReturn types.Type, env m
 
 func (c *checker) checkReturnValue(s *syntax.ReturnStmt, declReturn types.Type, env map[string]types.Type) {
 	if s.Value == nil {
+		return
+	}
+	if c.callerKind == kindTest {
+		c.report(s.Start, "", "a test returns nothing; a bare `return` ends it early (ADR 0091 §3)")
+		c.inferExpr(s.Value, env)
 		return
 	}
 	c.checkExpected(s.Value, declReturn, env)

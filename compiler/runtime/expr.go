@@ -195,7 +195,12 @@ func (in *Interp) evalBinary(ctx context.Context, e *syntax.BinaryExpr, env *Env
 	if fault != nil || earlyReturn {
 		return right, earlyReturn, fault
 	}
+	return in.applyBinary(e, left, right)
+}
 
+// applyBinary applies a non-short-circuit operator to its operands'
+// values, which `expect` (ADR 0091 §3) also reports when it fails.
+func (in *Interp) applyBinary(e *syntax.BinaryExpr, left, right Value) (Value, bool, *Fault) {
 	switch e.Op {
 	case syntax.OpAdd, syntax.OpSub, syntax.OpMul, syntax.OpDiv, syntax.OpMod:
 		if lf, ok := left.(Float); ok {
@@ -336,12 +341,12 @@ func (in *Interp) evalFieldAccess(ctx context.Context, e *syntax.FieldAccess, en
 		if _, isLocal := env.Get(targetIdent.Name); !isLocal {
 			sc := in.scope(ctx)
 			if g, ok := sc.groups[targetIdent.Name]; ok && g.Config != nil {
-				v, fault := in.configValue(g.Config, e.Field)
+				v, fault := in.readConfig(ctx, g.Config, e.Field)
 				return v, false, fault
 			}
 			if decl, found := sc.universe.Lookup(targetIdent.Name); found {
 				if cd, ok := decl.(*syntax.ConfigDecl); ok {
-					v, fault := in.configValue(cd, e.Field)
+					v, fault := in.readConfig(ctx, cd, e.Field)
 					return v, false, fault
 				}
 				if enumDecl, ok := decl.(*syntax.EnumDecl); ok {

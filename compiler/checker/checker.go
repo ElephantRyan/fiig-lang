@@ -125,6 +125,15 @@ func (d Diagnostic) String() string {
 // under root, relative to it, that are programs of their own and are left
 // out.
 func CheckDir(root string, packages types.Packages, skip ...string) ([]Diagnostic, error) {
+	diags, _, _, err := CheckDirFiles(root, packages, skip...)
+	return diags, err
+}
+
+// CheckDirFiles is CheckDir that also returns the files it checked, in
+// walk order with their paths: the trees the check annotated (a query's
+// row type, ADR 0082 §5), so a caller that runs them, as `fiig test`
+// does, runs what was checked.
+func CheckDirFiles(root string, packages types.Packages, skip ...string) ([]Diagnostic, []string, []*syntax.File, error) {
 	sources := map[string]string{}
 	var order []string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -155,15 +164,19 @@ func CheckDir(root string, packages types.Packages, skip ...string) ([]Diagnosti
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	var path string
 	var provides map[string]string
 	if m, errs := manifest.Load(root); m != nil && len(errs) == 0 {
 		path, provides = m.Path, m.Provides
 	}
-	diags, _ := checkSourceTexts(order, sources, packages, path, provides, false)
-	return diags, nil
+	diags, checked := checkSourceTexts(order, sources, packages, path, provides, false)
+	files := make([]*syntax.File, len(order))
+	for i, rel := range order {
+		files[i] = checked[rel].File
+	}
+	return diags, order, files, nil
 }
 
 // Checked is one file of a CheckSources run: its syntax tree, its
@@ -200,6 +213,7 @@ func checkSourceTexts(order []string, sources map[string]string, packages types.
 	checked := map[string]*Checked{}
 	for _, rel := range order {
 		file, comments, errs := parser.ParseWithComments(sources[rel])
+		file.Tests = syntax.IsTestPath(rel)
 		for _, e := range errs {
 			diags = append(diags, Diagnostic{File: rel, Msg: e.Msg, At: e.At, Rule: e.Rule})
 		}
@@ -235,13 +249,21 @@ func checkSourceTexts(order []string, sources map[string]string, packages types.
 			diags[i].File = fileOf(diags[i].decl)
 		}
 	}
+	testOnly := testOnlyDecls(files)
 	for _, pf := range parsedFiles {
 		var index *Index
 		if indexed {
 			index = &Index{}
 			checked[pf.path].Index = index
 		}
-		for _, d := range checkFileIndexed(pf.file, universe, packages, path, index) {
+		for _, d := range checkFileIndexed(pf.file, universe, packages, path, index, testOnly) {
+			d.File = pf.path
+			diags = append(diags, d)
+		}
+	}
+	reach := checkTestReach(files, universe, packages)
+	for _, pf := range parsedFiles {
+		for _, d := range reach[pf.file] {
 			d.File = pf.path
 			diags = append(diags, d)
 		}
@@ -293,8 +315,13 @@ func CheckPackage(files []*syntax.File, packages types.Packages, path string, pr
 		diags = append(diags, conflictDiagnostics(cf, nil)...)
 	}
 	diags = append(diags, BindProvides(path, universe, files, packages, provides)...)
+	testOnly := testOnlyDecls(files)
 	for _, f := range files {
-		diags = append(diags, checkFile(f, universe, packages, path)...)
+		diags = append(diags, checkFileIndexed(f, universe, packages, path, nil, testOnly)...)
+	}
+	reach := checkTestReach(files, universe, packages)
+	for _, f := range files {
+		diags = append(diags, reach[f]...)
 	}
 	return diags
 }
@@ -430,15 +457,17 @@ func CheckFile(file *syntax.File, universe *types.Universe, packages types.Packa
 // package has no manifest), which is what a `use` of one of the package's
 // own formulas groups names (ADR 0049 §2.5).
 func checkFile(file *syntax.File, universe *types.Universe, packages types.Packages, ownPath string) []Diagnostic {
-	return checkFileIndexed(file, universe, packages, ownPath, nil)
+	return checkFileIndexed(file, universe, packages, ownPath, nil, nil)
 }
 
 // checkFileIndexed is checkFile filling index, when it isn't nil, with what
-// the check resolves (ADR 0089 §4).
-func checkFileIndexed(file *syntax.File, universe *types.Universe, packages types.Packages, ownPath string, index *Index) []Diagnostic {
+// the check resolves (ADR 0089 §4). testOnly is the package's declarations
+// under tests/ (ADR 0091 §2).
+func checkFileIndexed(file *syntax.File, universe *types.Universe, packages types.Packages, ownPath string, index *Index, testOnly map[syntax.Decl]bool) []Diagnostic {
 	c := &checker{index: index,
 		universe: universe, imports: ResolveFileImports(file, packages), groups: ResolveFileGroups(file, packages),
 		aliases: map[string]*syntax.Import{}, g4Reported: map[*syntax.Import]bool{}, ownPath: ownPath,
+		testOnly: testOnly, inTestsFile: file.Tests,
 	}
 	if len(file.Decls) > 0 {
 		c.entry = file.Decls[0]
@@ -527,6 +556,8 @@ func kindOf(d syntax.Decl) (declKind, bool) {
 		return kindGateway, true
 	case *syntax.WorkflowDecl:
 		return kindWorkflow, true
+	case *syntax.TestDecl:
+		return kindTest, true
 	}
 	return "", false
 }
@@ -704,6 +735,19 @@ type checker struct {
 	// mapKeyReported keeps checkMapKey to one M1 per position, since a
 	// type can be resolved more than once.
 	mapKeyReported map[lexer.Pos]bool
+
+	// ADR 0091. testOnly is every declaration in the package's tests/
+	// files (nil when it has none), which only a file under tests/ may
+	// name (T1); inTestsFile is whether the file being checked is one.
+	testOnly    map[syntax.Decl]bool
+	inTestsFile bool
+	t1Reported  map[lexer.Pos]bool
+	// inFake is true while checking a fake's operation, which is checked
+	// as a gateway (§4). fakes and fakeOps are the current test's fakes,
+	// by target as written, for calls(...).
+	inFake  bool
+	fakes   map[string]fakeTarget
+	fakeOps map[string]bool
 }
 
 // lookup resolves a bare name against the universe for the purpose of
@@ -997,6 +1041,8 @@ func (c *checker) checkDecl(d syntax.Decl) {
 		c.checkFormulasDecl(d)
 	case *syntax.ConfigDecl:
 		c.checkConfigDecl(d)
+	case *syntax.TestDecl:
+		c.checkTestDecl(d)
 	}
 }
 
@@ -1011,6 +1057,7 @@ const (
 	kindGateway    declKind = "gateway"
 	kindWorkflow   declKind = "workflow"
 	kindFormula    declKind = "formula" // ADR 0049
+	kindTest       declKind = "test"    // ADR 0091
 )
 
 // allowedCallees is §3.2's composition matrix. Rule calls only formulas —
@@ -1036,6 +1083,8 @@ var allowedCallees = map[declKind]map[declKind]bool{
 	kindActivity:   {kindRule: true, kindConversion: true, kindGateway: true, kindActivity: true, kindFormula: true},
 	kindGateway:    {kindRule: true, kindConversion: true, kindFormula: true},
 	kindWorkflow:   {kindRule: true, kindConversion: true, kindActivity: true, kindGateway: true, kindFormula: true},
+	// ADR 0091 §1: a test calls what a workflow may.
+	kindTest: {kindRule: true, kindConversion: true, kindActivity: true, kindGateway: true, kindFormula: true},
 }
 
 // bugClassForEffect maps a disallowed (caller, callee) pair to its
@@ -1069,7 +1118,7 @@ func bugClassForEffect(caller, callee declKind) string {
 		}
 	case kindConversion:
 		return "B5"
-	case kindActivity, kindWorkflow:
+	case kindActivity, kindWorkflow, kindTest:
 		return "B8"
 	}
 	return ""
@@ -1099,7 +1148,7 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 				c.report(at, "B4", "gateway may call workflow %s only if it requires %s; this one requires %s, and a gateway requires exactly one thing (ADR 0079 §1, ADR 0010)", calleeName, foreign, c.requires)
 			}
 			return
-		case kindActivity, kindWorkflow:
+		case kindActivity, kindWorkflow, kindTest:
 			c.report(at, "B8", "%s may not call workflow %s; another package's workflow is called through a gateway that requires %s (ADR 0079 §1)", c.callerKind, calleeName, foreign)
 			return
 		}
@@ -1114,7 +1163,7 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 		c.inSortKey = true
 		return
 	}
-	if calleeKind == kindWorkflow && (c.callerKind == kindGateway || c.callerKind == kindActivity || c.callerKind == kindWorkflow) {
+	if calleeKind == kindWorkflow && (c.callerKind == kindGateway || c.callerKind == kindActivity || c.callerKind == kindWorkflow || c.callerKind == kindTest) {
 		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s may not call workflow %q; a workflow is called only from outside its package, by an adapter or by another package's gateway (ADR 0079 §2)", c.callerKind, calleeName)
 		return
 	}

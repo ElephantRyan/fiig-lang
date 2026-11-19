@@ -26,12 +26,17 @@ import (
 // compiler/checker.CheckDir's own walk — but (unlike CheckDir) returns
 // the parsed files themselves, since a host needs them to build a
 // Universe and actually execute against, not just report diagnostics.
+// The package's tests/ directory is left out: tests aren't part of the
+// program (ADR 0091 §2).
 func LoadFiles(root string) ([]*syntax.File, []checker.Diagnostic, error) {
 	var files []*syntax.File
 	var diags []checker.Diagnostic
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if d.IsDir() && path == filepath.Join(root, "tests") {
+			return filepath.SkipDir
 		}
 		if d.IsDir() || filepath.Ext(path) != ".fiig" {
 			return nil

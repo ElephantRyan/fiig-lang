@@ -80,6 +80,8 @@ func collectStmtCallNames(s Stmt, out map[string]bool) {
 		}
 	case *ExprStmt:
 		CollectExprCallNames(s.Value, out)
+	case *ExpectStmt:
+		CollectExprCallNames(s.Cond, out)
 	case *IfStmt:
 		CollectExprCallNames(s.Cond, out)
 		collectBlockCallNames(s.Then, out)
@@ -228,6 +230,8 @@ func walkStmtExprs(s Stmt, visit func(Expr)) {
 		walkExpr(s.Value, visit)
 	case *ExprStmt:
 		walkExpr(s.Value, visit)
+	case *ExpectStmt:
+		walkExpr(s.Cond, visit)
 	case *IfStmt:
 		walkExpr(s.Cond, visit)
 		walkBlockExprs(s.Then, visit)

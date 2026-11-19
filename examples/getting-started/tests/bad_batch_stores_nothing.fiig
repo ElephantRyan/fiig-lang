@@ -1,0 +1,12 @@
+// saveRatings is all or nothing: the second rating fails its check, so the
+// first one is rolled back with it.
+test badBatchStoresNothing {
+    createSchema()
+    saved = saveRatings(
+        [Rating(item: "dune", score: 9, note: "great"), Rating(item: "emma", score: 0, note: "unrated")],
+    )
+    expect saved is Err(problem)
+    expect problem == RatingError.Invalid("score", "must be from 1 to 10")
+    expect findRating("dune") is Err(missing)
+    expect missing == RatingError.NotFound("dune")
+}

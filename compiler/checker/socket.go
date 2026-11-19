@@ -37,7 +37,7 @@ func (c *checker) callPrimitive(name, op string, args []syntax.Arg, start lexer.
 func (c *checker) checkPrimitiveCaller(name, op string, start lexer.Pos) {
 	if capability.IsLocalEffect(name) {
 		switch c.callerKind {
-		case kindActivity, kindGateway:
+		case kindActivity, kindGateway, kindTest:
 		case kindWorkflow:
 			c.report(start, "B10", "a workflow may not call %s.%s; call an activity that does, so the workflow stays repeatable (ADR 0068 §4)", name, op)
 		default:
@@ -46,6 +46,10 @@ func (c *checker) checkPrimitiveCaller(name, op string, start lexer.Pos) {
 		return
 	}
 	switch {
+	case c.callerKind == kindTest:
+		// ADR 0091 §1: a test arranges data through a capability directly.
+	case c.callerKind == kindGateway && c.inFake && c.requires == "":
+		c.report(start, "P7", "this fake operation uses %s, so it says `requires %s` (ADR 0091 §4)", name, name)
 	case c.callerKind == kindGateway && c.requires != name:
 		c.report(start, "P7", "this gateway requires %s, so it may not use %s; a gateway uses exactly the one capability it requires (ADR 0010)", c.requires, name)
 	case c.callerKind != kindGateway:

@@ -5,6 +5,8 @@
 package syntax
 
 import (
+	"strings"
+
 	"fiig-lang/compiler/decimal"
 	"fiig-lang/compiler/lexer"
 )
@@ -38,6 +40,16 @@ type File struct {
 	Imports []*Import
 	Decls   []Decl
 	Private *PrivateBlock // nil when the file has no private block
+	// Tests marks a file under its package's tests/ directory (ADR 0091
+	// §2), set by whoever reads the file from disk: it may hold a test,
+	// and nothing outside tests/ may name what it declares (T1, T2).
+	Tests bool
+}
+
+// IsTestPath reports whether rel, a path relative to a package's root
+// with either separator, is under its tests/ directory (ADR 0091 §2).
+func IsTestPath(rel string) bool {
+	return strings.HasPrefix(rel, "tests/") || strings.HasPrefix(rel, "tests\\")
 }
 
 // PrivateBlock is ADR 0054's `private { ... }`: members visible only inside
@@ -387,6 +399,42 @@ func (d *ConfigDecl) Field(name string) (ConfigField, bool) {
 	return ConfigField{}, false
 }
 
+// TestDecl is `test name { fake ... statements }` (ADR 0091 §1): an entry
+// point nothing calls, living under tests/ (§2). Fakes are the `fake`
+// blocks at the start of its body, kept apart from the statements after
+// them.
+type TestDecl struct {
+	Span
+	Name  string
+	Fakes []*FakeDecl
+	Body  *Block
+}
+
+// FakeDecl is `fake Target { ... }` in a test (ADR 0091 §4): the
+// operations of a capability or capability group, written as gateways
+// (Gateways), or the values of a config, Clock, or Random (Values, one
+// `name: expr` each). Target is the name as written, which may be
+// qualified (`core.LedgerApi`).
+type FakeDecl struct {
+	Span
+	Target   []string
+	Gateways []*GatewayDecl
+	Values   []Arg
+}
+
+// TargetName is the fake's target as written: `LedgerApi`, `core.LedgerApi`.
+func (f *FakeDecl) TargetName() string { return strings.Join(f.Target, ".") }
+
+// Gateway returns the fake's operation named name, or nil.
+func (f *FakeDecl) Gateway(name string) *GatewayDecl {
+	for _, g := range f.Gateways {
+		if g.Name == name {
+			return g
+		}
+	}
+	return nil
+}
+
 type WorkflowDecl struct {
 	Span
 	Name       string
@@ -489,6 +537,7 @@ func (*CapabilityDecl) declNode() {}
 func (*FormulasDecl) declNode()   {}
 func (*FormulaDecl) declNode()    {}
 func (*ConfigDecl) declNode()     {}
+func (*TestDecl) declNode()       {}
 
 // DeclName returns a declaration's name, generically over every kind.
 func DeclName(d Decl) string {
@@ -520,6 +569,8 @@ func DeclName(d Decl) string {
 	case *FormulaDecl:
 		return d.Name
 	case *ConfigDecl:
+		return d.Name
+	case *TestDecl:
 		return d.Name
 	default:
 		return ""
@@ -561,6 +612,8 @@ func DeclKindName(d Decl) string {
 		return "formula"
 	case *ConfigDecl:
 		return "config"
+	case *TestDecl:
+		return "test"
 	default:
 		return "declaration"
 	}
@@ -717,6 +770,39 @@ type ExprStmt struct {
 	Value Expr
 }
 
+// ExpectStmt is `expect cond` or `expect value is Pattern` (ADR 0091
+// §3), legal in a test and its fakes. Without a Pattern, Cond is a bool
+// and the test fails when it's false; with one, Cond is any value and the
+// test fails when it doesn't match, and the names the pattern binds are
+// locals for the rest of the block.
+type ExpectStmt struct {
+	Span
+	Cond    Expr
+	Pattern Pattern // nil for `expect cond`
+}
+
+// PatternBinds reports whether p binds a name: `found` in `Ok(found)`, or
+// a named segment of a byte pattern.
+func PatternBinds(p Pattern) bool {
+	switch p := p.(type) {
+	case *NamePattern:
+		return len(p.Path) == 1 && p.Path[0] != "None"
+	case *ConstructorPattern:
+		for _, a := range p.Args {
+			if PatternBinds(a) {
+				return true
+			}
+		}
+	case *BytesPattern:
+		for _, s := range p.Segments {
+			if s.Name != "" && s.Name != "_" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (*Binding) stmtNode()         {}
 func (*IfStmt) stmtNode()          {}
 func (*ReturnStmt) stmtNode()      {}
@@ -727,6 +813,7 @@ func (*WhileStmt) stmtNode()       {}
 func (*BreakStmt) stmtNode()       {}
 func (*ContinueStmt) stmtNode()    {}
 func (*ExprStmt) stmtNode()        {}
+func (*ExpectStmt) stmtNode()      {}
 
 // Body is the `( expression | block )` alternative used by if/match-arm/
 // concurrent/retry bodies.
