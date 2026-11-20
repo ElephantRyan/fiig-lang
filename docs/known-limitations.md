@@ -9,8 +9,8 @@ doesn't have to discover them.
 - **SQLite and Postgres are the databases built in.** SQLite through
   `libraries/sql` (Go), Postgres through `fiig.postgres`, written in fiig
   (ADR 0085). No MySQL. Redis is `fiig.redis` (ADR 0110): one command
-  per call, string arguments only, no pipelining, pub/sub, Sentinel, or
-  Cluster.
+  per call, no pipelining, pub/sub, Sentinel, or Cluster. Its stream
+  source needs Redis 6.2 or later, for `XPENDING ... IDLE`.
 - **No certificate revocation checks** (CRL, OCSP), certificate pinning,
   keys in an HSM or cloud KMS, or encrypted private keys (ADR 0086 open
   questions). Custom CAs and client certificates are configured on
