@@ -25,12 +25,34 @@ func CheckModulePackages(root string, loaded *loader.Loaded) ([]checker.Diagnost
 	var diags []checker.Diagnostic
 	var out []CheckedPackage
 	for _, m := range loaded.Module {
-		d, paths, files, err := checker.CheckLayoutPackage(root, m.Layout, m.Package.Dependencies, m.Package.Path, loaded.Manifest.Provides, nil)
+		siblings := moduleSiblings(loaded, m.Package.Path)
+		d, paths, files, err := checker.CheckLayoutPackage(root, m.Layout, m.Package.Dependencies, siblings, m.Package.Path, loaded.Manifest.Provides, nil)
 		if err != nil {
 			return nil, nil, err
 		}
 		diags = append(diags, d...)
-		out = append(out, CheckedPackage{Path: m.Package.Path, Files: files, Paths: paths, Packages: m.Package.Dependencies})
+		// Tests run against the siblings they import, as they were checked.
+		known := types.Packages{}
+		for k, v := range siblings {
+			known[k] = v
+		}
+		for k, v := range m.Package.Dependencies {
+			known[k] = v
+		}
+		out = append(out, CheckedPackage{Path: m.Package.Path, Files: files, Paths: paths, Packages: known})
 	}
 	return diags, out, nil
+}
+
+// moduleSiblings is the module's folder packages other than the one at
+// path (ADR 0105), which that package's tests may import beyond what its
+// code does. Module holds no top-level package: its folders can't import it.
+func moduleSiblings(loaded *loader.Loaded, path string) types.Packages {
+	siblings := types.Packages{}
+	for _, m := range loaded.Module {
+		if m.Package.Path != path {
+			siblings[m.Package.Path] = m.Package
+		}
+	}
+	return siblings
 }

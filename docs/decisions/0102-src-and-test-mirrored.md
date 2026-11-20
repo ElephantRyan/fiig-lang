@@ -92,6 +92,26 @@ promise several entry points must all keep, which none of them owns:
 abs-recommendations' `private_ratings_stay_private` rates once and checks
 four separate reads. Its files may hold many tests, as any test file.
 
+### 3a. A test may import any package of its module
+
+A test is in its folder's package, so it calls that package's declarations
+by name (ADR 0105). It may also `use` any other package of the module,
+whether or not the package's own code does. A test needs more than its code
+does: it fakes what the code reaches (ADR 0091 §4) and, since T6 asks it to
+fake every provider the code could choose, it must name providers in
+packages the code never imports. Without this, T6 asks for a fake that the
+import rule forbids (abs-recommendations G47).
+
+- **Go's rule.** An external test package (`p_test`) may import any package,
+  including one that imports `p`.
+- **The package's code is unchanged.** A source file imports only the
+  packages its package depends on.
+- **No cycles from tests.** A test is never imported, and the loader builds
+  the module's packages from their source files' `use` lines alone, so a
+  test's imports add no edge to the graph.
+- **The top-level package** isn't importable from a folder (ADR 0105), tests
+  included.
+
 ### 4. Moving a package
 
 `fiig fmt -layout <dir>` moves a package to this layout: code into
@@ -153,3 +173,10 @@ Built 2026-11-20 with ADRs 0104 and 0105.
   before: the corpus's teaching examples and `invalid-programs` stay so.
 - Moved: the 18 corpus modules, the 3 stdlib packages, and
   getting-started, which gained a manifest.
+- **Tests import siblings** (§3a, 2026-11-20): `checker.CheckSourcesWithSiblings`
+  and `CheckLayoutPackage` take the module's other packages, and a test file
+  (`file.Tests`) is checked, and T6's reach computed, with them added to its
+  dependencies. `fiig test` runs a package's tests against them too, and the
+  language server checks and navigates the same way. The message "isn't a
+  dependency of this package; add its package to fiig.pkg.json" now reaches a
+  test only for a package outside the module.
