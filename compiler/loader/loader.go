@@ -86,6 +86,18 @@ func (k reqKey) String() string { return fmt.Sprintf("%s (major %d)", k.path, k.
 // it came from doesn't make two conflicting installs any less
 // conflicting.
 func Load(root string, workspaceRoots []string) (*Loaded, []error) {
+	return load(root, workspaceRoots, false)
+}
+
+// LoadForEditor is Load for a language server: the root module's folder
+// packages (ADR 0105) are built even when one doesn't check, so the
+// editor can check each with the open files' text and still resolve its
+// dependents.
+func LoadForEditor(root string, workspaceRoots []string) (*Loaded, []error) {
+	return load(root, workspaceRoots, true)
+}
+
+func load(root string, workspaceRoots []string, lenient bool) (*Loaded, []error) {
 	rootManifest, errs := manifest.Load(root)
 	if len(errs) > 0 {
 		return nil, errs
@@ -96,6 +108,9 @@ func Load(root string, workspaceRoots []string) (*Loaded, []error) {
 	}
 	workspaceRoots = withManifestWorkspaces(root, rootManifest.Workspaces, workspaceRoots)
 	rootLayout := layout.IsModule(os.DirFS(root))
+	if err := oldLayout(os.DirFS(root), filepath.ToSlash(root)); err != nil {
+		return nil, []error{err}
+	}
 	var rootCapabilities []string
 	if !rootLayout {
 		rootFiles, _, err := parsePackageDir(os.DirFS(root), root)
@@ -145,7 +160,7 @@ func Load(root string, workspaceRoots []string) (*Loaded, []error) {
 	if rootLayout {
 		// ADR 0105: the root module's folders are packages the loader builds;
 		// its top-level package is the commands' to check, with its tests.
-		b, errs := buildModule(os.DirFS(root), rootManifest.Path, "", packages, rootManifest.Provides, true)
+		b, errs := buildModule(os.DirFS(root), rootManifest.Path, "", packages, rootManifest.Provides, true, lenient)
 		if len(errs) > 0 {
 			return nil, errs
 		}
@@ -545,6 +560,9 @@ func (l *loaderState) build(key reqKey) (*types.Package, []error) {
 	if layout.IsModule(inst.fsys) {
 		return l.buildLayoutModule(key, inst, depPackages)
 	}
+	if err := oldLayout(inst.fsys, filepath.ToSlash(inst.dir)); err != nil {
+		return nil, []error{err}
+	}
 
 	files, hashed, err := parsePackageDir(inst.fsys, inst.dir)
 	if err != nil {
@@ -671,7 +689,7 @@ func boolKeys[V any](m map[string]V) map[string]bool {
 // under its src/, its migrations, and its lockfile entry.
 func (l *loaderState) buildLayoutModule(key reqKey, inst discovered, deps types.Packages) (*types.Package, []error) {
 	where := filepath.ToSlash(inst.dir)
-	b, errs := buildModule(inst.fsys, key.path, where, deps, inst.manifest.Provides, false)
+	b, errs := buildModule(inst.fsys, key.path, where, deps, inst.manifest.Provides, false, false)
 	if len(errs) > 0 {
 		return nil, errs
 	}
@@ -712,4 +730,26 @@ func packagePaths(deps map[string]string, pkgs types.Packages) map[string]string
 		out[k] = ""
 	}
 	return out
+}
+
+// oldLayout is the error for a package with a manifest whose code isn't
+// under src/ (ADRs 0102, 0105), or nil.
+func oldLayout(fsys fs.FS, where string) error {
+	if layout.IsModule(fsys) {
+		return nil
+	}
+	found := ""
+	fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || found != "" {
+			return fs.SkipAll
+		}
+		if !d.IsDir() && pathpkg.Ext(p) == ".fiig" {
+			found = p
+		}
+		return nil
+	})
+	if found == "" {
+		return nil
+	}
+	return fmt.Errorf("%s: a package with a fiig.pkg.json keeps its code under src/ and its tests under test/ (ADRs 0102, 0105), and %s isn't; run fiig fmt -layout %s", where, found, where)
 }

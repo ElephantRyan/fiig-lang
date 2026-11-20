@@ -236,7 +236,7 @@ func TestMatchedSegmentsShareTheInput(t *testing.T) {
 // TestCorpusHTTPRequestBytes pins acme-http's request to the exact bytes on
 // the wire, CRLF line endings included (ADR 0061's first attested `\r`).
 func TestCorpusHTTPRequestBytes(t *testing.T) {
-	u := loadUniverse(t, "acme-http/models", "acme-http/conversions")
+	u := loadUniverse(t, "acme-http/src")
 	in := newTestInterp(u, nil)
 	request := Record{TypeName: "WebRequest", Fields: map[string]Value{
 		"host": Str("pay.example"), "path": Str("/v1/charges"), "body": Str("amount=5"), "authorization": None{},

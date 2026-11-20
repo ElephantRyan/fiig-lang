@@ -1,0 +1,133 @@
+use fiig.sql as db
+
+// One authentication request (§6): AuthenticationOk, a cleartext password
+// on TLS only, or SCRAM-SHA-256's three steps. MD5 is refused by name.
+conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
+    if code == 0 {
+        return copy(state, send: <<>>)
+    }
+    if code == 5 {
+        return copy(
+            state,
+            send: <<>>,
+            failed: db.DatabaseError.Protocol(reason: "the server asks for MD5 password authentication, which fiig.postgres doesn't support (ADR 0085 §6); set the role's password with SCRAM-SHA-256"),
+        )
+    }
+    if code == 3 {
+        if not state.settings.secure {
+            return copy(
+                state,
+                send: <<>>,
+                failed: db.DatabaseError.Protocol(reason: "the server asks for the password in clear text, which fiig.postgres sends only over TLS (ADR 0085 §6)"),
+            )
+        }
+        match state.settings.password {
+            None -> {
+                return copy(
+                    state,
+                    send: <<>>,
+                    failed: db.DatabaseError.Protocol(reason: "the server asks for a password, and the settings have none"),
+                )
+            }
+            password -> {
+                return copy(state, send: pgMessage(112, cString(password)))
+            }
+        }
+    }
+    if code == 10 {
+        if not cStrings(data).contains("SCRAM-SHA-256") {
+            return copy(
+                state,
+                send: <<>>,
+                failed: db.DatabaseError.Protocol(reason: "the server offers no SASL mechanism fiig.postgres supports; it needs SCRAM-SHA-256"),
+            )
+        }
+        if state.settings.password == None {
+            return copy(
+                state,
+                send: <<>>,
+                failed: db.DatabaseError.Protocol(reason: "the server asks for a password, and the settings have none"),
+            )
+        }
+        first = "n,,${state.clientFirstBare}".utf8()
+        length = first.length()
+        return copy(
+            state,
+            send: pgMessage(112, <<cString("SCRAM-SHA-256"): bytes, length: i32be, first: bytes>>),
+        )
+    }
+    if code == 11 {
+        match state.settings.password {
+            None -> {
+                return copy(
+                    state,
+                    send: <<>>,
+                    failed: db.DatabaseError.Protocol(reason: "the server asks for a password, and the settings have none"),
+                )
+            }
+            password -> {
+                match data.utf8() {
+                    None -> {
+                        return copy(
+                            state,
+                            send: <<>>,
+                            failed: db.DatabaseError.Protocol(reason: "the server's SCRAM message isn't text"),
+                        )
+                    }
+                    serverFirst -> {
+                        match computeScramFinal(password.utf8(), state.clientFirstBare, state.clientNonce, serverFirst) {
+                            Err(reason) -> {
+                                return copy(
+                                    state,
+                                    send: <<>>,
+                                    failed: db.DatabaseError.Protocol(reason: reason),
+                                )
+                            }
+                            Ok(final) -> {
+                                return copy(
+                                    state,
+                                    send: pgMessage(112, final.message.utf8()),
+                                    expectSignature: final.serverSignature,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if code == 12 {
+        if state.expectSignature.length() == 0 {
+            return copy(
+                state,
+                send: <<>>,
+                failed: db.DatabaseError.Protocol(reason: "the server ended SCRAM before the client's proof"),
+            )
+        }
+        match data.utf8() {
+            None -> None
+            text -> {
+                if text.startsWith("v=") {
+                    match text.removePrefix("v=").fromBase64() {
+                        None -> None
+                        signature -> {
+                            if crypto.equal(signature, state.expectSignature) {
+                                return copy(state, send: <<>>, verified: true)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return copy(
+            state,
+            send: <<>>,
+            failed: db.DatabaseError.Protocol(reason: "the server's SCRAM signature is wrong, so it doesn't know the password"),
+        )
+    }
+    return copy(
+        state,
+        send: <<>>,
+        failed: db.DatabaseError.Protocol(reason: "the server asks for authentication method ${code}, which fiig.postgres doesn't support"),
+    )
+}

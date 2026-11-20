@@ -165,7 +165,7 @@ func (s *server) handle(m *message) (any, *rpcError) {
 		if s.workspace != "" {
 			s.pkgs = discover(s.workspace)
 			for _, p := range s.pkgs {
-				s.pending[p.root] = true
+				s.pending[p.id()] = true
 			}
 		}
 		s.mu.Unlock()
@@ -301,7 +301,7 @@ func (s *server) changed(uri, text string, opened, fromDisk bool) {
 		p = pkgInfo{root: filepath.Dir(path), loose: true}
 		s.pkgs = append(s.pkgs, p)
 	}
-	s.pending[p.root] = true
+	s.pending[p.id()] = true
 	if s.timer != nil {
 		s.timer.Stop()
 	}
@@ -320,7 +320,7 @@ func (s *server) analyze() {
 	s.mu.Lock()
 	var todo []pkgInfo
 	for _, p := range s.pkgs {
-		if s.pending[p.root] {
+		if s.pending[p.id()] {
 			todo = append(todo, p)
 		}
 	}
@@ -340,13 +340,13 @@ func (s *server) analyze() {
 	for len(todo) > 0 {
 		p := todo[0]
 		todo = todo[1:]
-		if done[p.root] {
+		if done[p.id()] {
 			continue
 		}
-		done[p.root] = true
+		done[p.id()] = true
 		snap := check(p, workspace, lookup)
 		s.mu.Lock()
-		s.snaps[key(p.root)] = snap
+		s.snaps[key(p.id())] = snap
 		for path, c := range snap.checked {
 			if c.ParseErrors == 0 {
 				s.lastGood[key(path)] = c
@@ -358,7 +358,7 @@ func (s *server) analyze() {
 		if snap.path != "" {
 			changedPaths = append(changedPaths, snap.path)
 			for _, other := range s.snaps {
-				if done[other.pkg.root] {
+				if done[other.pkg.id()] {
 					continue
 				}
 				for _, dep := range other.depPaths {

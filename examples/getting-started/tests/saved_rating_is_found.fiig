@@ -1,8 +1,0 @@
-// Database is a new, empty in-memory database in every test, so gateways
-// run their real SQL.
-test savedRatingIsFound {
-    saveRating(Rating(item: "dune", score: 9, note: "great"))
-    expect findRating("dune") is Ok(found)
-    expect found == Rating(item: "dune", score: 9, note: "great")
-    expect findRating("emma") is Err(_)
-}

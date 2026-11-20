@@ -37,7 +37,7 @@ type builtModule struct {
 // import order. skipRoot leaves out the top-level package, which the
 // commands check for the root module, with its tests. where names the
 // module in errors: "" for the root module, whose paths are relative to it.
-func buildModule(fsys fs.FS, modulePath, where string, deps types.Packages, provides map[string]string, skipRoot bool) (*builtModule, []error) {
+func buildModule(fsys fs.FS, modulePath, where string, deps types.Packages, provides map[string]string, skipRoot, lenient bool) (*builtModule, []error) {
 	prefix := func(e error) error {
 		if where == "" {
 			return e
@@ -133,9 +133,12 @@ func buildModule(fsys fs.FS, modulePath, where string, deps types.Packages, prov
 		for _, d := range diags {
 			errs = append(errs, prefix(fmt.Errorf("%s", d)))
 		}
-		if len(errs) > 0 {
+		if len(errs) > 0 && !lenient {
 			return nil, errs
 		}
+		// Lenient (an editor's load): build it anyway, so its dependents
+		// still resolve; the editor checks each package itself.
+		errs = nil
 		pkg, _ := checker.BuildPackage(files, pkgDeps)
 		pkg.Path = path
 		pkg.Provides = checker.CodeProvides(files, path, provides)

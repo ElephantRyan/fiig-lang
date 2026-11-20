@@ -10,21 +10,22 @@ import (
 	"fiig-lang/tooling/cli/testcmd"
 )
 
-// TestCorpusTestsPass runs every example's tests/ as `fiig test -workspace
-// examples` does (ADR 0091 §7): checked with its dependencies, then run,
-// each gateway test on its own in-memory SQLite database.
+// TestCorpusTestsPass is every corpus module (a folder with fiig.pkg.json,
+// ADR 0105) checked with its dependencies and its tests run, as `fiig test`
+// runs them: each gateway test on its own in-memory SQLite database. A
+// module with no tests is still checked, every folder package of it.
 func TestCorpusTestsPass(t *testing.T) {
 	examples, err := filepath.Abs(filepath.Join("..", "..", "examples"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	dirs, _ := filepath.Glob(filepath.Join(examples, "*", "tests"))
-	if len(dirs) == 0 {
-		t.Fatal("no example has tests/")
+	manifests, _ := filepath.Glob(filepath.Join(examples, "*", "fiig.pkg.json"))
+	if len(manifests) == 0 {
+		t.Fatal("no example is a module")
 	}
 	sql := runtime.FactoryRegistry{"sql": fiigsql.Factory}
-	for _, dir := range dirs {
-		root := filepath.Dir(dir)
+	for _, m := range manifests {
+		root := filepath.Dir(m)
 		t.Run(filepath.Base(root), func(t *testing.T) {
 			// fiig test writes the lockfile, with sources relative to the
 			// working directory; put it back.
@@ -32,11 +33,7 @@ func TestCorpusTestsPass(t *testing.T) {
 			if before, err := os.ReadFile(lock); err == nil {
 				defer os.WriteFile(lock, before, 0o644)
 			}
-			var workspaces []string
-			if _, err := os.Stat(filepath.Join(root, "fiig.pkg.json")); err == nil {
-				workspaces = []string{examples}
-			}
-			if code := testcmd.Run(root, workspaces, sql); code != 0 {
+			if code := testcmd.Run(root, []string{examples}, sql); code != 0 {
 				t.Fatalf("fiig test exited %d", code)
 			}
 		})

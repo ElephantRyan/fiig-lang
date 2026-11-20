@@ -21,6 +21,7 @@ import (
 	"fiig-lang/compiler/loader"
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/types"
+	"fiig-lang/internal/fixture"
 )
 
 // ADR 0085: fiig.postgres, the driver built into the toolchain, against
@@ -54,7 +55,8 @@ var pgProgram = map[string]string{
 func pgLoad(t *testing.T) (types.Packages, *types.Universe, map[string]map[string]*types.Package, map[string]map[string]*types.GroupRef) {
 	t.Helper()
 	root := t.TempDir()
-	for name, src := range pgProgram {
+	for name, src := range fixture.Module(pgProgram) {
+		os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
 		if err := os.WriteFile(filepath.Join(root, name), []byte(src), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -107,7 +109,7 @@ func pgCall(t *testing.T, name string, args map[string]runtime.Value) runtime.Va
 
 func TestScramMatchesRFC7677(t *testing.T) {
 	serverFirst := "r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096"
-	v := pgCall(t, "scramFinal", map[string]runtime.Value{
+	v := pgCall(t, "computeScramFinal", map[string]runtime.Value{
 		"password":        runtime.Bytes{B: []byte("pencil")},
 		"clientFirstBare": runtime.Str("n=user,r=rOprNGfwEbeRWgbNEkqO"),
 		"clientNonce":     runtime.Str("rOprNGfwEbeRWgbNEkqO"),
@@ -132,7 +134,7 @@ func TestScramRefusesAHostileServerFirst(t *testing.T) {
 		"r=abcEXTRA,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=5000000",
 		"r=abcEXTRA,i=4096",
 	} {
-		v := pgCall(t, "scramFinal", map[string]runtime.Value{
+		v := pgCall(t, "computeScramFinal", map[string]runtime.Value{
 			"password": runtime.Bytes{B: []byte("pw")}, "clientFirstBare": runtime.Str("n=,r=abc"),
 			"clientNonce": runtime.Str("abc"), "serverFirst": runtime.Str(first),
 		})

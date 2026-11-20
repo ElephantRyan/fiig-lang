@@ -1,7 +1,6 @@
 # ADR 0104: A File Is Named After Its Declaration, in TitleCase
 
-Status: Accepted (2026-11-20). Not yet implemented; built with ADRs
-0102-0107 as one migration.
+Status: Accepted (2026-11-20). Implemented 2026-11-20.
 Date: 2026-11-20
 Amends: fiig-lang.md §3.9 (files).
 Related: ADR 0102 (test files mirror source files), ADR 0105 (folders are
@@ -48,3 +47,13 @@ declaration, so none of snake_case's reasons apply.
 ## Consequences
 
 - Every file is renamed once, by `fiig fmt -layout`.
+
+## Implementation notes
+
+Built 2026-11-20. `layout.FileNameProblem` is checked by the loader for
+every package and by `fiig check` for the top level; the language server
+reports it too. Moving the corpus found three conversions named like
+their models (`webReply`/`WebReply`, `relayAddress`, and in fiig.postgres
+`pgFrame` and `scramFinal`), renamed `readWebReply`, `readRelayAddress`,
+`nextFrame`, `computeScramFinal`. The IntelliJ plugin's New File action
+names files in TitleCase.

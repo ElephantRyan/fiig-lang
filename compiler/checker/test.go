@@ -113,7 +113,7 @@ func (c *checker) inTest() bool { return c.callerKind == kindTest || c.inFake }
 // against what it replaces (T4, T7), and its body as a test's.
 func (c *checker) checkTestDecl(d *syntax.TestDecl) {
 	if !c.inTestsFile {
-		c.report(d.Start, "T2", "test %q is outside tests/; a package's tests live under its tests/ directory (ADR 0091 §2)", d.Name)
+		c.report(d.Start, "T2", "test %q is outside test/; a package's tests live under test/ (tests/ for a package with no manifest; ADRs 0091 §2, 0102)", d.Name)
 	}
 	c.callerKind = kindTest
 	c.fakes, c.fakeOps = map[string]fakeTarget{}, map[string]bool{}
@@ -443,7 +443,7 @@ func (c *checker) checkTestRef(start lexer.Pos, text string, decl syntax.Decl) {
 		return
 	}
 	c.t1Reported[start] = true
-	c.report(start, "T1", "%s is declared under tests/, so only tests may name it (ADR 0091 §2)", text)
+	c.report(start, "T1", "%s is declared in a test file, so only tests may name it (ADR 0091 §2)", text)
 }
 
 // testOnlyDecls is every declaration in files under tests/, or nil when

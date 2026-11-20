@@ -8,7 +8,10 @@ import (
 	"testing"
 
 	"fiig-lang/compiler/checker"
+	"fiig-lang/compiler/layout"
 	"fiig-lang/compiler/manifest"
+	"fiig-lang/compiler/parser"
+	"fiig-lang/compiler/syntax"
 )
 
 func findExamplesDir(t *testing.T) string {
@@ -252,7 +255,8 @@ func TestLoadRecordsOrigin(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, manifest.Filename), data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "decl.fiig"), []byte("model Marker { n: int }"), 0o644); err != nil {
+	os.MkdirAll(filepath.Join(root, "src"), 0o755)
+	if err := os.WriteFile(filepath.Join(root, "src", "Marker.fiig"), []byte("model Marker { n: int }"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model AppMarker { n: int }")
@@ -295,7 +299,15 @@ func writePkgNative(t *testing.T, ws, dirName, path, kind, version string, deps 
 	if err := os.WriteFile(filepath.Join(root, manifest.Filename), data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "decl.fiig"), []byte(source), 0o644); err != nil {
+	// ADR 0105: code under src/, named after its declaration (ADR 0104).
+	file := "Decl.fiig"
+	if f, errs := parser.Parse(source); len(errs) == 0 && len(f.Decls) > 0 {
+		file = layout.FileName(syntax.DeclName(f.Decls[0]))
+	}
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", file), []byte(source), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return root

@@ -1,7 +1,6 @@
 # ADR 0105: A Folder Is a Package; a Module Has the Manifest
 
-Status: Accepted (2026-11-20). Not yet implemented; built with ADRs
-0102-0107 as one migration.
+Status: Accepted (2026-11-20). Implemented 2026-11-20.
 Date: 2026-11-20
 Amends: ADR 0032-0037 (a manifest per package becomes a manifest per
 module), ADR 0043 §2 (`provides` moves into source), ADR 0079 (a domain is
@@ -128,3 +127,26 @@ the manifest's today.
 ## Open questions
 
 1. **`internal/`**, if a package's declarations need hiding from siblings.
+
+## Implementation notes
+
+Built 2026-11-20.
+
+- The loader builds a module's folder packages in import order
+  (`compiler/loader/module.go`), refusing a cycle or an import of the
+  top-level package from a folder. A dependency module exposes every
+  package; the lockfile pins modules.
+- `capability X provides alias.Interface` is parsed and merged with any
+  manifest `provides` (`checker.CodeProvides`); the formatter prints it.
+- `fiig check` and `fiig test` cover every folder package and its tests;
+  `fiig run . folder.name` and `fiig serve . folder.adapter` reach them.
+  The language server treats each folder as a package, navigates into it,
+  and checks its test files with it.
+- Checking each corpus module on its own found four library manifests
+  that never declared the `Socket` they use; they do now.
+- Dogfood: abs-recommendations' five packages became one module with
+  `absclient`, `signin`, `signin/password`, and `signin/authentik` folders
+  (`fiig fmt -layout -absorb ...`), after renaming five declarations that
+  differed from another only by case. It checks clean and its 41 tests
+  pass. fiig.postgres, with `provides` now in its code, ran against
+  Postgres 17.

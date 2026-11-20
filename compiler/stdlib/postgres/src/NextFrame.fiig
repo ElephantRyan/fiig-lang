@@ -1,0 +1,8 @@
+// A backend message is a type byte, then an Int32 length that counts
+// itself but not the type byte. None until the buffer holds a whole one.
+conversion nextFrame(buffer: bytes) -> PgFrame | None {
+    match buffer {
+        <<kind: u8, length: i32be, body: bytes(length - 4), rest: bytes>> -> PgFrame(kind: kind, body: body, rest: rest)
+        _ -> None
+    }
+}

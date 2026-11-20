@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 /** ADR 0090 §7: the plugin in a test IDE. */
 class FiigPluginTest : BasePlatformTestCase() {
     fun testFileType() {
-        assertSame(FiigFileType, FileTypeManager.getInstance().getFileTypeByFileName("get_customer.fiig"))
+        assertSame(FiigFileType, FileTypeManager.getInstance().getFileTypeByFileName("GetCustomer.fiig"))
     }
 
     fun testHighlightingByTokenKind() {
@@ -104,9 +104,9 @@ class FiigPluginTest : BasePlatformTestCase() {
         assertEquals("getCustomer", FiigNaming.declarationName("gateway", "get customer"))
         assertEquals("getCustomer", FiigNaming.declarationName("gateway", "GetCustomer"))
         assertEquals("NewCustomer", FiigNaming.declarationName("model", "new_customer"))
-        assertEquals("get_customer.fiig", FiigNaming.fileName("getCustomer"))
-        assertEquals("new_customer.fiig", FiigNaming.fileName("NewCustomer"))
-        assertEquals("http_customer_api.fiig", FiigNaming.fileName("httpCustomerApi"))
+        assertEquals("GetCustomer.fiig", FiigNaming.fileName("getCustomer"))
+        assertEquals("NewCustomer.fiig", FiigNaming.fileName("NewCustomer"))
+        assertEquals("HttpCustomerApi.fiig", FiigNaming.fileName("httpCustomerApi"))
     }
 
     /** Every template, rendered, is a declaration `fiig check` accepts (when -PfiigBinary is given). */

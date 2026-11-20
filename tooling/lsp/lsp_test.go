@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"encoding/json"
+	"fiig-lang/internal/fixture"
 	"fmt"
 	"io"
 	"os"
@@ -16,14 +17,14 @@ import (
 
 var workspaceFiles = map[string]string{
 	"kernel/fiig.pkg.json": `{"path": "t.kernel", "kind": "library", "version": "1.0.0"}`,
-	"kernel/models/money.fiig": `// An amount in one currency.
+	"kernel/src/Money.fiig": `// An amount in one currency.
 model Money {
     amount: decimal
     currency: string
 }
 `,
 	"app/fiig.pkg.json": `{"path": "t.app", "kind": "application", "version": "1.0.0", "dependencies": {"t.kernel": "1.0.0"}}`,
-	"app/rules/total.fiig": `use t.kernel
+	"app/src/Total.fiig": `use t.kernel
 
 // Adds two amounts.
 rule total(a: kernel.Money, b: kernel.Money) -> decimal {
@@ -31,11 +32,11 @@ rule total(a: kernel.Money, b: kernel.Money) -> decimal {
     return sum
 }
 `,
-	"app/rules/greet.fiig": `rule greet(name: string) -> string {
+	"app/src/Greet.fiig": `rule greet(name: string) -> string {
     return "é${name}"
 }
 `,
-	"app/conversions/welcome.fiig": `conversion welcome(name: string) -> string {
+	"app/src/Welcome.fiig": `conversion welcome(name: string) -> string {
     return shout(greet(name))
 }
 
@@ -45,7 +46,21 @@ private {
     }
 }
 `,
-	"app/rules/broken.fiig": `rule broken(n: int) -> string {
+	"app/src/Rated.fiig": `use t.app.ratings
+
+conversion rated(score: int) -> int {
+    return ratings.clamp(score)
+}
+`,
+	"app/src/ratings/Clamp.fiig": `conversion clamp(score: int) -> int {
+    return math.min(score, 10)
+}
+`,
+	"app/test/ratings/Clamp.fiig": `test clampsHigh {
+    expect clamp(11) == 10
+}
+`,
+	"app/src/Broken.fiig": `rule broken(n: int) -> string {
     return n
 }
 `,
@@ -64,7 +79,7 @@ func startClient(t *testing.T, encodings []string) (*client, json.RawMessage) {
 	t.Helper()
 	debounce = 5 * time.Millisecond
 	root := t.TempDir()
-	for name, text := range workspaceFiles {
+	for name, text := range fixture.Module(workspaceFiles) {
 		p := filepath.Join(root, filepath.FromSlash(name))
 		os.MkdirAll(filepath.Dir(p), 0o755)
 		if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
@@ -198,35 +213,35 @@ func TestEncodingIsNegotiated(t *testing.T) {
 
 func TestDiagnosticsAppearAndClear(t *testing.T) {
 	c, _ := startClient(t, nil)
-	diags := c.diagnostics(c.uri("app/rules/broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	diags := c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
 	d := diags[0]
 	if d.Code != "A1" || d.Severity != 1 || d.Range.Start.Line != 1 || d.Range.End.Character <= d.Range.Start.Character {
 		t.Fatalf("diagnostic = %+v, want A1 as an error with a range on line 2", d)
 	}
-	c.open("app/rules/broken.fiig", "rule broken(n: int) -> int {\n    return n\n}\n")
-	c.diagnostics(c.uri("app/rules/broken.fiig"), func(d []lspDiagnostic) bool { return len(d) == 0 })
+	c.open("app/src/Broken.fiig", "rule broken(n: int) -> int {\n    return n\n}\n")
+	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) == 0 })
 }
 
 func TestDefinitionAcrossPackagesAndIntoFields(t *testing.T) {
 	c, _ := startClient(t, nil)
-	c.diagnostics(c.uri("app/rules/broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
 	// `kernel.Money` in total's signature: line 3, "rule total(a: kernel.Money" -> Money at character 22.
-	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/rules/total.fiig", 3, 23)))
-	if len(locs) != 1 || locs[0].URI != c.uri("kernel/models/money.fiig") || locs[0].Range.Start.Line != 1 || locs[0].Range.Start.Character != 6 {
+	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Total.fiig", 3, 23)))
+	if len(locs) != 1 || locs[0].URI != c.uri("kernel/src/Money.fiig") || locs[0].Range.Start.Line != 1 || locs[0].Range.Start.Character != 6 {
 		t.Fatalf("definition of Money = %+v, want money.fiig 2:7", locs)
 	}
 	// `a.amount`: line 4, "    sum = a.amount" -> amount at character 12.
-	locs = decode[[]location](t, c.request("textDocument/definition", c.at("app/rules/total.fiig", 4, 13)))
-	if len(locs) != 1 || locs[0].URI != c.uri("kernel/models/money.fiig") || locs[0].Range.Start.Line != 2 {
+	locs = decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Total.fiig", 4, 13)))
+	if len(locs) != 1 || locs[0].URI != c.uri("kernel/src/Money.fiig") || locs[0].Range.Start.Line != 2 {
 		t.Fatalf("definition of amount = %+v, want money.fiig line 3", locs)
 	}
 	// The local `sum` in `return sum`: line 5, character 11.
-	locs = decode[[]location](t, c.request("textDocument/definition", c.at("app/rules/total.fiig", 5, 12)))
+	locs = decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Total.fiig", 5, 12)))
 	if len(locs) != 1 || locs[0].Range.Start.Line != 4 || locs[0].Range.Start.Character != 4 {
 		t.Fatalf("definition of sum = %+v, want its binding at 5:5", locs)
 	}
 	// A parameter: `a` in `a.amount`.
-	locs = decode[[]location](t, c.request("textDocument/definition", c.at("app/rules/total.fiig", 4, 10)))
+	locs = decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Total.fiig", 4, 10)))
 	if len(locs) != 1 || locs[0].Range.Start.Line != 3 || locs[0].Range.Start.Character != 11 {
 		t.Fatalf("definition of a = %+v, want the parameter at 4:12", locs)
 	}
@@ -234,28 +249,28 @@ func TestDefinitionAcrossPackagesAndIntoFields(t *testing.T) {
 
 func TestReferencesHoverSymbolsAndFormatting(t *testing.T) {
 	c, _ := startClient(t, nil)
-	c.diagnostics(c.uri("app/rules/broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
 	// From Money's own declaration: both uses in total.fiig.
-	refs := decode[[]location](t, c.request("textDocument/references", c.at("kernel/models/money.fiig", 1, 8)))
+	refs := decode[[]location](t, c.request("textDocument/references", c.at("kernel/src/Money.fiig", 1, 8)))
 	n := 0
 	for _, r := range refs {
-		if r.URI == c.uri("app/rules/total.fiig") {
+		if r.URI == c.uri("app/src/Total.fiig") {
 			n++
 		}
 	}
 	if n != 2 {
 		t.Fatalf("references to Money = %+v, want two in total.fiig", refs)
 	}
-	h := decode[hover](t, c.request("textDocument/hover", c.at("app/rules/total.fiig", 3, 23)))
+	h := decode[hover](t, c.request("textDocument/hover", c.at("app/src/Total.fiig", 3, 23)))
 	if !strings.Contains(h.Contents.Value, "model Money {") || !strings.Contains(h.Contents.Value, "amount: decimal") {
 		t.Errorf("hover on Money = %q", h.Contents.Value)
 	}
-	h = decode[hover](t, c.request("textDocument/hover", c.at("app/rules/total.fiig", 5, 12)))
+	h = decode[hover](t, c.request("textDocument/hover", c.at("app/src/Total.fiig", 5, 12)))
 	if !strings.Contains(h.Contents.Value, "decimal") {
 		t.Errorf("hover on sum = %q, want its type", h.Contents.Value)
 	}
-	h = decode[hover](t, c.request("textDocument/hover", c.at("app/rules/greet.fiig", 0, 6)))
-	syms := decode[[]documentSymbol](t, c.request("textDocument/documentSymbol", map[string]any{"textDocument": map[string]any{"uri": c.uri("kernel/models/money.fiig")}}))
+	h = decode[hover](t, c.request("textDocument/hover", c.at("app/src/Greet.fiig", 0, 6)))
+	syms := decode[[]documentSymbol](t, c.request("textDocument/documentSymbol", map[string]any{"textDocument": map[string]any{"uri": c.uri("kernel/src/Money.fiig")}}))
 	if len(syms) != 1 || syms[0].Name != "Money" || len(syms[0].Children) != 2 || syms[0].Children[0].Name != "amount" {
 		t.Errorf("symbols = %+v", syms)
 	}
@@ -263,8 +278,8 @@ func TestReferencesHoverSymbolsAndFormatting(t *testing.T) {
 	if len(ws) != 1 || ws[0].Name != "Money" || ws[0].ContainerName != "t.kernel" {
 		t.Errorf("workspace symbols = %+v", ws)
 	}
-	c.open("app/rules/greet.fiig", "rule greet(name: string) -> string {\n  return \"é${name}\"\n}\n")
-	edits := decode[[]textEdit](t, c.request("textDocument/formatting", map[string]any{"textDocument": map[string]any{"uri": c.uri("app/rules/greet.fiig")}}))
+	c.open("app/src/Greet.fiig", "rule greet(name: string) -> string {\n  return \"é${name}\"\n}\n")
+	edits := decode[[]textEdit](t, c.request("textDocument/formatting", map[string]any{"textDocument": map[string]any{"uri": c.uri("app/src/Greet.fiig")}}))
 	if len(edits) != 1 || !strings.Contains(edits[0].NewText, "    return") {
 		t.Errorf("formatting = %+v", edits)
 	}
@@ -277,8 +292,8 @@ func TestPositionsCountTheNegotiatedUnits(t *testing.T) {
 		char int
 	}{{nil, 15}, {[]string{"utf-8"}, 16}, {[]string{"utf-32"}, 15}} {
 		c, _ := startClient(t, tc.enc)
-		c.diagnostics(c.uri("app/rules/broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
-		locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/rules/greet.fiig", 1, tc.char)))
+		c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+		locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Greet.fiig", 1, tc.char)))
 		if len(locs) != 1 || locs[0].Range.Start.Line != 0 || locs[0].Range.Start.Character != 11 {
 			t.Errorf("%v: definition of name = %+v, want the parameter at 1:12", tc.enc, locs)
 		}
@@ -287,11 +302,11 @@ func TestPositionsCountTheNegotiatedUnits(t *testing.T) {
 
 func TestAHalfTypedFileKeepsNavigation(t *testing.T) {
 	c, _ := startClient(t, nil)
-	c.diagnostics(c.uri("app/rules/broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
-	c.open("app/rules/total.fiig", strings.Replace(workspaceFiles["app/rules/total.fiig"], "    return sum\n", "    return sum +\n", 1))
-	c.diagnostics(c.uri("app/rules/total.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
-	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/rules/total.fiig", 3, 23)))
-	if len(locs) != 1 || locs[0].URI != c.uri("kernel/models/money.fiig") {
+	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	c.open("app/src/Total.fiig", strings.Replace(workspaceFiles["app/src/Total.fiig"], "    return sum\n", "    return sum +\n", 1))
+	c.diagnostics(c.uri("app/src/Total.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Total.fiig", 3, 23)))
+	if len(locs) != 1 || locs[0].URI != c.uri("kernel/src/Money.fiig") {
 		t.Fatalf("definition while the file doesn't parse = %+v, want the last good answer", locs)
 	}
 }
@@ -302,13 +317,26 @@ func TestSemanticTokensGiveEachCallItsKind(t *testing.T) {
 	if !strings.Contains(string(init), `"semanticTokensProvider"`) {
 		t.Fatalf("initialize doesn't offer semantic tokens: %s", init)
 	}
-	c.diagnostics(c.uri("app/rules/broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
 	got := decode[struct {
 		Data []int `json:"data"`
-	}](t, c.request("textDocument/semanticTokens/full", map[string]any{"textDocument": map[string]any{"uri": c.uri("app/conversions/welcome.fiig")}}))
+	}](t, c.request("textDocument/semanticTokens/full", map[string]any{"textDocument": map[string]any{"uri": c.uri("app/src/Welcome.fiig")}}))
 	// shout (helper, 6) at 1:11, then greet (rule, 0) at 1:17.
 	want := []int{1, 11, 5, 6, 0, 0, 6, 5, 0, 0}
 	if fmt.Sprint(got.Data) != fmt.Sprint(want) {
 		t.Errorf("tokens = %v, want %v", got.Data, want)
 	}
+}
+
+// ADR 0105: a folder under src/ is a package. Definition goes from the
+// top-level package into it, and its test file is checked with it.
+func TestFolderPackagesNavigate(t *testing.T) {
+	c, _ := startClient(t, nil)
+	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Rated.fiig", 3, 20)))
+	if len(locs) != 1 || locs[0].URI != c.uri("app/src/ratings/Clamp.fiig") {
+		t.Fatalf("definition of ratings.clamp = %+v, want app/src/ratings/Clamp.fiig", locs)
+	}
+	c.open("app/test/ratings/Clamp.fiig", "test clampsHigh {\n    expect clamp(11) == \"ten\"\n}\n")
+	c.diagnostics(c.uri("app/test/ratings/Clamp.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
 }

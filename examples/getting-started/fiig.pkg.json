@@ -1,0 +1,11 @@
+{
+    "path": "getting.started",
+    "kind": "application",
+    "version": "1.0.0",
+    "capabilities": [
+        "Database"
+    ],
+    "nativeCapabilities": [
+        "Database"
+    ]
+}

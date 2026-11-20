@@ -60,23 +60,18 @@ func rules(diags []Diagnostic) map[string]int {
 // and runs each one there, with its dependencies.
 func TestValidCorpusHasNoDiagnostics(t *testing.T) {
 	root := findExamplesDir(t)
-	skip := []string{"shop-orders-split"}
-	withTests, _ := filepath.Glob(filepath.Join(root, "*", "tests"))
-	for _, dir := range withTests {
-		rel, _ := filepath.Rel(root, dir)
+	// A module (a folder with fiig.pkg.json, ADR 0105) is checked on its
+	// own, with its dependencies, by cmd/fiig's TestCorpusModulesCheck;
+	// the rest of the corpus is one set of loose files.
+	var skip []string
+	manifests, _ := filepath.Glob(filepath.Join(root, "*", "fiig.pkg.json"))
+	for _, m := range manifests {
+		rel, _ := filepath.Rel(root, filepath.Dir(m))
 		skip = append(skip, rel)
 	}
 	diags, err := CheckDir(root, nil, skip...)
 	if err != nil {
 		t.Fatalf("CheckDir: %v", err)
-	}
-	split, err := CheckDir(filepath.Join(root, "shop-orders-split"), nil)
-	if err != nil {
-		t.Fatalf("CheckDir: %v", err)
-	}
-	for _, d := range split {
-		d.File = filepath.Join("shop-orders-split", d.File)
-		diags = append(diags, d)
 	}
 	for file, fileDiags := range diagsByFile(diags) {
 		if filepath.Dir(filepath.ToSlash(file)) == "invalid-programs" {

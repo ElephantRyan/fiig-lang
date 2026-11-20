@@ -5,5 +5,7 @@
     "dependencies": {
         "fiig.http": "1.0.0"
     },
-    "capabilities": ["Socket"]
+    "capabilities": [
+        "Socket"
+    ]
 }
