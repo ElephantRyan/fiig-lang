@@ -200,6 +200,10 @@ func (r *fakeRedis) command(name string, args []string) string {
 	defer r.mu.Unlock()
 	switch name {
 	case "SELECT":
+		// Redis has 16 databases by default.
+		if n, err := strconv.Atoi(args[0]); err != nil || n < 0 || n > 15 {
+			return "-ERR DB index is out of range\r\n"
+		}
 		return "+OK\r\n"
 	case "SET":
 		// SET key value NX PX ms, the form a schedule lock sends (ADR
