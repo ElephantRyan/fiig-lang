@@ -262,6 +262,12 @@ var mapMethods = map[string]builtinFunc{
 		}
 		return None{}, nil
 	},
+	"atOr": func(recv Value, args []Value) (Value, *Fault) {
+		if v, ok := recv.(Map).Get(args[0]); ok {
+			return v, nil
+		}
+		return args[1], nil
+	},
 	"containsKey": func(recv Value, args []Value) (Value, *Fault) {
 		_, ok := recv.(Map).Get(args[0])
 		return Bool(ok), nil

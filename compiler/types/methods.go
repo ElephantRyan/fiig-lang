@@ -180,13 +180,14 @@ func listMethods(elem Type) map[string]Method {
 	}
 }
 
-// mapMethods is Map<K, V>'s table (ADR 0065 §6). put, putIfAbsent, and
+// mapMethods is Map<K, V>'s table (ADR 0065 §6, and atOr, ADR 0093 §5). put, putIfAbsent, and
 // remove return a new map; a map is never changed in place.
 func mapMethods(key, val Type) map[string]Method {
 	m := Generic{Name: "Map", Args: []Type{key, val}}
 	return map[string]Method{
 		"at":          {[]Param{p("key", key)}, val},
 		"atOrNone":    {[]Param{p("key", key)}, Union{Members: []Type{val, NoneType{}}}},
+		"atOr":        {[]Param{p("key", key), p("default", val)}, val},
 		"containsKey": {[]Param{p("key", key)}, boolType},
 		"length":      {nil, intType},
 		"keys":        {nil, Generic{Name: "List", Args: []Type{key}}},

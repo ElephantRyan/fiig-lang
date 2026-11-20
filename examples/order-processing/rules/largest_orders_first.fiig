@@ -1,5 +1,5 @@
 // ADR 0065 §3: a keyed sort of records. Orders with the same total keep
 // their list order, since the sort is stable.
 rule largestOrdersFirst(orders: List<Order>) -> List<Order> {
-    return sorted(order in orders, descending): order.total
+    return sorted(order in orders): order.total descending
 }

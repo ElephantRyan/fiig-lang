@@ -9,7 +9,7 @@ const sortedModels = "model Order {\n    id: string\n    total: decimal\n    reg
 func TestSortedFormCheck(t *testing.T) {
 	diags := checkSrc(t, `rule r(orders: List<Order>, sorted: int) -> List<Order> {
     byTotal: List<Order> = sorted(order in orders): order.total
-    newest = sorted(order in byTotal, descending): order.region
+    newest = sorted(order in byTotal): order.region descending
     computed = sorted(order in orders): math.abs(order.total) * 2
     return newest
 }`, sortedModels)

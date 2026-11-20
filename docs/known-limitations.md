@@ -97,7 +97,9 @@ doesn't have to discover them.
 - **Strings aren't normalized** (ADR 0067 §8): `é` as one code point and
   as `e` plus a combining accent are different strings. No locale-aware
   sorting, and no regular expressions.
-- **No user-defined generics** and no lambdas (ADR 0056).
+- **No user-defined generics** and no lambdas (ADR 0056). List work is
+  done with forms whose body is written in place, `filter(x in xs): ...`
+  and the rest (ADR 0093); a function can't be stored or passed.
 - **Streams and queue consumers** (ADR 0047) are designed, not built.
 - See `docs/specification/grammar.md`'s "Known gaps" for open syntax
   questions.

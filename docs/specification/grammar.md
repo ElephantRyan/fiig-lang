@@ -591,7 +591,7 @@ unary           ::= '-' unary | postfix-expression
 postfix-expression ::= primary { '.' field-name | '(' [ arguments ] ')' }
 arguments  ::= argument { ',' argument } [ ',' ]
 argument   ::= [ field-name ':' ] expression
-primary    ::= identifier | literal | list-literal | map-literal | sorted-expr | '(' expression ')' | 'not' primary
+primary    ::= identifier | literal | list-literal | map-literal | sorted-expr | list-form | '(' expression ')' | 'not' primary
 literal    ::= string-literal | integer-literal | float-literal
 list-literal ::= '[' [ expression { ',' expression } [ ',' ] ] ']'
 map-literal  ::= '[' ':' ']' | '[' expression ':' expression { ',' expression ':' expression } [ ',' ] ']'
@@ -739,19 +739,51 @@ retry-expr ::= 'retry' '(' 'attempts' ':' integer-literal ')' ':' ( expression |
 ### Keyed sort
 
 ```ebnf
-sorted-expr ::= 'sorted' '(' identifier 'in' expression [ ',' 'descending' ] ')' ':' expression
+sorted-expr ::= 'sorted' '(' identifier 'in' expression ')' ':' sort-key { 'then' sort-key }
+sort-key    ::= expression [ 'descending' ]
 ```
 
-ADR 0065 §3: a new list of the iterable's elements, stably ordered by the
-key, which is evaluated once per element and must be `int`, `float`,
+ADR 0065 §3 and ADR 0093 §4: a new list of the iterable's elements, stably
+ordered by the first key, ties by the next, and so on. `then` and
+`descending` count only on the line their key ends on. The old header
+modifier, `sorted(x in xs, descending): key`, parses, is A1, and `fiig fmt`
+rewrites it as `key descending`. Each key is evaluated once per element and must be `int`, `float`,
 `decimal`, or `string` (M3; a `T | None` key is M3 with a pointer to
 `match`). `concurrent`'s header shape, with an expression for a body. The
 key may call only what a rule may (formulas and methods) in any kind of
 declaration, so a sort never reaches a gateway; a bare `sorted(...)`
-statement is A13. `sorted` and `descending` are contextual, not reserved:
+statement is A13. `sorted`, `then` and `descending` are contextual, not reserved:
 the form starts only at `sorted ( identifier in`, so `xs.sorted()`, a local
 named `sorted`, and a call to a declaration named `sorted` keep their
 meaning.
+
+### List forms
+
+```ebnf
+list-form ::= list-form-name '(' identifier 'in' expression ')' ':' expression
+list-form-name ::= 'filter' | 'map' | 'groupBy' | 'count' | 'any' | 'all'
+                 | 'sum' | 'max' | 'min' | 'maxOrNone' | 'minOrNone'
+```
+
+ADR 0093: the body is evaluated once per element, in list order, with the
+element bound to the name, under the keyed sort's rules: it may call only
+what a rule may, in any kind of declaration, and a bare form as a statement
+is A13.
+
+| Form | Body | Result |
+|---|---|---|
+| `filter(x in xs): c` | `bool` | `List<T>`, the elements where `c` holds |
+| `map(x in xs): e` | any `U` | `List<U>` |
+| `groupBy(x in xs): k` | comparable `K` (M1) | `Map<K, List<T>>`, keys in order of first appearance |
+| `count(x in xs): c` | `bool` | `int` |
+| `any(x in xs): c` / `all(x in xs): c` | `bool` | `bool`; `false` / `true` on `[]` |
+| `sum(x in xs): e` | `int`, `float`, `decimal` | the body's type; `0` on `[]`, `int` for a constant body |
+| `max(x in xs): k` / `min(x in xs): k` | ordered (M3) | the key; faults on `[]` |
+| `maxOrNone(x in xs): k` / `minOrNone(x in xs): k` | ordered (M3) | the key, or `None` on `[]` |
+
+Each name is contextual, like `sorted`: the form starts only at
+`name ( identifier in`, so `math.max(a, b)`, a local named `count`, and a
+call to a declaration named `filter` keep their meaning.
 
 Attested: the bare form `concurrent(customerId in customerIds): getCustomer(customerId)`
 (`retrieve_customers.fiig`, matching the snippet already in `fiig-lang.md`

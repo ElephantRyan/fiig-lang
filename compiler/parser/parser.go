@@ -1586,6 +1586,9 @@ func (p *Parser) parsePrimary() syntax.Expr {
 	if p.atSortedForm() {
 		return p.parseSortedExpr()
 	}
+	if p.atListForm() {
+		return p.parseListForm()
+	}
 	if p.atName() {
 		tok := p.advance()
 		return &syntax.Ident{Span: syntax.Span{Start: tok.Start, End: tok.End}, Name: tok.Text}
@@ -1815,28 +1818,71 @@ func (p *Parser) atSortedForm() bool {
 	return p.cur().Text == "sorted" && p.peek(1).Kind == lexer.LParen && isNameToken(p.peek(2).Kind) && p.peek(3).Kind == lexer.KwIn
 }
 
-// parseSortedExpr parses `sorted(x in xs [, descending]): key`, the shape
-// of concurrent's header with one modifier and an expression for a body.
+// parseSortedExpr parses `sorted(x in xs): key [descending] [then key
+// [descending]]...` (ADR 0093 §4), the shape of concurrent's header with
+// expressions for a body. `descending` and `then` are contextual: each
+// counts only on the line its key ends on, since after a whole expression
+// a name can't continue it. The old header modifier, `sorted(x in xs,
+// descending): key`, still parses, so the checker can say what to write
+// and fiig fmt can rewrite it.
 func (p *Parser) parseSortedExpr() *syntax.SortedExpr {
 	start := p.advance().Start // 'sorted'
 	p.expect(lexer.LParen)
 	varTok := p.expectName()
 	p.expect(lexer.KwIn)
 	iterable := p.parseExpression()
-	descending := false
+	header := false
 	if p.at(lexer.Comma) {
 		p.advance()
 		mod := p.expectName()
 		if mod.Text == "descending" {
-			descending = true
+			header = true
 		} else {
-			p.errorf(mod.Start, "sorted takes one modifier, descending; got %q", mod.Text)
+			p.errorf(mod.Start, "sorted takes no modifier here; write `descending` after a key")
 		}
 	}
 	p.expect(lexer.RParen)
 	p.expect(lexer.Colon)
-	key := p.parseExpression()
-	return &syntax.SortedExpr{Span: syntax.Span{Start: start, End: p.cur().Start}, Var: varTok.Text, Iterable: iterable, Descending: descending, Key: key}
+	var keys []syntax.SortKey
+	for {
+		k := syntax.SortKey{Key: p.parseExpression(), Descending: header}
+		if p.atContextual("descending") && p.sameLine() {
+			p.advance()
+			k.Descending = true
+		}
+		keys = append(keys, k)
+		if !(p.atContextual("then") && p.sameLine()) {
+			break
+		}
+		p.advance()
+	}
+	return &syntax.SortedExpr{Span: syntax.Span{Start: start, End: p.cur().Start}, Var: varTok.Text, Iterable: iterable, Keys: keys, HeaderDescending: header}
+}
+
+// sameLine reports whether the current token starts on the line the
+// previous one ended on.
+func (p *Parser) sameLine() bool {
+	return p.cur().Start.Line == p.peek(-1).End.Line
+}
+
+// atListForm reports whether an ADR 0093 list form starts here. Like
+// sorted, each name is contextual: the form starts only at `name ( ident
+// in`, which no call can begin with.
+func (p *Parser) atListForm() bool {
+	return syntax.ListForms[p.cur().Text] && isNameToken(p.cur().Kind) && p.peek(1).Kind == lexer.LParen && isNameToken(p.peek(2).Kind) && p.peek(3).Kind == lexer.KwIn
+}
+
+// parseListForm parses `form(x in xs): body`.
+func (p *Parser) parseListForm() *syntax.ListForm {
+	formTok := p.advance()
+	p.expect(lexer.LParen)
+	varTok := p.expectName()
+	p.expect(lexer.KwIn)
+	iterable := p.parseExpression()
+	p.expect(lexer.RParen)
+	p.expect(lexer.Colon)
+	body := p.parseExpression()
+	return &syntax.ListForm{Span: syntax.Span{Start: formTok.Start, End: p.cur().Start}, Form: formTok.Text, Var: varTok.Text, Iterable: iterable, Body: body}
 }
 
 func (p *Parser) parseRetryExpr() *syntax.RetryExpr {
