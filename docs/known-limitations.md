@@ -11,6 +11,11 @@ doesn't have to discover them.
   (ADR 0085). No MySQL. Redis is `fiig.redis` (ADR 0110): one command
   per call, no pipelining, pub/sub, Sentinel, or Cluster. Its stream
   source needs Redis 6.2 or later, for `XPENDING ... IDLE`.
+- **Kafka is a producer only, and at least once** (`fiig.kafka`, ADR
+  0113): `acks=all`, but no idempotence or transactions, so a send that
+  is retried after a lost reply writes its records twice. No consumer, no
+  compression yet, no SASL, and every send reads the topic's metadata
+  first, one round trip more than a client that caches it.
 - **No certificate revocation checks** (CRL, OCSP), certificate pinning,
   keys in an HSM or cloud KMS, or encrypted private keys (ADR 0086 open
   questions). Custom CAs and client certificates are configured on
