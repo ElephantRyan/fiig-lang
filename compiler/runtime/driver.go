@@ -446,7 +446,7 @@ func (p *DriverProvider) open(ctx context.Context) (*pooledConn, *Fault) {
 	for _, k := range keys {
 		settings = settings.Put(Str(k), Str(p.settings[k]))
 	}
-	owner := &resourceOwner{}
+	owner := &resourceOwner{driver: true}
 	out, f := p.gateway(ctx, owner, "connect", settings)
 	if f == nil {
 		if r, ok := out.(Result); !ok {

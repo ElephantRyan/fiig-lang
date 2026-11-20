@@ -1,5 +1,6 @@
-// ADR 0074: an HTTP/1.1 client written in fiig over Socket. One connection
-// per request (§8), closed when the reply is read; redirects come back as
+// ADR 0074: an HTTP/1.1 client written in fiig over Socket. A connection
+// kept by an earlier request to the same host is used first, and kept
+// again when the reply allows (ADR 0109 §6); redirects come back as
 // replies (§4); the timeout bounds the whole exchange, from connecting to
 // the last byte (§5).
 capability HttpClient {
@@ -8,47 +9,82 @@ capability HttpClient {
     {
         outgoing = outgoingRequest(request)?
         until: int = Clock.now() + outgoing.timeoutMillis
-        opened: Result<Connection, SocketError> = Err(SocketError.Closed)
-        if outgoing.secure {
-            opened = Socket.connectTls(outgoing.host, outgoing.port, deadline: until)
-        } else {
-            opened = Socket.connect(outgoing.host, outgoing.port, deadline: until)
-        }
-        match opened {
-            Err(failure) -> Err(HttpError.Socket(failure: failure))
-            Ok(connection) -> {
-                match Socket.write(connection, outgoing.data, deadline: until) {
-                    Err(failure) -> {
-                        Socket.close(connection)
+        reused: Connection | None = Socket.reuse(
+            outgoing.host,
+            outgoing.port,
+            tls: outgoing.secure,
+            session: "",
+        )
+        // A kept connection the server closed while it sat idle fails
+        // before any reply byte. The request is sent again, once, on a new
+        // connection when its method is safe to send twice; a new
+        // connection never is, so this loop runs at most twice.
+        while true {
+            resend: bool = false
+            opened: Result<Connection, SocketError> = Err(SocketError.Closed)
+            match reused {
+                None -> {
+                    if outgoing.secure {
+                        opened = Socket.connectTls(outgoing.host, outgoing.port, deadline: until)
+                    } else {
+                        opened = Socket.connect(outgoing.host, outgoing.port, deadline: until)
+                    }
+                }
+                kept -> {
+                    opened = Ok(kept)
+                    resend = safeToResend(request.method)
+                }
+            }
+            reused = None
+            connection = mapErr(e in opened): HttpError.Socket(failure: e)?
+            stale: bool = false
+            match Socket.write(connection, outgoing.data, deadline: until) {
+                Err(failure) -> {
+                    Socket.close(connection)
+                    if not resend {
                         return Err(HttpError.Socket(failure: failure))
                     }
-                    Ok(_) -> None
+                    stale = true
                 }
-                // readReply never asks for more once closed is true, so
-                // this loop ends.
-                buffer: bytes = <<>>
-                closed: bool = false
-                while true {
-                    match readReply(buffer, request.method, closed) {
-                        ReplyRead.Done(reply) -> {
+                Ok(_) -> None
+            }
+            // readReply never asks for more once closed is true, so this
+            // loop ends.
+            buffer: bytes = <<>>
+            closed: bool = false
+            while not stale {
+                match readReply(buffer, request.method, closed) {
+                    ReplyRead.Done(reply, keep) -> {
+                        if keep {
+                            Socket.keep(connection, session: "")
+                        } else {
                             Socket.close(connection)
-                            return Ok(reply)
                         }
-                        ReplyRead.Malformed(reason) -> {
-                            Socket.close(connection)
-                            return Err(HttpError.MalformedReply(reason: reason))
-                        }
-                        ReplyRead.NeedMore -> {
-                            match Socket.read(connection, deadline: until) {
-                                Ok(chunk) -> {
-                                    buffer = <<buffer: bytes, chunk: bytes>>
-                                }
-                                Err(SocketError.Closed) -> {
-                                    closed = true
-                                }
-                                Err(failure) -> {
+                        return Ok(reply)
+                    }
+                    ReplyRead.Malformed(reason) -> {
+                        Socket.close(connection)
+                        return Err(HttpError.MalformedReply(reason: reason))
+                    }
+                    ReplyRead.NeedMore -> {
+                        match Socket.read(connection, deadline: until) {
+                            Ok(chunk) -> {
+                                buffer = <<buffer: bytes, chunk: bytes>>
+                            }
+                            Err(failure) -> {
+                                if resend and buffer.length() == 0 and closedByServer(failure) {
                                     Socket.close(connection)
-                                    return Err(HttpError.Socket(failure: failure))
+                                    stale = true
+                                } else {
+                                    match failure {
+                                        SocketError.Closed -> {
+                                            closed = true
+                                        }
+                                        _ -> {
+                                            Socket.close(connection)
+                                            return Err(HttpError.Socket(failure: failure))
+                                        }
+                                    }
                                 }
                             }
                         }

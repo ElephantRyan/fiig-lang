@@ -64,7 +64,7 @@
       }
     },
     "socket": {
-      "description": "The real network. Only needed to add certificate authorities or client certificates (ADR 0086).",
+      "description": "The real network. Only needed to add certificate authorities or client certificates (ADR 0086), or to change how many idle connections are kept (ADR 0109).",
       "type": "object",
       "required": ["type"],
       "additionalProperties": false,
@@ -93,7 +93,18 @@
               "key": { "description": "The private key's PEM file.", "type": "string" }
             }
           }
-        }
+        },
+        "idle": { "$ref": "#/definitions/idle" }
+      }
+    },
+    "idle": {
+      "description": "Connections kept between calls (ADR 0109 §5).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "perKey": { "description": "Idle connections kept per host, port, and package (default 10).", "type": "integer", "minimum": 0 },
+        "total": { "description": "Idle connections kept in all (default 100).", "type": "integer", "minimum": 0 },
+        "timeout": { "description": "How long a connection may sit idle, e.g. 90s (default).", "type": "string" }
       }
     },
     "socketScript": {
@@ -103,6 +114,7 @@
       "additionalProperties": false,
       "properties": {
         "type": { "const": "socket-script" },
+        "idle": { "$ref": "#/definitions/idle" },
         "peers": {
           "type": "array",
           "items": {

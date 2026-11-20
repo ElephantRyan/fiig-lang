@@ -118,6 +118,9 @@ var primitiveOps = map[string]map[string]Method{
 		"read":       {[]Param{p("connection", ConnectionType), deadline}, socketResult(bytesType)},
 		"write":      {[]Param{p("connection", ConnectionType), p("data", bytesType), deadline}, socketResult(NoneType{})},
 		"close":      {[]Param{p("connection", ConnectionType)}, NoneType{}},
+		// ADR 0109: connections kept between calls.
+		"reuse": {[]Param{p("host", stringType), p("port", intType), p("tls", boolType), p("session", stringType)}, Union{Members: []Type{ConnectionType, NoneType{}}}},
+		"keep":  {[]Param{p("connection", ConnectionType), p("session", stringType)}, NoneType{}},
 	},
 	"Random": { // ADR 0068 §2
 		"bytes": {[]Param{p("count", intType)}, bytesType},

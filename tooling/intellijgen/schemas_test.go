@@ -190,6 +190,8 @@ func TestSchemasRefuseWhatTheToolchainRefuses(t *testing.T) {
 		{caps, `{"Database": {"type": "driver", "driver": "fiig.postgres", "maxConnections": 0}}`},
 		{caps, `{"Socket": {"type": "socket", "trust": "one.pem"}}`},
 		{caps, `{"Socket": {"type": "socket", "clientCertificates": [{"hosts": ["db"], "certificate": "c.pem"}]}}`},
+		{caps, `{"Socket": {"type": "socket", "idle": {"perKey": -1}}}`},
+		{caps, `{"Socket": {"type": "socket", "idle": {"timout": "90s"}}}`},
 		{caps, `{"Random": {"type": "random-seeded"}}`},
 		{caps, `{"Database": {"type": "mysql"}}`},
 	}
@@ -204,7 +206,8 @@ func TestSchemasRefuseWhatTheToolchainRefuses(t *testing.T) {
 	}
 	good := `{"Database": {"type": "driver", "driver": "fiig.postgres", "settings": {"host": "${PGHOST}"}, "maxConnections": 4},
 	          "Socket": {"type": "socket", "trust": ["/etc/ssl/rds.pem"], "systemRoots": false,
-	                     "clientCertificates": [{"hosts": ["db.internal"], "certificate": "c.pem", "key": "k.pem"}]},
+	                     "clientCertificates": [{"hosts": ["db.internal"], "certificate": "c.pem", "key": "k.pem"}],
+	                     "idle": {"perKey": 4, "total": 50, "timeout": "30s"}},
 	          "Random": {"type": "random-seeded", "seed": 7},
 	          "EmailSender": {"send": [{"ok": true}]}}`
 	var doc any

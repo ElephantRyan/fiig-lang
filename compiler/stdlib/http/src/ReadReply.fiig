@@ -38,6 +38,9 @@ private {
     model Head {
         status: int
         headers: List<Header>
+        // HTTP/1.0 closes after each reply unless asked not to, so only an
+        // HTTP/1.1 reply leaves a connection to keep.
+        http11: bool
     }
 
     // Where the blank line ending the headers starts, or -1.
@@ -118,7 +121,9 @@ private {
             }
             i = i + 1
         }
-        return Ok(Head(status: status, headers: headers))
+        return Ok(
+            Head(status: status, headers: headers, http11: lines.first().startsWith("HTTP/1.1 ")),
+        )
     }
 
     // HTTP/1.1 or HTTP/1.0, a space, three digits; the reason phrase is
@@ -144,7 +149,7 @@ private {
 
     readBody(head: Head, rest: bytes, method: Method, closed: bool) -> ReplyRead {
         if method == Method.Head or head.status == 204 or head.status == 304 or head.status == 101 {
-            return done(head, <<>>)
+            return done(head, <<>>, rest.length() == 0 and head.status != 101)
         }
         coding = lastCoding(head.headers)
         if coding == "chunked" {
@@ -163,7 +168,7 @@ private {
             return untilClose(head, rest, closed)
         }
         if rest.length() >= length {
-            return done(head, rest.slice(0, length))
+            return done(head, rest.slice(0, length), rest.length() == length)
         }
         if closed {
             return ReplyRead.Malformed(
@@ -175,13 +180,32 @@ private {
 
     untilClose(head: Head, rest: bytes, closed: bool) -> ReplyRead {
         if closed {
-            return done(head, rest)
+            return done(head, rest, false)
         }
         return ReplyRead.NeedMore
     }
 
-    done(head: Head, body: bytes) -> ReplyRead {
-        return ReplyRead.Done(reply: Reply(status: head.status, headers: head.headers, body: body))
+    // framed says the reply ended where its own length said, with nothing
+    // after it: not at the server closing.
+    done(head: Head, body: bytes, framed: bool) -> ReplyRead {
+        return ReplyRead.Done(
+            reply: Reply(status: head.status, headers: head.headers, body: body),
+            keep: framed and head.http11 and not asksToClose(head.headers),
+        )
+    }
+
+    // A Connection header naming close (RFC 9112 §9.6).
+    asksToClose(headers: List<Header>) -> bool {
+        for header in headers {
+            if header.name.equalsIgnoringCase("Connection") {
+                for option in header.value.split(",") {
+                    if option.trim().equalsIgnoringCase("close") {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
     }
 
     // The last transfer coding named across every Transfer-Encoding
@@ -241,7 +265,7 @@ private {
                         return waiting(closed, "inside the chunked body's trailers")
                     }
                     if trailer == pos {
-                        return done(head, body)
+                        return done(head, body, trailer + 2 == rest.length())
                     }
                     pos = trailer + 2
                 }

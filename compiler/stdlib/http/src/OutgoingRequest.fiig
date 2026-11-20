@@ -20,7 +20,9 @@ conversion outgoingRequest(request: Request) -> Result<Outgoing, HttpError> {
     if body.length() > 0 or sendsLength(request) {
         head = "${head}Content-Length: ${body.length()}\r\n"
     }
-    head = "${head}Connection: close\r\n\r\n"
+    // No Connection header: HTTP/1.1 keeps the connection open, and send
+    // keeps it for the next request when the reply allows (ADR 0109 §6).
+    head = "${head}\r\n"
     timeout = timeoutOf(request)
     if timeout <= 0 {
         return Err(
