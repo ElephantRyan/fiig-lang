@@ -168,6 +168,13 @@ func (in *Interp) evalBinary(ctx context.Context, e *syntax.BinaryExpr, env *Env
 		if fault != nil || earlyReturn {
 			return left, earlyReturn, fault
 		}
+		if e.OrDefault {
+			// ADR 0099: the right side runs only when the left is None.
+			if _, isNone := left.(None); !isNone {
+				return left, false, nil
+			}
+			return in.evalExpr(ctx, e.Right, env)
+		}
 		lb, ok := left.(Bool)
 		if !ok {
 			return nil, false, Faultf("%s operand is not a boolean (got %s)", e.Op, left)

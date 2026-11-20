@@ -293,6 +293,12 @@ There are **no literal patterns** — you cannot match on `"ACME"` or `3`. Use
 rule orderTotal(subtotal: int, shipping: int) -> int {
     return subtotal + shipping
 }
+
+// `or` after a `T | None` is its default, used only when it's None
+// (ADR 0099): `input.note or ""` is a string.
+rule displayName(alias: string | None, name: string | None) -> string {
+    return alias or name or "anonymous"
+}
 ```
 
 ```fiig
