@@ -11,6 +11,12 @@ import (
 // ADR 0082: Database's calls are typed, and every capability with no
 // declaration in fiig is held to its gateway's requires.
 
+// twinsModel's two fields would read one column (ADR 0094 §3).
+const twinsModel = `model Twins {
+    userId: string
+    user_id: string
+}`
+
 const shipmentModel = `model Shipment {
     id: string
     weight: decimal
@@ -101,9 +107,11 @@ func TestDatabaseMisuse(t *testing.T) {
 		{`    return Database.execute("DELETE FROM shipments WHERE id = ?", id: id)`, "", "positional"},
 		{`    return Database.delete("shipments")`, "K1", `Database has no operation "delete"`},
 		{`    return EmailSender.send(id)`, "P7", "may not use EmailSender"},
+		{`    row: Twins | None = Database.queryOne("SELECT user_id FROM twins")
+    return 0`, "Q3", "fields userId and user_id would read the same column"},
 	}
 	for _, tc := range cases {
-		diags := checkSrc(t, gatewayWith(tc.body), shipmentModel, shipStateEnum)
+		diags := checkSrc(t, gatewayWith(tc.body), shipmentModel, shipStateEnum, twinsModel)
 		if len(diags) != 1 || diags[0].Rule != tc.rule || !strings.Contains(diags[0].Msg, tc.fragment) {
 			t.Errorf("%s\ndiags = %v, want one %q containing %q", tc.body, diags, tc.rule, tc.fragment)
 		}

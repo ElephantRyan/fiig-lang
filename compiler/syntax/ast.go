@@ -1172,3 +1172,21 @@ func AdmitsNone(t Type) bool {
 	}
 	return false
 }
+
+// ColumnKey is what a SQL column name and a model field name are compared
+// by when a row fills a model (ADR 0094 §1): ASCII letters lowercased and
+// underscores removed, so user_id, USER_ID, userid, and userId agree.
+func ColumnKey(name string) string {
+	b := make([]byte, 0, len(name))
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		switch {
+		case c == '_':
+			continue
+		case c >= 'A' && c <= 'Z':
+			c += 'a' - 'A'
+		}
+		b = append(b, c)
+	}
+	return string(b)
+}
