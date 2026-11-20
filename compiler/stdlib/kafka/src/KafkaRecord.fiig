@@ -1,0 +1,7 @@
+// One record to send (ADR 0113 §1). A record without a key goes to the
+// partition its call's other keyless records go to (§3).
+model KafkaRecord {
+    key: bytes | None
+    value: bytes
+    headers: List<KafkaHeader> | None
+}

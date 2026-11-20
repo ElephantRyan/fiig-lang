@@ -1,0 +1,5 @@
+// Where a record was written: its partition and its offset there.
+model Sent {
+    partition: int
+    offset: int
+}

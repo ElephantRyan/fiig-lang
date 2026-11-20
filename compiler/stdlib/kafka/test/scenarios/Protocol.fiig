@@ -1,0 +1,170 @@
+test aBatchCarriesItsCrcAndLength {
+    record = KafkaRecord(key: None, value: "v".utf8(), headers: None)
+    expect recordBatch([record], 1000, Compression.None) is Ok(batch)
+    match batch {
+        <<baseOffset: i64be, length: i32be, epoch: i32be, magic: u8, crc: u32be, rest: bytes>> -> {
+            expect baseOffset == 0
+            expect length == rest.length() + 9
+            expect epoch == 0 - 1
+            expect magic == 2
+            expect crc == crypto.crc32c(rest)
+        }
+        _ -> {
+            expect false
+        }
+    }
+    expect recordBatch([record], 1000, Compression.Snappy) is Err(KafkaError.InvalidRecord(reason))
+    expect reason.contains("uncompressed")
+    expect recordBatch([], 1000, Compression.None) is Err(KafkaError.InvalidRecord(empty))
+}
+
+test apiVersionsChecksTheVersionsSent {
+    // ApiVersions v0's reply: correlation, no error, then (key, min, max)
+    // for Produce and Metadata.
+    good = <<
+        1: i32be,
+        0: i16be,
+        2: i32be,
+        0: i16be,
+        3: i16be,
+        12: i16be,
+        3: i16be,
+        0: i16be,
+        13: i16be,
+    >>
+    expect checkApiVersions(good, 1) is Ok(_)
+    old = <<
+        1: i32be,
+        0: i16be,
+        2: i32be,
+        0: i16be,
+        0: i16be,
+        7: i16be,
+        3: i16be,
+        0: i16be,
+        13: i16be,
+    >>
+    expect checkApiVersions(old, 1) is Err(KafkaError.Unsupported(reason))
+    expect reason.contains("Produce v8")
+    expect checkApiVersions(good, 9) is Err(KafkaError.MalformedReply(mismatch))
+}
+
+test metadataListsPartitionsInOrder {
+    expect readMetadata(ordersMetadata(), 2, "orders") is Ok(layout)
+    expect layout.leaders == [1, 1, 1]
+    expect layout.brokers.first().host == "b1"
+    expect layout.brokers.first().port == 9092
+    expect readMetadata(ordersMetadata(), 2, "payments") is Err(KafkaError.UnknownTopic(topic))
+    expect topic == "payments"
+    expect readMetadata(ordersMetadata().slice(0, 30), 2, "orders") is Err(KafkaError.MalformedReply(short))
+    expect short.contains("ends early")
+}
+
+test keysGoWhereJavaPutsThem {
+    expect readMetadata(ordersMetadata(), 2, "orders") is Ok(layout)
+    records = [
+        KafkaRecord(key: "order-1".utf8(), value: "a".utf8(), headers: None),
+        KafkaRecord(key: "order-2".utf8(), value: "b".utf8(), headers: None),
+        KafkaRecord(key: None, value: "c".utf8(), headers: None),
+    ]
+    // order-1 is partition 1 and order-2 partition 0 of 3, as the Java
+    // client computes; the keyless record goes to 1000 % 3, partition 1.
+    expect producePlan(layout, records, 1000) is Ok(calls)
+    expect calls.length() == 1
+    batches = calls.first().batches
+    expect batches.length() == 2
+    expect batches.first().partition == 0
+    expect batches.first().indexes == [1]
+    expect batches.last().partition == 1
+    expect batches.last().indexes == [0, 2]
+}
+
+test produceRepliesGiveEachRecordItsOffset {
+    expect readMetadata(ordersMetadata(), 2, "orders") is Ok(layout)
+    records = [
+        KafkaRecord(key: "order-1".utf8(), value: "a".utf8(), headers: None),
+        KafkaRecord(key: "order-2".utf8(), value: "b".utf8(), headers: None),
+        KafkaRecord(key: None, value: "c".utf8(), headers: None),
+    ]
+    expect producePlan(layout, records, 1000) is Ok(calls)
+    call = calls.first()
+    reply = <<
+        2: i32be,
+        1: i32be,
+        kafkaString("orders"): bytes,
+        2: i32be,
+        0: i32be,
+        0: i16be,
+        40: i64be,
+        0: i64be,
+        0: i64be,
+        0: i32be,
+        0 - 1: i16be,
+        1: i32be,
+        0: i16be,
+        7: i64be,
+        0: i64be,
+        0: i64be,
+        0: i32be,
+        0 - 1: i16be,
+        0: i32be,
+    >>
+    expect readProduce(reply, 2, call) is Ok(sent)
+    expect inOrder(sent, 3) is Ok(placed)
+    expect placed == [Sent(partition: 1, offset: 7), Sent(partition: 0, offset: 40), Sent(partition: 1, offset: 8)]
+    refused = <<
+        2: i32be,
+        1: i32be,
+        kafkaString("orders"): bytes,
+        1: i32be,
+        1: i32be,
+        6: i16be,
+        0 - 1: i64be,
+        0: i64be,
+        0: i64be,
+        0: i32be,
+        kafkaString("leader moved"): bytes,
+        0: i32be,
+    >>
+    expect readProduce(refused, 2, call) is Err(KafkaError.Broker(code, name, retriable, message))
+    expect code == 6
+    expect name == "NOT_LEADER_OR_FOLLOWER"
+    expect retriable
+    expect message.contains("leader moved")
+}
+
+private {
+    // A Metadata v4 reply for "orders", whose three partitions come back
+    // out of order, all led by broker 1 at b1:9092.
+    ordersMetadata() -> bytes {
+        partitions: bytes = <<3: i32be>>
+        for index in [2, 0, 1] {
+            partitions = <<
+                partitions: bytes,
+                0: i16be,
+                index: i32be,
+                1: i32be,
+                1: i32be,
+                1: i32be,
+                1: i32be,
+                1: i32be,
+            >>
+        }
+        return <<
+            2: i32be,
+            0: i32be,
+            1: i32be,
+            1: i32be,
+            kafkaString("b1"): bytes,
+            9092: i32be,
+            0 - 1: i16be,
+            kafkaString("c"): bytes,
+            1: i32be,
+            1: i32be,
+            0: i16be,
+            kafkaString("orders"): bytes,
+            0: u8,
+            partitions: bytes,
+        >>
+    }
+}

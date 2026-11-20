@@ -1,0 +1,133 @@
+// ADR 0113: a Kafka producer written in fiig over Socket, at least once:
+// acks=all, no idempotence, no transactions, no retries (§1). A send asks
+// a bootstrap broker for the topic's layout, then sends each partition's
+// leader its records, each exchange over a connection kept by an earlier
+// one when there is one (ADR 0109). A new connection is checked with
+// ApiVersions first, pipelined with the request, since both are safe to
+// send before knowing the answer (§4).
+capability Kafka {
+    gateway send(topic: string, records: List<KafkaRecord>) -> Result<List<Sent>, KafkaError>
+        requires Socket
+    {
+        if records.length() == 0 {
+            return Ok([])
+        }
+        servers = bootstrapOf(KafkaServer.bootstrap)?
+        clientId = KafkaServer.clientId
+        now = Clock.now()
+        until: int = now + KafkaServer.timeoutMillis
+        pending: List<Exchange> = [
+            Exchange(broker: servers.first(), request: metadataRequest(clientId, 2, topic), purpose: Purpose.Metadata),
+        ]
+        // The next bootstrap server to ask when one can't be reached.
+        nextServer: int = 1
+        sent: List<SentAt> = []
+        i: int = 0
+        while i < pending.length() {
+            exchange = pending.at(i)
+            i = i + 1
+            host = exchange.broker.host
+            port = exchange.broker.port
+            reused: Connection | None = Socket.reuse(host, port, tls: KafkaServer.tls, session: "")
+            data: bytes = exchange.request
+            replies: int = 1
+            opened: Result<Connection, SocketError> = Err(SocketError.Closed)
+            match reused {
+                None -> {
+                    data = <<apiVersionsRequest(clientId, 1): bytes, data: bytes>>
+                    replies = 2
+                    if KafkaServer.tls {
+                        opened = Socket.connectTls(host, port, deadline: until)
+                    } else {
+                        opened = Socket.connect(host, port, deadline: until)
+                    }
+                }
+                kept -> {
+                    opened = Ok(kept)
+                }
+            }
+            frames: List<bytes> = []
+            failed: SocketError | None = None
+            match opened {
+                Err(failure) -> {
+                    failed = failure
+                }
+                Ok(connection) -> {
+                    match Socket.write(connection, data, deadline: until) {
+                        Err(failure) -> {
+                            failed = failure
+                        }
+                        Ok(_) -> None
+                    }
+                    buffer: bytes = <<>>
+                    while failed == None and frames.length() < replies {
+                        match nextFrame(buffer) {
+                            FrameRead.Done(frame, rest) -> {
+                                frames = append(frames, frame)
+                                buffer = rest
+                            }
+                            FrameRead.Malformed(reason) -> {
+                                Socket.close(connection)
+                                return Err(KafkaError.MalformedReply(reason: reason))
+                            }
+                            FrameRead.NeedMore -> {
+                                match Socket.read(connection, deadline: until) {
+                                    Ok(chunk) -> {
+                                        buffer = <<buffer: bytes, chunk: bytes>>
+                                    }
+                                    Err(failure) -> {
+                                        failed = failure
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if failed == None and buffer.length() == 0 {
+                        Socket.keep(connection, session: "")
+                    } else {
+                        Socket.close(connection)
+                    }
+                }
+            }
+            match failed {
+                None -> {
+                    if replies == 2 {
+                        checkApiVersions(frames.first(), 1)?
+                    }
+                    reply = frames.last()
+                    match exchange.purpose {
+                        Purpose.Metadata -> {
+                            layout = readMetadata(reply, 2, topic)?
+                            for call in producePlan(layout, records, now)? {
+                                pending = append(
+                                    pending,
+                                    Exchange(broker: call.broker, request: produceRequest(clientId, 2, topic, KafkaServer.timeoutMillis, call.batches), purpose: Purpose.Produce(call: call)),
+                                )
+                            }
+                        }
+                        Purpose.Produce(call) -> {
+                            for s in readProduce(reply, 2, call)? {
+                                sent = append(sent, s)
+                            }
+                        }
+                    }
+                }
+                failure -> {
+                    // A bootstrap server that can't be reached gives way to
+                    // the next, since asking for metadata changes nothing.
+                    // A produce that fails is the caller's to send again.
+                    retryElsewhere = exchange.purpose == Purpose.Metadata and nextServer < servers.length()
+                    if not retryElsewhere {
+                        return Err(KafkaError.Socket(failure: failure))
+                    }
+                    pending = append(
+                        pending,
+                        Exchange(broker: servers.at(nextServer), request: exchange.request, purpose: Purpose.Metadata),
+                    )
+                    nextServer = nextServer + 1
+                }
+            }
+        }
+        return inOrder(sent, records.length())
+    }
+}

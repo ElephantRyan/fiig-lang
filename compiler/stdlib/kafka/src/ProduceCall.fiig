@@ -1,0 +1,6 @@
+// One produce request: the broker leading every partition in it, and
+// those partitions' batches.
+model ProduceCall {
+    broker: BrokerNode
+    batches: List<PartitionBatch>
+}

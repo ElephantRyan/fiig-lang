@@ -1,0 +1,6 @@
+// A broker as Metadata lists it.
+model BrokerNode {
+    id: int
+    host: string
+    port: int
+}

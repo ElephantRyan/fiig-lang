@@ -1,0 +1,52 @@
+// ADR 0113 §6: KAFKA_BOOTSTRAP's host:port list, comma-separated, as
+// Kafka's bootstrap.servers writes it; an IPv6 host goes in brackets.
+conversion bootstrapOf(text: string) -> Result<List<BrokerNode>, KafkaError> {
+    out: List<BrokerNode> = []
+    for part in text.split(",") {
+        entry = part.trim()
+        if entry != "" {
+            host: string = entry
+            portText: string = ""
+            if entry.startsWith("[") {
+                pieces = entry.split("]:")
+                if pieces.length() != 2 {
+                    return Err(invalid(entry, "an IPv6 host is written [host]:port"))
+                }
+                host = pieces.first().removePrefix("[")
+                portText = pieces.last()
+            } else {
+                pieces = entry.split(":")
+                if pieces.length() != 2 {
+                    return Err(invalid(entry, "each server is host:port"))
+                }
+                host = pieces.first()
+                portText = pieces.last()
+            }
+            match portText.toIntOrNone() {
+                None -> {
+                    return Err(invalid(entry, "its port isn't a number"))
+                }
+                port -> {
+                    if host == "" or port < 1 or port > 65535 {
+                        return Err(invalid(entry, "it needs a host and a port from 1 to 65535"))
+                    }
+                    out = append(out, BrokerNode(id: 0 - 1, host: host, port: port))
+                }
+            }
+        }
+    }
+    if out.length() == 0 {
+        return Err(
+            KafkaError.InvalidConfig(reason: "KAFKA_BOOTSTRAP names no server; write host:port[,host:port...]"),
+        )
+    }
+    return Ok(out)
+}
+
+private {
+    invalid(entry: string, why: string) -> KafkaError {
+        return KafkaError.InvalidConfig(
+            reason: "KAFKA_BOOTSTRAP's \"${entry}\" can't be read: ${why}",
+        )
+    }
+}

@@ -1,0 +1,134 @@
+// ADR 0113 §4: a Metadata v4 response read as the topic's layout. A
+// partition without a leader (-1, mid-election) is LEADER_NOT_AVAILABLE,
+// which is retriable.
+conversion readMetadata(frame: bytes, correlation: int, topic: string) -> Result<TopicLayout, KafkaError> {
+    got = intAt(frame, 0)?
+    if got != correlation {
+        return Err(
+            KafkaError.MalformedReply(reason: "Metadata answered correlation ${got}, not ${correlation}"),
+        )
+    }
+    // After the correlation id, the throttle time.
+    pos: int = 8
+    brokerCount = intAt(frame, pos)?
+    pos = pos + 4
+    brokers: List<BrokerNode> = []
+    i: int = 0
+    while i < brokerCount {
+        id = intAt(frame, pos)?
+        host = textAt(frame, pos + 4)?
+        port = intAt(frame, host.next)?
+        rack = textAt(frame, host.next + 4)?
+        brokers = append(brokers, BrokerNode(id: id, host: host.text, port: port))
+        pos = rack.next
+        i = i + 1
+    }
+    cluster = textAt(frame, pos)?
+    // The controller's id, then the topics.
+    pos = cluster.next + 4
+    topicCount = intAt(frame, pos)?
+    pos = pos + 4
+    t: int = 0
+    while t < topicCount {
+        code = shortAt(frame, pos)?
+        name = textAt(frame, pos + 2)?
+        // is_internal, one byte, then the partitions.
+        pos = name.next + 1
+        partitionCount = intAt(frame, pos)?
+        pos = pos + 4
+        // Partitions come in no promised order, so they are collected by
+        // index and listed 0 to n-1 afterwards.
+        byIndex: Map<int, int> = [:]
+        failure: KafkaError | None = None
+        p: int = 0
+        while p < partitionCount {
+            partitionCode = shortAt(frame, pos)?
+            index = intAt(frame, pos + 2)?
+            leader = intAt(frame, pos + 6)?
+            replicas = intAt(frame, pos + 10)?
+            isr = intAt(frame, pos + 14 + replicas * 4)?
+            pos = pos + 18 + replicas * 4 + isr * 4
+            if partitionCode != 0 {
+                failure = brokerError(partitionCode, "Metadata for ${name.text} partition ${index}")
+            } else if leader < 0 {
+                failure = brokerError(5, "Metadata for ${name.text} partition ${index}")
+            }
+            byIndex = byIndex.put(index, leader)
+            p = p + 1
+        }
+        if name.text == topic {
+            if code == 0 {
+                match failure {
+                    None -> None
+                    found -> {
+                        return Err(found)
+                    }
+                }
+            }
+            leaders: List<int> = []
+            n: int = 0
+            while n < partitionCount {
+                if not byIndex.containsKey(n) {
+                    return Err(
+                        KafkaError.MalformedReply(reason: "Metadata for ${topic} skips partition ${n}"),
+                    )
+                }
+                leaders = append(leaders, byIndex.at(n))
+                n = n + 1
+            }
+            if code == 3 {
+                return Err(KafkaError.UnknownTopic(topic: topic))
+            }
+            if code != 0 {
+                return Err(brokerError(code, "Metadata for ${topic}"))
+            }
+            if leaders.length() == 0 {
+                return Err(
+                    KafkaError.MalformedReply(reason: "Metadata lists no partitions for ${topic}"),
+                )
+            }
+            return Ok(TopicLayout(brokers: brokers, leaders: leaders))
+        }
+        t = t + 1
+    }
+    return Err(KafkaError.UnknownTopic(topic: topic))
+}
+
+private {
+    short() -> KafkaError {
+        return KafkaError.MalformedReply(reason: "a Metadata response ends early")
+    }
+
+    intAt(data: bytes, at: int) -> Result<int, KafkaError> {
+        match i32At(data, at) {
+            None -> {
+                return Err(short())
+            }
+            value -> {
+                return Ok(value)
+            }
+        }
+    }
+
+    shortAt(data: bytes, at: int) -> Result<int, KafkaError> {
+        match i16At(data, at) {
+            None -> {
+                return Err(short())
+            }
+            value -> {
+                return Ok(value)
+            }
+        }
+    }
+
+    textAt(data: bytes, at: int) -> Result<TextAt, KafkaError> {
+        match stringAt(data, at) {
+            None -> {
+                return Err(short())
+            }
+            value -> {
+                return Ok(value)
+            }
+        }
+    }
+}

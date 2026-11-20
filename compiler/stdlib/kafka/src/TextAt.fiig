@@ -1,0 +1,5 @@
+// A string read from a response, and the offset after it.
+model TextAt {
+    text: string
+    next: int
+}

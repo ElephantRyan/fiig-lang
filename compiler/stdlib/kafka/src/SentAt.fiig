@@ -1,0 +1,6 @@
+// Where the record at index in the call's list was written.
+model SentAt {
+    index: int
+    partition: int
+    offset: int
+}
