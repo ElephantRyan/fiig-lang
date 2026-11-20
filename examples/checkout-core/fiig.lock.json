@@ -1,0 +1,11 @@
+{
+  "toolchain": "dev",
+  "dependencies": [
+    {
+      "path": "acme.payments",
+      "version": "1.0.0",
+      "hash": "sha256:16c5c80de0a97277d0c0f8532e877aa5ff1da04e796244281bbd891ba75a3697",
+      "source": "C:/Users/ryans/IdeaProjects/fiig-lang/examples/acme-payments"
+    }
+  ]
+}

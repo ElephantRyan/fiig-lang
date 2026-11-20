@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"fiig-lang/compiler/checker"
+	"fiig-lang/compiler/layout"
 	"fiig-lang/compiler/lexer"
 	"fiig-lang/compiler/loader"
 	"fiig-lang/compiler/manifest"
@@ -27,6 +28,19 @@ import (
 type pkgInfo struct {
 	root  string // absolute directory
 	loose bool
+	// module marks a folder package of a module (ADR 0105): root is the
+	// module's directory and folder the package's folder under src/ ("" for
+	// the top-level package).
+	module bool
+	folder string
+}
+
+// id is p's identity among the workspace's packages.
+func (p pkgInfo) id() string {
+	if p.module {
+		return p.root + "#" + p.folder
+	}
+	return p.root
 }
 
 // declID names a declaration across checks: its package and its name
@@ -79,7 +93,7 @@ func discover(root string) []pkgInfo {
 			}
 			if path != root {
 				if _, err := os.Stat(filepath.Join(path, manifest.Filename)); err == nil {
-					out = append(out, pkgInfo{root: path})
+					out = append(out, packagesAt(path)...)
 					return filepath.SkipDir
 				}
 			}
@@ -91,20 +105,68 @@ func discover(root string) []pkgInfo {
 		return nil
 	})
 	if _, err := os.Stat(filepath.Join(root, manifest.Filename)); err == nil {
-		out = append(out, pkgInfo{root: root})
+		out = append(out, packagesAt(root)...)
 	} else if loose {
 		out = append(out, pkgInfo{root: root, loose: true})
 	}
 	return out
 }
 
+// packagesAt is the package at dir, which has a manifest: one per folder
+// under src/ for a module (ADR 0105), else the directory.
+func packagesAt(dir string) []pkgInfo {
+	if !layout.IsModule(os.DirFS(dir)) {
+		return []pkgInfo{{root: dir}}
+	}
+	pkgs, _ := layout.Packages(os.DirFS(dir))
+	out := []pkgInfo{{root: dir, module: true}}
+	for _, p := range pkgs {
+		if p.Folder != "" {
+			out = append(out, pkgInfo{root: dir, module: true, folder: p.Folder})
+		}
+	}
+	return out
+}
+
+// folderOf is the folder package a module's file belongs to: src/a/b/X is
+// a/b's, test/a/b/X mirrors it, test/scenarios/ is the top level's.
+func folderOf(moduleRoot, file string) (string, bool) {
+	rel, err := filepath.Rel(moduleRoot, file)
+	if err != nil {
+		return "", false
+	}
+	rel = filepath.ToSlash(rel)
+	var under string
+	switch {
+	case strings.HasPrefix(rel, layout.Src+"/"):
+		under = strings.TrimPrefix(rel, layout.Src+"/")
+	case strings.HasPrefix(rel, layout.Test+"/"+layout.Scenarios+"/"):
+		return "", true
+	case strings.HasPrefix(rel, layout.Test+"/"):
+		under = strings.TrimPrefix(rel, layout.Test+"/")
+	default:
+		return "", false
+	}
+	dir := pathpkg.Dir(under)
+	if dir == "." {
+		dir = ""
+	}
+	return dir, true
+}
+
 // owner is the package a file belongs to: the deepest manifest package
-// holding it, or the loose files.
+// holding it (in a module, the folder package it's in), or the loose
+// files.
 func owner(pkgs []pkgInfo, file string) (pkgInfo, bool) {
 	best, found := pkgInfo{}, false
 	for _, p := range pkgs {
 		if !within(p.root, file) {
 			continue
+		}
+		if p.module {
+			if folder, ok := folderOf(p.root, file); !ok || folder != p.folder {
+				continue
+			}
 		}
 		if p.loose && found {
 			continue
@@ -124,6 +186,18 @@ func within(dir, file string) bool {
 // files lists p's .fiig files, leaving out packages nested in it.
 func files(p pkgInfo) []string {
 	var out []string
+	if p.module {
+		pkgs, _ := layout.Packages(os.DirFS(p.root))
+		for _, lp := range pkgs {
+			if lp.Folder == p.folder {
+				for _, rel := range append(append([]string(nil), lp.Sources...), lp.Tests...) {
+					out = append(out, filepath.Join(p.root, filepath.FromSlash(rel)))
+				}
+			}
+		}
+		sort.Strings(out)
+		return out
+	}
 	filepath.WalkDir(p.root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -182,16 +256,42 @@ func check(p pkgInfo, workspace string, open func(path string) (string, bool)) *
 			}
 		} else {
 			s.path, provides = m.Path, m.Provides
+			if p.module {
+				s.path = layout.PathOf(m.Path, p.folder)
+			}
 			if loader.Wanted(p.root, []string{workspace}) {
-				loaded, errs := loader.Load(p.root, []string{workspace})
-				for _, e := range errs {
-					s.diags[manifestFile] = append(s.diags[manifestFile], checker.Diagnostic{Msg: e.Error()})
+				loaded, errs := loader.LoadForEditor(p.root, []string{workspace})
+				if !p.module || p.folder == "" {
+					for _, e := range errs {
+						s.diags[manifestFile] = append(s.diags[manifestFile], checker.Diagnostic{Msg: e.Error()})
+					}
 				}
 				if loaded != nil {
 					packages = loaded.Packages
+					for _, mp := range loaded.Module {
+						if p.module && mp.Layout.Folder == p.folder {
+							packages = mp.Package.Dependencies
+						}
+					}
 					for _, e := range loaded.Lockfile.Dependencies {
-						s.depDirs[e.Path] = sourceDir(e.Source, p.root)
-						s.depPaths = append(s.depPaths, e.Path)
+						s.depDirs[e.Path] = moduleSrc(sourceDir(e.Source, p.root))
+					}
+					// A package of a module has the folder of its path under
+					// that module's src/ (ADR 0105).
+					for path := range packages {
+						s.depPaths = append(s.depPaths, path)
+						if _, ok := s.depDirs[path]; ok {
+							continue
+						}
+						if path == m.Path || strings.HasPrefix(path, m.Path+".") {
+							s.depDirs[path] = filepath.Join(p.root, layout.Src, filepath.FromSlash(strings.ReplaceAll(strings.TrimPrefix(strings.TrimPrefix(path, m.Path), "."), ".", "/")))
+							continue
+						}
+						for _, e := range loaded.Lockfile.Dependencies {
+							if strings.HasPrefix(path, e.Path+".") {
+								s.depDirs[path] = filepath.Join(sourceDir(e.Source, p.root), layout.Src, filepath.FromSlash(strings.ReplaceAll(strings.TrimPrefix(path, e.Path+"."), ".", "/")))
+							}
+						}
 					}
 				}
 			}
@@ -202,6 +302,16 @@ func check(p pkgInfo, workspace string, open func(path string) (string, bool)) *
 		byRel[rel] = s.sources[abs]
 	}
 	diags, checked := checker.CheckSources(byRel, packages, s.path, provides)
+	if p.module {
+		// ADR 0104: a source file is named after its declaration.
+		for rel, c := range checked {
+			if strings.HasPrefix(rel, layout.Src+"/") && len(c.File.Decls) > 0 {
+				if problem := layout.FileNameProblem(rel, syntax.DeclName(c.File.Decls[0])); problem != "" {
+					diags = append(diags, checker.Diagnostic{File: rel, Msg: problem})
+				}
+			}
+		}
+	}
 	for _, d := range diags {
 		file := rels[d.File]
 		if file == "" {
@@ -364,4 +474,12 @@ func memberSpan(src string, decl syntax.Decl, member string) (lexer.Pos, lexer.P
 		}
 	}
 	return lexer.Pos{}, lexer.Pos{}, false
+}
+
+// moduleSrc is dir's src/ for a module's top-level package, else dir.
+func moduleSrc(dir string) string {
+	if layout.IsModule(os.DirFS(dir)) {
+		return filepath.Join(dir, layout.Src)
+	}
+	return dir
 }

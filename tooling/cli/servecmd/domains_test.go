@@ -164,11 +164,11 @@ func TestSplitChangesOnlyTheGateway(t *testing.T) {
 	examples := examplesDir(t)
 	monolith, split := filepath.Join(examples, "shop-orders"), filepath.Join(examples, "shop-orders-split")
 	changed := map[string]bool{
-		"gateways/charge_order.fiig":   true,
-		"fiig.pkg.json":                true,
-		"fiig.lock.json":               true,
-		"caps.json":                    true,
-		"config/payments_service.fiig": true,
+		"src/ChargeOrder.fiig":     true,
+		"fiig.pkg.json":            true,
+		"fiig.lock.json":           true,
+		"caps.json":                true,
+		"src/PaymentsService.fiig": true,
 	}
 	a, b := filesUnder(t, monolith), filesUnder(t, split)
 	for name := range changed {

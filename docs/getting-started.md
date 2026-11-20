@@ -2,8 +2,14 @@
 
 This builds and runs `examples/getting-started`, a small ratings service:
 a model, a validation rule, two SQLite gateways, a migration, and an HTTP
-adapter. You
-need the `fiig` binary and nothing else; SQLite is built in.
+adapter. You need the `fiig` binary and nothing else; SQLite is built in.
+
+A program is a module: `fiig.pkg.json` at its root, its code in `src/`, and
+its tests in `test/`, where each test file sits at the same path as the
+file it tests (ADRs 0102, 0105). Each file holds one declaration and is
+named after it: `rule createValidRating` is `src/CreateValidRating.fiig`
+(ADR 0104). A folder under `src/` is a package of its own; this example is
+small enough to need none.
 
 ## 1. Install
 
@@ -73,12 +79,12 @@ curl localhost:8080/ratings/nope
 
 The first two return the rating with status 200; the last returns `"no
 rating for nope"` with status 404, the mapping written in
-`adapters/ratings_api.fiig`. The route declares `consumes
+`src/RatingsApi.fiig`. The route declares `consumes
 "application/json"`, so a POST without that `Content-Type` is a 415.
 
 ## 5. See an error
 
-In `activities/record_rating.fiig`, delete the `?` after
+In `src/RecordRating.fiig`, delete the `?` after
 `createValidRating(input)`, then check again:
 
 ```
@@ -86,7 +92,7 @@ fiig check .
 ```
 
 ```
-activities/record_rating.fiig:4:26: [A1] type mismatch: got Result<Rating, RatingError>, expected Rating
+src/RecordRating.fiig:4:26: [A1] type mismatch: got Result<Rating, RatingError>, expected Rating
 ```
 
 `createValidRating` can fail, and the program no longer says what happens
@@ -96,23 +102,27 @@ code; `docs/specification/bug-classes.md` lists them, and
 
 ## 6. Test it
 
-`tests/` holds tests written in fiig. Each one gets its own in-memory
-database with the migrations applied, so the gateways run their real SQL:
+`test/` holds tests written in fiig. `test/FindRating.fiig` tests
+`src/FindRating.fiig`, and a file holds as many tests as it needs.
+`test/scenarios/` is for a test that checks more than one entry point.
+Each test gets its own in-memory database with the migrations applied, so
+the gateways run their real SQL:
 
 ```
 fiig test -v .
 ```
 
 ```
-ok   badBatchStoresNothing (tests/bad_batch_stores_nothing.fiig:3)
-ok   ratingAboveTenIsRefused (tests/rating_above_ten_is_refused.fiig:2)
-ok   savedRatingIsFound (tests/saved_rating_is_found.fiig:3)
-3 passed, 0 failed
+ok   ratingAboveTenIsRefused (test/CreateValidRating.fiig:2)
+ok   badBatchStoresNothing (test/FindRating.fiig:3)
+ok   savedRatingIsFound (test/FindRating.fiig:15)
+ok   rateThenRead (test/scenarios/RateThenRead.fiig:3)
+4 passed, 0 failed
 ```
 
 `expect found == ...` checks a value; `expect result is Err(problem)`
 checks a shape and binds what's inside. Change `"great"` to `"grand"` in
-`tests/saved_rating_is_found.fiig` and run it again to see a failure
+`test/FindRating.fiig` and run it again to see a failure
 with both sides printed. ADR 0091 has the rest, including `fake` blocks
 that stand in for a capability.
 

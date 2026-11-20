@@ -7,8 +7,12 @@
         "acme.stripe": "1.0.0",
         "checkout.core": "1.0.0"
     },
-    "capabilities": ["Socket"],
+    "capabilities": [
+        "Socket"
+    ],
     "environment": {
-        "acme.stripe": {"STRIPE_API_KEY": "CLIENTVERTICAL_STRIPE_API_KEY"}
+        "acme.stripe": {
+            "STRIPE_API_KEY": "CLIENTVERTICAL_STRIPE_API_KEY"
+        }
     }
 }

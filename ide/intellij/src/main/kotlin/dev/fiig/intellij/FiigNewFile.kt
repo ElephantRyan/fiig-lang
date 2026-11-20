@@ -57,7 +57,7 @@ object FiigNaming {
         return if (kind in CAPITALIZED) camel.replaceFirstChar(Char::uppercase) else camel
     }
 
-    /** `getCustomer` -> get_customer.fiig. */
+    /** ADR 0104: a file is named after its declaration, `getCustomer` -> GetCustomer.fiig. */
     fun fileName(declaration: String): String =
-        declaration.replace(Regex("([a-z0-9])([A-Z])"), "$1_$2").lowercase() + ".fiig"
+        declaration.replaceFirstChar(Char::uppercase) + ".fiig"
 }

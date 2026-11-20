@@ -1,6 +1,6 @@
 # ADR 0102: A Package Is `src/` and `test/`, and `test/` Mirrors `src/`
 
-Status: Accepted (2026-11-20). Not yet implemented; built with ADRs 0104-0107 as one migration.
+Status: Accepted (2026-11-20). Implemented 2026-11-20.
 Date: 2026-11-20
 Amends: ADR 0091 §2 (where tests live), fiig-lang.md §3.9 (one declaration
 per file: test files are the exception), ADR 0054 (a test file's private
@@ -134,3 +134,22 @@ abs-recommendations move with it.
 
 1. *(Settled: ADR 0104 names files in TitleCase; ADR 0105 makes the
    folders packages, which this ADR's example now shows.)*
+
+## Implementation notes
+
+Built 2026-11-20 with ADRs 0104 and 0105.
+
+- `compiler/layout` says which file is in which package and checks the
+  mirror: a test file with no source file at its path is an error naming
+  test/scenarios/. A test file holds any number of tests and one private
+  block they share; a file mixing tests with anything else is G1.
+- `fiig fmt -layout <dir>` (`tooling/relayout`) moves a package: code into
+  src/, each test into the file mirroring the declaration its expects
+  call most (a capability group's operations count for the group), and a
+  test it can't place into test/scenarios/, listed. `-absorb DIR=folder`
+  folds another module in. `-n` prints the plan.
+- A folder with a manifest whose code isn't under src/ is an error naming
+  `fiig fmt -layout`. A folder without one is a loose set of files, as
+  before: the corpus's teaching examples and `invalid-programs` stay so.
+- Moved: the 18 corpus modules, the 3 stdlib packages, and
+  getting-started, which gained a manifest.

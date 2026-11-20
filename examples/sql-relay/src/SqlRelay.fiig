@@ -1,0 +1,63 @@
+use fiig.sql as db
+
+// ADR 0084: a database driver written in fiig. It speaks a small relay
+// protocol, not Postgres: each statement is one frame, a 4-byte length and
+// that many bytes of JSON, and the reply is one frame holding a
+// Result<SqlResult, DatabaseError> as JSON (ADR 0072's shape). The relay
+// (libraries/sql/cmd/fiig-sql-relay) runs it on SQLite, one database
+// session per connection, so BEGIN and COMMIT reach the same session. The
+// runtime pools these connections and sends BEGIN, COMMIT and ROLLBACK
+// itself (§3, §5); the program only calls Database.
+capability SqlRelay provides db.SqlDriver {
+    gateway connect(settings: Map<string, string>) -> Result<Connection, db.DatabaseError>
+        requires Socket
+    {
+        match readRelayAddress(settings) {
+            None -> Err(db.DatabaseError.Protocol(reason: "the relay's settings need host and port"))
+            address -> {
+                match Socket.connect(address.host, address.port) {
+                    Ok(connection) -> Ok(connection)
+                    Err(failure) -> Err(db.DatabaseError.Broken(failure: failure))
+                }
+            }
+        }
+    }
+
+    gateway run(connection: Connection, sql: string, values: List<db.SqlValue>) -> Result<db.SqlResult, db.DatabaseError>
+        requires Socket
+    {
+        request = json.encode(RelayRequest(sql: sql, values: values))
+        size = request.length()
+        match Socket.write(connection, <<size: i32be, request: bytes>>) {
+            Err(failure) -> {
+                return Err(db.DatabaseError.Broken(failure: failure))
+            }
+            Ok(_) -> None
+        }
+        buffer: bytes = <<>>
+        while true {
+            match readRelayFrame(buffer) {
+                None -> {
+                    match Socket.read(connection) {
+                        Ok(chunk) -> {
+                            buffer = <<buffer: bytes, chunk: bytes>>
+                        }
+                        Err(failure) -> {
+                            return Err(db.DatabaseError.Broken(failure: failure))
+                        }
+                    }
+                }
+                body -> {
+                    return relayReply(body)
+                }
+            }
+        }
+    }
+
+    gateway close(connection: Connection) -> None
+        requires Socket
+    {
+        Socket.close(connection)
+        return None
+    }
+}

@@ -1,0 +1,125 @@
+use fiig.sql as db
+
+// ADR 0085: a Postgres driver written in fiig, the frontend side of
+// protocol 3.0 over Socket. The runtime pools its connections and sends
+// BEGIN, COMMIT and ROLLBACK through run (ADR 0084); a program only calls
+// Database. Each step of the protocol is a conversion, so these gateways
+// only move bytes.
+capability Postgres provides db.SqlDriver {
+    // §2, §5, §6: connect, ask for TLS in-band, send the startup message,
+    // and authenticate until the server is ready for a query.
+    gateway connect(settings: Map<string, string>) -> Result<Connection, db.DatabaseError>
+        requires Socket
+    {
+        pg = readSettings(settings)?
+        connection: Connection = connectionOr(Socket.connect(pg.host, pg.port))?
+        if pg.secure {
+            writtenOr(Socket.write(connection, <<8: i32be, 80877103: i32be>>))?
+            answer = bytesOr(Socket.read(connection))?
+            if answer.length() != 1 or answer.at(0) != 83 {
+                return Err(
+                    db.DatabaseError.Protocol(reason: "the server at ${pg.host} doesn't offer TLS; set sslmode to disable to connect without it"),
+                )
+            }
+            connection = connectionOr(Socket.startTls(connection, pg.host))?
+        }
+        writtenOr(Socket.write(connection, startupMessage(pg)))?
+        nonce = Random.bytes(18).toBase64()
+        state: Handshake = Handshake(
+            settings: pg,
+            clientNonce: nonce,
+            clientFirstBare: "n=,r=${nonce}",
+            expectSignature: <<>>,
+            verified: false,
+            send: <<>>,
+            failed: None,
+            ready: false,
+        )
+        buffer: bytes = <<>>
+        while true {
+            match nextFrame(buffer) {
+                None -> {
+                    chunk = bytesOr(Socket.read(connection))?
+                    buffer = <<buffer: bytes, chunk: bytes>>
+                }
+                frame -> {
+                    buffer = frame.rest
+                    state = handshakeStep(state, frame.kind, frame.body)
+                    match state.failed {
+                        None -> None
+                        failure -> {
+                            return Err(failure)
+                        }
+                    }
+                    if state.ready {
+                        return Ok(connection)
+                    }
+                    if state.send.length() > 0 {
+                        writtenOr(Socket.write(connection, state.send))?
+                    }
+                }
+            }
+        }
+    }
+
+    // §3: one statement, one round trip of the extended protocol, read
+    // until ReadyForQuery so the connection is ready for the next (§9).
+    gateway run(connection: Connection, sql: string, values: List<db.SqlValue>) -> Result<db.SqlResult, db.DatabaseError>
+        requires Socket
+    {
+        writtenOr(Socket.write(connection, statementMessages(numberPlaceholders(sql), values)))?
+        state: Reply = Reply(
+            columns: [],
+            types: [],
+            row: None,
+            affected: 0,
+            failed: None,
+            ready: false,
+        )
+        rows: List<List<db.SqlValue>> = []
+        buffer: bytes = <<>>
+        while true {
+            match nextFrame(buffer) {
+                None -> {
+                    chunk = bytesOr(Socket.read(connection))?
+                    buffer = <<buffer: bytes, chunk: bytes>>
+                }
+                frame -> {
+                    buffer = frame.rest
+                    state = replyStep(state, frame.kind, frame.body)
+                    match state.row {
+                        None -> None
+                        row -> {
+                            rows = append(rows, row)
+                        }
+                    }
+                    if state.ready {
+                        match state.failed {
+                            None -> {
+                                return Ok(
+                                    db.SqlResult(columns: state.columns, rows: rows, affected: state.affected),
+                                )
+                            }
+                            failure -> {
+                                return Err(failure)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Terminate, then close. A failed write changes nothing: the socket
+    // closes either way.
+    gateway close(connection: Connection) -> None
+        requires Socket
+    {
+        match Socket.write(connection, <<88: u8, 4: i32be>>) {
+            Ok(_) -> None
+            Err(_) -> None
+        }
+        Socket.close(connection)
+        return None
+    }
+}

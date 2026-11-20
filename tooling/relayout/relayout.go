@@ -178,7 +178,7 @@ func Relayout(root string, absorb []Absorb) (*Plan, error) {
 		if byName[s.mod] == nil {
 			byName[s.mod] = map[string]*source{}
 		}
-		if s.name != "" {
+		if s.name != "" && len(s.file.Decls) > 0 && callable(s.file.Decls[0]) {
 			byName[s.mod][s.name] = s
 		}
 	}
@@ -357,8 +357,15 @@ func stmtCalls(st syntax.Stmt) []string {
 	var out []string
 	syntax.WalkBlockExprs(&syntax.Block{Stmts: []syntax.Stmt{st}}, func(e syntax.Expr) {
 		if c, ok := e.(*syntax.CallExpr); ok {
-			if id, ok := c.Callee.(*syntax.Ident); ok {
-				out = append(out, id.Name)
+			switch callee := c.Callee.(type) {
+			case *syntax.Ident:
+				out = append(out, callee.Name)
+			case *syntax.FieldAccess:
+				// A capability group's operation, AbsApi.me(...): the
+				// group's file is what's tested.
+				if id, ok := callee.Target.(*syntax.Ident); ok {
+					out = append(out, id.Name)
+				}
 			}
 		}
 	})
@@ -507,4 +514,14 @@ func sortedSet(m map[string]bool) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// callable reports whether d is something a test exercises by calling it,
+// rather than a model or an enum it builds values of.
+func callable(d syntax.Decl) bool {
+	switch d.(type) {
+	case *syntax.RuleDecl, *syntax.ConversionDecl, *syntax.ActivityDecl, *syntax.GatewayDecl, *syntax.WorkflowDecl, *syntax.CapabilityDecl:
+		return true
+	}
+	return false
 }

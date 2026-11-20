@@ -1,0 +1,20 @@
+{
+  "toolchain": "dev",
+  "dependencies": [
+    {
+      "path": "acme.http",
+      "version": "1.0.0",
+      "hash": "sha256:2789cb6e72b04b54f809ae16eecdb3e6a4343a6b6f2139b84f5c3f45166071f2",
+      "source": "C:/Users/ryans/IdeaProjects/fiig-lang/examples/acme-http",
+      "capabilities": [
+        "Socket"
+      ]
+    },
+    {
+      "path": "acme.payments",
+      "version": "1.0.0",
+      "hash": "sha256:16c5c80de0a97277d0c0f8532e877aa5ff1da04e796244281bbd891ba75a3697",
+      "source": "C:/Users/ryans/IdeaProjects/fiig-lang/examples/acme-payments"
+    }
+  ]
+}

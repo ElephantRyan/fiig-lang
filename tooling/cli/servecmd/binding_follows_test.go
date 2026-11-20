@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"fiig-lang/compiler/adapter"
+	"fiig-lang/internal/fixture"
 	"fiig-lang/tooling/runprogram"
 )
 
@@ -63,7 +64,7 @@ func TestServingADependencyTheRootNeverImports(t *testing.T) {
 
 func writeTree(t *testing.T, root string, files map[string]string) {
 	t.Helper()
-	for name, src := range files {
+	for name, src := range fixture.Module(files) {
 		path := filepath.Join(root, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -76,7 +77,7 @@ func writeTree(t *testing.T, root string, files map[string]string) {
 
 func TestBindingFollowsTheRunningWorkflow(t *testing.T) {
 	workspace := t.TempDir()
-	for name, src := range followsProgram {
+	for name, src := range fixture.Module(followsProgram) {
 		path := filepath.Join(workspace, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)

@@ -568,9 +568,35 @@ adapter cli customerCli {
 }
 ```
 
-## 9. Packages
+## 9. Modules and packages
 
-Not fiig source — `fiig.json` beside the package.
+A module is a folder with a `fiig.pkg.json`; its code is in `src/` and its
+tests in `test/`, which mirrors `src/` file for file, except
+`test/scenarios/` (ADRs 0102, 0105). Every folder under `src/` is a
+package, named by the module's path and its folders, and each file is
+named after its one declaration (ADR 0104):
+
+```
+abs-recommendations/
+  fiig.pkg.json              module abs.recommendations
+  migrations/0001_create_rating.sql
+  src/
+    Health.fiig              package abs.recommendations
+    ratings/Rate.fiig        package abs.recommendations.ratings
+    signin/password/...      package abs.recommendations.signin.password
+  test/
+    ratings/Rate.fiig        tests of src/ratings/Rate.fiig
+    scenarios/...            tests of several entry points
+```
+
+A package is imported by its path (`use abs.recommendations.ratings`);
+packages in a module may not import each other in a cycle, and the
+top-level package isn't importable from its folders. `fiig run . ratings.rate`
+runs a folder package's declaration. A capability group says which
+interface it fulfills: `capability Square provides payments.PaymentProvider`.
+`fiig fmt -layout <dir>` moves an older package to this layout.
+
+The manifest, `fiig.pkg.json`:
 
 ```json
 {
@@ -748,7 +774,8 @@ header; a `match` on the enum is for per-client logic. Corpus:
 ## ADR 0091 — tests `[implemented]`
 
 ```fiig
-// tests/rating_above_ten_is_refused.fiig: one test per file, under tests/.
+// test/CreateValidRating.fiig: the tests of src/CreateValidRating.fiig,
+// as many as it needs, sharing one private block (ADR 0102).
 test ratingAboveTenIsRefused {
     result = createValidRating(NewRating(item: "dune", score: 11, note: ""))
     expect result is Err(problem)        // a shape; binds problem

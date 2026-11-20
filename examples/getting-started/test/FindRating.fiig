@@ -1,0 +1,20 @@
+// saveRatings is all or nothing: the second rating fails its check, so the
+// first one is rolled back with it.
+test badBatchStoresNothing {
+    saved = saveRatings(
+        [Rating(item: "dune", score: 9, note: "great"), Rating(item: "emma", score: 0, note: "unrated")],
+    )
+    expect saved is Err(problem)
+    expect problem == RatingError.Invalid("score", "must be from 1 to 10")
+    expect findRating("dune") is Err(missing)
+    expect missing == RatingError.NotFound("dune")
+}
+
+// Database is a new, empty in-memory database in every test, so gateways
+// run their real SQL.
+test savedRatingIsFound {
+    saveRating(Rating(item: "dune", score: 9, note: "great"))
+    expect findRating("dune") is Ok(found)
+    expect found == Rating(item: "dune", score: 9, note: "great")
+    expect findRating("emma") is Err(_)
+}

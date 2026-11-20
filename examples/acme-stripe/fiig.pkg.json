@@ -6,7 +6,7 @@
         "acme.http": "1.0.0",
         "acme.payments": "1.0.0"
     },
-    "provides": {
-        "acme.payments.PaymentProvider": "Stripe"
-    }
+    "capabilities": [
+        "Socket"
+    ]
 }

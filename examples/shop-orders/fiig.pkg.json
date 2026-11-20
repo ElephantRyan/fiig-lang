@@ -6,6 +6,10 @@
         "shop.kernel": "1.0.0",
         "shop.payments": "1.0.0"
     },
-    "capabilities": ["Database"],
-    "nativeCapabilities": ["Database"]
+    "capabilities": [
+        "Database"
+    ],
+    "nativeCapabilities": [
+        "Database"
+    ]
 }

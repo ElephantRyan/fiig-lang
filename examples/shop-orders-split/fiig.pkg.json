@@ -6,6 +6,11 @@
         "fiig.http": "1.0.0",
         "shop.kernel": "1.0.0"
     },
-    "capabilities": ["Database", "Socket"],
-    "nativeCapabilities": ["Database"]
+    "capabilities": [
+        "Database",
+        "Socket"
+    ],
+    "nativeCapabilities": [
+        "Database"
+    ]
 }

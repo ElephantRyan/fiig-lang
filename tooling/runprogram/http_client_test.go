@@ -10,6 +10,7 @@ import (
 	"fiig-lang/compiler/loader"
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/types"
+	"fiig-lang/internal/fixture"
 )
 
 // ADR 0074: fiig.http, the package built into the toolchain, found by the
@@ -99,7 +100,8 @@ func TestHeaderValueTakesARequestsHeaders(t *testing.T) {
 func httpInterp(t *testing.T, script *runtime.ScriptedSocket) *runtime.Interp {
 	t.Helper()
 	root := t.TempDir()
-	for name, src := range httpProgram {
+	for name, src := range fixture.Module(httpProgram) {
+		os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
 		if err := os.WriteFile(filepath.Join(root, name), []byte(src), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -339,7 +341,8 @@ conversion pick() -> string {
 		t.Run(c.name, func(t *testing.T) {
 			root := t.TempDir()
 			files := map[string]string{"fiig.pkg.json": httpProgram["fiig.pkg.json"], "decl.fiig": c.src}
-			for name, src := range files {
+			for name, src := range fixture.Module(files) {
+				os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
 				if err := os.WriteFile(filepath.Join(root, name), []byte(src), 0o644); err != nil {
 					t.Fatal(err)
 				}

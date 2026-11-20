@@ -6,6 +6,11 @@
         "examples.sqlrelay": "1.0.0",
         "fiig.postgres": "1.0.0"
     },
-    "capabilities": ["Database", "Socket"],
-    "nativeCapabilities": ["Database"]
+    "capabilities": [
+        "Database",
+        "Socket"
+    ],
+    "nativeCapabilities": [
+        "Database"
+    ]
 }
