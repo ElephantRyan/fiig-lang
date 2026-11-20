@@ -102,6 +102,9 @@ func Main(name string, args []string) {
 		sources = append(sources, runprogram.ReachableConfigFrom(program, all)...)
 	}
 	serving := true
+	// With entries named, only the packages they reach have bindings to
+	// report (abs-recommendations G51); with none, every package does.
+	var reached map[string]bool
 	if fs.NArg() >= 2 {
 		serving = false
 		var entries []runprogram.Entry
@@ -135,6 +138,7 @@ func Main(name string, args []string) {
 			}
 		}
 		sources = runprogram.ReachableConfigFrom(program, entries)
+		reached = runprogram.ReachedPackages(program, entries, packages)
 	}
 	vars, err := runprogram.Variables(sources, *capsPath)
 	if err != nil {
@@ -168,7 +172,21 @@ func Main(name string, args []string) {
 	if problems := runprogram.UnknownPackages(ownPaths, packages); len(problems) > 0 {
 		fail(errors.New(strings.Join(problems, "; ")))
 	}
-	bindings := runprogram.Bindings(packages, func(path, capability string) bool { return own[path][capability] }, ownPaths)
+	listed, listedOwn := packages, ownPaths
+	if reached != nil {
+		listed, listedOwn = types.Packages{}, nil
+		for path, pkg := range packages {
+			if reached[path] {
+				listed[path] = pkg
+			}
+		}
+		for _, path := range ownPaths {
+			if reached[path] {
+				listedOwn = append(listedOwn, path)
+			}
+		}
+	}
+	bindings := runprogram.Bindings(listed, func(path, capability string) bool { return own[path][capability] }, listedOwn)
 	if len(bindings) > 0 {
 		fmt.Println()
 		fmt.Println("capability bindings:")
