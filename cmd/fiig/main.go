@@ -29,6 +29,7 @@ import (
 	"fiig-lang/compiler/text"
 	"fiig-lang/compiler/version"
 	fiigsql "fiig-lang/libraries/sql"
+	"fiig-lang/tooling/cli/callscmd"
 	"fiig-lang/tooling/cli/catalogcmd"
 	"fiig-lang/tooling/cli/checkcmd"
 	"fiig-lang/tooling/cli/configcmd"
@@ -52,6 +53,7 @@ commands:
   migrate   apply a program's pending migrations (migrations/)
   fmt       format .fiig files
   catalog   generate, search, and compare a program's registry
+  calls     list what a file calls: each callee's kind and effects
   lsp       run the language server an editor starts (stdin/stdout)
   version   print the toolchain version
 
@@ -81,6 +83,8 @@ func main() {
 		migratecmd.Main("fiig migrate", args, sql)
 	case "fmt":
 		fmtcmd.Main("fiig fmt", args)
+	case "calls":
+		callscmd.Main("fiig calls", args)
 	case "catalog":
 		catalogcmd.Main("fiig catalog", args)
 	case "lsp":
