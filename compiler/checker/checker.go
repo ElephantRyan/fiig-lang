@@ -793,7 +793,7 @@ func (c *checker) report(at lexer.Pos, rule, format string, args ...any) {
 	}
 	msg := fmt.Sprintf(format, args...)
 	if c.inForm != "" && rule != "" && (rule[0] == 'B' || rule[0] == 'P') {
-		msg += fmt.Sprintf(" (%s may call only what a rule may: formulas and methods, %s)", c.formWhat(), c.formADR())
+		msg += fmt.Sprintf(" (%s may call %s, %s)", c.formWhat(), c.formMayCall(), c.formADR())
 	}
 	c.diags = append(c.diags, Diagnostic{Msg: msg, At: at, Rule: rule})
 }
@@ -1168,7 +1168,7 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 	}
 	if c.inForm != "" {
 		form := c.inForm
-		msg := fmt.Sprintf("%s may not call %s %q; it may call only what a rule may, formulas and methods, so its value can't depend on outside state (%s)", c.formWhat(), calleeKind, calleeName, c.formADR())
+		msg := fmt.Sprintf("%s may not call %s %q; it may call %s, so its value can't depend on outside state (%s)", c.formWhat(), calleeKind, calleeName, c.formMayCall(), c.formADR())
 		c.inForm = ""
 		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s", msg)
 		c.inForm = form

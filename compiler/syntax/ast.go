@@ -1130,6 +1130,7 @@ type ListForm struct {
 var ListForms = map[string]bool{
 	"filter": true, "map": true, "groupBy": true, "count": true, "any": true, "all": true,
 	"sum": true, "max": true, "min": true, "maxOrNone": true, "minOrNone": true,
+	"mapErr": true, // ADR 0095: over a Result, not a List
 }
 
 type RetryExpr struct {

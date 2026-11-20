@@ -426,6 +426,10 @@ newest = max(r in ratings): r.updatedAt           // faults on []; maxOrNone doe
 many = count(r in ratings): r.recommended         // also any(...) and all(...)
 seen = byItem.atOr("b-12", [])                    // a map value or a default
 
+// mapErr (ADR 0095): change a Result's error, written in place. `?`
+// after it applies to the whole form.
+user: User = mapErr(e in json.decode(body)): ApiError.Unreadable(failure: e)?
+
 // Map (ADR 0065): immutable, in insertion order, keys compared with ==.
 limits = ["small": 10, "large": 500]       // Map<string, int>; [:] is empty
 limits = limits.put("medium", 50)           // a new map; assign it

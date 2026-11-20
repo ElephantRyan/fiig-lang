@@ -45,10 +45,89 @@ func (c *checker) formWhat() string {
 }
 
 func (c *checker) formADR() string {
-	if c.inForm == "sorted" {
+	switch c.inForm {
+	case "sorted":
 		return "ADR 0065 §3"
+	case "mapErr":
+		return "ADR 0095 §3"
 	}
 	return "ADR 0093 §2"
+}
+
+// formMayCall is what report and checkEffect say a form's body may call.
+func (c *checker) formMayCall() string {
+	if c.inForm == "mapErr" {
+		return "what the enclosing declaration may, but nothing with an effect"
+	}
+	return "only what a rule may, formulas and methods"
+}
+
+// checkExpectedMapErr handles a mapErr form where the context gives it a
+// type (ADR 0095 §2): `user: AbsUser = mapErr(...)?` and `return
+// mapErr(...)` from a Result<AbsUser, E> both pass AbsUser to the result
+// inside, so a json.decode there knows what to decode into. It reports
+// whether e was such a form.
+func (c *checker) checkExpectedMapErr(e syntax.Expr, expected types.Type, env map[string]types.Type) bool {
+	form, _ := e.(*syntax.ListForm)
+	viaTry := false
+	if try, ok := e.(*syntax.TryExpr); ok {
+		form, viaTry = try.Operand.(*syntax.ListForm)
+	}
+	if form == nil || form.Form != "mapErr" || expected == nil {
+		return false
+	}
+	if viaTry {
+		got := c.inferMapErr(form, expected, env)
+		if g, ok := got.(types.Generic); ok && len(g.Args) == 2 && !isUnknown(g.Args[0]) && !types.AssignableTo(g.Args[0], expected) {
+			start, _ := form.Bounds()
+			c.report(start, "A1", "type mismatch: got %s, expected %s", g.Args[0], expected)
+		}
+		return true
+	}
+	result, ok := expected.(types.Generic)
+	if !ok || result.Name != "Result" || len(result.Args) != 2 {
+		return false
+	}
+	got := c.inferMapErr(form, result.Args[0], env)
+	if !isUnknown(got) && !types.AssignableTo(got, expected) {
+		start, _ := form.Bounds()
+		c.report(start, "A1", "type mismatch: got %s, expected %s", got, expected)
+	}
+	return true
+}
+
+// inferMapErr types `mapErr(e in result): body` (ADR 0095): the result's
+// Ok type with the body's type as its error. valueWant, when the context
+// gives one, is the Ok type a json.decode inside decodes into.
+func (c *checker) inferMapErr(e *syntax.ListForm, valueWant types.Type, env map[string]types.Type) types.Type {
+	var inner types.Type
+	if call, member, ok := jsonCall(e.Iterable, env); ok && member == "decode" && valueWant != nil {
+		c.checkJsonDecode(call, valueWant, env)
+		inner = jsonResultOf(valueWant)
+	} else {
+		inner = c.inferExpr(e.Iterable, env)
+	}
+	g, ok := inner.(types.Generic)
+	if !ok || g.Name != "Result" || len(g.Args) != 2 {
+		if !isUnknown(inner) {
+			start, _ := e.Iterable.(syntax.Spanned).Bounds()
+			c.report(start, "A1", "mapErr takes a Result, got %s", inner)
+		}
+		return types.Unknown{}
+	}
+	bodyEnv := childEnv(env)
+	bodyEnv[e.Var] = g.Args[1]
+	c.checkLocalName(e.Var, g.Args[1], e.Start)
+	// §3: what the enclosing declaration may call, minus effects. A
+	// conversion's table is exactly the pure part of every wider kind's.
+	savedKind, savedForm := c.callerKind, c.inForm
+	if c.callerKind != kindRule && c.callerKind != kindFormula {
+		c.callerKind = kindConversion
+	}
+	c.inForm = "mapErr"
+	body := c.inferExpr(e.Body, bodyEnv)
+	c.callerKind, c.inForm = savedKind, savedForm
+	return types.Generic{Name: "Result", Args: []types.Type{g.Args[0], body}}
 }
 
 // inferSorted checks a keyed sort (ADR 0065 §3, ADR 0093 §4). Each key
@@ -83,6 +162,9 @@ func (c *checker) checkOrderedKey(what string, t types.Type, key syntax.Expr) {
 
 // inferListForm checks one of ADR 0093's list forms (§3).
 func (c *checker) inferListForm(e *syntax.ListForm, env map[string]types.Type) types.Type {
+	if e.Form == "mapErr" {
+		return c.inferMapErr(e, nil, env)
+	}
 	listType, elemType := c.formElem(e.Form, e.Iterable, env)
 	bodyEnv := childEnv(env)
 	bodyEnv[e.Var] = elemType
