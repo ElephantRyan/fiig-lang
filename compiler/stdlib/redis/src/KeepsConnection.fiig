@@ -1,6 +1,6 @@
-// ADR 0110 §3: whether a connection can serve another call after this
-// command. These change it for whoever uses it next.
-conversion keepsConnection(args: List<string>) -> bool {
+// ADR 0110 §3: whether a connection can serve another call after a command
+// of this name. These change it for whoever uses it next.
+conversion keepsConnection(name: string) -> bool {
     changing = [
         "SUBSCRIBE",
         "PSUBSCRIBE",
@@ -14,5 +14,5 @@ conversion keepsConnection(args: List<string>) -> bool {
         "AUTH",
         "RESET",
     ]
-    return not changing.contains(args.first().uppercase())
+    return not changing.contains(name.uppercase())
 }

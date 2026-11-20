@@ -105,19 +105,11 @@ capability RedisStreams provides stream.StreamSource {
                 return Ok(None)
             }
             stream.Outcome.DeadLetter(target) -> {
-                match delivery.payload.utf8() {
-                    None -> {
-                        return Err(
-                            stream.SourceError.Protocol(reason: "entry ${delivery.id}'s payload isn't UTF-8, which fiig.redis can't write yet (ADR 0110 §1)"),
-                        )
-                    }
-                    text -> {
-                        moved = Redis.send(
-                            ["XADD", target, "*", "payload", text, "source", subscription.source, "id", delivery.id],
-                        )
-                        mapErr(e in moved): sourceErrorOf(e)?
-                    }
-                }
+                // As bytes, so a payload that isn't UTF-8 moves as it is.
+                moved = Redis.sendBytes(
+                    ["XADD".utf8(), target.utf8(), "*".utf8(), "payload".utf8(), delivery.payload, "source".utf8(), subscription.source.utf8(), "id".utf8(), delivery.id.utf8()],
+                )
+                mapErr(e in moved): sourceErrorOf(e)?
             }
             stream.Outcome.Ack -> None
         }

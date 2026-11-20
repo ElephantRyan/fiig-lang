@@ -183,7 +183,13 @@ the adapter, the element's key and id, and why. The element is left
 unsettled, so the next process to run the adapter receives it again. In
 Kubernetes or systemd that is a restart with backoff and an alert, which
 is what "stop" means operationally. Kafka Streams' default for an
-element it can't handle is the same.
+element it can't handle is the same. *(The owner confirmed this scope on
+review, 2026-11-20, over stopping only the route: a halted route would
+otherwise be visible only in logs, and fiig has no health check yet.)*
+
+**A dead-letter moves any payload**, through `Redis.sendBytes` (ADR 0110
+§1a). It first failed on a payload that isn't UTF-8, and the element came
+back forever; `TestStreamDeadLettersBinaryPayloads` is that case.
 
 **A fault halts**, for the same reason a fault is a 500 and not a
 retried request: it is a defect in the program or a dependency that

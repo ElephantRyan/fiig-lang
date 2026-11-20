@@ -76,9 +76,9 @@ test sessionNamesUserAndDatabase {
 }
 
 test commandsThatChangeTheConnection {
-    expect keepsConnection(["get", "k"])
-    expect not keepsConnection(["subscribe", "news"])
-    expect not keepsConnection(["MULTI"])
+    expect keepsConnection("get")
+    expect not keepsConnection("subscribe")
+    expect not keepsConnection("MULTI")
 }
 
 test errorRepliesAreErrors {
