@@ -31,7 +31,7 @@ binary can be found.
 | File icons | the Project view, tabs, and **New \| fiig File** show each file's declaration kind: data (`model`, `enum`, `interface`) as blue circles, pure logic (`rule`, `conversion`, `formulas`) as green squares, effects (`activity`, `gateway`, `workflow`) as orange diamonds, the program's edge (`adapter`, `capability`, `config`) as purple hexagons, and tests as an outlined check |
 | Editing | brace matching, `Ctrl+/` comments, folding of blocks and comment runs, TODO |
 | Running | a ▶ in the gutter on a `workflow` (Run), an `adapter http` (Serve), or any other file's declaration (Check), and a **fiig** run configuration for `fiig run`, `serve`, and `check` |
-| New files | **New \| fiig File**: pick a kind and a name; `get customer` makes `getCustomer` in `GetCustomer.fiig` (ADR 0104) |
+| New files | **New \| fiig File**: pick a kind and a name; `get customer` makes `getCustomer` in `GetCustomer.fiig` (ADR 0104). In an application's `src/` the name must start with a folder, `orders/get customer`, since an application declares nothing at the top level (ADR 0108) |
 | Manifests and capabilities files | completion and validation in `fiig.pkg.json`, `caps.json`, `caps.*.json`, and `capabilities.json` |
 
 ## Build it
