@@ -38,5 +38,5 @@ func TestSortedFormMisuse(t *testing.T) {
 	diags := checkSrc(t, `activity a(orders: List<Order>) -> List<Order> {
     return sorted(order in orders): priceOf(order.id)
 }`, "gateway priceOf(id: string) -> int\n    requires Database\n{\n    return 1\n}", sortedModels)
-	wantDiag(t, diags, "B1", `a sorted key may not call gateway "priceOf"; it may call only what a rule may`)
+	wantDiag(t, diags, "B5", `a sorted key may not call gateway "priceOf"; it may call what the enclosing declaration may, but nothing with an effect`)
 }

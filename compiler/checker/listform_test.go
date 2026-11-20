@@ -62,5 +62,17 @@ func TestListFormsMisuse(t *testing.T) {
 	diags := checkSrc(t, `activity a(ratings: List<Rating>) -> List<Rating> {
     return filter(r in ratings): isBanned(r.itemId)
 }`, "gateway isBanned(id: string) -> bool\n    requires Database\n{\n    return false\n}", ratingModel)
-	wantDiag(t, diags, "B1", `a filter body may not call gateway "isBanned"; it may call only what a rule may`)
+	wantDiag(t, diags, "B5", `a filter body may not call gateway "isBanned"; it may call what the enclosing declaration may, but nothing with an effect`)
+}
+
+// ADR 0100 (abs-recommendations GAPS G31): in a conversion a body may
+// call a conversion; in a rule it still can't.
+func TestFormBodiesCallWhatTheirDeclarationMay(t *testing.T) {
+	toId := "conversion idOf(r: Rating) -> string {\n    return r.itemId\n}"
+	diags := checkSrc(t, "conversion ids(ratings: List<Rating>) -> List<string> {\n    return map(r in ratings): idOf(r)\n}", toId, ratingModel)
+	if len(diags) != 0 {
+		t.Fatalf("in a conversion: diags = %v, want none", diags)
+	}
+	diags = checkSrc(t, "rule ids(ratings: List<Rating>) -> List<string> {\n    return map(r in ratings): idOf(r)\n}", toId, ratingModel)
+	wantDiag(t, diags, "B7", `may not call conversion "idOf"`)
 }

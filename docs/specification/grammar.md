@@ -750,8 +750,8 @@ modifier, `sorted(x in xs, descending): key`, parses, is A1, and `fiig fmt`
 rewrites it as `key descending`. Each key is evaluated once per element and must be `int`, `float`,
 `decimal`, or `string` (M3; a `T | None` key is M3 with a pointer to
 `match`). `concurrent`'s header shape, with an expression for a body. The
-key may call only what a rule may (formulas and methods) in any kind of
-declaration, so a sort never reaches a gateway; a bare `sorted(...)`
+key may call what its declaration may, minus anything with an effect
+(ADR 0100), so a sort never reaches a gateway; a bare `sorted(...)`
 statement is A13. `sorted`, `then` and `descending` are contextual, not reserved:
 the form starts only at `sorted ( identifier in`, so `xs.sorted()`, a local
 named `sorted`, and a call to a declaration named `sorted` keep their
@@ -766,8 +766,8 @@ list-form-name ::= 'filter' | 'map' | 'groupBy' | 'count' | 'any' | 'all'
 ```
 
 ADR 0093: the body is evaluated once per element, in list order, with the
-element bound to the name, under the keyed sort's rules: it may call only
-what a rule may, in any kind of declaration, and a bare form as a statement
+element bound to the name, under the keyed sort's rules: it may call what its declaration may,
+minus anything with an effect (ADR 0100), and a bare form as a statement
 is A13.
 
 | Form | Body | Result |

@@ -4,7 +4,7 @@
     {
       "path": "fiig.http",
       "version": "1.0.0",
-      "hash": "sha256:5fa94eb0587f3505dc709f840203ca707812f96995d5f17d557a3635dcc77fde",
+      "hash": "sha256:297d35d9b87e42c81743cc418ea32a06eecdd4f5cd9d3b67d48326266bd016a2",
       "source": "builtin:http",
       "capabilities": [
         "Socket"
