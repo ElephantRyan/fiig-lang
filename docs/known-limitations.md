@@ -74,6 +74,10 @@ doesn't have to discover them.
   (so no XOAUTH2 for Gmail or Microsoft 365), no internationalised
   addresses, and one connection per mail. A mail to several recipients goes
   to all of them or to none.
+- **`fiig.s3` has four operations** (ADR 0121): put, get, head and delete of
+  one object. No listing (it needs an XML reader), multipart upload,
+  presigned URLs, ranges, or copy, and the whole object is held in memory,
+  so a very large one isn't practical until `fiig.http` can stream.
 - **No connection outlives every call** (ADR 0109 open question 2): a
   connection is kept idle between calls, but nothing can hold a
   subscription, Postgres `LISTEN`, or an HTTP/2 connection shared by

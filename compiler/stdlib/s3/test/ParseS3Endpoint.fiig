@@ -1,0 +1,26 @@
+test httpsAndAHost {
+    expect parseS3Endpoint("https://s3.eu-west-1.amazonaws.com") is Ok(endpoint)
+    expect endpoint == S3Endpoint(scheme: "https", authority: "s3.eu-west-1.amazonaws.com")
+}
+
+test httpAndAPort {
+    expect parseS3Endpoint("http://localhost:9000") is Ok(endpoint)
+    expect endpoint == S3Endpoint(scheme: "http", authority: "localhost:9000")
+}
+
+test aTrailingSlashIsDropped {
+    expect parseS3Endpoint("https://storage.example.com/") is Ok(endpoint)
+    expect endpoint.authority == "storage.example.com"
+}
+
+test whatCantBeAServiceAddressIsRefused {
+    for bad in ["storage.example.com", "ftp://storage.example.com", "https://", "https:///", "https://storage.example.com/bucket", "https://storage.example.com?x=1", "https://storage.example.com#top", "https://key:secret@storage.example.com", "https://storage example.com", "https://störäge.example.com"] {
+        expect parseS3Endpoint(bad) is Err(S3Error.InvalidConfig(reason))
+    }
+}
+
+test aReasonNeverRepeatsTheKeys {
+    expect parseS3Endpoint("https://AKIAEXAMPLE:topsecret@storage.example.com") is Err(S3Error.InvalidConfig(reason))
+    expect not reason.contains("topsecret")
+    expect not reason.contains("AKIAEXAMPLE")
+}

@@ -1,0 +1,79 @@
+use fiig.http
+use fiig.http.HttpClient
+
+// ADR 0121: an S3-compatible object store, written in fiig over fiig.http.
+// Each operation signs its request (AWS Signature Version 4), sends it with
+// the HTTP client, and reads the reply; all of that is conversions. What
+// stays here is reading the settings, which only a gateway may do and which
+// a capability group's gateways can't share (no private block), so each
+// reads them the same way: the token is a Secret that may be absent, and the
+// keys are revealed, since signing needs their bytes (ADR 0071 §4).
+capability S3 {
+    gateway put(bucket: string, key: string, body: bytes, contentType: string) -> Result<None, S3Error>
+        requires HttpClient
+    {
+        token: string = ""
+        match S3Settings.sessionToken {
+            None -> None
+            given -> {
+                token = given.reveal()
+            }
+        }
+        account = S3Account(endpoint: S3Settings.endpoint, region: S3Settings.region, accessKeyId: S3Settings.accessKeyId, secret: S3Settings.secretAccessKey.reveal(), token: token, pathStyle: S3Settings.pathStyle, timeoutMillis: S3Settings.timeoutMillis)
+        call = S3Call(method: "PUT", bucket: bucket, key: key, body: body, contentType: contentType)
+        request = signedRequest(call, account, Clock.now())?
+        reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?
+        return putResult(reply)
+    }
+
+    gateway get(bucket: string, key: string) -> Result<bytes, S3Error>
+        requires HttpClient
+    {
+        token: string = ""
+        match S3Settings.sessionToken {
+            None -> None
+            given -> {
+                token = given.reveal()
+            }
+        }
+        account = S3Account(endpoint: S3Settings.endpoint, region: S3Settings.region, accessKeyId: S3Settings.accessKeyId, secret: S3Settings.secretAccessKey.reveal(), token: token, pathStyle: S3Settings.pathStyle, timeoutMillis: S3Settings.timeoutMillis)
+        call = S3Call(method: "GET", bucket: bucket, key: key, body: <<>>, contentType: "")
+        request = signedRequest(call, account, Clock.now())?
+        reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?
+        return getResult(reply)
+    }
+
+    gateway head(bucket: string, key: string) -> Result<ObjectInfo, S3Error>
+        requires HttpClient
+    {
+        token: string = ""
+        match S3Settings.sessionToken {
+            None -> None
+            given -> {
+                token = given.reveal()
+            }
+        }
+        account = S3Account(endpoint: S3Settings.endpoint, region: S3Settings.region, accessKeyId: S3Settings.accessKeyId, secret: S3Settings.secretAccessKey.reveal(), token: token, pathStyle: S3Settings.pathStyle, timeoutMillis: S3Settings.timeoutMillis)
+        call = S3Call(method: "HEAD", bucket: bucket, key: key, body: <<>>, contentType: "")
+        request = signedRequest(call, account, Clock.now())?
+        reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?
+        return headResult(reply)
+    }
+
+    gateway delete(bucket: string, key: string) -> Result<None, S3Error>
+        requires HttpClient
+    {
+        token: string = ""
+        match S3Settings.sessionToken {
+            None -> None
+            given -> {
+                token = given.reveal()
+            }
+        }
+        account = S3Account(endpoint: S3Settings.endpoint, region: S3Settings.region, accessKeyId: S3Settings.accessKeyId, secret: S3Settings.secretAccessKey.reveal(), token: token, pathStyle: S3Settings.pathStyle, timeoutMillis: S3Settings.timeoutMillis)
+        call = S3Call(method: "DELETE", bucket: bucket, key: key, body: <<>>, contentType: "")
+        request = signedRequest(call, account, Clock.now())?
+        reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?
+        return deleteResult(reply)
+    }
+}

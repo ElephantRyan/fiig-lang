@@ -1,0 +1,9 @@
+// The names of the headers a request is signed over, in the order they
+// appear in the canonical request: lower case and sorted, joined by
+// semicolons. A session token adds one.
+conversion signedHeaderNames(token: string) -> string {
+    if token != "" {
+        return "host;x-amz-content-sha256;x-amz-date;x-amz-security-token"
+    }
+    return "host;x-amz-content-sha256;x-amz-date"
+}

@@ -1,0 +1,10 @@
+// One operation on one object, before it is signed: the HTTP method (GET,
+// PUT, HEAD, or DELETE), the bucket and key, and for a PUT the bytes and
+// their content type.
+model S3Call {
+    method: string
+    bucket: string
+    key: string
+    body: bytes
+    contentType: string
+}

@@ -1,0 +1,6 @@
+// SigV4's string to sign: the algorithm, the timestamp, the credential scope,
+// and the SHA-256 of the canonical request in hex, a line each.
+conversion stringToSign(stamp: string, scope: string, canonical: string) -> string {
+    digest = crypto.sha256(canonical.utf8()).toHex()
+    return "AWS4-HMAC-SHA256\n${stamp}\n${scope}\n${digest}"
+}

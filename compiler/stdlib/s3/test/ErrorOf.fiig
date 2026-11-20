@@ -1,0 +1,39 @@
+use fiig.http
+
+test a404IsNotFound {
+    expect errorOf(reply(404, "<Error><Code>NoSuchKey</Code></Error>")) == S3Error.NotFound
+}
+
+test aMissingBucketIsNotAMissingKey {
+    xml = "<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message></Error>"
+    expect errorOf(reply(404, xml)) == S3Error.Refused(status: 404, code: "NoSuchBucket", message: "The specified bucket does not exist")
+}
+
+test a404WithNoBodyIsNotFound {
+    // What a HEAD gets, since it has no body to read.
+    expect errorOf(reply(404, "")) == S3Error.NotFound
+}
+
+test otherStatusesCarryTheServersCodeAndMessage {
+    xml = "<?xml version=\"1.0\"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message><RequestId>4442587FB7D0A2F9</RequestId></Error>"
+    expect errorOf(reply(403, xml)) == S3Error.Refused(status: 403, code: "AccessDenied", message: "Access Denied")
+}
+
+test aReplyWithNoBodyHasEmptyCodeAndMessage {
+    // A HEAD has no body to read.
+    expect errorOf(reply(403, "")) == S3Error.Refused(status: 403, code: "", message: "")
+}
+
+test aBodyThatIsNotAnErrorDocumentIsNotMisread {
+    expect errorOf(reply(502, "<html><body>Bad Gateway</body></html>")) == S3Error.Refused(status: 502, code: "", message: "")
+}
+
+test aMessageWithMarkupInItIsTakenToTheClosingTag {
+    expect errorOf(reply(400, "<Error><Code>InvalidArgument</Code><Message>bad &lt;x&gt; argument</Message></Error>")) == S3Error.Refused(status: 400, code: "InvalidArgument", message: "bad &lt;x&gt; argument")
+}
+
+private {
+    reply(status: int, body: string) -> http.Reply {
+        return http.Reply(status: status, headers: [], body: body.utf8())
+    }
+}

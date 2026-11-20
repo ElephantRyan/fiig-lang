@@ -1,0 +1,7 @@
+// What HEAD says about an object without fetching it: its size in bytes,
+// its content type, and its ETag as the server wrote it (usually quoted).
+model ObjectInfo {
+    size: int
+    contentType: string
+    etag: string
+}

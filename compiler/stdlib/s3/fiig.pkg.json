@@ -1,0 +1,8 @@
+{
+    "path": "fiig.s3",
+    "kind": "library",
+    "version": "1.0.0",
+    "dependencies": {
+        "fiig.http": "1.0.0"
+    }
+}

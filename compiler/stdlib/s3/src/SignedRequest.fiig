@@ -1,0 +1,53 @@
+use fiig.http
+
+// An operation as a signed HTTP request (ADR 0121 §3): AWS Signature
+// Version 4 over the headers host, x-amz-content-sha256 and x-amz-date (and
+// x-amz-security-token with temporary credentials), sent in the
+// Authorization header. millis is the signing time, Unix milliseconds. The
+// body's SHA-256 is signed, so a body altered in transit fails the check.
+conversion signedRequest(call: S3Call, account: S3Account, millis: int) -> Result<http.Request, S3Error> {
+    verb = verbOf(call.method)?
+    endpoint = parseS3Endpoint(account.endpoint)?
+    target = objectTarget(endpoint, call.bucket, call.key, account.pathStyle)?
+    stamp = amzDate(millis)
+    day = stamp.slice(0, 8)
+    payload = crypto.sha256(call.body).toHex()
+    canonical = canonicalRequest(call.method, target.path, target.host, payload, stamp, account.token)
+    scope = "${day}/${account.region}/s3/aws4_request"
+    key = signingKey(account.secret, day, account.region, "s3")
+    signature = signatureOf(key, stringToSign(stamp, scope, canonical))
+    credential = "Credential=${account.accessKeyId}/${scope}"
+    authorization = "AWS4-HMAC-SHA256 ${credential}, SignedHeaders=${signedHeaderNames(account.token)}, Signature=${signature}"
+    headers: List<http.Header> = [
+        http.Header(name: "x-amz-content-sha256", value: payload),
+        http.Header(name: "x-amz-date", value: stamp),
+        http.Header(name: "Authorization", value: authorization),
+    ]
+    if account.token != "" {
+        headers = append(headers, http.Header(name: "x-amz-security-token", value: account.token))
+    }
+    if call.contentType != "" {
+        headers = append(headers, http.Header(name: "Content-Type", value: call.contentType))
+    }
+    return Ok(
+        http.Request(method: verb, url: target.url, headers: headers, body: call.body, timeoutMillis: account.timeoutMillis),
+    )
+}
+
+private {
+    verbOf(method: string) -> Result<http.Method, S3Error> {
+        if method == "GET" {
+            return Ok(http.Method.Get)
+        }
+        if method == "PUT" {
+            return Ok(http.Method.Put)
+        }
+        if method == "HEAD" {
+            return Ok(http.Method.Head)
+        }
+        if method == "DELETE" {
+            return Ok(http.Method.Delete)
+        }
+        return Err(S3Error.InvalidRequest(reason: "S3 operations are GET, PUT, HEAD and DELETE"))
+    }
+}

@@ -1,0 +1,13 @@
+// SigV4's canonical request, for the one shape of request this package
+// sends: no query string, and the headers host, x-amz-content-sha256,
+// x-amz-date and, with a session token, x-amz-security-token, each named in
+// lower case, in that order, which is alphabetical. path is already
+// percent-encoded once, which is how S3 wants it (it never encodes twice).
+conversion canonicalRequest(method: string, path: string, host: string, payloadHash: string, stamp: string, token: string) -> string {
+    headers: List<string> = ["host:${host}", "x-amz-content-sha256:${payloadHash}", "x-amz-date:${stamp}"]
+    if token != "" {
+        headers = append(headers, "x-amz-security-token:${token}")
+    }
+    lines = headers.join("\n")
+    return "${method}\n${path}\n\n${lines}\n\n${signedHeaderNames(token)}\n${payloadHash}"
+}

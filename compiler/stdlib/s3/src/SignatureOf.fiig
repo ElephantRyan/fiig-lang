@@ -1,0 +1,4 @@
+// The signature: the string to sign, keyed by the signing key, in hex.
+conversion signatureOf(key: bytes, toSign: string) -> string {
+    return crypto.hmacSha256(key, toSign.utf8()).toHex()
+}
