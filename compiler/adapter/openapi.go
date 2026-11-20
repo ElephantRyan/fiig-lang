@@ -50,6 +50,12 @@ func GenerateOpenAPIFor(adapters []Served, u *types.Universe, in *runtime.Interp
 		r := resolver{u: u, in: in, schemes: schemes}
 		if a.Package != nil {
 			r.u = a.Package.Universe
+			r.imports = a.Package.Imports
+		} else if in != nil {
+			r.imports = map[string]*types.Universe{}
+			for alias, pkg := range in.Imports[d.Name] {
+				r.imports[alias] = pkg.Universe
+			}
 		}
 		for _, route := range d.Routes {
 			op, err := buildOperation(route, r)
@@ -89,9 +95,28 @@ func GenerateOpenAPIFor(adapters []Served, u *types.Universe, in *runtime.Interp
 type resolver struct {
 	u  *types.Universe
 	in *runtime.Interp
+	// imports is the adapter's package's import aliases, for a response
+	// built by another package's conversion (`common.apiErrorResponse(e)`).
+	imports map[string]*types.Universe
 	// schemes collects the document's security schemes: one per cookie a
 	// route reads (ADR 0098 §2).
 	schemes map[string]any
+}
+
+// callee is the declaration a call names: a bare name in the adapter's
+// package, or `alias.name` in an imported one (abs-recommendations G42).
+func (r resolver) callee(call *syntax.CallExpr) (syntax.Decl, bool) {
+	switch c := call.Callee.(type) {
+	case *syntax.Ident:
+		return r.u.Lookup(c.Name)
+	case *syntax.FieldAccess:
+		if target, ok := c.Target.(*syntax.Ident); ok {
+			if u, ok := r.imports[target.Name]; ok && u != nil {
+				return u.Lookup(c.Field)
+			}
+		}
+	}
+	return nil, false
 }
 
 // decl resolves t, written in owner's declaration.
@@ -195,6 +220,10 @@ func buildResponses(route *syntax.Route, wd *syntax.WorkflowDecl, r resolver) (m
 			bodyType = okType
 		} else if armErr && isResult {
 			bodyType = errType
+		} else if !isResult {
+			// A workflow that returns a plain value: the arm's pattern binds
+			// that value (`status -> 200 status`), abs-recommendations G38.
+			bodyType = retType
 		}
 		switch v := arm.Value.(type) {
 		case *syntax.StatusResponse, *syntax.ExitResponse:
@@ -261,11 +290,7 @@ func builtResponses(e syntax.Expr, r resolver) []builtResponse {
 	if !ok {
 		return nil
 	}
-	ident, ok := call.Callee.(*syntax.Ident)
-	if !ok {
-		return nil
-	}
-	decl, found := r.u.Lookup(ident.Name)
+	decl, found := r.callee(call)
 	if !found {
 		return nil
 	}
@@ -381,11 +406,7 @@ func resolveExprType(e syntax.Expr, r resolver) (types.Type, bool) {
 	if !ok {
 		return types.Unknown{}, false
 	}
-	ident, ok := call.Callee.(*syntax.Ident)
-	if !ok {
-		return types.Unknown{}, false
-	}
-	decl, found := r.u.Lookup(ident.Name)
+	decl, found := r.callee(call)
 	if !found {
 		return types.Unknown{}, false
 	}

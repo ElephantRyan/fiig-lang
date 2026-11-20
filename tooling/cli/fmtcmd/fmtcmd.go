@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,13 +44,18 @@ func Main(name string, args []string) {
 	}
 
 	if fs.NArg() == 0 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-w] [-json] <file.fiig>...")
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-w] [-json] <file.fiig or directory>...")
 		os.Exit(2)
 	}
 
 	exit := 0
 	var allErrors []fileErrors
-	for _, path := range fs.Args() {
+	paths, err := expandDirs(fs.Args())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+	for _, path := range paths {
 		src, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
@@ -139,4 +145,37 @@ func runLayout(args []string, absorb absorbList, dryRun bool) int {
 		return 1
 	}
 	return 0
+}
+
+// expandDirs is args with each directory replaced by the .fiig files under
+// it, in path order, so `fiig fmt -w .` formats a module (abs-recommendations
+// G48). Hidden directories are skipped, as the layout walk skips them.
+func expandDirs(args []string) ([]string, error) {
+	var out []string
+	for _, arg := range args {
+		info, err := os.Stat(arg)
+		if err != nil || !info.IsDir() {
+			out = append(out, arg)
+			continue
+		}
+		err = filepath.WalkDir(arg, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				if path != arg && strings.HasPrefix(d.Name(), ".") {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if filepath.Ext(path) == ".fiig" {
+				out = append(out, path)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
