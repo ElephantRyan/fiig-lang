@@ -1,0 +1,7 @@
+// One partition's records in a produce request: their places in the
+// call's list, and their record batch.
+model PartitionBatch {
+    partition: int
+    indexes: List<int>
+    batch: bytes
+}

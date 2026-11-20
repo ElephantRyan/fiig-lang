@@ -1,0 +1,9 @@
+// ADR 0113 §5: a record batch's codec, bits 0-2 of its attributes. This
+// version sends None only.
+enum Compression {
+    None
+    Gzip
+    Snappy
+    Lz4
+    Zstd
+}

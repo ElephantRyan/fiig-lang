@@ -1,6 +1,6 @@
 # ADR 0113: A Kafka Producer in fiig, At Least Once
 
-Status: Proposed (2026-11-20); §2 implemented
+Status: Proposed, implemented (2026-11-20)
 Date: 2026-11-20
 Related: ADR 0042 (the socket floor), ADR 0058 (binary patterns), ADR
 0060 (Socket), ADR 0063 (int overflow faults), ADR 0071 (config), ADR
@@ -163,3 +163,36 @@ old versions will need.
    `crypto.pbkdf2Sha256` (ADR 0085), PLAIN is a handshake.
 3. **Flexible versions**, before a broker that drops the non-flexible
    ones ships.
+
+## Implementation notes (2026-11-20)
+
+- `crypto.crc32c` (§2) is Go's `hash/crc32` with the Castagnoli table,
+  tested against the `123456789` check value and RFC 3720 Appendix B.4.
+- `compiler/stdlib/kafka`: the `Kafka` group, its records and errors,
+  and one conversion per wire step: `kafkaRequest`, `apiVersionsRequest`
+  and `checkApiVersions`, `metadataRequest` and `readMetadata`,
+  `producePlan`, `recordBatch`, `produceRequest` and `readProduce`, and
+  `murmur2`. The reads go by offset through `i16At`, `i32At`, `i64At`,
+  and `stringAt`, each `None` past the end, so a short reply is
+  `MalformedReply`, never a fault.
+- **Metadata's partitions come in no promised order**, so they are
+  collected by index; a test sends them as 2, 0, 1.
+- **`send` is one loop over a list of exchanges**: the Metadata
+  exchange adds one Produce exchange per leading broker, since a gateway
+  can't call a gateway. A bootstrap server that can't be reached gives
+  way to the next; a failed produce is returned.
+- murmur2 matches Kafka's own `UtilsTest` vectors and a line-by-line Go
+  port of `Utils.murmur2`.
+- Tests: `test/scenarios/Encoding.fiig` and `Protocol.fiig` (varints,
+  murmur2, framing, a batch's CRC and length, ApiVersions, Metadata out
+  of order, the partition plan, Produce offsets and errors); and
+  `tooling/runprogram`'s `TestKafkaProducerAgainstABrokerInMemory`, a
+  broker that checks each batch's CRC with Go's own CRC-32C, the acks and
+  transactional id, and sees two sends share one connection.
+- **Dogfooded against Kafka 4.0** (single-node KRaft, container
+  `fiig-kafka-dogfood`): the broker accepted every batch (it checks the
+  CRC); Kafka's console consumer read back the keys, values, a header, and
+  a null key at the offsets `send` returned; the Java console producer
+  put `order-1`, `order-2`, `order-3`, and `customer-42` on the same
+  partitions fiig did; a misspelled topic was `UnknownTopic`; and an
+  unreachable first bootstrap server fell over to the second.

@@ -1,0 +1,75 @@
+// ADR 0113 §3: which partition each record goes to, one batch per
+// partition, and one request per leading broker. A keyed record goes where
+// the Java client would put it, murmur2 of its key; the call's keyless
+// records all go to one partition, chosen by the clock.
+conversion producePlan(layout: TopicLayout, records: List<KafkaRecord>, now: int) -> Result<List<ProduceCall>, KafkaError> {
+    count = layout.leaders.length()
+    keyless = now % count
+    byPartition: Map<int, List<int>> = [:]
+    i: int = 0
+    for record in records {
+        partition: int = keyless
+        match record.key {
+            None -> None
+            key -> {
+                partition = murmur2(key) % 2147483648 % count
+            }
+        }
+        byPartition = byPartition.put(partition, append(byPartition.atOr(partition, []), i))
+        i = i + 1
+    }
+    calls: List<ProduceCall> = []
+    p: int = 0
+    while p < count {
+        if byPartition.containsKey(p) {
+            indexes = byPartition.at(p)
+            chosen: List<KafkaRecord> = []
+            for index in indexes {
+                chosen = append(chosen, records.at(index))
+            }
+            batch = PartitionBatch(
+                partition: p,
+                indexes: indexes,
+                batch: recordBatch(chosen, now, Compression.None)?,
+            )
+            broker = brokerOf(layout, layout.leaders.at(p))?
+            calls = addTo(calls, broker, batch)
+        }
+        p = p + 1
+    }
+    return Ok(calls)
+}
+
+private {
+    brokerOf(layout: TopicLayout, id: int) -> Result<BrokerNode, KafkaError> {
+        for broker in layout.brokers {
+            if broker.id == id {
+                return Ok(broker)
+            }
+        }
+        return Err(
+            KafkaError.MalformedReply(reason: "Metadata names leader ${id}, which isn't among its brokers"),
+        )
+    }
+
+    // calls with batch added to its broker's call, or a new call for it.
+    addTo(calls: List<ProduceCall>, broker: BrokerNode, batch: PartitionBatch) -> List<ProduceCall> {
+        out: List<ProduceCall> = []
+        added: bool = false
+        for call in calls {
+            if call.broker.id == broker.id {
+                out = append(
+                    out,
+                    ProduceCall(broker: call.broker, batches: append(call.batches, batch)),
+                )
+                added = true
+            } else {
+                out = append(out, call)
+            }
+        }
+        if not added {
+            out = append(out, ProduceCall(broker: broker, batches: [batch]))
+        }
+        return out
+    }
+}

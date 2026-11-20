@@ -241,6 +241,22 @@ runs every firing in this process, for a single replica. With neither,
   run that faults; the next firing runs as usual. One the mapping sends to
   `halt` stops `fiig serve` with an error.
 
+## Kafka
+
+A program that sends to Kafka with `fiig.kafka` reads where the cluster
+is from the environment (ADR 0113):
+
+- `KAFKA_BOOTSTRAP`: `host:port[,host:port...]`, as `bootstrap.servers`.
+- `KAFKA_TLS` (`false`), `KAFKA_CLIENT_ID` (`fiig`), and
+  `KAFKA_TIMEOUT_MS` (30000), the most one send takes.
+
+A send is **at least once**: every leader acknowledges with `acks=all`,
+but there is no idempotence, so if a reply is lost after the broker
+wrote the records, sending again writes them twice. A keyed record goes
+to the partition a Java producer would choose. The topic must exist:
+`fiig.kafka` never creates one. There is no SASL yet, so a cluster that
+requires it can't be reached.
+
 ## Migrations
 
 A package's schema lives in `migrations/<number>_<name>.sql`, plain SQL

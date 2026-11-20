@@ -1,0 +1,5 @@
+// A record header: a name and a value Kafka carries as bytes.
+model KafkaHeader {
+    name: string
+    value: bytes
+}

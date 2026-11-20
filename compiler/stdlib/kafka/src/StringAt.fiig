@@ -1,0 +1,26 @@
+// The STRING at offset at, a NULLABLE_STRING's -1 length reading as "",
+// or None when the response is too short or the text isn't UTF-8.
+conversion stringAt(data: bytes, at: int) -> TextAt | None {
+    match i16At(data, at) {
+        None -> {
+            return None
+        }
+        size -> {
+            if size < 0 {
+                return TextAt(text: "", next: at + 2)
+            }
+            if at + 2 + size > data.length() {
+                return None
+            }
+            text = data.slice(at + 2, at + 2 + size).utf8()
+            match text {
+                None -> {
+                    return None
+                }
+                decoded -> {
+                    return TextAt(text: decoded, next: at + 2 + size)
+                }
+            }
+        }
+    }
+}

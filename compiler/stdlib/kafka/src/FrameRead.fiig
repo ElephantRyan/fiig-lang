@@ -1,0 +1,6 @@
+// What nextFrame makes of the bytes read so far.
+enum FrameRead {
+    NeedMore
+    Done(frame: bytes, rest: bytes)
+    Malformed(reason: string)
+}

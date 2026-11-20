@@ -1,0 +1,24 @@
+// ADR 0113 §1, §4: Produce v8 (API key 0) of one topic's batches, with no
+// transactional id and acks=all (-1), so the leader answers once every
+// in-sync replica has the batch. timeoutMillis is how long it may wait for
+// them.
+conversion produceRequest(clientId: string, correlation: int, topic: string, timeoutMillis: int, batches: List<PartitionBatch>) -> bytes {
+    partitions: bytes = <<batches.length(): i32be>>
+    for batch in batches {
+        partitions = <<
+            partitions: bytes,
+            batch.partition: i32be,
+            batch.batch.length(): i32be,
+            batch.batch: bytes,
+        >>
+    }
+    body = <<
+        0 - 1: i16be,
+        0 - 1: i16be,
+        timeoutMillis: i32be,
+        1: i32be,
+        kafkaString(topic): bytes,
+        partitions: bytes,
+    >>
+    return kafkaRequest(0, 8, correlation, clientId, body)
+}
