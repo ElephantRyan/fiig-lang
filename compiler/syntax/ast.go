@@ -995,6 +995,9 @@ type BinaryExpr struct {
 	Op    BinaryOp
 	Left  Expr
 	Right Expr
+	// OrDefault is set by the checker on an `or` whose left side may be
+	// None (ADR 0099): `x or d` is x, or d when x is None.
+	OrDefault bool
 }
 
 // TryExpr is the postfix `?` (error propagation).
