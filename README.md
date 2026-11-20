@@ -24,9 +24,25 @@ but syntax and behavior can change without notice. See
 
 ## Install
 
-Download the archive for your platform from the releases page and put
-`fiig` on your `PATH`, or run the container image. To build from source
-with Go 1.26:
+macOS and Linux:
+
+```
+curl -fsSL https://raw.githubusercontent.com/ElephantRyan/fiig-lang/main/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```
+irm https://raw.githubusercontent.com/ElephantRyan/fiig-lang/main/install.ps1 | iex
+```
+
+Each downloads the newest release for your platform, checks it against
+`SHA256SUMS`, and puts `fiig` on your `PATH` (`~/.local/bin`, or
+`%LOCALAPPDATA%\fiig`). Set `FIIG_VERSION` to pick a release and
+`FIIG_INSTALL` to pick the directory.
+
+Or download an archive from the releases page yourself, or run the
+container image. To build from source with Go 1.26:
 
 ```
 cd cmd/fiig
