@@ -648,9 +648,13 @@ func (c *checker) inferQualifiedCall(fa *syntax.FieldAccess, args []syntax.Arg, 
 				}
 				return types.Unknown{}
 			}
+			// Whether pkg is a sibling is asked in the caller's scope: inside
+			// callInScope the imports are pkg's own.
+			sibling := c.isSibling(targetIdent.Name)
 			return c.callInScope(pkg, func() types.Type {
 				if _, isWorkflow := decl.(*syntax.WorkflowDecl); isWorkflow {
 					c.foreignWorkflow = targetIdent.Name
+					c.foreignSibling = sibling
 				}
 				return c.callDecl(decl, qualifiedName, args, start, env)
 			})

@@ -171,7 +171,7 @@ serve` takes one adapter today, and only from the root package's own
 files. It takes several, from the root or from its dependencies:
 
 ```
-fiig serve examples/shop-orders ordersApi shop.payments.paymentsApi
+fiig serve examples/shop-orders orders.ordersApi shop.payments.paymentsApi
 ```
 
 - **Naming.** A bare name is an adapter in the root package. A dotted one

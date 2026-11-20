@@ -247,6 +247,7 @@ func check(p pkgInfo, workspace string, open func(path string) (string, bool)) *
 	manifestFile := filepath.Join(p.root, manifest.Filename)
 	var packages, siblings types.Packages
 	var provides map[string]string
+	application := false
 	if !p.loose {
 		s.diags[manifestFile] = nil
 		m, errs := manifest.Load(p.root)
@@ -256,6 +257,7 @@ func check(p pkgInfo, workspace string, open func(path string) (string, bool)) *
 			}
 		} else {
 			s.path, provides = m.Path, m.Provides
+			application = m.Kind == manifest.Application
 			if p.module {
 				s.path = layout.PathOf(m.Path, p.folder)
 			}
@@ -325,6 +327,12 @@ func check(p pkgInfo, workspace string, open func(path string) (string, bool)) *
 			if strings.HasPrefix(rel, layout.Src+"/") && len(c.File.Decls) > 0 {
 				if problem := layout.FileNameProblem(rel, syntax.DeclName(c.File.Decls[0])); problem != "" {
 					diags = append(diags, checker.Diagnostic{File: rel, Msg: problem})
+				}
+			}
+			// ADR 0108: an application declares nothing at the top level.
+			if application {
+				if problem := layout.TopLevelProblem(rel); problem != "" {
+					diags = append(diags, checker.Diagnostic{File: rel, Rule: "H6", Msg: problem})
 				}
 			}
 		}

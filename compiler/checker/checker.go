@@ -273,7 +273,7 @@ func checkSourceTexts(order []string, sources map[string]string, packages, sibli
 		if pf.file.Tests {
 			known = withSiblings(packages, siblings)
 		}
-		for _, d := range checkFileIndexed(pf.file, universe, known, path, index, testOnly) {
+		for _, d := range checkFileIndexed(pf.file, universe, known, siblings, path, index, testOnly) {
 			d.File = pf.path
 			diags = append(diags, d)
 		}
@@ -334,7 +334,7 @@ func CheckPackage(files []*syntax.File, packages types.Packages, path string, pr
 	diags = append(diags, BindProvides(path, universe, files, packages, CodeProvides(files, path, provides))...)
 	testOnly := testOnlyDecls(files)
 	for _, f := range files {
-		diags = append(diags, checkFileIndexed(f, universe, packages, path, nil, testOnly)...)
+		diags = append(diags, checkFileIndexed(f, universe, packages, nil, path, nil, testOnly)...)
 	}
 	reach := checkTestReach(files, universe, packages)
 	for _, f := range files {
@@ -474,17 +474,17 @@ func CheckFile(file *syntax.File, universe *types.Universe, packages types.Packa
 // package has no manifest), which is what a `use` of one of the package's
 // own formulas groups names (ADR 0049 §2.5).
 func checkFile(file *syntax.File, universe *types.Universe, packages types.Packages, ownPath string) []Diagnostic {
-	return checkFileIndexed(file, universe, packages, ownPath, nil, nil)
+	return checkFileIndexed(file, universe, packages, nil, ownPath, nil, nil)
 }
 
 // checkFileIndexed is checkFile filling index, when it isn't nil, with what
 // the check resolves (ADR 0089 §4). testOnly is the package's declarations
 // under tests/ (ADR 0091 §2).
-func checkFileIndexed(file *syntax.File, universe *types.Universe, packages types.Packages, ownPath string, index *Index, testOnly map[syntax.Decl]bool) []Diagnostic {
+func checkFileIndexed(file *syntax.File, universe *types.Universe, packages, siblings types.Packages, ownPath string, index *Index, testOnly map[syntax.Decl]bool) []Diagnostic {
 	c := &checker{index: index,
 		universe: universe, imports: ResolveFileImports(file, packages), groups: ResolveFileGroups(file, packages),
 		aliases: map[string]*syntax.Import{}, g4Reported: map[*syntax.Import]bool{}, ownPath: ownPath,
-		testOnly: testOnly, inTestsFile: file.Tests, packages: packages,
+		testOnly: testOnly, inTestsFile: file.Tests, packages: packages, siblings: siblings,
 	}
 	if len(file.Decls) > 0 {
 		c.entry = file.Decls[0]
@@ -715,7 +715,12 @@ type checker struct {
 	// the call being checked names, set just before callDecl and read
 	// once by checkEffect (ADR 0079 §1); "" otherwise.
 	foreignWorkflow string
-	diags           []Diagnostic
+	// foreignSibling says that package is one of the module's own.
+	foreignSibling bool
+	// siblings is the module's other packages, which a test may call the
+	// workflows of (ADR 0102 §3a); nil outside a module's package.
+	siblings types.Packages
+	diags    []Diagnostic
 	// argScope is where the current cross-package call's arguments
 	// resolve (inCallerScope); nil outside one.
 	argScope *scopeState
@@ -1168,8 +1173,8 @@ func bugClassForEffect(caller, callee declKind) string {
 // that kind (§6): an activity or conversion may call itself, but a rule
 // may not (B7), nor a gateway (B3) or a workflow (B8).
 func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeName string, at lexer.Pos) {
-	foreign := c.foreignWorkflow
-	c.foreignWorkflow = ""
+	foreign, foreignSibling := c.foreignWorkflow, c.foreignSibling
+	c.foreignWorkflow, c.foreignSibling = "", false
 	if c.inForm == "" && callee != c.entry && c.sameFile(callee) {
 		return
 	}
@@ -1182,7 +1187,16 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 				c.report(at, "B4", "gateway may call workflow %s only if it requires %s; this one requires %s, and a gateway requires exactly one thing (ADR 0079 §1, ADR 0010)", calleeName, foreign, c.requires)
 			}
 			return
-		case kindActivity, kindWorkflow, kindTest:
+		case kindTest:
+			// ADR 0102 §3a: a test may call a workflow of any package of its
+			// module, as an adapter does from outside. Another module's
+			// workflow is still reached through a gateway.
+			if foreignSibling {
+				return
+			}
+			c.report(at, "B8", "%s may not call workflow %s; another module's workflow is called through a gateway that requires %s (ADR 0079 §1)", c.callerKind, calleeName, foreign)
+			return
+		case kindActivity, kindWorkflow:
 			c.report(at, "B8", "%s may not call workflow %s; another package's workflow is called through a gateway that requires %s (ADR 0079 §1)", c.callerKind, calleeName, foreign)
 			return
 		}
@@ -1214,6 +1228,21 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 		return
 	}
 	c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s may not call %s %q", c.callerKind, calleeKind, calleeName)
+}
+
+// isSibling reports whether the import alias names one of the module's other
+// packages (ADR 0105), as opposed to another module's.
+func (c *checker) isSibling(alias string) bool {
+	pkg, ok := c.imports[alias]
+	if !ok {
+		return false
+	}
+	for _, sib := range c.siblings {
+		if sib == pkg {
+			return true
+		}
+	}
+	return false
 }
 
 // httpMethods is ADR 0021's allow-list for http-route verbs. The parser
@@ -1358,7 +1387,22 @@ func checkModuleRoot(root string, packages types.Packages) ([]Diagnostic, []stri
 	if m != nil {
 		path, provides = m.Path, m.Provides
 	}
-	return CheckLayoutPackage(root, top, packages, nil, path, provides, diags)
+	if m != nil && m.Kind == manifest.Application {
+		for _, rel := range top.Sources {
+			if problem := layout.TopLevelProblem(rel); problem != "" {
+				diags = append(diags, Diagnostic{File: rel, Rule: "H6", Msg: problem})
+			}
+		}
+	}
+	// The top-level package imports the module's folders as ordinary
+	// dependencies; its tests also count them as siblings (ADR 0102 §3a).
+	siblings := types.Packages{}
+	for p, pkg := range packages {
+		if path != "" && strings.HasPrefix(p, path+".") {
+			siblings[p] = pkg
+		}
+	}
+	return CheckLayoutPackage(root, top, packages, siblings, path, provides, diags)
 }
 
 // CheckLayoutPackage checks one package of a module (ADR 0105): its

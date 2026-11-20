@@ -4,7 +4,7 @@
     {
       "path": "fiig.http",
       "version": "1.0.0",
-      "hash": "sha256:297d35d9b87e42c81743cc418ea32a06eecdd4f5cd9d3b67d48326266bd016a2",
+      "hash": "sha256:e16a61617c4712048fb88bae830ca0d127c39b4a7f4d394a7ee800b9c1def0c8",
       "source": "builtin:http",
       "capabilities": [
         "Socket"
@@ -13,7 +13,7 @@
     {
       "path": "shop.kernel",
       "version": "1.0.0",
-      "hash": "sha256:a3153c34ce1b2769451bd266a037e7d2fc3c260c413d3bbec366fbd72bf4bc44",
+      "hash": "sha256:af28262e76ab7598a1b2510a0dbd63d0408deefd8bdd6d6b7309211b0ae9d75f",
       "source": "examples/shop-kernel"
     }
   ]

@@ -4,8 +4,8 @@
     {
       "path": "examples.sqlrelay",
       "version": "1.0.0",
-      "hash": "sha256:9e897d7b59a106fab6d4aa0e52051de8540d205af9c8111e7b9024418b6271ab",
-      "source": "../sql-relay",
+      "hash": "sha256:f8d36f7b7a417610bb618ef257dc815c40e5296dda551b194b19f4eccec8d0cf",
+      "source": "examples/sql-relay",
       "capabilities": [
         "Socket"
       ]
@@ -13,7 +13,7 @@
     {
       "path": "fiig.postgres",
       "version": "1.0.0",
-      "hash": "sha256:4d03387b019c71949369943f019663d80bffd7daa7142b7550f3550f1d09b4f4",
+      "hash": "sha256:34f637dc557f02d4c54b24e6918f00e734558ed4d6c9d3c9d10cdc935907896a",
       "source": "builtin:postgres",
       "capabilities": [
         "Socket"
@@ -22,7 +22,7 @@
     {
       "path": "fiig.sql",
       "version": "1.0.0",
-      "hash": "sha256:eb1e106108d4219f5b5a9aad952c5d7a6fa272901234f6728b7e7490f21a1436",
+      "hash": "sha256:862b42bd36f034873c1a8e900f6daef9c0d45e41f8cc4280788a20efc95afc70",
       "source": "builtin:sql"
     }
   ]

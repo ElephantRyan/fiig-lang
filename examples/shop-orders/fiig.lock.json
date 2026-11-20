@@ -4,13 +4,13 @@
     {
       "path": "shop.kernel",
       "version": "1.0.0",
-      "hash": "sha256:a3153c34ce1b2769451bd266a037e7d2fc3c260c413d3bbec366fbd72bf4bc44",
+      "hash": "sha256:af28262e76ab7598a1b2510a0dbd63d0408deefd8bdd6d6b7309211b0ae9d75f",
       "source": "examples/shop-kernel"
     },
     {
       "path": "shop.payments",
       "version": "1.0.0",
-      "hash": "sha256:b1b5c7a6a0c3c5fa89bd7641bdc0b428769c2599d43fb235ef528e24d08649f5",
+      "hash": "sha256:5de16a131043bca595c1e63f85845d1553c7f674135bbc2d0d924b16050f9d9b",
       "source": "examples/shop-payments",
       "capabilities": [
         "Database"

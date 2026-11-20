@@ -111,6 +111,11 @@ import rule forbids (abs-recommendations G47).
   test's imports add no edge to the graph.
 - **The top-level package** isn't importable from a folder (ADR 0105), tests
   included.
+- **A test may call a workflow of any package of its module** (ADR 0108
+  §2a), not only its own. A scenario in an application's empty top level
+  has no other way to start. B8 still holds for an activity or a workflow, and
+  for a test that names another module's workflow, which goes through a
+  gateway (ADR 0079 §1).
 
 ### 4. Moving a package
 

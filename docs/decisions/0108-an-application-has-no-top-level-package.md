@@ -1,8 +1,9 @@
 # ADR 0108: An Application's Code Lives in Folders
 
-Status: Proposed (2026-11-20)
+Status: Accepted (2026-11-20). Implemented 2026-11-20.
 Date: 2026-11-20
 Amends: ADR 0105 (a module's top-level package, and the example tree).
+Amends also: ADR 0102 §3a (a test may call a workflow of its own module).
 Related: ADR 0079 (a domain is a package; each domain has its own
 adapter), ADR 0102 (`src/` and `test/`), ADR 0050 (one flat namespace per
 package), ADR 0051 (no severity level).
@@ -68,6 +69,17 @@ public face, and it may hold declarations.
 - ADR 0105's example tree becomes `src/health/Health.fiig`, and its text
   says the top level is empty in an application.
 
+### 2a. Tests of an application with no top level
+
+`test/scenarios/` is the top-level package's. In an application that package
+is empty, so a scenario calls the domains by import
+(`use shop.orders.orders`), and its whole purpose, checking a promise several
+entry points keep, is to call their workflows. B8 forbade a test calling
+another package's workflow (abs-recommendations G46), which would have left
+every scenario unable to start. ADR 0102 §3a now lets a test call a workflow
+of any package of its own module. Another module's workflow is still reached
+through a gateway.
+
 ### 3. Why a structural rule and not a size limit
 
 - A warning on a large package is a rule that isn't finished being designed
@@ -124,6 +136,7 @@ to it.
 
 ## Open questions
 
+
 1. **What folder does `fiig fmt -layout` move top-level files into?** The
    module path's last segment is the obvious default, but `abs.recommendations`
    gives `recommendations`, which may collide with a real domain. Probably
@@ -131,3 +144,21 @@ to it.
 2. **A module that is both** (an application others import from). ADR 0105
    says a library meant for other projects stays a module of its own, so
    this shouldn't arise. If it does, this ADR says it's a library.
+
+## Implementation notes (2026-11-20)
+
+- **H6** is reported by `checker.CheckDir` for a module whose manifest says
+  `application` (a file directly in `src/`, naming the folder to move it to),
+  and by the language server as you type. `layout.TopLevelProblem` is the one
+  rule both call.
+- **The corpus moved.** getting-started (`ratings`), relay-notes (`notes`),
+  shop-orders and shop-orders-split (`orders`), inbox-sender (`invoices`),
+  and checkout-app and checkout-clientvertical (`checkout`): 57 files, with
+  `fiig serve . orders.ordersApi` and `fiig run . ratings.rate` for the
+  commands. Two Go fixtures that tested the loader and the language server
+  with files at the top level are libraries now, since that isn't what they
+  test.
+- **A scenario test in the empty top level imports a sibling and calls its
+  workflows** (§2a), which needed the B8 change in ADR 0102 §3a.
+- **Open question 1 stays open:** `fiig fmt -layout` doesn't pick a folder
+  for loose top-level files. The migration was a move by hand.

@@ -19,7 +19,7 @@ func TestAVerticalProvesWhatItDoesNotContain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	vars := func(app, entry string) string {
+	vars := func(app, module, entry string) string {
 		root := filepath.Join(examples, app)
 		loaded, errs := loader.Load(root, []string{examples})
 		if len(errs) > 0 {
@@ -34,7 +34,7 @@ func TestAVerticalProvesWhatItDoesNotContain(t *testing.T) {
 		}
 		u, _ := types.BuildUniverse(files)
 		p := Program{Universe: u, Imports: BuildImports(files, loaded.Packages), Groups: BuildGroups(files, loaded.Packages), Renames: Renames(root)}
-		list, err := Variables(ReachableConfig(p, []string{entry}), "")
+		list, err := Variables(ReachableConfigFrom(p, []Entry{{Package: loaded.Packages[module+".checkout"], Name: entry}}), "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -44,11 +44,11 @@ func TestAVerticalProvesWhatItDoesNotContain(t *testing.T) {
 		}
 		return strings.Join(names, ",")
 	}
-	if got := vars("checkout-app", "takePayment"); got != "SQUARE_ACCESS_TOKEN,STRIPE_API_KEY" {
+	if got := vars("checkout-app", "checkout.app", "takePayment"); got != "SQUARE_ACCESS_TOKEN,STRIPE_API_KEY" {
 		t.Errorf("checkout-app reads %q, want both providers' keys", got)
 	}
 	// Its own Stripe account, under the name its manifest renames it to.
-	if got := vars("checkout-clientvertical", "takeClientPayment"); got != "CLIENTVERTICAL_STRIPE_API_KEY" {
+	if got := vars("checkout-clientvertical", "checkout.clientvertical", "takeClientPayment"); got != "CLIENTVERTICAL_STRIPE_API_KEY" {
 		t.Errorf("checkout-clientvertical reads %q, want only Stripe's key, renamed", got)
 	}
 

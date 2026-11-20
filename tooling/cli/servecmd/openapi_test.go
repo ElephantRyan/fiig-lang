@@ -13,7 +13,7 @@ import (
 func TestOpenAPIForTheMonolith(t *testing.T) {
 	examples := examplesDir(t)
 	var out bytes.Buffer
-	if err := writeOpenAPI(&out, filepath.Join(examples, "shop-orders"), []string{"ordersApi", "shop.payments.paymentsApi"}, []string{examples}); err != nil {
+	if err := writeOpenAPI(&out, filepath.Join(examples, "shop-orders"), []string{"shop.orders.orders.ordersApi", "shop.payments.paymentsApi"}, []string{examples}); err != nil {
 		t.Fatal(err)
 	}
 	var doc map[string]any
@@ -26,7 +26,7 @@ func TestOpenAPIForTheMonolith(t *testing.T) {
 			t.Errorf("no %s in %v", p, paths)
 		}
 	}
-	if title := doc["info"].(map[string]any)["title"]; title != "ordersApi, shop.payments.paymentsApi" {
+	if title := doc["info"].(map[string]any)["title"]; title != "shop.orders.orders.ordersApi, shop.payments.paymentsApi" {
 		t.Errorf("title: %v", title)
 	}
 	body, _ := json.Marshal(paths["/orders/{order}"].(map[string]any)["post"].(map[string]any)["requestBody"])

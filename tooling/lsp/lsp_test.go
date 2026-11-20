@@ -23,7 +23,7 @@ model Money {
     currency: string
 }
 `,
-	"app/fiig.pkg.json": `{"path": "t.app", "kind": "application", "version": "1.0.0", "dependencies": {"t.kernel": "1.0.0"}}`,
+	"app/fiig.pkg.json": `{"path": "t.app", "kind": "library", "version": "1.0.0", "dependencies": {"t.kernel": "1.0.0"}}`,
 	"app/src/Total.fiig": `use t.kernel
 
 // Adds two amounts.

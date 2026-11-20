@@ -96,11 +96,12 @@ compiler can't tell which is which, so this is a habit, not a check.
 
 ## Serving the monolith
 
-`fiig serve` takes every adapter the process serves: a bare name from the
-root, a dotted one from a dependency (its package path, then its name):
+`fiig serve` takes every adapter the process serves: one in the root module's
+folders (`orders.ordersApi`), or a dotted one from a dependency (its package
+path, then its name):
 
 ```
-fiig serve -workspace .. -caps caps.json . ordersApi shop.payments.paymentsApi
+fiig serve -workspace .. -caps caps.json . orders.ordersApi shop.payments.paymentsApi
 ```
 
 `-workspace ..` says where the sibling packages are. To say it once, put
