@@ -175,7 +175,7 @@ func CheckDirFiles(root string, packages types.Packages, skip ...string) ([]Diag
 	if m, errs := manifest.Load(root); m != nil && len(errs) == 0 {
 		path, provides = m.Path, m.Provides
 	}
-	diags, checked := checkSourceTexts(order, sources, packages, path, provides, false)
+	diags, checked := checkSourceTexts(order, sources, packages, nil, path, provides, false)
 	files := make([]*syntax.File, len(order))
 	for i, rel := range order {
 		files[i] = checked[rel].File
@@ -199,15 +199,24 @@ type Checked struct {
 // diagnostic is attributed to its file and has an End, and each file comes
 // back with its index (§4). path and provides are the package manifest's.
 func CheckSources(sources map[string]string, packages types.Packages, path string, provides map[string]string) ([]Diagnostic, map[string]*Checked) {
+	return CheckSourcesWithSiblings(sources, packages, nil, path, provides)
+}
+
+// CheckSourcesWithSiblings is CheckSources for a package of a module (ADR
+// 0105), whose test files may also import any other package of the module,
+// siblings, as a Go external test package may import any package. The
+// package's sources still import only packages. A test is never imported,
+// so what it imports can't make a cycle.
+func CheckSourcesWithSiblings(sources map[string]string, packages, siblings types.Packages, path string, provides map[string]string) ([]Diagnostic, map[string]*Checked) {
 	order := make([]string, 0, len(sources))
 	for rel := range sources {
 		order = append(order, rel)
 	}
 	sort.Strings(order)
-	return checkSourceTexts(order, sources, packages, path, provides, true)
+	return checkSourceTexts(order, sources, packages, siblings, path, provides, true)
 }
 
-func checkSourceTexts(order []string, sources map[string]string, packages types.Packages, path string, provides map[string]string, indexed bool) ([]Diagnostic, map[string]*Checked) {
+func checkSourceTexts(order []string, sources map[string]string, packages, siblings types.Packages, path string, provides map[string]string, indexed bool) ([]Diagnostic, map[string]*Checked) {
 	type parsed struct {
 		path string
 		file *syntax.File
@@ -260,12 +269,16 @@ func checkSourceTexts(order []string, sources map[string]string, packages types.
 			index = &Index{}
 			checked[pf.path].Index = index
 		}
-		for _, d := range checkFileIndexed(pf.file, universe, packages, path, index, testOnly) {
+		known := packages
+		if pf.file.Tests {
+			known = withSiblings(packages, siblings)
+		}
+		for _, d := range checkFileIndexed(pf.file, universe, known, path, index, testOnly) {
 			d.File = pf.path
 			diags = append(diags, d)
 		}
 	}
-	reach := checkTestReach(files, universe, packages)
+	reach := checkTestReach(files, universe, withSiblings(packages, siblings))
 	for _, pf := range parsedFiles {
 		for _, d := range reach[pf.file] {
 			d.File = pf.path
@@ -1345,14 +1358,15 @@ func checkModuleRoot(root string, packages types.Packages) ([]Diagnostic, []stri
 	if m != nil {
 		path, provides = m.Path, m.Provides
 	}
-	return CheckLayoutPackage(root, top, packages, path, provides, diags)
+	return CheckLayoutPackage(root, top, packages, nil, path, provides, diags)
 }
 
 // CheckLayoutPackage checks one package of a module (ADR 0105): its
 // source files and its test files, read from root, with packages its
-// dependencies. Paths are module-relative. diags, when given, are reported
+// dependencies and siblings the module's other packages, which its tests may
+// also import (CheckSourcesWithSiblings). Paths are module-relative. diags, when given, are reported
 // first.
-func CheckLayoutPackage(root string, p *layout.Package, packages types.Packages, path string, provides map[string]string, diags []Diagnostic) ([]Diagnostic, []string, []*syntax.File, error) {
+func CheckLayoutPackage(root string, p *layout.Package, packages, siblings types.Packages, path string, provides map[string]string, diags []Diagnostic) ([]Diagnostic, []string, []*syntax.File, error) {
 	sources := map[string]string{}
 	order := append(append([]string(nil), p.Sources...), p.Tests...)
 	for _, rel := range order {
@@ -1362,7 +1376,7 @@ func CheckLayoutPackage(root string, p *layout.Package, packages types.Packages,
 		}
 		sources[rel] = string(data)
 	}
-	more, checked := checkSourceTexts(order, sources, packages, path, provides, false)
+	more, checked := checkSourceTexts(order, sources, packages, siblings, path, provides, false)
 	diags = append(diags, more...)
 	files := make([]*syntax.File, len(order))
 	for i, rel := range order {
@@ -1374,4 +1388,20 @@ func CheckLayoutPackage(root string, p *layout.Package, packages types.Packages,
 		}
 	}
 	return diags, order, files, nil
+}
+
+// withSiblings is packages with siblings added, leaving packages as it was.
+// A package that is in both keeps its entry from packages.
+func withSiblings(packages, siblings types.Packages) types.Packages {
+	if len(siblings) == 0 {
+		return packages
+	}
+	merged := make(types.Packages, len(packages)+len(siblings))
+	for k, v := range siblings {
+		merged[k] = v
+	}
+	for k, v := range packages {
+		merged[k] = v
+	}
+	return merged
 }

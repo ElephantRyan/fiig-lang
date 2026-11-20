@@ -245,7 +245,7 @@ func check(p pkgInfo, workspace string, open func(path string) (string, bool)) *
 		s.diags[f] = nil
 	}
 	manifestFile := filepath.Join(p.root, manifest.Filename)
-	var packages types.Packages
+	var packages, siblings types.Packages
 	var provides map[string]string
 	if !p.loose {
 		s.diags[manifestFile] = nil
@@ -273,12 +273,29 @@ func check(p pkgInfo, workspace string, open func(path string) (string, bool)) *
 							packages = mp.Package.Dependencies
 						}
 					}
+					// A package's tests may import the module's other packages
+					// (ADR 0102), so navigation reaches them too.
+					if p.module {
+						siblings = types.Packages{}
+						for _, mp := range loaded.Module {
+							if mp.Layout.Folder != p.folder {
+								siblings[mp.Package.Path] = mp.Package
+							}
+						}
+					}
 					for _, e := range loaded.Lockfile.Dependencies {
 						s.depDirs[e.Path] = moduleSrc(sourceDir(e.Source, p.root))
 					}
 					// A package of a module has the folder of its path under
 					// that module's src/ (ADR 0105).
-					for path := range packages {
+					reachable := types.Packages{}
+					for path, pkg := range siblings {
+						reachable[path] = pkg
+					}
+					for path, pkg := range packages {
+						reachable[path] = pkg
+					}
+					for path := range reachable {
 						s.depPaths = append(s.depPaths, path)
 						if _, ok := s.depDirs[path]; ok {
 							continue
@@ -301,7 +318,7 @@ func check(p pkgInfo, workspace string, open func(path string) (string, bool)) *
 	for rel, abs := range rels {
 		byRel[rel] = s.sources[abs]
 	}
-	diags, checked := checker.CheckSources(byRel, packages, s.path, provides)
+	diags, checked := checker.CheckSourcesWithSiblings(byRel, packages, siblings, s.path, provides)
 	if p.module {
 		// ADR 0104: a source file is named after its declaration.
 		for rel, c := range checked {

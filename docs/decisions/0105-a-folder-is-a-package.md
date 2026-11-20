@@ -71,7 +71,8 @@ abs-recommendations/
 - Each package has its own flat namespace (ADR 0050).
 - Packages in a module may not import each other in a cycle.
 - A test file under `test/<folders>/` is in the package `src/<folders>/`
-  and sees what its code sees (ADR 0102).
+  and sees what its code sees. It may also import any other package of the
+  module (ADR 0102 §3a).
 
 ### 3. `provides` is written in the code
 
