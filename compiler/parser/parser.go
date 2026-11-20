@@ -228,7 +228,14 @@ func (p *Parser) parseFile() *syntax.File {
 		if p.at(lexer.KwPrivate) {
 			p.parseFilePrivateBlock(f)
 		} else if d := p.parseDecl(); d != nil {
-			if len(f.Decls) > 0 || f.Private != nil {
+			_, isTest := d.(*syntax.TestDecl)
+			if isTest && len(f.Decls) > 0 && f.Private == nil && allTests(f.Decls) {
+				// ADR 0102 §2: a test file holds many tests; tests aren't
+				// in the program, so the one-declaration rule doesn't apply.
+			} else if len(f.Decls) > 0 && allTests(f.Decls) && !isTest {
+				start, _ := d.(syntax.Spanned).Bounds()
+				p.errorRule(start, "G1", "%s %q is in a test file; a test file holds only tests and their private block (ADR 0102 §2)", syntax.DeclKindName(d), syntax.DeclName(d))
+			} else if len(f.Decls) > 0 || f.Private != nil {
 				start, _ := d.(syntax.Spanned).Bounds()
 				p.errorRule(start, "G1", "%s %q is a second public declaration; a file holds exactly one (ADR 0054). Move it into this file's private block, or into its own file", syntax.DeclKindName(d), syntax.DeclName(d))
 			}
@@ -1997,4 +2004,14 @@ func (p *Parser) parseRetryExpr() *syntax.RetryExpr {
 	body := p.parseBody()
 	attempts := &syntax.IntLit{Span: syntax.Span{Start: countTok.Start, End: countTok.End}, Text: countTok.Text}
 	return &syntax.RetryExpr{Span: syntax.Span{Start: start, End: p.cur().Start}, Attempts: attempts, Body: body}
+}
+
+// allTests reports whether every declaration in decls is a test.
+func allTests(decls []syntax.Decl) bool {
+	for _, d := range decls {
+		if _, ok := d.(*syntax.TestDecl); !ok {
+			return false
+		}
+	}
+	return true
 }

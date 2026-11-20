@@ -102,7 +102,11 @@ func checkTestReach(files []*syntax.File, universe *types.Universe, packages typ
 
 	out := map[*syntax.File][]Diagnostic{}
 	for _, f := range tests {
-		out[f] = w.checkTest(f.Decls[0].(*syntax.TestDecl))
+		for _, d := range f.Decls {
+			if t, ok := d.(*syntax.TestDecl); ok {
+				out[f] = append(out[f], w.checkTest(t)...)
+			}
+		}
 	}
 	return out
 }

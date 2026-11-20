@@ -508,6 +508,7 @@ func checkFileIndexed(file *syntax.File, universe *types.Universe, packages type
 
 	for _, d := range file.Decls {
 		c.universe = universe.ScopeOf(d)
+		c.entry = d // each test in a test file is its own entry (ADR 0102 §2)
 		c.preludeNameTaken(d)
 		c.checkDecl(d)
 		if ad, ok := d.(*syntax.ActivityDecl); ok {
