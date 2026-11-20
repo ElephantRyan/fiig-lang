@@ -244,6 +244,7 @@ fires a workflow at times its schedule names, with the same obligation.
 | I5 | A schedule route's `every` isn't a duration, is under 1 s, or doesn't divide a day; or its `cron` isn't five valid fields, or never fires (`0 0 31 2 *`) (§1) | Attested — `compiler/checker`'s `TestScheduleRouteBugClasses` |
 | I6 | A scheduled workflow takes anything but nothing or one `int`, the firing time, or the route's arguments don't match it (§1) | Attested — `TestScheduleRouteBugClasses` |
 | I7 | A schedule route has no mapping, or its mapping doesn't cover `Ok` and every variant of the workflow's `Err` enum (§2) | Attested — `TestScheduleRouteBugClasses` |
+| I8 | A stream route names no `group`, or doesn't say `from earliest` or `from latest` (ADR 0111 §3a): the group is state the broker holds, so it is written down rather than derived from where the adapter lives | Attested — `TestStreamRouteBugClasses` |
 
 ## Explicitly out of scope (not statically checkable)
 
