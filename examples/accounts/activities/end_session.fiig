@@ -1,0 +1,3 @@
+activity endSession(token: string) -> int {
+    return deleteSession(token)
+}

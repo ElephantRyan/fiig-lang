@@ -1,0 +1,3 @@
+activity loadAccounts() -> List<Account> {
+    return listAccounts()
+}

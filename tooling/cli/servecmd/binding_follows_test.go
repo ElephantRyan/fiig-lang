@@ -18,12 +18,14 @@ var followsProgram = map[string]string{
 	"app/fiig.pkg.json": `{"path": "t.app", "kind": "application", "version": "1.0.0",
 		"dependencies": {"t.pay": "1.0.0"}, "capabilities": ["Database"], "nativeCapabilities": ["Database"]}`,
 	"app/charge.fiig":   "use t.pay\n\ngateway charge(id: string) -> string\n    requires pay\n{\n    return pay.takePayment(id: id)\n}\n",
-	"app/checkout.fiig": "workflow checkout(id: string) -> string {\n    return charge(id: id)\n}\n",
+	"app/checkout.fiig": "workflow checkout(id: string) -> string {\n    return payFor(id)\n}\n",
+	"app/pay_step.fiig": "activity payFor(id: string) -> string {\n    return charge(id: id)\n}\n",
 	"app/api.fiig":      "adapter http api {\n    POST \"/checkout/{id}\" -> checkout(id: string)\n        produces \"application/json\"\n}\n",
 
 	"pay/fiig.pkg.json": `{"path": "t.pay", "kind": "library", "version": "1.0.0",
 		"dependencies": {"t.audit": "1.0.0"}, "capabilities": ["Database"], "nativeCapabilities": ["Database"]}`,
-	"pay/take_payment.fiig":   "workflow takePayment(id: string) -> string {\n    recordPayment(id: id)\n    return \"paid ${id}\"\n}\n",
+	"pay/take_payment.fiig":   "workflow takePayment(id: string) -> string {\n    payStep(id)\n    return \"paid ${id}\"\n}\n",
+	"pay/pay_step.fiig":       "activity payStep(id: string) -> None {\n    return recordPayment(id: id)\n}\n",
 	"pay/record_payment.fiig": "use t.audit.Audit\n\ngateway recordPayment(id: string) -> None\n    requires Audit\n{\n    Audit.write(id: id)\n    return None\n}\n",
 
 	"audit/fiig.pkg.json": `{"path": "t.audit", "kind": "library", "version": "1.0.0",

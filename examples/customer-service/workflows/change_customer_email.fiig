@@ -1,7 +1,5 @@
-// Required example 5: update and reread data inside one transaction block.
+// Required example 5: the update and reread run in one transaction, in
+// the changeEmail activity.
 workflow changeCustomerEmail(id: string, newEmail: string) -> Result<Customer, CustomerError> {
-    transaction Database {
-        updateCustomerEmail(id, newEmail)?
-        return getCustomer(id)
-    }
+    return changeEmail(id, newEmail)
 }

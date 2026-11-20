@@ -12,7 +12,7 @@ import (
 
 func TestOpenAPIDefaultMappingRoute(t *testing.T) {
 	u, files := loadProgram(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows", "customer-service/adapters")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows", "customer-service/adapters")
 	doc, err := GenerateOpenAPI(findAdapter(t, files, "customerHttpApi"), u)
 	if err != nil {
 		t.Fatalf("GenerateOpenAPI: %v", err)
@@ -51,7 +51,7 @@ func TestOpenAPIDefaultMappingRoute(t *testing.T) {
 
 func TestOpenAPIExplicitMappingRoute(t *testing.T) {
 	u, files := loadProgram(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows", "customer-service/conversions",
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows", "customer-service/conversions",
 		"customer-service/adapters")
 	doc, err := GenerateOpenAPI(findAdapter(t, files, "customerHttpApiWithMapping"), u)
 	if err != nil {
@@ -81,7 +81,7 @@ func TestOpenAPIExplicitMappingRoute(t *testing.T) {
 
 func TestOpenAPIRequestBodyAndQueryParameter(t *testing.T) {
 	u, files := loadProgram(t, "customer-service/models", "customer-service/errors",
-		"customer-service/rules", "customer-service/formulas", "customer-service/gateways", "customer-service/workflows",
+		"customer-service/rules", "customer-service/formulas", "customer-service/gateways", "customer-service/activities", "customer-service/workflows",
 		"customer-service/adapters")
 	doc, err := GenerateOpenAPI(findAdapter(t, files, "customerCreateApi"), u)
 	if err != nil {
@@ -121,7 +121,7 @@ func TestOpenAPIRequestBodyAndQueryParameter(t *testing.T) {
 // output (an OpenAPI viewer, codegen tool, etc.) only ever sees JSON.
 func TestOpenAPIDocumentIsValidJSON(t *testing.T) {
 	u, files := loadProgram(t, "customer-service/models", "customer-service/errors",
-		"customer-service/rules", "customer-service/formulas", "customer-service/gateways", "customer-service/workflows",
+		"customer-service/rules", "customer-service/formulas", "customer-service/gateways", "customer-service/activities", "customer-service/workflows",
 		"customer-service/conversions", "customer-service/adapters")
 	for _, name := range []string{"customerHttpApi", "customerHttpApiWithMapping", "customerCreateApi", "customerEmailApi", "customerQueryApi"} {
 		doc, err := GenerateOpenAPI(findAdapter(t, files, name), u)

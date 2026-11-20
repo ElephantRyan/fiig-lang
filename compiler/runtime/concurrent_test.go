@@ -14,7 +14,7 @@ import (
 // customers with partial failures, as a real BatchResult.
 func TestRetrieveCustomersVerticalSlice(t *testing.T) {
 	u := loadUniverse(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows")
 	db := newFakeDatabase()
 	db.insert("c1", "Ada", "ada@example.com")
 	db.insert("c2", "Grace", "grace@example.com")
@@ -54,7 +54,7 @@ func TestRetrieveCustomersVerticalSlice(t *testing.T) {
 // first.
 func TestRetrieveCustomersInOrderPreservesInputOrder(t *testing.T) {
 	u := loadUniverse(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows")
 	db := newFakeDatabase()
 	// Insert in reverse of the order they'll be queried, and make earlier
 	// IDs resolve slower than later ones (via a tiny artificial stagger),
@@ -116,7 +116,7 @@ func staggeredProvider(db *fakeDatabase, n int) CapabilityProvider {
 // running more than the configured limit's worth of bodies at once.
 func TestRetrieveCustomersScaleBoundsConcurrency(t *testing.T) {
 	u := loadUniverse(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows")
 	const n = 10_000
 	const limit = 8
 
@@ -173,7 +173,7 @@ func TestRetrieveCustomersScaleBoundsConcurrency(t *testing.T) {
 // completion.
 func TestConcurrentCancelsSiblingsOnFault(t *testing.T) {
 	u := loadUniverse(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows")
 	const n = 20
 	release := make(chan struct{})
 

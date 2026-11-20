@@ -224,18 +224,19 @@ transaction Database serializable retry(attempts: 5) {
 
 ### Composition matrix
 
-Who may call what. **ADR 0044 is accepted but not yet implemented**, so the
-two columns currently differ — this is the single most important thing to know
-when reading the corpus.
+Who may call what (ADRs 0044, 0049, 0103, 0107). Each layer has one job;
+see [layers](../layers.md).
 
-| Caller | Previously (ADR 0030) | Now (ADR 0044) |
-|---|---|---|
-| `rule` | nothing | nothing |
-| `conversion` | rules, conversions | rules, conversions |
-| `activity` | rules, conversions | rules, conversions, **gateways**, **activities**, `transaction` blocks |
-| `gateway` | rules, conversions | rules, conversions |
-| `workflow` | rules, conversions, activities, gateways, workflows | rules, conversions, activities, gateways — **not workflows** |
-| `adapter` | exported workflows | workflows only, and an activity may **not** be adapter-exposed |
+| Caller | May call |
+|---|---|
+| `formula` | formulas |
+| `rule` | formulas (and its own private helpers) |
+| `conversion` | rules, conversions, formulas |
+| `gateway` | its capability, rules, conversions, formulas |
+| `activity` | gateways, activities, rules, conversions, formulas, `transaction` blocks |
+| `workflow` | activities, rules, conversions, formulas — **not gateways** (B12), not workflows (B8) |
+| `adapter` | its package's workflows |
+| `test` | anything in its package, workflows included |
 
 Since ADR 0049, every kind in the table may also call a formula, a rule
 included, and a formula may call only formulas.

@@ -10,7 +10,7 @@ workflow capturePayment(reference: string, amount: kernel.Money) -> Result<Recei
         return Err(PaymentError.Declined(reason: "over the limit for one payment"))
     }
     id = "pay-${reference}"
-    recordCharge(id: id, reference: reference, charged: amount)
+    storeCharge(id, reference, amount)
     return Ok(
         Receipt(id: id, reference: reference, charged: amount, refundable: isRefundable(amount)),
     )

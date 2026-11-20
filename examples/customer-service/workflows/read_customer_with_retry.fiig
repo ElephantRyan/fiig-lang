@@ -1,6 +1,5 @@
-// ADR 0014: the first *valid* retry in the corpus — retry_error.fiig only
-// shows the rejected case. getCustomer is a plain read with no side effect,
-// so it's marked idempotent, and retrying it here is legal.
+// ADR 0014: the retry itself is in loadCustomerRetrying, beside the
+// gateway it retries.
 workflow readCustomerWithRetry(id: string) -> Result<Customer, CustomerError> {
-    return retry(attempts: 3): getCustomer(id)
+    return loadCustomerRetrying(id)
 }

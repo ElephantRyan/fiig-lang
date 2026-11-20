@@ -367,9 +367,9 @@ func TestAdapterDependenciesIncludeResponseMapping(t *testing.T) {
 	}
 }
 
-// TestCallersIsInverseOfDependencies covers Callers — getCustomer is
-// called from both catalogs (default-catalog rules/gateways and
-// composition-catalog workflows), so this also confirms Callers doesn't
+// TestCallersIsInverseOfDependencies covers Callers — loadCustomer, an
+// activity (ADR 0107: the step workflows reach getCustomer through), is
+// called from workflows in the composition catalog, so this also confirms Callers doesn't
 // scope to one catalog the way Siblings does.
 func TestCallersIsInverseOfDependencies(t *testing.T) {
 	root := findExamplesDir(t)
@@ -377,13 +377,13 @@ func TestCallersIsInverseOfDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	getCustomer := ByName(cards, "getCustomer")
-	if getCustomer == nil {
-		t.Fatal("getCustomer not found")
+	loadCustomer := ByName(cards, "loadCustomer")
+	if loadCustomer == nil {
+		t.Fatal("loadCustomer not found")
 	}
-	callers := Callers(cards, getCustomer)
+	callers := Callers(cards, loadCustomer)
 	if len(callers) == 0 {
-		t.Fatal("expected getCustomer to have at least one caller")
+		t.Fatal("expected loadCustomer to have at least one caller")
 	}
 	retrieveCustomers := ByName(cards, "retrieveCustomers")
 	if retrieveCustomers == nil {
@@ -396,19 +396,19 @@ func TestCallersIsInverseOfDependencies(t *testing.T) {
 		}
 	}
 	if !sawRetrieveCustomers {
-		t.Fatalf("expected retrieveCustomers (composition catalog) among getCustomer's callers, got %+v", callers)
+		t.Fatalf("expected retrieveCustomers (composition catalog) among loadCustomer's callers, got %+v", callers)
 	}
 
-	// Cross-check the inverse directly: getCustomer must appear in
+	// Cross-check the inverse directly: loadCustomer must appear in
 	// retrieveCustomers' own Dependencies.
-	var sawGetCustomer bool
+	var sawLoadCustomer bool
 	for _, dep := range retrieveCustomers.Dependencies {
-		if dep == "getCustomer" {
-			sawGetCustomer = true
+		if dep == "loadCustomer" {
+			sawLoadCustomer = true
 		}
 	}
-	if !sawGetCustomer {
-		t.Fatalf("retrieveCustomers.Dependencies should include getCustomer, got %+v", retrieveCustomers.Dependencies)
+	if !sawLoadCustomer {
+		t.Fatalf("retrieveCustomers.Dependencies should include loadCustomer, got %+v", retrieveCustomers.Dependencies)
 	}
 }
 

@@ -1,0 +1,3 @@
+activity loadNote(id: string) -> Note | None {
+    return findNote(id)
+}

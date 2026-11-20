@@ -6,7 +6,7 @@ workflow logOut(session: string | None) -> Result<None, AccountError> {
             return Ok(None)
         }
         token -> {
-            deleteSession(token)
+            endSession(token)
             return Ok(None)
         }
     }

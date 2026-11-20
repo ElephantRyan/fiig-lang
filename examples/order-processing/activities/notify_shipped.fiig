@@ -1,0 +1,22 @@
+// Best-effort: a failed lookup or send doesn't undo a shipped order, the
+// compensation philosophy place_and_ship_order.fiig uses too. True when
+// the email was sent.
+activity notifyShipped(customerId: string, orderId: string) -> bool {
+    customer = getCustomer(customerId)
+    match customer {
+        Ok(found) -> {
+            sent = sendEmail(to: found.email, subject: "Your order has shipped", body: "Order ${orderId} has shipped.")
+            match sent {
+                Ok(_) -> {
+                    return true
+                }
+                Err(_) -> {
+                    return false
+                }
+            }
+        }
+        Err(_) -> {
+            return false
+        }
+    }
+}

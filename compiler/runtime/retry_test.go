@@ -12,7 +12,7 @@ import (
 // actually sleeps, keeping the test instant and reproducible.
 func TestReadCustomerWithRetrySucceedsAfterFailures(t *testing.T) {
 	u := loadUniverse(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows")
 	var calls int
 	caps := NewCapabilityRegistry()
 	caps.Register("Database", FuncProvider{
@@ -53,7 +53,7 @@ func TestReadCustomerWithRetrySucceedsAfterFailures(t *testing.T) {
 // an ordinary Result, not a runtime defect.
 func TestRetryReturnsLastErrorAfterExhaustingAttempts(t *testing.T) {
 	u := loadUniverse(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows")
 	caps := NewCapabilityRegistry()
 	caps.Register("Database", FuncProvider{
 		"queryOne": func(_ context.Context, args []Value) (Value, *Fault) {
