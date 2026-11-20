@@ -1,5 +1,8 @@
 {
     "path": "fiig.redis",
     "kind": "library",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "dependencies": {
+        "fiig.stream": "1.0.0"
+    }
 }

@@ -1,0 +1,115 @@
+use fiig.stream
+
+// ADR 0111 §7: Redis Streams as a stream source. Each adapter is a
+// consumer group, so every process running it shares the entries; an
+// entry's element is its payload field. Retried and unsettled entries are
+// claimed again once pending for REDIS_STREAM_RETRY_AFTER_MS.
+capability RedisStreams provides stream.StreamSource {
+    gateway receive(subscription: stream.Subscription, batchSize: int) -> Result<List<stream.Delivery>, stream.SourceError>
+        requires Redis
+    {
+        source = subscription.source
+        group = subscription.group
+        idle = "${RedisStreamSettings.retryAfterMillis}"
+        match Redis.send(["XPENDING", source, group, "IDLE", idle, "-", "+", "${batchSize}"]) {
+            Err(failure) -> {
+                if isNoGroup(failure) {
+                    // The first receive: the group starts at the stream's
+                    // beginning, so entries written before it are read.
+                    match Redis.send(["XGROUP", "CREATE", source, group, "0", "MKSTREAM"]) {
+                        Err(RedisError.Server(message)) -> {
+                            if not message.startsWith("BUSYGROUP") {
+                                return Err(stream.SourceError.Protocol(reason: message))
+                            }
+                        }
+                        Err(other) -> {
+                            return Err(sourceErrorOf(other))
+                        }
+                        Ok(_) -> None
+                    }
+                    return Ok([])
+                }
+                return Err(sourceErrorOf(failure))
+            }
+            Ok(reply) -> {
+                pending = pendingEntries(reply)
+                if pending.length() > 0 {
+                    claim: List<string> = ["XCLAIM", source, group, subscription.consumer, idle]
+                    counts: Map<string, int> = [:]
+                    for entry in pending {
+                        claim = append(claim, entry.id)
+                        // XCLAIM counts this delivery too.
+                        counts = counts.put(entry.id, entry.deliveries + 1)
+                    }
+                    claimed = mapErr(e in Redis.send(claim)): sourceErrorOf(e)?
+                    match claimed {
+                        RespValue.Array(entries) -> {
+                            return Ok(streamDeliveries(entries, counts))
+                        }
+                        _ -> {
+                            return Ok([])
+                        }
+                    }
+                }
+            }
+        }
+        read = Redis.send(
+            ["XREADGROUP", "GROUP", group, subscription.consumer, "COUNT", "${batchSize}", "BLOCK", "${subscription.waitMillis}", "STREAMS", source, ">"],
+        )
+        reply = mapErr(e in read): sourceErrorOf(e)?
+        // [[stream name, [entry, ...]]], or Null when nothing came in time.
+        match reply {
+            RespValue.Array(streams) -> {
+                for named in streams {
+                    match named {
+                        RespValue.Array(pair) -> {
+                            if pair.length() == 2 {
+                                match pair.last() {
+                                    RespValue.Array(entries) -> {
+                                        return Ok(streamDeliveries(entries, [:]))
+                                    }
+                                    _ -> None
+                                }
+                            }
+                        }
+                        _ -> None
+                    }
+                }
+                return Ok([])
+            }
+            _ -> {
+                return Ok([])
+            }
+        }
+    }
+
+    gateway settle(subscription: stream.Subscription, delivery: stream.Delivery, outcome: stream.Outcome) -> Result<None, stream.SourceError>
+        requires Redis
+    {
+        match outcome {
+            stream.Outcome.Retry -> {
+                // Left pending, so a receive claims it after the delay.
+                return Ok(None)
+            }
+            stream.Outcome.DeadLetter(target) -> {
+                match delivery.payload.utf8() {
+                    None -> {
+                        return Err(
+                            stream.SourceError.Protocol(reason: "entry ${delivery.id}'s payload isn't UTF-8, which fiig.redis can't write yet (ADR 0110 §1)"),
+                        )
+                    }
+                    text -> {
+                        moved = Redis.send(
+                            ["XADD", target, "*", "payload", text, "source", subscription.source, "id", delivery.id],
+                        )
+                        mapErr(e in moved): sourceErrorOf(e)?
+                    }
+                }
+            }
+            stream.Outcome.Ack -> None
+        }
+        acked = Redis.send(["XACK", subscription.source, subscription.group, delivery.id])
+        mapErr(e in acked): sourceErrorOf(e)?
+        return Ok(None)
+    }
+}

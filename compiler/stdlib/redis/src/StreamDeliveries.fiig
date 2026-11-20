@@ -1,0 +1,51 @@
+use fiig.stream
+
+// Stream entries, [id, [field, value, ...]] each, as deliveries: the
+// payload field's bytes, and the attempt counts gives the id, else 1
+// (ADR 0111 §7). An entry with no payload field delivers empty bytes,
+// which a model element can't decode, so its route halts and says so.
+conversion streamDeliveries(entries: List<RespValue>, counts: Map<string, int>) -> List<stream.Delivery> {
+    out: List<stream.Delivery> = []
+    for entry in entries {
+        match entry {
+            RespValue.Array(parts) -> {
+                if parts.length() == 2 {
+                    match textOf(parts.first()) {
+                        None -> None
+                        id -> {
+                            out = append(
+                                out,
+                                stream.Delivery(id: id, payload: payloadOf(parts.last()), attempt: counts.atOr(id, 1)),
+                            )
+                        }
+                    }
+                }
+            }
+            _ -> None
+        }
+    }
+    return out
+}
+
+private {
+    payloadOf(fields: RespValue) -> bytes {
+        match fields {
+            RespValue.Array(items) -> {
+                i: int = 0
+                while i + 1 < items.length() {
+                    if textOf(items.at(i)) == "payload" {
+                        match items.at(i + 1) {
+                            RespValue.Bulk(data) -> {
+                                return data
+                            }
+                            _ -> None
+                        }
+                    }
+                    i = i + 2
+                }
+            }
+            _ -> None
+        }
+        return <<>>
+    }
+}

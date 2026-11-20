@@ -20,6 +20,7 @@ import (
 	"text/tabwriter"
 
 	"fiig-lang/compiler/loader"
+	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
 	"fiig-lang/tooling/runprogram"
@@ -79,8 +80,19 @@ func Main(name string, args []string) {
 			fail(fmt.Errorf("no declaration named %q", entry))
 		}
 		ad, isAdapter := d.(*syntax.AdapterDecl)
-		serving = isAdapter && ad.Kind == syntax.AdapterHTTP
-		sources = runprogram.ReachableConfig(program, []string{entry})
+		serving = isAdapter && (ad.Kind == syntax.AdapterHTTP || ad.Kind == syntax.AdapterStream)
+		entries := []runprogram.Entry{{Name: entry}}
+		// A stream adapter's source reads its own config (ADR 0111 §2),
+		// and the capabilities file, not the program, says which source,
+		// so every package that provides one is listed.
+		if isAdapter && ad.Kind == syntax.AdapterStream {
+			for _, pkg := range packages {
+				if group := pkg.Provides[runtime.StreamSourceInterface]; group != "" {
+					entries = append(entries, runprogram.Entry{Package: pkg, Name: group})
+				}
+			}
+		}
+		sources = runprogram.ReachableConfigFrom(program, entries)
 	}
 	vars, err := runprogram.Variables(sources, *capsPath)
 	if err != nil {

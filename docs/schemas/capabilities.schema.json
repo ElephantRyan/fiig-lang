@@ -21,12 +21,13 @@
       "properties": {
         "type": {
           "description": "The provider that backs this capability.",
-          "enum": ["sql", "driver", "socket", "socket-script", "scripted", "random-seeded"]
+          "enum": ["sql", "driver", "source", "socket", "socket-script", "scripted", "random-seeded"]
         }
       },
       "anyOf": [
         { "$ref": "#/definitions/sql" },
         { "$ref": "#/definitions/driver" },
+        { "$ref": "#/definitions/source" },
         { "$ref": "#/definitions/socket" },
         { "$ref": "#/definitions/socketScript" },
         { "$ref": "#/definitions/scripted" },
@@ -43,6 +44,16 @@
         "type": { "const": "sql" },
         "driver": { "description": "The database/sql driver name; fiig ships sqlite.", "type": "string" },
         "dsn": { "description": "The driver's data source name, e.g. file:app.db.", "type": "string" }
+      }
+    },
+    "source": {
+      "description": "A stream source written in fiig, bound as StreamSource, that stream adapters read from (ADR 0111), such as fiig.redis. The source reads its own settings from the environment.",
+      "type": "object",
+      "required": ["type", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "source" },
+        "source": { "description": "The source package's path, e.g. fiig.redis.", "type": "string" }
       }
     },
     "driver": {

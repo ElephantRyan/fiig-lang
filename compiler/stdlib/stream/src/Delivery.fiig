@@ -1,0 +1,7 @@
+// One element as the source delivered it (ADR 0111 §1). attempt is 1 the
+// first time the group receives it, and one more after each Retry.
+model Delivery {
+    id: string
+    payload: bytes
+    attempt: int
+}

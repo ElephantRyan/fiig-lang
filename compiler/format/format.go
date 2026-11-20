@@ -553,6 +553,9 @@ func (p *printer) printRoute(r *syntax.Route) {
 		args[i] = printRouteArg(a)
 	}
 	head := fmt.Sprintf("%s %s -> %s", r.Verb, strconv.Quote(r.Path), r.Workflow.Name)
+	if r.Key != nil {
+		head = fmt.Sprintf("%s %s key %s -> %s", r.Verb, strconv.Quote(r.Path), r.Key.Name, r.Workflow.Name)
+	}
 	var clauses []*syntax.MediaType
 	if r.Consumes != nil {
 		clauses = append(clauses, r.Consumes)
@@ -631,9 +634,26 @@ func printResponseValue(v syntax.ResponseValue) string {
 		return s
 	case *syntax.ExprResponse:
 		return printExpr(v.Value)
+	case *syntax.DispositionResponse:
+		return printDisposition(v)
 	default:
 		return "?"
 	}
+}
+
+// printDisposition prints a stream route's disposition (ADR 0111 §3).
+func printDisposition(d *syntax.DispositionResponse) string {
+	switch d.Kind {
+	case "deadLetter":
+		return "deadLetter " + strconv.Quote(d.Target)
+	case "retry":
+		s := fmt.Sprintf("retry(attempts: %d)", d.Attempts)
+		if d.Else != nil {
+			s += " else " + printDisposition(d.Else)
+		}
+		return s
+	}
+	return d.Kind
 }
 
 // ---- types ---------------------------------------------------------------

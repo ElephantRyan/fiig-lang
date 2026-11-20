@@ -1,0 +1,14 @@
+// ADR 0110 §1: the replies a command's write brought back, read as its
+// result. An error reply to AUTH or SELECT comes first, since the command
+// after it ran on a connection that wasn't set up.
+conversion commandReply(replies: List<RespValue>) -> Result<RespValue, RedisError> {
+    for reply in replies {
+        match reply {
+            RespValue.Error(text) -> {
+                return Err(RedisError.Server(message: text))
+            }
+            _ -> None
+        }
+    }
+    return Ok(replies.last())
+}

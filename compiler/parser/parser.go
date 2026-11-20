@@ -8,6 +8,7 @@ package parser
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"fiig-lang/compiler/lexer"
@@ -901,7 +902,13 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 		p.advance()
 		kind = syntax.AdapterCLI
 	default:
-		p.errorf(p.cur().Start, "expected 'http' or 'cli', got %s", p.cur().Kind)
+		// `stream` is contextual (ADR 0111 §3).
+		if p.atContextual("stream") {
+			p.advance()
+			kind = syntax.AdapterStream
+		} else {
+			p.errorf(p.cur().Start, "expected 'http', 'cli', or 'stream', got %s", p.cur().Kind)
+		}
 	}
 	name := p.expectName()
 	p.expect(lexer.LBrace)
@@ -916,6 +923,9 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 func (p *Parser) parseRoute(kind syntax.AdapterKind) *syntax.Route {
 	start := p.cur().Start
 	var verb string
+	if kind == syntax.AdapterStream {
+		return p.parseStreamRoute(start)
+	}
 	if kind == syntax.AdapterCLI {
 		p.expect(lexer.KwCommand)
 		verb = "command"
@@ -957,6 +967,92 @@ func (p *Parser) parseRoute(kind syntax.AdapterKind) *syntax.Route {
 	}
 	route.Span = syntax.Span{Start: start, End: p.cur().Start}
 	return route
+}
+
+// parseStreamRoute parses `source "name" [key field] -> workflow(arg:
+// Type) { pattern -> disposition ... }` (ADR 0111 §3). `source` and `key`
+// are contextual.
+func (p *Parser) parseStreamRoute(start lexer.Pos) *syntax.Route {
+	if !p.atContextual("source") {
+		p.errorf(p.cur().Start, "expected 'source' to start a stream route, got %s", p.cur().Kind)
+	} else {
+		p.advance()
+	}
+	lit := p.parseStringLit()
+	if hasInterp(lit) {
+		p.errorf(lit.Start, "interpolation is not allowed in a source name")
+	}
+	route := &syntax.Route{Verb: "source", Path: plainText(lit)}
+	if p.atContextual("key") {
+		p.advance()
+		keyTok := p.expectName()
+		route.Key = &syntax.Ident{Span: syntax.Span{Start: keyTok.Start, End: keyTok.End}, Name: keyTok.Text}
+	}
+	p.expect(lexer.Arrow)
+	nameTok := p.expectName()
+	route.Workflow = &syntax.Ident{Span: syntax.Span{Start: nameTok.Start, End: nameTok.End}, Name: nameTok.Text}
+	route.Args = p.parseRouteArgs()
+	if p.at(lexer.LBrace) {
+		p.expect(lexer.LBrace)
+		route.Mapping = []syntax.ResponseArm{}
+		for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
+			p.guardProgress(func() {
+				armStart := p.cur().Start
+				pat := p.parsePattern()
+				p.expect(lexer.Arrow)
+				val := p.parseDisposition(true)
+				route.Mapping = append(route.Mapping, syntax.ResponseArm{Span: syntax.Span{Start: armStart, End: p.cur().Start}, Pattern: pat, Value: val})
+			})
+		}
+		p.expect(lexer.RBrace)
+	}
+	route.Span = syntax.Span{Start: start, End: p.cur().Start}
+	return route
+}
+
+// parseDisposition parses `ack`, `halt`, `deadLetter "target"`, or, when
+// retry is allowed, `retry(attempts: N) [else halt | else deadLetter
+// "target"]` (ADR 0111 §3).
+func (p *Parser) parseDisposition(retry bool) *syntax.DispositionResponse {
+	start := p.cur().Start
+	d := &syntax.DispositionResponse{}
+	switch {
+	case p.atContextual("ack"), p.atContextual("halt"):
+		d.Kind = p.advance().Text
+	case p.atContextual("deadLetter"):
+		p.advance()
+		d.Kind = "deadLetter"
+		lit := p.parseStringLit()
+		if hasInterp(lit) {
+			p.errorf(lit.Start, "interpolation is not allowed in a dead-letter target")
+		}
+		d.Target = plainText(lit)
+	case retry && p.at(lexer.KwRetry):
+		p.advance()
+		d.Kind = "retry"
+		p.expect(lexer.LParen)
+		p.expect(lexer.KwAttempts)
+		p.expect(lexer.Colon)
+		n := p.expect(lexer.Int)
+		d.Attempts, _ = strconv.Atoi(n.Text)
+		p.expect(lexer.RParen)
+		if p.at(lexer.KwElse) {
+			p.advance()
+			d.Else = p.parseDisposition(false)
+			if d.Else.Kind == "ack" {
+				p.errorf(d.Else.Start, "a retry that runs out of attempts can't ack; write else halt or else deadLetter \"target\"")
+			}
+		}
+	default:
+		want := "'ack', 'retry', 'halt', or 'deadLetter'"
+		if !retry {
+			want = "'halt' or 'deadLetter'"
+		}
+		p.errorf(p.cur().Start, "expected %s in a stream route's mapping, got %s", want, p.cur().Kind)
+		p.advance()
+	}
+	d.Span = syntax.Span{Start: start, End: p.cur().Start}
+	return d
 }
 
 // parseRouteArgs parses a route's argument list: `name: Type`, optionally

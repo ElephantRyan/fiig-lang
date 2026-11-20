@@ -1,0 +1,8 @@
+// Which elements a receive is for (ADR 0111 §1). Every process running an
+// adapter consumes as one group, so each element goes to one of them.
+model Subscription {
+    source: string
+    group: string
+    consumer: string
+    waitMillis: int
+}

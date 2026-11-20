@@ -186,6 +186,29 @@ the same lookup. SIGINT or SIGTERM stops
 accepting connections and gives in-flight requests `-shutdown` (10s) to
 finish, then closes a driver's pooled connections.
 
+## Stream adapters
+
+An `adapter stream` is served the same way, beside any HTTP adapters:
+`fiig serve -caps caps.json . OrderIntake ordersApi`. Its elements come
+from the source the capabilities file binds (ADR 0111 §2):
+
+```json
+{"StreamSource": {"type": "source", "source": "fiig.redis"}}
+```
+
+`fiig.redis` reads Redis Streams at `REDIS_URL`. Each adapter is a
+consumer group named after it, so every replica shares the work, and a
+producer writes an element as `XADD orders * payload <json>`.
+
+- An element that a route retries, or that a stopped process left
+  unsettled, comes back after `REDIS_STREAM_RETRY_AFTER_MS` (30 s).
+- A route that halts (its mapping says `halt`, a `retry` runs out of
+  attempts with no `else`, the workflow faults, or a payload doesn't
+  decode) stops `fiig serve` with an error naming the element, which stays
+  unsettled. Your orchestrator restarts the process, and the element is
+  delivered again, so the halt keeps showing until someone deals with it.
+- Shutdown finishes the element in hand and settles it before stopping.
+
 ## Migrations
 
 A package's schema lives in `migrations/<number>_<name>.sql`, plain SQL

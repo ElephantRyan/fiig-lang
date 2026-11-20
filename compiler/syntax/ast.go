@@ -449,12 +449,14 @@ type WorkflowDecl struct {
 	Body       *Block
 }
 
-// AdapterKind is "http" or "cli" (grammar.md `adapter-kind`).
+// AdapterKind is "http", "cli", or "stream" (grammar.md `adapter-kind`,
+// ADR 0111).
 type AdapterKind string
 
 const (
-	AdapterHTTP AdapterKind = "http"
-	AdapterCLI  AdapterKind = "cli"
+	AdapterHTTP   AdapterKind = "http"
+	AdapterCLI    AdapterKind = "cli"
+	AdapterStream AdapterKind = "stream"
 )
 
 type AdapterDecl struct {
@@ -464,14 +466,16 @@ type AdapterDecl struct {
 	Routes []*Route
 }
 
-// Route covers both http-route and cli-route (grammar.md): Verb is an HTTP
-// method ("GET") for an http adapter, or "command" for a cli adapter — the
-// two grammar productions differ only in that one keyword, so one struct
-// covers both rather than duplicating it.
+// Route covers http-route, cli-route, and stream-route (grammar.md): Verb
+// is an HTTP method ("GET") for an http adapter, "command" for a cli
+// adapter, or "source" for a stream adapter, whose Path is the source's
+// name (ADR 0111 §3) — the productions differ mainly in that one keyword,
+// so one struct covers them rather than duplicating it.
 type Route struct {
 	Span
 	Verb     string
 	Path     string // the route's string-literal content
+	Key      *Ident // a stream route's element key; nil otherwise or when omitted
 	Workflow *Ident // the workflow the route calls
 	Args     []RouteArg
 	Consumes *MediaType    // nil if the route has no `consumes` clause (ADR 0069 §5)
@@ -519,6 +523,16 @@ type ExitResponse struct {
 	Span
 	Code Expr
 	Body Expr // nil if no body expression was given
+}
+
+// DispositionResponse is stream-only (ADR 0111 §3): what happens to the
+// element. Kind is "ack", "halt", "deadLetter", or "retry".
+type DispositionResponse struct {
+	Span
+	Kind     string
+	Target   string               // deadLetter's stream
+	Attempts int                  // retry's limit
+	Else     *DispositionResponse // retry's fallback once the limit is reached; nil is halt
 }
 
 // ExprResponse is an ordinary call producing an already-built response,
@@ -625,9 +639,10 @@ func DeclKindName(d Decl) string {
 	}
 }
 
-func (*StatusResponse) responseValueNode() {}
-func (*ExitResponse) responseValueNode()   {}
-func (*ExprResponse) responseValueNode()   {}
+func (*DispositionResponse) responseValueNode() {}
+func (*StatusResponse) responseValueNode()      {}
+func (*ExitResponse) responseValueNode()        {}
+func (*ExprResponse) responseValueNode()        {}
 
 // ---- Types -------------------------------------------------------------
 

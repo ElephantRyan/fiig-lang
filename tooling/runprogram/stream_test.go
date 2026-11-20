@@ -1,0 +1,187 @@
+package runprogram
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"fiig-lang/compiler/adapter"
+	"fiig-lang/compiler/loader"
+	"fiig-lang/compiler/runtime"
+	"fiig-lang/compiler/syntax"
+	"fiig-lang/compiler/types"
+	"fiig-lang/internal/fixture"
+)
+
+// ADR 0111: a stream adapter reading Redis Streams through fiig.redis
+// (ADR 0110), against an in-memory Redis.
+
+var streamProgram = map[string]string{
+	"fiig.pkg.json": `{
+    "path": "streamtest.orders",
+    "kind": "application",
+    "version": "1.0.0",
+    "dependencies": { "fiig.redis": "1.0.0" },
+    "capabilities": ["Socket"]
+}`,
+	"order_placed.fiig": `model OrderPlaced {
+    orderId: string
+    quantity: int
+}`,
+	"order_error.fiig": `enum OrderError {
+    OutOfStock(sku: string)
+    Invalid(reason: string)
+    Unrecorded(reason: string)
+}`,
+	"mark_processed.fiig": `use fiig.redis.Redis
+
+gateway markProcessed(orderId: string) -> Result<None, OrderError>
+    requires Redis
+{
+    match Redis.send(["INCR", "processed:${orderId}"]) {
+        Ok(_) -> {
+            return Ok(None)
+        }
+        Err(_) -> {
+            return Err(OrderError.Unrecorded(reason: "Redis refused"))
+        }
+    }
+}`,
+	"record.fiig": `activity record(order: OrderPlaced) -> Result<None, OrderError> {
+    return markProcessed(order.orderId)
+}`,
+	"place_order.fiig": `workflow placeOrder(order: OrderPlaced) -> Result<None, OrderError> {
+    if order.quantity <= 0 {
+        return Err(OrderError.Invalid(reason: "quantity ${order.quantity}"))
+    }
+    if order.quantity > 100 {
+        return Err(OrderError.OutOfStock(sku: order.orderId))
+    }
+    return record(order)
+}`,
+	"order_intake.fiig": `adapter stream OrderIntake {
+    source "orders" key orderId -> placeOrder(order: OrderPlaced) {
+        Ok(_) -> ack
+        Err(OrderError.OutOfStock(_)) -> retry(attempts: 2) else deadLetter "orders.failed"
+        Err(OrderError.Invalid(_)) -> deadLetter "orders.invalid"
+        Err(OrderError.Unrecorded(_)) -> retry(attempts: 5)
+    }
+}`,
+}
+
+// streamRunner loads streamProgram with fiig.redis from the toolchain and
+// returns the runner for OrderIntake, reading from redis.
+func streamRunner(t *testing.T, redis *fakeRedis) *adapter.StreamRunner {
+	t.Helper()
+	root := t.TempDir()
+	for name, src := range fixture.Module(streamProgram) {
+		os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
+		if err := os.WriteFile(filepath.Join(root, name), []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loaded, errs := loader.Load(root, nil)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	files, _, err := LoadFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diags := Check(root, files, loaded.Packages); len(diags) > 0 {
+		t.Fatal(diags)
+	}
+	u, _ := types.BuildUniverse(files)
+	caps := runtime.NewCapabilityRegistry()
+	source, err := runtime.SourceFactory(map[string]any{"type": "source", "source": "fiig.redis"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	caps.Register(runtime.StreamSourceCapability, source)
+	RegisterDefaults(caps)
+	t.Cleanup(caps.Close)
+	in := runtime.New(u, caps)
+	in.Imports = BuildImports(files, loaded.Packages)
+	in.Groups = BuildGroups(files, loaded.Packages)
+	in.Packages = loaded.Packages
+	d, _ := u.Lookup("OrderIntake")
+	runners, err := adapter.StreamRunners([]adapter.Served{{Decl: d.(*syntax.AdapterDecl)}}, u, in, "test-1", 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, group, _ := runners[0].Source().Resolve()
+	program := Program{Universe: u, Imports: in.Imports, Groups: in.Groups}
+	env := map[string]string{"REDIS_URL": redis.url(), "REDIS_STREAM_RETRY_AFTER_MS": "50"}
+	lookup := func(name string) (string, bool) { v, ok := env[name]; return v, ok }
+	sources := ReachableConfigFrom(program, []Entry{{Name: "OrderIntake"}, {Package: pkg, Name: group}})
+	if problems := in.LoadConfig(sources, lookup); len(problems) > 0 {
+		t.Fatal(problems)
+	}
+	return runners[0]
+}
+
+func TestStreamAdapterOverRedisStreams(t *testing.T) {
+	redis := startFakeRedis(t, "pw")
+	redis.add("orders", "payload", `{"orderId":"o1","quantity":3}`)
+	redis.add("orders", "payload", `{"orderId":"o2","quantity":0}`)
+	redis.add("orders", "payload", `{"orderId":"o3","quantity":500}`)
+	bad := redis.add("orders", "payload", `not json`)
+	runner := streamRunner(t, redis)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// §4: o1 is acked, o2 dead-lettered, o3 left to retry, and the payload
+	// that isn't JSON halts, unsettled.
+	var halt *adapter.Halt
+	if err := runner.Run(ctx); !errors.As(err, &halt) || !strings.Contains(halt.Reason, "isn't JSON") || !strings.Contains(halt.Element, bad) {
+		t.Fatalf("first run: %v", err)
+	}
+	if n := redis.counter("processed:o1"); n != 1 {
+		t.Errorf("o1 processed %d times", n)
+	}
+	if got := redis.payloads("orders.invalid"); len(got) != 1 || !strings.Contains(got[0], `"o2"`) {
+		t.Errorf("orders.invalid = %v", got)
+	}
+
+	// A restart: o3 comes back as attempt 2, its last, and goes to
+	// orders.failed; the bad payload is delivered again and halts again.
+	time.Sleep(80 * time.Millisecond)
+	if err := runner.Run(ctx); !errors.As(err, &halt) || !strings.Contains(halt.Element, bad) {
+		t.Fatalf("second run: %v", err)
+	}
+	if got := redis.payloads("orders.failed"); len(got) != 1 || !strings.Contains(got[0], `"o3"`) {
+		t.Errorf("orders.failed = %v", got)
+	}
+
+	// An operator deals with the bad entry; an order written while the
+	// runner waits is processed, and shutdown stops it cleanly.
+	redis.ack("orders", "OrderIntake", bad)
+	done := make(chan error, 1)
+	live, stop := context.WithCancel(ctx)
+	go func() { done <- runner.Run(live) }()
+	time.Sleep(100 * time.Millisecond)
+	redis.add("orders", "payload", `{"orderId":"o5","quantity":7}`)
+	deadline := time.Now().Add(5 * time.Second)
+	for redis.counter("processed:o5") == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	stop()
+	if err := <-done; err != nil {
+		t.Fatalf("third run: %v", err)
+	}
+	if n := redis.counter("processed:o5"); n != 1 {
+		t.Errorf("o5 processed %d times", n)
+	}
+	if n := redis.pending("orders", "OrderIntake"); n != 0 {
+		t.Errorf("%d entries left pending", n)
+	}
+	// ADR 0109: the client keeps its connection, so three runs and their
+	// polling share a handful at most.
+	if n := redis.accepted.Load(); n > 3 {
+		t.Errorf("Redis saw %d connections", n)
+	}
+}
