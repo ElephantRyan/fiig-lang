@@ -49,6 +49,10 @@ to 10))`, a value the program handles, not an exception.
 On Windows PowerShell, quote the JSON with single quotes and double every
 inner double quote, or put the arguments in a variable.
 
+Arguments can also come from a file, `-args-file args.json`, or from stdin,
+`-args-file -`. Use one of these for a password or a token, so it isn't on
+the command line where `ps` and shell history can see it.
+
 ## 4. Serve it over HTTP
 
 ```

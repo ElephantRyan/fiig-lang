@@ -36,6 +36,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -57,6 +58,7 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	fs := flag.NewFlagSet(name, flag.ExitOnError)
 	jsonOut := fs.Bool("json", false, "print the result (or fault) as JSON instead of plain text")
 	argsJSON := fs.String("args", "{}", "JSON object of arguments, keyed by parameter name")
+	argsFile := fs.String("args-file", "", "a file holding -args's JSON object, or - for stdin, so a secret argument stays out of the command line")
 	capsPath := fs.String("caps", "", "path to a JSON file of scripted capability responses")
 	trace := fs.Bool("trace", false, "print the call tree (compiler/runtime.Span) to stderr after running")
 	envFile := fs.String("env-file", "", "a file of NAME=value lines that sets environment variables the process doesn't (ADR 0071 §3a)")
@@ -64,7 +66,7 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable. Omitted, only the packages fiig ships are searched (ADR 0074)")
 	fs.Parse(argv)
 	if fs.NArg() != 2 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-args JSON] [-caps FILE] [-env-file FILE] [-trace] [-workspace DIR]... <root> <declName>")
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-args JSON | -args-file FILE] [-caps FILE] [-env-file FILE] [-trace] [-workspace DIR]... <root> <declName>")
 		os.Exit(2)
 	}
 	root, name := fs.Arg(0), fs.Arg(1)
@@ -112,7 +114,12 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 		os.Exit(1)
 	}
 
-	rawArgs, err := runprogram.ParseArgs(*argsJSON)
+	argsText, err := argsSource(*argsJSON, *argsFile, os.Stdin)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(2)
+	}
+	rawArgs, err := runprogram.ParseArgs(argsText)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: -args:", err)
 		os.Exit(2)
@@ -230,4 +237,26 @@ func printJSON(v any) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
+}
+
+// argsSource is the arguments' JSON: -args's text, or the contents of
+// -args-file, where - is stdin. Both at once is an error.
+func argsSource(argsJSON, argsFile string, stdin io.Reader) (string, error) {
+	if argsFile == "" {
+		return argsJSON, nil
+	}
+	if argsJSON != "{}" {
+		return "", fmt.Errorf("-args and -args-file both given; use one")
+	}
+	var data []byte
+	var err error
+	if argsFile == "-" {
+		data, err = io.ReadAll(stdin)
+	} else {
+		data, err = os.ReadFile(argsFile)
+	}
+	if err != nil {
+		return "", fmt.Errorf("-args-file: %w", err)
+	}
+	return string(data), nil
 }

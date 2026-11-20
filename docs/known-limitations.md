@@ -116,7 +116,8 @@ doesn't have to discover them.
   stores them in its `Database`.
 - **No shared fakes.** A fake used by many tests is written in each.
 - **No literal patterns**: `expect r is Err(e)` then `expect e == ...`,
-  two lines where one would do.
+  two lines where one would do. A literal in a pattern is one error that
+  says so.
 - **A test of a rule that chooses a provider fakes every provider** it
   can return, so it can't run one provider's real gateway against a fake
   of what that provider uses (`Client` under `Stripe`).
