@@ -1,7 +1,6 @@
 # ADR 0107: A Workflow Calls Activities, Not Gateways
 
-Status: Accepted (2026-11-20). Not yet implemented; built with ADRs
-0102-0106 as one migration.
+Status: Accepted (2026-11-20). Implemented 2026-11-20.
 Date: 2026-11-20
 Amends: ADR 0044 (what a workflow may call).
 Related: ADR 0006 (errors are reinterpreted explicitly), ADR 0095
@@ -67,3 +66,11 @@ with the app's rate flow as its example.
 - Corpus workflows that call gateways get an activity between.
 - abs-recommendations moves decisions into workflows and steps into
   activities.
+
+## Implementation notes
+
+Built 2026-11-20: B12 in `compiler/checker/checker.go`. Fourteen corpus
+gateways called from workflows moved behind activities, such as
+`loadCustomer`, `chargeAndSave`, and `notifyShipped`; `retry` moved into
+`loadCustomerRetrying`, beside the idempotent gateway it retries, and
+`changeCustomerEmail`'s transaction into `changeEmail`.

@@ -7,13 +7,7 @@
 workflow placeShipAndNotifyCustomer(orderId: string, customerId: string, total: int) -> Result<Order, OrderError> {
     order = placeAndShipOrder(orderId, customerId, total)?
 
-    customer = getCustomer(customerId)
-    match customer {
-        Ok(found) -> {
-            notified = sendEmail(to: found.email, subject: "Your order has shipped", body: "Order ${order.id} has shipped.")
-        }
-        Err(_) -> None
-    }
+    notified = notifyShipped(customerId, order.id)
 
     return Ok(order)
 }

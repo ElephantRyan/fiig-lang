@@ -90,7 +90,7 @@ func TestCancelledContextFaultsImmediately(t *testing.T) {
 // support cancellation themselves.
 func TestDeadlineExceededFaultsDuringConcurrentWork(t *testing.T) {
 	u := loadUniverse(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows")
 	caps := NewCapabilityRegistry()
 	caps.Register("Database", FuncProvider{
 		"queryOne": func(_ context.Context, args []Value) (Value, *Fault) {

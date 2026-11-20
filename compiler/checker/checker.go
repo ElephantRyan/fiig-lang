@@ -1091,9 +1091,11 @@ var allowedCallees = map[declKind]map[declKind]bool{
 	kindConversion: {kindRule: true, kindConversion: true, kindFormula: true},
 	kindActivity:   {kindRule: true, kindConversion: true, kindGateway: true, kindActivity: true, kindFormula: true},
 	kindGateway:    {kindRule: true, kindConversion: true, kindFormula: true},
-	kindWorkflow:   {kindRule: true, kindConversion: true, kindActivity: true, kindGateway: true, kindFormula: true},
-	// ADR 0091 §1: a test calls what a workflow may.
-	kindTest: {kindRule: true, kindConversion: true, kindActivity: true, kindGateway: true, kindFormula: true},
+	// ADR 0107: a workflow reaches gateways through activities.
+	kindWorkflow: {kindRule: true, kindConversion: true, kindActivity: true, kindFormula: true},
+	// ADR 0091 §1, ADR 0103: a test calls anything in its package, its
+	// workflows included.
+	kindTest: {kindRule: true, kindConversion: true, kindActivity: true, kindGateway: true, kindWorkflow: true, kindFormula: true},
 }
 
 // bugClassForEffect maps a disallowed (caller, callee) pair to its
@@ -1127,7 +1129,12 @@ func bugClassForEffect(caller, callee declKind) string {
 		}
 	case kindConversion:
 		return "B5"
-	case kindActivity, kindWorkflow, kindTest:
+	case kindWorkflow:
+		if callee == kindGateway {
+			return "B12"
+		}
+		return "B8"
+	case kindActivity, kindTest:
 		return "B8"
 	}
 	return ""
@@ -1174,7 +1181,11 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 		c.inForm = form
 		return
 	}
-	if calleeKind == kindWorkflow && (c.callerKind == kindGateway || c.callerKind == kindActivity || c.callerKind == kindWorkflow || c.callerKind == kindTest) {
+	if c.callerKind == kindWorkflow && calleeKind == kindGateway {
+		c.report(at, "B12", "workflow may not call gateway %q; call it from an activity, and the activity from the workflow, so the workflow doesn't depend on how the step is done (ADR 0107)", calleeName)
+		return
+	}
+	if calleeKind == kindWorkflow && (c.callerKind == kindGateway || c.callerKind == kindActivity || c.callerKind == kindWorkflow) {
 		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s may not call workflow %q; a workflow is called only from outside its package, by an adapter or by another package's gateway (ADR 0079 §2)", c.callerKind, calleeName)
 		return
 	}

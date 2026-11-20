@@ -1,6 +1,6 @@
 # ADR 0103: A Test May Call a Workflow
 
-Status: Accepted (2026-11-20). Not yet implemented; built with ADRs 0104-0107 as one migration.
+Status: Accepted (2026-11-20). Implemented 2026-11-20.
 Date: 2026-11-20
 Amends: ADR 0091 §1 ("a test calls what a workflow may"), ADR 0044
 ("nothing calls a workflow" gains one caller: a test).
@@ -67,3 +67,9 @@ test ratingTwiceKeepsTheFirstCreatedAt {
 
 1. **Testing a route**: a request in, the response out, through the
    adapter's decoding and mapping.
+
+## Implementation notes
+
+Built 2026-11-20: `kindTest` may call `kindWorkflow`
+(`compiler/checker/checker.go`). `examples/getting-started/tests/rate_then_read.fiig`
+calls the `rate` and `readRating` workflows end to end.

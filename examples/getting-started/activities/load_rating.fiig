@@ -1,0 +1,3 @@
+activity loadRating(item: string) -> Result<Rating, RatingError> {
+    return findRating(item)
+}

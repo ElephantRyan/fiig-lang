@@ -127,7 +127,7 @@ func TestTracingRecordsErrAndFaultOutcomes(t *testing.T) {
 
 func TestTracingConcurrentBlockSpanParentsChildren(t *testing.T) {
 	u := loadUniverse(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows")
 	db := newFakeDatabase()
 	db.insert("c1", "Ada", "ada@example.com")
 	db.insert("c2", "Grace", "grace@example.com")
@@ -157,17 +157,31 @@ func TestTracingConcurrentBlockSpanParentsChildren(t *testing.T) {
 		t.Fatalf("concurrent span = %+v, want Kind=concurrent, ParentID=%d", concurrentSpan, top.ID)
 	}
 
-	getCustomerCount := 0
+	// ADR 0107: each item runs the loadCustomer activity, under the
+	// block, and its getCustomer gateway under that.
+	loads := map[int64]bool{}
 	for _, s := range spans {
-		if s.Name == "getCustomer" {
-			getCustomerCount++
+		if s.Name == "loadCustomer" {
+			loads[int64(s.ID)] = true
 			if s.ParentID != concurrentSpan.ID {
-				t.Fatalf("getCustomer span %+v has ParentID %d, want the concurrent block's %d", s, s.ParentID, concurrentSpan.ID)
+				t.Fatalf("loadCustomer span %+v has ParentID %d, want the concurrent block's %d", s, s.ParentID, concurrentSpan.ID)
 			}
 		}
 	}
-	if getCustomerCount != 2 {
-		t.Fatalf("got %d getCustomer spans, want 2 (one per concurrent item)", getCustomerCount)
+	if len(loads) != 2 {
+		t.Fatalf("got %d loadCustomer spans, want 2 (one per concurrent item)", len(loads))
+	}
+	gets := 0
+	for _, s := range spans {
+		if s.Name == "getCustomer" {
+			gets++
+			if !loads[int64(s.ParentID)] {
+				t.Fatalf("getCustomer span %+v isn't under a loadCustomer span", s)
+			}
+		}
+	}
+	if gets != 2 {
+		t.Fatalf("got %d getCustomer spans, want 2", gets)
 	}
 }
 

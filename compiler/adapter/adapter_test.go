@@ -157,7 +157,7 @@ func (db *adapterFakeDB) insert(id, name, email string) {
 
 func TestHTTPDefaultMappingGET(t *testing.T) {
 	u, files := loadProgram(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows", "customer-service/adapters")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows", "customer-service/adapters")
 	caps, db := newFakeDatabaseForAdapter()
 	db.insert("c1", "Ada", "ada@example.com")
 	in := runtime.New(u, caps)
@@ -190,7 +190,7 @@ func TestHTTPDefaultMappingGET(t *testing.T) {
 
 func TestHTTPExplicitMapping(t *testing.T) {
 	u, files := loadProgram(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows", "customer-service/conversions",
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows", "customer-service/conversions",
 		"customer-service/adapters")
 	caps, db := newFakeDatabaseForAdapter()
 	db.insert("c1", "Ada", "ada@example.com")
@@ -216,7 +216,7 @@ func TestHTTPExplicitMapping(t *testing.T) {
 
 func TestHTTPPathAndQueryBinding(t *testing.T) {
 	u, files := loadProgram(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows", "customer-service/adapters")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows", "customer-service/adapters")
 	caps, db := newFakeDatabaseForAdapter()
 	db.insert("c1", "Ada", "ada@example.com")
 	in := runtime.New(u, caps)
@@ -285,7 +285,7 @@ func TestHTTPQueryMethodRequestBodyBinding(t *testing.T) {
 	// customer_query_api.fiig: `QUERY "/customers/lookup" -> lookupCustomer(criteria: CustomerLookup)`
 	// — QUERY carries a body like POST but stays safe/idempotent like GET (RFC 10008).
 	u, files := loadProgram(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows", "customer-service/adapters")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows", "customer-service/adapters")
 	caps, db := newFakeDatabaseForAdapter()
 	db.insert("c1", "Ada", "ada@example.com")
 	in := runtime.New(u, caps)
@@ -305,7 +305,7 @@ func TestHTTPQueryMethodRequestBodyBinding(t *testing.T) {
 
 func TestCLIDispatch(t *testing.T) {
 	u, files := loadProgram(t, "customer-service/models", "customer-service/errors",
-		"customer-service/gateways", "customer-service/workflows", "customer-service/adapters")
+		"customer-service/gateways", "customer-service/activities", "customer-service/workflows", "customer-service/adapters")
 	caps, db := newFakeDatabaseForAdapter()
 	db.insert("c1", "Ada", "ada@example.com")
 	in := runtime.New(u, caps)

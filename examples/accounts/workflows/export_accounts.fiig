@@ -2,5 +2,5 @@
 // as a bearer token rather than a login.
 workflow exportAccounts(authorization: string) -> Result<string, AccountError> {
     exportAllowed(authorization)?
-    return Ok(accountsCsv(listAccounts()))
+    return Ok(accountsCsv(loadAccounts()))
 }
