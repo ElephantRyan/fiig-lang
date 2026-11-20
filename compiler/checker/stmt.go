@@ -308,7 +308,7 @@ func (c *checker) checkReturnValue(s *syntax.ReturnStmt, declReturn types.Type, 
 	if s.Value == nil {
 		return
 	}
-	if c.callerKind == kindTest {
+	if c.callerKind == kindTest && !c.inHelper {
 		c.report(s.Start, "", "a test returns nothing; a bare `return` ends it early (ADR 0091 §3)")
 		c.inferExpr(s.Value, env)
 		return

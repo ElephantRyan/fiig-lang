@@ -157,6 +157,15 @@ func TestLoadRejectsUndeclaredDependencyCapability(t *testing.T) {
 	if len(errs) == 0 {
 		t.Fatal("want an error: app never declared the Database capability its dependency requires")
 	}
+	if msg := errs[0].Error(); !strings.Contains(msg, "this application's manifest; add \"Database\" to \"capabilities\"") {
+		t.Errorf("err = %s, want it to name the application and the fix", msg)
+	}
+	// A library's own manifest is named as a library's (abs-recommendations
+	// GAPS G13).
+	lib := writePkg(t, ws, "mid", "mid", "library", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model MidMarker { n: int }")
+	if _, errs := Load(lib, []string{ws}); len(errs) == 0 || !strings.Contains(errs[0].Error(), "this library's manifest") {
+		t.Errorf("errs = %v, want the library named", errs)
+	}
 }
 
 // TestLoadAcceptsDeclaredDependencyCapability is the positive case: the

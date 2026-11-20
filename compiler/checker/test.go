@@ -2,6 +2,7 @@ package checker
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"fiig-lang/compiler/capability"
@@ -146,6 +147,11 @@ func (c *checker) checkFake(f *syntax.FakeDecl, t fakeTarget) {
 	case fakeUnknown:
 		c.report(f.Start, "T4", "fake %s: there is no capability group, config, Clock, or Random of that name here", name)
 	case fakeHost:
+		if path, what := c.declaredElsewhere(name); path != "" {
+			// abs-recommendations GAPS G14: declared, just not imported.
+			c.report(f.Start, "T4", "%s is a %s declared in %s, which this file doesn't import; add `use %s.%s`", name, what, path, path, name)
+			return
+		}
 		c.report(f.Start, "T7", "%s has no declaration in fiig, so a fake of it can't be checked against it; declare it as a capability group first (ADR 0091 §4)", name)
 	case fakeToolchain:
 		c.report(f.Start, "T7", "a fake of %s isn't built yet: every test gets a fresh in-memory Database, and a Socket comes from `fiig test -caps` (ADR 0091 implementation notes)", name)
@@ -461,4 +467,39 @@ func testOnlyDecls(files []*syntax.File) map[syntax.Decl]bool {
 func exprStart(e syntax.Expr) lexer.Pos {
 	start, _ := e.(syntax.Spanned).Bounds()
 	return start
+}
+
+// declaredElsewhere finds a capability group or config named name in a
+// package this one was built against, at any depth, and returns the
+// package's path and what it is.
+func (c *checker) declaredElsewhere(name string) (string, string) {
+	seen := map[*types.Package]bool{}
+	var walk func(types.Packages) (string, string)
+	walk = func(pkgs types.Packages) (string, string) {
+		paths := make([]string, 0, len(pkgs))
+		for p := range pkgs {
+			paths = append(paths, p)
+		}
+		sort.Strings(paths)
+		for _, p := range paths {
+			pkg := pkgs[p]
+			if pkg == nil || seen[pkg] {
+				continue
+			}
+			seen[pkg] = true
+			if pkg.Universe != nil {
+				switch d, _ := pkg.Universe.Lookup(name); d.(type) {
+				case *syntax.CapabilityDecl:
+					return p, "capability group"
+				case *syntax.ConfigDecl:
+					return p, "config"
+				}
+			}
+			if path, what := walk(pkg.Dependencies); path != "" {
+				return path, what
+			}
+		}
+		return "", ""
+	}
+	return walk(c.packages)
 }
