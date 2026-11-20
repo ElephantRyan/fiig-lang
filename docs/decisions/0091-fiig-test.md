@@ -233,7 +233,9 @@ test chargeIsRecorded {
   and formulas, `expect` on its arguments, and use the test's `Database`
   to keep state between calls.
 - **`calls(Capability.operation)`** is the number of times the test
-  called that faked operation so far, as an `int`.
+  called that faked operation so far, as an `int`. *Clarified
+  2026-11-20 (abs-recommendations GAPS G36):* the count includes a call
+  in progress, so inside the fake the first call sees 1.
 - **A config is faked the same way**, with values instead of operations
   (ADR 0071's per-test values):
 

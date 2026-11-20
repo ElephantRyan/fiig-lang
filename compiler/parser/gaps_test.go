@@ -102,3 +102,14 @@ func TestIsInAnExpressionIsOneError(t *testing.T) {
 		t.Fatalf("want one error, got %v", errs)
 	}
 }
+
+// GAPS G33: a keyword where a name goes is one error saying so.
+func TestKeywordAsANameIsOneError(t *testing.T) {
+	_, errs := Parse("workflow page(limit: int) -> int {\n    return limit\n}\n")
+	if len(errs) == 0 || !strings.Contains(errs[0].Msg, "`limit` is a keyword") {
+		t.Fatalf("want a keyword error first, got %v", errs)
+	}
+	if len(errs) > 2 {
+		t.Errorf("want at most the declaration's and the use's errors, got %v", errs)
+	}
+}

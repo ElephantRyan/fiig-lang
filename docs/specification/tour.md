@@ -325,6 +325,16 @@ exact: float = 7.0 / 2    // 3.5
 // are fine. int and float never mix: `count * ratio` is A1.
 ```
 
+Which types `==` works on (ADR 0052): a type is comparable when
+everything it holds is.
+
+| Comparable with `==` | Not comparable (M1), and what to do |
+|---|---|
+| `int`, `decimal` (by value: `1.50 == 1.5`), `string`, `bool`, `bytes` | `float`: `math.closeTo(a, b, relative:, absolute:)` |
+| an enum, payload variants included (`e == AbsError.NotFound`) | `Result`: bind with `is Ok(x)` or `match`, then compare `x` |
+| a model, a `List`, a `Map`, field by field | a handle (`Connection`, `Secret`): compare what you know about it |
+| `T \| None`, when `T` is | anything holding one of the above, at any depth |
+
 ```fiig
 // MATH (ADR 0049 §2.4) is the prelude's one formulas group, callable from
 // every file with no `use`. Crossing between int and float is a call that
@@ -760,8 +770,10 @@ test chargeIsRecorded {
 ```
 
 A fake must match what it replaces (T4), be reached (T5), and have every
-operation the test reaches (T6). Every test gets a clock at 2026-01-01, a
-`Random` seeded from its name, and its own empty in-memory `Database`.
+operation the test reaches (T6). `calls(...)` counts the call in progress
+too: inside a fake, the first call sees 1. Every test gets a clock at
+2026-01-01, a `Random` seeded from its name, and its own in-memory
+`Database` with the package's migrations applied (ADR 0096).
 `fiig test [-run pattern] [-caps file] [-env-file file] [dir]`.
 
 ## Known gaps — no design at all

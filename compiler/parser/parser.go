@@ -163,6 +163,13 @@ func (p *Parser) expectName() lexer.Token {
 	if p.atName() {
 		return p.advance()
 	}
+	if lexer.IsKeyword(p.cur().Kind) {
+		// abs-recommendations GAPS G33: say it's reserved, and take it as
+		// the name, so the rest of the line parses.
+		tok := p.cur()
+		p.errorf(tok.Start, "`%s` is a keyword, so it can't name a parameter or a local; choose another name (a field may use it, ADR 0073 §7a)", tok.Text)
+		return p.advance()
+	}
 	p.errorf(p.cur().Start, "expected a name, got %s", p.cur().Kind)
 	return p.cur()
 }

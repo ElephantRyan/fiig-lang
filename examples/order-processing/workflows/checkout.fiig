@@ -7,7 +7,7 @@
 workflow checkout(orderId: string, input: NewCustomer, total: int) -> Result<Order, CheckoutError> {
     match registerCustomer(input) {
         Err(error) -> { return Err(CheckoutError.Customer(error)) } // wrapped unchanged
-        found -> {
+        Ok(found) -> {
             match placeOrder(orderId, found.id, total) {
                 Ok(order) -> { return Ok(order) }
                 Err(OrderError.InventoryUnavailable(_)) -> { return Err(CheckoutError.OutOfStock) } // reinterpreted

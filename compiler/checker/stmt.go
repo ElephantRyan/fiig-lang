@@ -326,9 +326,16 @@ func (c *checker) checkMatchStmt(s *syntax.MatchStmt, declReturn, expected types
 	subjectType := c.inferExpr(s.Subject, env)
 	c.checkExhaustive(s, subjectType)
 	c.checkBytesCatchAll(s)
+	wholeResult := resultCatchAll(s, subjectType)
 	for _, arm := range s.Arms {
 		armEnv := childEnv(env)
 		c.bindPattern(arm.Pattern, subjectType, armEnv)
+		if np, ok := arm.Pattern.(*syntax.NamePattern); ok && np == wholeResult {
+			// abs-recommendations GAPS G35: after `Err(..)`, a bare name reads
+			// like "the rest", the Ok value, but binds the whole Result.
+			c.report(np.Start, "A1", "this arm binds the whole %s, not its Ok value; write `Ok(%s)` to bind the value", subjectType, np.Path[0])
+			armEnv[np.Path[0]] = types.Unknown{}
+		}
 		switch body := arm.Body.(type) {
 		case syntax.ExprBody:
 			if expected != nil {
@@ -523,4 +530,35 @@ func (c *checker) checkExhaustive(s *syntax.MatchStmt, subjectType types.Type) {
 	if len(missing) > 0 {
 		c.report(s.Start, "A9", "match is not exhaustive; missing case(s): %s", strings.Join(missing, ", "))
 	}
+}
+
+// resultCatchAll is the bare-name arm of a match on a Result that has an
+// Err arm and no Ok arm, which binds the whole Result where the Ok value
+// was meant; nil when there's none.
+func resultCatchAll(s *syntax.MatchStmt, subject types.Type) *syntax.NamePattern {
+	g, ok := subject.(types.Generic)
+	if !ok || g.Name != "Result" || len(g.Args) != 2 {
+		return nil
+	}
+	var bare *syntax.NamePattern
+	hasErr := false
+	for _, arm := range s.Arms {
+		switch p := arm.Pattern.(type) {
+		case *syntax.ConstructorPattern:
+			if len(p.Path) == 1 && p.Path[0] == "Ok" {
+				return nil
+			}
+			if len(p.Path) == 1 && p.Path[0] == "Err" {
+				hasErr = true
+			}
+		case *syntax.NamePattern:
+			if len(p.Path) == 1 && p.Path[0] != syntax.ErrorName {
+				bare = p
+			}
+		}
+	}
+	if !hasErr {
+		return nil
+	}
+	return bare
 }
