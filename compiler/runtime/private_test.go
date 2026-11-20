@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"fmt"
 	"context"
 	"strings"
 	"testing"
@@ -102,5 +103,38 @@ func TestRecursionPastTheDepthLimitIsAnOrdinaryFault(t *testing.T) {
 	in.MaxCallDepth = 0
 	if _, fault := in.Call(context.Background(), "sumTo", map[string]Value{"n": Int(1000)}); fault == nil || !strings.Contains(fault.Message, "limit of 1000") {
 		t.Fatalf("sumTo(1000) is 1,001 frames; want the default limit's fault, got %v", fault)
+	}
+}
+
+// G49: json.decode into a private model whose fields are other private
+// models of the same file resolves those fields in the file's scope.
+func TestJSONDecodesNestedPrivateModels(t *testing.T) {
+	in := checkedInterp(t, `conversion titleOf(body: bytes) -> Result<string, JsonError> {
+    item: Item = json.decode(body)?
+    return Ok(item.media.title)
+}
+
+private {
+    model Item {
+        media: Media
+        tags: List<Tag>
+    }
+
+    model Media {
+        title: string
+    }
+
+    model Tag {
+        name: string
+    }
+}
+`)
+	body := Bytes{B: []byte(`{"media": {"title": "Dune"}, "tags": [{"name": "scifi"}]}`)}
+	v, fault := in.Call(context.Background(), "titleOf", map[string]Value{"body": body})
+	if fault != nil {
+		t.Fatalf("Call: %v", fault)
+	}
+	if want := (EnumValue{TypeName: "Result", Variant: "Ok", Fields: []Value{Str("Dune")}}); !strings.Contains(fmt.Sprint(v), "Dune") {
+		t.Fatalf("titleOf = %v, want an Ok holding %v", v, want)
 	}
 }

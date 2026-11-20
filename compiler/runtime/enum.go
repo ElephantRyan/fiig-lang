@@ -85,6 +85,19 @@ func (in *Interp) headerConsts(ctx context.Context, ev EnumValue) (map[string]Va
 // that of the dependency that declares it.
 func (in *Interp) declScope(d syntax.Decl) scope {
 	name := syntax.DeclName(d)
+	// A private member (ADR 0054) isn't in the package's Decls: it runs in
+	// its file's scope, with the imports of the file's public entry.
+	if root := in.Universe.Root(); root.IsPrivate(d) {
+		fs := root.ScopeOf(d)
+		for entryName, entry := range root.Decls {
+			if root.ScopeOf(entry) == fs {
+				sc := in.localScope(scope{universe: in.Universe}, entryName)
+				sc.universe = fs
+				return sc
+			}
+		}
+		return scope{universe: fs}
+	}
 	if in.Universe.Root().Decls[name] == d {
 		return in.localScope(scope{universe: in.Universe}, name)
 	}
