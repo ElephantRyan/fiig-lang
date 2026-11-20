@@ -58,3 +58,19 @@ func TestATestFilesHelpersReturn(t *testing.T) {
 		t.Fatalf("diags = %v, want the test's own return refused", diags)
 	}
 }
+
+// abs-recommendations GAPS G32: a query key that differs from its
+// placeholder's name is an error, not a key that's never read.
+func TestQueryKeyMustMatchItsPlaceholder(t *testing.T) {
+	diags := checkSrc(t, "workflow page(size: int | None) -> int {\n    return 1\n}", "adapter http api {\n    GET \"/items?limit={size}\" -> page(size: int | None)\n        produces \"application/json\"\n}")
+	wantDiag(t, diags, "", "query key \"limit\" takes its placeholder's name")
+}
+
+// abs-recommendations GAPS G35: a bare arm after Err(..) on a Result is
+// told to be Ok(..), once.
+func TestBareArmAfterErrOnAResult(t *testing.T) {
+	diags := checkSrc(t, "rule r(x: Result<string, int>) -> string {\n    match x {\n        Err(e) -> \"\"\n        id -> id\n    }\n}")
+	if len(diags) != 1 || !strings.Contains(diags[0].Msg, "write `Ok(id)` to bind the value") {
+		t.Fatalf("diags = %v, want one naming Ok(id)", diags)
+	}
+}

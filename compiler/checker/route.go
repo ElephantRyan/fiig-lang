@@ -103,6 +103,19 @@ func (c *checker) checkRouteBinding(route *syntax.Route, wd *syntax.WorkflowDecl
 		pathNames = extractPlaceholders(pathPart)
 		if hasQuery {
 			queryNames = extractPlaceholders(queryPart)
+			// ADR 0021: a query key and its placeholder are one name, the
+			// parameter's, which is the key the request is read by. A key
+			// that differs was accepted and silently never read
+			// (abs-recommendations GAPS G32).
+			for _, pair := range strings.Split(queryPart, "&") {
+				key, value, ok := strings.Cut(pair, "=")
+				if !ok {
+					continue
+				}
+				if m := placeholderPattern.FindStringSubmatch(value); m != nil && m[0] == value && m[1] != key {
+					c.report(route.Start, "", "query key %q takes its placeholder's name, so `%s={%s}` reads ?%s=, not ?%s=; write `%s={%s}` and name the parameter %s (ADR 0021)", key, key, m[1], m[1], key, key, key, key)
+				}
+			}
 		}
 	} else {
 		pathNames = extractPlaceholders(route.Path)

@@ -282,7 +282,19 @@ func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.T
 	named, ok := target.(types.Named)
 	if !ok {
 		// Unknown target (capability result, unresolved name) — nothing to
-		// check the field against.
+		// check the field against. Anything else has no fields: a Result
+		// read as if it were its Ok value (abs-recommendations GAPS G35)
+		// was silently Unknown here.
+		if !isUnknown(target) {
+			start, _ := e.Bounds()
+			hint := ""
+			if g, isGeneric := target.(types.Generic); isGeneric && g.Name == "Result" {
+				hint = "; match it, or use `?`, to reach the Ok value's fields"
+			} else if admitsNone(target) {
+				hint = "; match it, or give it a default with `or`, to reach the value's fields"
+			}
+			c.report(start, "", "%s has no field %q%s", target, e.Field, hint)
+		}
 		return types.Unknown{}
 	}
 	switch decl := named.Decl.(type) {
