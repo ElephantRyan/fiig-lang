@@ -1,0 +1,9 @@
+// ADR 0112 §4: what a schedule lock written in fiig provides, so one
+// replica runs each firing of a job. A program never calls it: the runtime
+// claims a firing before running its workflow. claim is true for exactly
+// one caller per job and firedAt; the claim lasts holdMillis. A lock's
+// manifest names the group that fulfils it:
+// "provides": {"fiig.schedule.ScheduleLock": "RedisScheduleLock"}.
+interface ScheduleLock {
+    claim(job: string, firedAt: int, holder: string, holdMillis: int) -> Result<bool, LockError>
+}

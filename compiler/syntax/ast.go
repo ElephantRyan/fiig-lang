@@ -449,14 +449,15 @@ type WorkflowDecl struct {
 	Body       *Block
 }
 
-// AdapterKind is "http", "cli", or "stream" (grammar.md `adapter-kind`,
-// ADR 0111).
+// AdapterKind is "http", "cli", "stream", or "schedule" (grammar.md
+// `adapter-kind`, ADRs 0111 and 0112).
 type AdapterKind string
 
 const (
-	AdapterHTTP   AdapterKind = "http"
-	AdapterCLI    AdapterKind = "cli"
-	AdapterStream AdapterKind = "stream"
+	AdapterHTTP     AdapterKind = "http"
+	AdapterCLI      AdapterKind = "cli"
+	AdapterStream   AdapterKind = "stream"
+	AdapterSchedule AdapterKind = "schedule"
 )
 
 type AdapterDecl struct {
@@ -468,8 +469,10 @@ type AdapterDecl struct {
 
 // Route covers http-route, cli-route, and stream-route (grammar.md): Verb
 // is an HTTP method ("GET") for an http adapter, "command" for a cli
-// adapter, or "source" for a stream adapter, whose Path is the source's
-// name (ADR 0111 §3) — the productions differ mainly in that one keyword,
+// adapter, "source" for a stream adapter, whose Path is the source's name
+// (ADR 0111 §3), or "every" or "cron" for a schedule adapter, whose Path
+// is the schedule (ADR 0112 §1) — the productions differ mainly in that
+// one keyword,
 // so one struct covers them rather than duplicating it.
 type Route struct {
 	Span
@@ -525,8 +528,9 @@ type ExitResponse struct {
 	Body Expr // nil if no body expression was given
 }
 
-// DispositionResponse is stream-only (ADR 0111 §3): what happens to the
-// element. Kind is "ack", "halt", "deadLetter", or "retry".
+// DispositionResponse is what a stream or schedule route does with an
+// outcome. Kind is "ack", "halt", "deadLetter", or "retry" on a stream
+// (ADR 0111 §3), "done" or "halt" on a schedule (ADR 0112 §2).
 type DispositionResponse struct {
 	Span
 	Kind     string

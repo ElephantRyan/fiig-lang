@@ -109,7 +109,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(2)
 	}
-	handler, streams, bindings, caps, err := load(fs.Arg(0), fs.Args()[1:], *capsPath, workspaces, factories, cors, limits, env, originProblems, mode)
+	handler, loops, bindings, caps, err := load(fs.Arg(0), fs.Args()[1:], *capsPath, workspaces, factories, cors, limits, env, originProblems, mode)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -122,16 +122,17 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	// ADR 0111 §4-§5: each stream route runs until shutdown; one that halts
-	// stops the whole process, so the halt is seen and the element is
-	// delivered again to whatever runs the adapter next.
-	halted := make(chan error, len(streams))
-	running := make(chan struct{}, len(streams))
-	for _, r := range streams {
-		r.Logf = log.Printf
+	// ADR 0111 §4-§5, ADR 0112 §2: each stream and schedule route runs
+	// until shutdown; one that halts stops the whole process, so the halt
+	// is seen (and a stream's element is delivered again to whatever runs
+	// the adapter next).
+	halted := make(chan error, len(loops))
+	running := make(chan struct{}, len(loops))
+	for _, l := range loops {
+		l.setLog(log.Printf)
 		go func() {
 			defer func() { running <- struct{}{} }()
-			if err := r.Run(ctx); err != nil {
+			if err := l.run(ctx); err != nil {
 				halted <- err
 				stop()
 			}
@@ -150,15 +151,16 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	if cors != nil {
 		log.Printf("fiig: allowing cross-origin calls from %s", strings.Join(cors.Origins(), ", "))
 	}
-	for _, r := range streams {
-		log.Printf("fiig: reading stream %s from %s", r.Name(), r.Source().Path())
+	for _, l := range loops {
+		log.Printf("fiig: %s", l.describe)
 	}
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
-	// Each stream route finishes the element in hand (ADR 0111 §5).
-	for range streams {
+	// Each stream route finishes the element in hand (ADR 0111 §5), and
+	// each schedule route its run (ADR 0112 §3).
+	for range loops {
 		<-running
 	}
 	// Requests have drained; a driver's pool closes its connections (ADR
@@ -177,18 +179,20 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 // names, with every configuration problem (ADR 0071 §3's one report)
 // found first. It returns ADR 0079 §6a's listing of each domain's
 // capability bindings, for the startup log.
-func load(root string, names []string, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string, mode migrate.Mode) (http.Handler, []*adapter.StreamRunner, []string, *runtime.CapabilityRegistry, error) {
+func load(root string, names []string, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string, mode migrate.Mode) (http.Handler, []loop, []string, *runtime.CapabilityRegistry, error) {
 	p, err := check(root, names, workspaces, "serve")
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 	files, packages, universe, served := p.files, p.packages, p.universe, p.served
-	var streamed []adapter.Served
-	var httpServed []adapter.Served
+	var streamed, scheduled, httpServed []adapter.Served
 	for _, s := range served {
-		if s.Decl.Kind == syntax.AdapterStream {
+		switch s.Decl.Kind {
+		case syntax.AdapterStream:
 			streamed = append(streamed, s)
-		} else {
+		case syntax.AdapterSchedule:
+			scheduled = append(scheduled, s)
+		default:
 			httpServed = append(httpServed, s)
 		}
 	}
@@ -219,11 +223,24 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	// A source reads its own config (ADR 0111 §2), which no workflow
-	// reaches, so its gateways are entries too.
+	jobs, err := adapter.ScheduleRunners(scheduled, universe, in, consumerName())
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	// A source or lock reads its own config (ADR 0111 §2, ADR 0112 §4),
+	// which no workflow reaches, so its gateways are entries too.
+	var loops []loop
 	for _, r := range streams {
 		pkg, group, _ := r.Source().Resolve()
 		entries = append(entries, runprogram.Entry{Package: pkg, Name: group})
+		loops = append(loops, loop{run: r.Run, setLog: func(f func(string, ...any)) { r.Logf = f }, describe: fmt.Sprintf("reading stream %s from %s", r.Name(), r.Source().Path())})
+	}
+	for _, r := range jobs {
+		if p, isFiig := r.Lock().(*runtime.LockProvider); isFiig {
+			pkg, group, _ := p.Resolve()
+			entries = append(entries, runprogram.Entry{Package: pkg, Name: group})
+		}
+		loops = append(loops, loop{run: r.Run, setLog: func(f func(string, ...any)) { r.Logf = f }, describe: fmt.Sprintf("running %s, claimed with %s", r.Name(), r.Lock().Describe())})
 	}
 	problems = append(problems, in.LoadConfig(runprogram.ReachableConfigFrom(program, entries), env.Lookup)...)
 	if err := runprogram.ConfigReport(problems); err != nil {
@@ -240,7 +257,15 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	return h, streams, runprogram.Bindings(packages, caps.BoundFor, caps.Packages()), caps, nil
+	return h, loops, runprogram.Bindings(packages, caps.BoundFor, caps.Packages()), caps, nil
+}
+
+// loop is a stream or schedule route: something fiig serve runs beside its
+// listener until shutdown (ADRs 0111, 0112).
+type loop struct {
+	run      func(context.Context) error
+	setLog   func(func(string, ...any))
+	describe string
 }
 
 // checked is a program loaded and checked, with the adapters it was asked

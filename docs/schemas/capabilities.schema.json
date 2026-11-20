@@ -21,13 +21,15 @@
       "properties": {
         "type": {
           "description": "The provider that backs this capability.",
-          "enum": ["sql", "driver", "source", "socket", "socket-script", "scripted", "random-seeded"]
+          "enum": ["sql", "driver", "source", "lock", "local", "socket", "socket-script", "scripted", "random-seeded"]
         }
       },
       "anyOf": [
         { "$ref": "#/definitions/sql" },
         { "$ref": "#/definitions/driver" },
         { "$ref": "#/definitions/source" },
+        { "$ref": "#/definitions/lock" },
+        { "$ref": "#/definitions/local" },
         { "$ref": "#/definitions/socket" },
         { "$ref": "#/definitions/socketScript" },
         { "$ref": "#/definitions/scripted" },
@@ -54,6 +56,25 @@
       "properties": {
         "type": { "const": "source" },
         "source": { "description": "The source package's path, e.g. fiig.redis.", "type": "string" }
+      }
+    },
+    "lock": {
+      "description": "A schedule lock written in fiig, bound as ScheduleLock, so one replica runs each firing of a schedule adapter's jobs (ADR 0112 §4), such as fiig.redis. The lock reads its own settings from the environment.",
+      "type": "object",
+      "required": ["type", "lock"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "lock" },
+        "lock": { "description": "The lock package's path, e.g. fiig.redis.", "type": "string" }
+      }
+    },
+    "local": {
+      "description": "A ScheduleLock that always claims: this process is the only one running the schedule (ADR 0112 §4).",
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "local" }
       }
     },
     "driver": {

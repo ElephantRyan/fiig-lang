@@ -1,0 +1,5 @@
+// Why a claim failed (ADR 0112 §4). The runtime logs it and skips the
+// firing, since running it anyway risks running it on every replica.
+enum LockError {
+    Unavailable(reason: string)
+}

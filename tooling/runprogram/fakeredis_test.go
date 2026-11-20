@@ -23,6 +23,7 @@ type fakeRedis struct {
 
 	mu      sync.Mutex
 	kv      map[string]int
+	strings map[string]string
 	streams map[string]*fakeStream
 }
 
@@ -53,7 +54,7 @@ func startFakeRedis(t *testing.T, password string) *fakeRedis {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &fakeRedis{ln: ln, password: password, kv: map[string]int{}, streams: map[string]*fakeStream{}}
+	r := &fakeRedis{ln: ln, password: password, kv: map[string]int{}, strings: map[string]string{}, streams: map[string]*fakeStream{}}
 	t.Cleanup(func() { ln.Close() })
 	go func() {
 		for {
@@ -199,6 +200,14 @@ func (r *fakeRedis) command(name string, args []string) string {
 	defer r.mu.Unlock()
 	switch name {
 	case "SELECT":
+		return "+OK\r\n"
+	case "SET":
+		// SET key value NX PX ms, the form a schedule lock sends (ADR
+		// 0112 §4); expiry isn't modelled, since a test's firings differ.
+		if _, taken := r.strings[args[0]]; taken {
+			return "$-1\r\n"
+		}
+		r.strings[args[0]] = args[1]
 		return "+OK\r\n"
 	case "INCR":
 		r.kv[args[0]]++
