@@ -1,0 +1,24 @@
+use fiig.schedule
+
+// ADR 0112 §4: a schedule lock in Redis. A firing is claimed by setting a
+// key named by the job and the firing time, only if nobody has, for as long
+// as the claim should last: SET key holder NX PX holdMillis answers OK to
+// the one caller that set it, and a null to everyone after.
+capability RedisScheduleLock provides schedule.ScheduleLock {
+    gateway claim(job: string, firedAt: int, holder: string, holdMillis: int) -> Result<bool, schedule.LockError>
+        requires Redis
+    {
+        key = "fiig:schedule:${job}:${firedAt}"
+        match Redis.send(["SET", key, holder, "NX", "PX", "${holdMillis}"]) {
+            Ok(RespValue.Simple(_)) -> {
+                return Ok(true)
+            }
+            Ok(_) -> {
+                return Ok(false)
+            }
+            Err(failure) -> {
+                return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"))
+            }
+        }
+    }
+}

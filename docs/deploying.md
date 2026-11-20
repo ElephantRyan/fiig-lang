@@ -209,6 +209,30 @@ producer writes an element as `XADD orders * payload <json>`.
   delivered again, so the halt keeps showing until someone deals with it.
 - Shutdown finishes the element in hand and settles it before stopping.
 
+## Schedule adapters
+
+An `adapter schedule` is served the same way too. Its jobs fire in UTC,
+at the same times on every replica, and each firing is claimed first so
+one replica runs it (ADR 0112 §4). The capabilities file says how:
+
+```json
+{"ScheduleLock": {"type": "lock", "lock": "fiig.redis"}}
+```
+
+claims each firing with a Redis key at `REDIS_URL`, and
+
+```json
+{"ScheduleLock": {"type": "local"}}
+```
+
+runs every firing in this process, for a single replica. With neither,
+`fiig serve` refuses to start the adapter.
+
+- A firing missed while no process ran is skipped; the next one runs.
+- A run is stopped when the next firing comes, and logged as an overrun.
+- A failed run that the mapping sends to `done` is logged; one it sends to
+  `halt`, or a fault, stops `fiig serve` with an error.
+
 ## Migrations
 
 A package's schema lives in `migrations/<number>_<name>.sql`, plain SQL

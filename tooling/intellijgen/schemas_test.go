@@ -193,6 +193,8 @@ func TestSchemasRefuseWhatTheToolchainRefuses(t *testing.T) {
 		{caps, `{"Socket": {"type": "socket", "idle": {"perKey": -1}}}`},
 		{caps, `{"Socket": {"type": "socket", "idle": {"timout": "90s"}}}`},
 		{caps, `{"StreamSource": {"type": "source"}}`},
+		{caps, `{"ScheduleLock": {"type": "lock"}}`},
+		{caps, `{"ScheduleLock": {"type": "local", "lock": "fiig.redis"}}`},
 		{caps, `{"StreamSource": {"type": "source", "source": "fiig.redis", "settings": {}}}`},
 		{caps, `{"Random": {"type": "random-seeded"}}`},
 		{caps, `{"Database": {"type": "mysql"}}`},
@@ -212,6 +214,7 @@ func TestSchemasRefuseWhatTheToolchainRefuses(t *testing.T) {
 	                     "idle": {"perKey": 4, "total": 50, "timeout": "30s"}},
 	          "Random": {"type": "random-seeded", "seed": 7},
 	          "StreamSource": {"type": "source", "source": "fiig.redis"},
+	          "ScheduleLock": {"type": "lock", "lock": "fiig.redis"},
 	          "EmailSender": {"send": [{"ok": true}]}}`
 	var doc any
 	json.Unmarshal([]byte(good), &doc)

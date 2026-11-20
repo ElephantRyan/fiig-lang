@@ -80,14 +80,19 @@ func Main(name string, args []string) {
 			fail(fmt.Errorf("no declaration named %q", entry))
 		}
 		ad, isAdapter := d.(*syntax.AdapterDecl)
-		serving = isAdapter && (ad.Kind == syntax.AdapterHTTP || ad.Kind == syntax.AdapterStream)
+		serving = isAdapter && ad.Kind != syntax.AdapterCLI
 		entries := []runprogram.Entry{{Name: entry}}
-		// A stream adapter's source reads its own config (ADR 0111 §2),
-		// and the capabilities file, not the program, says which source,
-		// so every package that provides one is listed.
-		if isAdapter && ad.Kind == syntax.AdapterStream {
+		// A stream adapter's source and a schedule adapter's lock read their
+		// own config (ADR 0111 §2, ADR 0112 §4), and the capabilities file,
+		// not the program, says which, so every package that provides one
+		// is listed.
+		iface := ""
+		if isAdapter {
+			iface = map[syntax.AdapterKind]string{syntax.AdapterStream: runtime.StreamSourceInterface, syntax.AdapterSchedule: runtime.ScheduleLockInterface}[ad.Kind]
+		}
+		if iface != "" {
 			for _, pkg := range packages {
-				if group := pkg.Provides[runtime.StreamSourceInterface]; group != "" {
+				if group := pkg.Provides[iface]; group != "" {
 					entries = append(entries, runprogram.Entry{Package: pkg, Name: group})
 				}
 			}

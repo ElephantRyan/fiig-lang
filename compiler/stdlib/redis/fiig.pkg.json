@@ -3,6 +3,7 @@
     "kind": "library",
     "version": "1.0.0",
     "dependencies": {
+        "fiig.schedule": "1.0.0",
         "fiig.stream": "1.0.0"
     }
 }

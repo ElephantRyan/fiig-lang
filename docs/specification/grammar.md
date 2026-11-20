@@ -379,12 +379,13 @@ domain of a modular monolith asks another to do something
 
 ```ebnf
 adapter-decl  ::= 'adapter' adapter-kind identifier '{' { route } '}'
-adapter-kind  ::= 'http' | 'cli' | 'stream'                                                -- stream: ADR 0111
-route         ::= http-route | cli-route | stream-route
+adapter-kind  ::= 'http' | 'cli' | 'stream' | 'schedule'                                   -- stream: ADR 0111; schedule: ADR 0112
+route         ::= http-route | cli-route | stream-route | schedule-route
 http-route    ::= http-method string-literal '->' route-call { media-clause } [ response-mapping ]
 http-method   ::= 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'QUERY'
 cli-route     ::= 'command' string-literal '->' route-call [ response-mapping ]
 stream-route  ::= 'source' string-literal [ 'key' identifier ] '->' route-call stream-mapping   -- ADR 0111 §3; I1-I4
+schedule-route ::= ( 'every' | 'cron' ) string-literal '->' route-call schedule-mapping       -- ADR 0112 §1; I5-I7
 route-call    ::= identifier '(' [ route-arg { ',' route-arg } [ ',' ] ] ')'
 route-arg     ::= identifier ':' type [ 'from' ( 'header' | 'cookie' ) string-literal ]   -- ADR 0069 §1; read from text, so string, int, float, decimal, bool, or a payload-free enum, optionally | None (W4, ADR 0080)
 media-clause  ::= ( 'consumes' | 'produces' ) string-literal                              -- ADR 0069 §5
@@ -398,10 +399,14 @@ response-value   ::= integer-literal [ expression ]           -- HTTP: status co
 stream-mapping ::= '{' { pattern '->' disposition } '}'                  -- required, exhaustive over the workflow's result (I2)
 disposition    ::= 'ack' | 'halt' | 'deadLetter' string-literal
                  | 'retry' '(' 'attempts' ':' integer-literal ')' [ 'else' ( 'halt' | 'deadLetter' string-literal ) ]
+
+schedule-mapping ::= '{' { pattern '->' ( 'done' | 'halt' ) } '}'       -- required, exhaustive over the workflow's result (I7)
 ```
 
-`stream`, `source`, `key`, `ack`, `halt`, and `deadLetter` are contextual
-words, keywords only in these positions (ADR 0018).
+`stream`, `source`, `key`, `ack`, `halt`, `deadLetter`, `schedule`,
+`every`, `cron`, and `done` are contextual words, keywords only in these
+positions (ADR 0018). An `every` string is a duration that divides a day;
+a `cron` string is five fields, in UTC (ADR 0112 §1).
 
 Attested: `adapters/http_customer_api.fiig` (`GET "/customers/{id}" -> readCustomer(id: string)`),
 `adapters/cli_customer.fiig` (`command "customer get {id}" -> readCustomer(id: string)`),

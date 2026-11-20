@@ -16,8 +16,9 @@ import (
 func (c *checker) checkAdapterRoutes(d *syntax.AdapterDecl) {
 	isHTTP := d.Kind == syntax.AdapterHTTP
 	isStream := d.Kind == syntax.AdapterStream
+	isSchedule := d.Kind == syntax.AdapterSchedule
 	for _, route := range d.Routes {
-		if !isStream {
+		if !isStream && !isSchedule {
 			c.checkMediaClauses(route, isHTTP)
 		}
 		decl, found := c.lookup(route.Workflow.Name)
@@ -34,6 +35,10 @@ func (c *checker) checkAdapterRoutes(d *syntax.AdapterDecl) {
 		}
 		if isStream {
 			c.checkStreamRoute(route, wd)
+			continue
+		}
+		if isSchedule {
+			c.checkScheduleRoute(route, wd)
 			continue
 		}
 		c.checkRouteBinding(route, wd, isHTTP)

@@ -902,12 +902,16 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 		p.advance()
 		kind = syntax.AdapterCLI
 	default:
-		// `stream` is contextual (ADR 0111 §3).
-		if p.atContextual("stream") {
+		// `stream` and `schedule` are contextual (ADR 0111 §3, ADR 0112 §1).
+		switch {
+		case p.atContextual("stream"):
 			p.advance()
 			kind = syntax.AdapterStream
-		} else {
-			p.errorf(p.cur().Start, "expected 'http', 'cli', or 'stream', got %s", p.cur().Kind)
+		case p.atContextual("schedule"):
+			p.advance()
+			kind = syntax.AdapterSchedule
+		default:
+			p.errorf(p.cur().Start, "expected 'http', 'cli', 'stream', or 'schedule', got %s", p.cur().Kind)
 		}
 	}
 	name := p.expectName()
@@ -925,6 +929,9 @@ func (p *Parser) parseRoute(kind syntax.AdapterKind) *syntax.Route {
 	var verb string
 	if kind == syntax.AdapterStream {
 		return p.parseStreamRoute(start)
+	}
+	if kind == syntax.AdapterSchedule {
+		return p.parseScheduleRoute(start)
 	}
 	if kind == syntax.AdapterCLI {
 		p.expect(lexer.KwCommand)
@@ -1002,6 +1009,51 @@ func (p *Parser) parseStreamRoute(start lexer.Pos) *syntax.Route {
 				p.expect(lexer.Arrow)
 				val := p.parseDisposition(true)
 				route.Mapping = append(route.Mapping, syntax.ResponseArm{Span: syntax.Span{Start: armStart, End: p.cur().Start}, Pattern: pat, Value: val})
+			})
+		}
+		p.expect(lexer.RBrace)
+	}
+	route.Span = syntax.Span{Start: start, End: p.cur().Start}
+	return route
+}
+
+// parseScheduleRoute parses `every "15m" -> workflow(...) { pattern ->
+// done | halt ... }` or the same with `cron "0 3 * * *"` (ADR 0112 §1).
+// `every`, `cron`, and `done` are contextual.
+func (p *Parser) parseScheduleRoute(start lexer.Pos) *syntax.Route {
+	verb := ""
+	if p.atContextual("every") || p.atContextual("cron") {
+		verb = p.advance().Text
+	} else {
+		p.errorf(p.cur().Start, "expected 'every' or 'cron' to start a schedule route, got %s", p.cur().Kind)
+	}
+	lit := p.parseStringLit()
+	if hasInterp(lit) {
+		p.errorf(lit.Start, "interpolation is not allowed in a schedule")
+	}
+	route := &syntax.Route{Verb: verb, Path: plainText(lit)}
+	p.expect(lexer.Arrow)
+	nameTok := p.expectName()
+	route.Workflow = &syntax.Ident{Span: syntax.Span{Start: nameTok.Start, End: nameTok.End}, Name: nameTok.Text}
+	route.Args = p.parseRouteArgs()
+	if p.at(lexer.LBrace) {
+		p.expect(lexer.LBrace)
+		route.Mapping = []syntax.ResponseArm{}
+		for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
+			p.guardProgress(func() {
+				armStart := p.cur().Start
+				pat := p.parsePattern()
+				p.expect(lexer.Arrow)
+				dStart := p.cur().Start
+				d := &syntax.DispositionResponse{}
+				if p.atContextual("done") || p.atContextual("halt") {
+					d.Kind = p.advance().Text
+				} else {
+					p.errorf(p.cur().Start, "expected 'done' or 'halt' in a schedule route's mapping, got %s", p.cur().Kind)
+					p.advance()
+				}
+				d.Span = syntax.Span{Start: dStart, End: p.cur().Start}
+				route.Mapping = append(route.Mapping, syntax.ResponseArm{Span: syntax.Span{Start: armStart, End: p.cur().Start}, Pattern: pat, Value: d})
 			})
 		}
 		p.expect(lexer.RBrace)
