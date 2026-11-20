@@ -31,6 +31,7 @@ import (
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
+	"fiig-lang/tooling/migrate"
 	"fiig-lang/tooling/runprogram"
 )
 
@@ -176,6 +177,23 @@ func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose
 		return 2
 	}
 
+	// ADR 0096 §6: every test's database has the migrations.
+	migrations, errs := migrate.Collect(root, packages)
+	if len(errs) > 0 {
+		for _, e := range errs {
+			fmt.Fprintln(os.Stderr, "error:", e)
+		}
+		return 2
+	}
+	if sharedDatabase {
+		shared := runtime.New(universe, base) // a driver written in fiig runs on it
+		shared.Imports, shared.Groups, shared.Packages = imports, groups, packages
+		if _, problems := migrate.Run(context.Background(), migrations, base, migrate.Apply); len(problems) > 0 {
+			fmt.Fprintln(os.Stderr, "error: migrations:", strings.Join(problems, "; "))
+			return 1
+		}
+	}
+
 	var dbSeq atomic.Int64
 	runOne := func(t test) Result {
 		caps := base.Copy()
@@ -183,6 +201,9 @@ func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose
 			if p, ok := testDatabase(factories, dbSeq.Add(1)); ok {
 				caps.Register(types.DatabaseName, p)
 				defer closeProvider(p)
+				if _, problems := migrate.RunOn(context.Background(), p, migrations, migrate.Apply); len(problems) > 0 {
+					return result(t, []runtime.TestFailure{{At: t.decl.Start, Message: "migrations: " + strings.Join(problems, "; ")}}, sources[t.file], 0)
+				}
 			}
 		}
 		in := runtime.New(universe, caps)

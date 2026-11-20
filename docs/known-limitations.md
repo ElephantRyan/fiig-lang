@@ -37,8 +37,9 @@ doesn't have to discover them.
 - **Other host capabilities are untyped.** `EmailSender`, `PaymentGateway`,
   and the like are held to a gateway's `requires` (B10, P7), but their
   arguments and results aren't checked; only `Database`'s are.
-- **No migrations.** Create tables from a gateway, as the getting-started
-  example does.
+- **Migrations are forward only and plain SQL** (ADR 0096): one set of
+  files for every database, so SQL that differs between SQLite and
+  Postgres needs care, and a data change SQL can't express has no home.
 - **`FileSystem` has no runtime provider.** `Socket`, `Clock`, and
   `Random` do; `Clock` and `Random` need no capabilities-file entry (ADR
   0068 §4, §6).

@@ -28,6 +28,7 @@ import (
 	"fiig-lang/compiler/checker"
 	"fiig-lang/compiler/loader"
 	"fiig-lang/compiler/lockfile"
+	"fiig-lang/compiler/migration"
 	"fiig-lang/compiler/types"
 )
 
@@ -70,6 +71,15 @@ func Main(name string, args []string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
+	}
+	// ADR 0096 §1: a migration file that doesn't fit is reported here too,
+	// not first at startup. A dependency's were reported by its load.
+	if _, errs := migration.Read(os.DirFS(root)); len(errs) > 0 {
+		for _, e := range errs {
+			// Each error starts with the file it's about: "migrations/x.sql: ...".
+			file, msg, _ := strings.Cut(e.Error(), ": ")
+			diags = append(diags, checker.Diagnostic{File: file, Msg: msg})
+		}
 	}
 	if *asJSON {
 		if diags == nil {

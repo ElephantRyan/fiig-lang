@@ -1,6 +1,7 @@
 package servecmd
 
 import (
+	"fiig-lang/tooling/migrate"
 	"os"
 	"path/filepath"
 	"testing"
@@ -49,7 +50,7 @@ func TestServingADependencyTheRootNeverImports(t *testing.T) {
 	}
 	writeTree(t, workspace, program)
 	env, _ := runprogram.NewEnvironment("")
-	h, _, _, err := load(filepath.Join(workspace, "app"), []string{"api", "t.pay.payApi"}, "", []string{workspace}, nil, nil, adapter.DefaultLimits(), env, nil)
+	h, _, _, err := load(filepath.Join(workspace, "app"), []string{"api", "t.pay.payApi"}, "", []string{workspace}, nil, nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +89,7 @@ func TestBindingFollowsTheRunningWorkflow(t *testing.T) {
 		"packages": {"t.pay": {"Database": {"type": "recorder", "name": "pay"}}}
 	}`)
 	env, _ := runprogram.NewEnvironment("")
-	h, _, _, err := load(filepath.Join(workspace, "app"), []string{"api"}, caps, []string{workspace}, r.factory(), nil, adapter.DefaultLimits(), env, nil)
+	h, _, _, err := load(filepath.Join(workspace, "app"), []string{"api"}, caps, []string{workspace}, r.factory(), nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
 	if err != nil {
 		t.Fatal(err)
 	}

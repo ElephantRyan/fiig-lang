@@ -50,6 +50,7 @@ import (
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
 	"fiig-lang/compiler/version"
+	"fiig-lang/tooling/migrate"
 	"fiig-lang/tooling/runprogram"
 )
 
@@ -72,6 +73,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	fs.Var(&origins, "allow-origin", "an origin a browser front end may call from, as scheme://host[:port], or * for any (ADR 0070); repeatable; default $ALLOW_ORIGINS, comma-separated; none means CORS off")
 	maxBody := fs.Int64("max-body", 0, "the most bytes a request body may have, else 413 (ADR 0076 §1); default $MAX_BODY_BYTES, else 2097152")
 	maxRequests := fs.Int("max-requests", 0, "how many requests may run at once, with as many waiting up to 5 s, else 503 (ADR 0076 §2); default $MAX_REQUESTS, else 256")
+	migrateFlag := fs.String("migrate", "apply", "apply pending migrations before serving, or check: refuse to start while any are pending (ADR 0096 §2)")
 	requestTimeout := fs.Duration("request-timeout", 0, "how long a request may run, else 503 (ADR 0076 §3); default $REQUEST_TIMEOUT, else 30s")
 	fs.Parse(args)
 	if fs.NArg() < 2 {
@@ -102,7 +104,12 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	}
 	limits, limitProblems := readLimits(env, *maxBody, *maxRequests, *requestTimeout)
 	originProblems = append(originProblems, limitProblems...)
-	handler, bindings, caps, err := load(fs.Arg(0), fs.Args()[1:], *capsPath, workspaces, factories, cors, limits, env, originProblems)
+	mode, err := migrate.ParseMode(*migrateFlag)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(2)
+	}
+	handler, bindings, caps, err := load(fs.Arg(0), fs.Args()[1:], *capsPath, workspaces, factories, cors, limits, env, originProblems, mode)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -142,7 +149,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 // names, with every configuration problem (ADR 0071 §3's one report)
 // found first. It returns ADR 0079 §6a's listing of each domain's
 // capability bindings, for the startup log.
-func load(root string, names []string, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string) (http.Handler, []string, *runtime.CapabilityRegistry, error) {
+func load(root string, names []string, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string, mode migrate.Mode) (http.Handler, []string, *runtime.CapabilityRegistry, error) {
 	p, err := check(root, names, workspaces, "serve")
 	if err != nil {
 		return nil, nil, nil, err
@@ -173,6 +180,9 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	}
 	problems = append(problems, in.LoadConfig(runprogram.ReachableConfigFrom(program, entries), env.Lookup)...)
 	if err := runprogram.ConfigReport(problems); err != nil {
+		return nil, nil, nil, err
+	}
+	if err := runprogram.Migrate(context.Background(), root, packages, caps, mode); err != nil {
 		return nil, nil, nil, err
 	}
 	h, err := adapter.HTTPHandlerFor(served, universe, in, limits)

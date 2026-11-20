@@ -44,6 +44,7 @@ import (
 	"fiig-lang/compiler/lockfile"
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/types"
+	"fiig-lang/tooling/migrate"
 	"fiig-lang/tooling/runprogram"
 )
 
@@ -60,16 +61,22 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	argsJSON := fs.String("args", "{}", "JSON object of arguments, keyed by parameter name")
 	argsFile := fs.String("args-file", "", "a file holding -args's JSON object, or - for stdin, so a secret argument stays out of the command line")
 	capsPath := fs.String("caps", "", "path to a JSON file of scripted capability responses")
+	migrateFlag := fs.String("migrate", "apply", "apply pending migrations before running, or check: refuse to run while any are pending (ADR 0096 §2)")
 	trace := fs.Bool("trace", false, "print the call tree (compiler/runtime.Span) to stderr after running")
 	envFile := fs.String("env-file", "", "a file of NAME=value lines that sets environment variables the process doesn't (ADR 0071 §3a)")
 	var workspaces stringList
 	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable. Omitted, only the packages fiig ships are searched (ADR 0074)")
 	fs.Parse(argv)
 	if fs.NArg() != 2 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-args JSON | -args-file FILE] [-caps FILE] [-env-file FILE] [-trace] [-workspace DIR]... <root> <declName>")
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-args JSON | -args-file FILE] [-caps FILE] [-env-file FILE] [-migrate apply|check] [-trace] [-workspace DIR]... <root> <declName>")
 		os.Exit(2)
 	}
 	root, name := fs.Arg(0), fs.Arg(1)
+	mode, err := migrate.ParseMode(*migrateFlag)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(2)
+	}
 	env, err := runprogram.NewEnvironment(*envFile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: -env-file:", err)
@@ -168,6 +175,10 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	program := runprogram.Program{Universe: universe, Imports: in.Imports, Groups: in.Groups, Renames: runprogram.Renames(root)}
 	problems = append(problems, in.LoadConfig(runprogram.ReachableConfig(program, []string{name}), env.Lookup)...)
 	if err := runprogram.ConfigReport(problems); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+	if err := runprogram.Migrate(context.Background(), root, packages, caps, mode); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}

@@ -27,6 +27,7 @@ import (
 	"fiig-lang/compiler/checker"
 	"fiig-lang/compiler/lockfile"
 	"fiig-lang/compiler/manifest"
+	"fiig-lang/compiler/migration"
 	"fiig-lang/compiler/parser"
 	"fiig-lang/compiler/semver"
 	"fiig-lang/compiler/stdlib"
@@ -482,6 +483,18 @@ func (l *loaderState) build(key reqKey) (*types.Package, []error) {
 	if err != nil {
 		return nil, []error{err}
 	}
+	migrations, migrationErrs := migration.Read(inst.fsys)
+	if len(migrationErrs) > 0 {
+		errs := make([]error, len(migrationErrs))
+		for i, e := range migrationErrs {
+			errs[i] = fmt.Errorf("package %s (%s): %v", key.path, filepath.ToSlash(inst.dir), e)
+		}
+		return nil, errs
+	}
+	// A migration is part of what the lockfile's hash covers (ADR 0096).
+	for _, m := range migrations {
+		hashed[migration.Dir+"/"+m.Name+".sql"] = []byte(m.SQL)
+	}
 
 	depPackages := types.Packages{}
 	for depPath, minStr := range inst.manifest.Dependencies {
@@ -510,6 +523,7 @@ func (l *loaderState) build(key reqKey) (*types.Package, []error) {
 
 	pkg.Path = key.path
 	pkg.Provides = inst.manifest.Provides
+	pkg.Migrations = migrations
 	l.built[key] = pkg
 	l.entries[key] = lockfile.Entry{
 		Path:         key.path,
