@@ -1,0 +1,9 @@
+// An email as plain text: who it is from, who it goes to, and what it says.
+// Every address in `to` is written in the To header as well as sent to, so
+// there is no hidden recipient (ADR 0120 §2). Addresses are ASCII.
+model Mail {
+    from: string
+    to: List<string>
+    subject: string
+    body: string
+}

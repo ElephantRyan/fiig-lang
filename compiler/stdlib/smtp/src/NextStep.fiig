@@ -1,0 +1,44 @@
+// What to do in the dialogue's phase (ADR 0120 §3). Each command is a line
+// ending in CRLF.
+conversion nextStep(d: Dialogue) -> SmtpStep {
+    match d.phase {
+        SmtpPhase.Greeting -> SmtpStep.Listen
+        SmtpPhase.Hello -> SmtpStep.Send(data: crlfLine("EHLO ${d.hello}"))
+        SmtpPhase.StartTls -> SmtpStep.Send(data: crlfLine("STARTTLS"))
+        SmtpPhase.Upgrading -> SmtpStep.Upgrade
+        SmtpPhase.SecureHello -> SmtpStep.Send(data: crlfLine("EHLO ${d.hello}"))
+        SmtpPhase.Auth -> SmtpStep.Send(data: crlfLine("AUTH PLAIN ${plainLogin(d.target)}"))
+        SmtpPhase.MailFrom -> SmtpStep.Send(data: crlfLine("MAIL FROM:<${d.mail.from}>"))
+        SmtpPhase.Rcpt -> SmtpStep.Send(data: crlfLine("RCPT TO:<${d.mail.to.at(d.recipient)}>"))
+        SmtpPhase.Data -> SmtpStep.Send(data: crlfLine("DATA"))
+        SmtpPhase.Body -> SmtpStep.Send(data: d.data)
+        SmtpPhase.Quit -> SmtpStep.SendAndClose(data: crlfLine("QUIT"))
+    }
+}
+
+private {
+    crlfLine(line: string) -> bytes {
+        return <<line: utf8, 13: u8, 10: u8>>
+    }
+
+    // RFC 4616: an empty authorization identity, the user, and the password,
+    // each ended by a zero byte but the last, in base64.
+    plainLogin(target: SmtpTarget) -> string {
+        user: string = ""
+        password: string = ""
+        match target.user {
+            None -> None
+            name -> {
+                user = name
+            }
+        }
+        match target.password {
+            None -> None
+            secret -> {
+                password = secret
+            }
+        }
+        login: bytes = <<0: u8, user: utf8, 0: u8, password: utf8>>
+        return login.toBase64()
+    }
+}

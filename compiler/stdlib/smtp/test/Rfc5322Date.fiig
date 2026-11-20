@@ -1,0 +1,26 @@
+test theEpochIsAThursday {
+    expect rfc5322Date(0) == "Thu, 1 Jan 1970 00:00:00 +0000"
+}
+
+test aKnownInstant {
+    // 2023-11-14T22:13:20Z
+    expect rfc5322Date(1700000000000) == "Tue, 14 Nov 2023 22:13:20 +0000"
+}
+
+test leapDays {
+    expect rfc5322Date(951782400000) == "Tue, 29 Feb 2000 00:00:00 +0000"
+    expect rfc5322Date(1709164800000) == "Thu, 29 Feb 2024 00:00:00 +0000"
+}
+
+test theLastSecondOfAYear {
+    expect rfc5322Date(1767225599000) == "Wed, 31 Dec 2025 23:59:59 +0000"
+    expect rfc5322Date(1767225600000) == "Thu, 1 Jan 2026 00:00:00 +0000"
+}
+
+test millisecondsAreDropped {
+    expect rfc5322Date(1700000000999) == "Tue, 14 Nov 2023 22:13:20 +0000"
+}
+
+test aTimeBeforeTheEpochIsTheEpoch {
+    expect rfc5322Date(-5000) == "Thu, 1 Jan 1970 00:00:00 +0000"
+}

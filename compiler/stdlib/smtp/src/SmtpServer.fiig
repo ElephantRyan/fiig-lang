@@ -1,0 +1,7 @@
+// Where mail goes (ADR 0120 §2). The URL is a Secret because it usually
+// carries the password.
+config SmtpServer {
+    url: Secret from env "SMTP_URL"
+    helloName: string from env "SMTP_HELO_NAME" = "localhost"
+    timeoutMillis: int from env "SMTP_TIMEOUT_MS" = 30000
+}

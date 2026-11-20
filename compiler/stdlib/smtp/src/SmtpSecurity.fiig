@@ -1,0 +1,8 @@
+// How a connection is secured (ADR 0120 §2). StartTls begins in plain text
+// and must upgrade before anything is sent; Implicit is TLS from the first
+// byte; Plain never upgrades, and is for a server on the same machine.
+enum SmtpSecurity {
+    Implicit
+    StartTls
+    Plain
+}

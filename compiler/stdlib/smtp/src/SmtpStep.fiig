@@ -1,0 +1,8 @@
+// What the gateway does next: wait for the server to speak, send bytes and
+// read the reply, send bytes and hang up, or upgrade the connection to TLS.
+enum SmtpStep {
+    Listen
+    Send(data: bytes)
+    SendAndClose(data: bytes)
+    Upgrade
+}

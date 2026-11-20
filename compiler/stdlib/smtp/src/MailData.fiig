@@ -1,0 +1,125 @@
+// The bytes after DATA (RFC 5321 §4.5.2): the headers, a blank line, the
+// body, and a line holding only a dot. Lines end in CRLF and a body line that
+// starts with a dot gets another (so the end marker is unmistakable). A body
+// of plain ASCII goes as it is (7bit); anything else, and any line over the
+// 998 bytes SMTP allows, goes as base64 (ADR 0120 §2). A subject that isn't
+// plain ASCII is written as RFC 2047 encoded words.
+conversion mailData(mail: Mail, date: string, messageId: string) -> bytes {
+    plain = mail.body.replaceAll("\r\n", "\n").replaceAll("\r", "\n")
+    rows: List<string> = plain.split("\n")
+    if rows.length() > 1 and rows.last() == "" {
+        rows = rows.slice(0, rows.length() - 1)
+    }
+    encoded = needsBase64(plain, rows)
+    encoding: string = "7bit"
+    body: string = plainLines(rows)
+    if encoded {
+        encoding = "base64"
+        body = base64Lines(rows)
+    }
+    recipients = mail.to.join(", ")
+    headers: List<string> = [
+        "From: ${mail.from}",
+        "To: ${recipients}",
+        "Subject: ${subjectHeader(mail.subject)}",
+        "Date: ${date}",
+        "Message-ID: <${messageId}>",
+        "MIME-Version: 1.0",
+        "Content-Type: text/plain; charset=utf-8",
+        "Content-Transfer-Encoding: ${encoding}",
+    ]
+    head = headers.join("\r\n")
+    text = "${head}\r\n\r\n${body}.\r\n"
+    return text.utf8()
+}
+
+private {
+    // Whether the body can't go as 7bit text: a byte outside printable ASCII
+    // and the usual controls, or a line SMTP won't carry.
+    needsBase64(plain: string, rows: List<string>) -> bool {
+        for b in plain.utf8() {
+            if b >= 128 or b == 0 {
+                return true
+            }
+        }
+        for row in rows {
+            if row.utf8().length() > 998 {
+                return true
+            }
+        }
+        return false
+    }
+
+    plainLines(rows: List<string>) -> string {
+        stuffed: List<string> = []
+        for row in rows {
+            if row.startsWith(".") {
+                stuffed = append(stuffed, ".${row}")
+            } else {
+                stuffed = append(stuffed, row)
+            }
+        }
+        joined = stuffed.join("\r\n")
+        return "${joined}\r\n"
+    }
+
+    // The body as CRLF text in base64, wrapped at 76 characters.
+    base64Lines(rows: List<string>) -> string {
+        joined = rows.join("\r\n")
+        text = "${joined}\r\n"
+        encoded = text.utf8().toBase64()
+        lines: List<string> = []
+        start: int = 0
+        while start < encoded.length() {
+            stop: int = start + 76
+            if stop > encoded.length() {
+                stop = encoded.length()
+            }
+            lines = append(lines, encoded.slice(start, stop))
+            start = stop
+        }
+        wrapped = lines.join("\r\n")
+        return "${wrapped}\r\n"
+    }
+
+    // The subject as it goes in the header: itself when it is printable
+    // ASCII, else encoded words.
+    subjectHeader(subject: string) -> string {
+        for b in subject.utf8() {
+            if b < 32 or b > 126 {
+                return encodedWords(subject)
+            }
+        }
+        return subject
+    }
+
+    // =?UTF-8?B?...?= words of at most 42 bytes each, cut only between
+    // characters (a continuation byte never starts a word), folded with CRLF
+    // and a space (RFC 2047 §2, RFC 5322 §2.2.3).
+    encodedWords(text: string) -> string {
+        raw = text.utf8()
+        words: List<string> = []
+        start: int = 0
+        i: int = 0
+        while i < raw.length() {
+            i = i + 1
+            if i - start >= 42 and (i == raw.length() or not continuation(raw.at(i))) {
+                words = append(words, word(raw.slice(start, i)))
+                start = i
+            }
+        }
+        if start < raw.length() {
+            words = append(words, word(raw.slice(start, raw.length())))
+        }
+        return words.join("\r\n ")
+    }
+
+    word(part: bytes) -> string {
+        return "=?UTF-8?B?${part.toBase64()}?="
+    }
+
+    // The second to fourth byte of a UTF-8 character.
+    continuation(b: int) -> bool {
+        return b >= 128 and b < 192
+    }
+}

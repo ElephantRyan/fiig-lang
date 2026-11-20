@@ -1,0 +1,152 @@
+test aStartTlsSendFromGreetingToQuit {
+    d0 = begin(startTls("user", "pass"), ["b@y.org", "c@y.org"])
+    expect sent(d0) == "listen"
+    d1 = go(d0, 220, ["mail.example ESMTP"])
+    expect sent(d1) == "EHLO client.test\r\n"
+    d2 = go(d1, 250, ["mail.example Hello", "STARTTLS", "AUTH PLAIN LOGIN", "SIZE 1000000"])
+    expect sent(d2) == "STARTTLS\r\n"
+    d3 = go(d2, 220, ["Ready to start TLS"])
+    expect sent(d3) == "upgrade"
+    // The handshake forgets what the server said, so it is asked again.
+    d4 = afterUpgrade(d3)
+    expect d4.secure
+    expect sent(d4) == "EHLO client.test\r\n"
+    d5 = go(d4, 250, ["mail.example Hello", "AUTH PLAIN LOGIN"])
+    expect sent(d5) == "AUTH PLAIN AHVzZXIAcGFzcw==\r\n"
+    d6 = go(d5, 235, ["Authentication successful"])
+    expect sent(d6) == "MAIL FROM:<a@x.org>\r\n"
+    d7 = go(d6, 250, ["OK"])
+    expect sent(d7) == "RCPT TO:<b@y.org>\r\n"
+    d8 = go(d7, 250, ["OK"])
+    expect sent(d8) == "RCPT TO:<c@y.org>\r\n"
+    d9 = go(d8, 251, ["User not local; will forward"])
+    expect sent(d9) == "DATA\r\n"
+    d10 = go(d9, 354, ["End data with <CR><LF>.<CR><LF>"])
+    expect sent(d10) == "the message"
+    d11 = go(d10, 250, ["OK queued"])
+    expect sent(d11) == "close:QUIT\r\n"
+}
+
+test smtpWithoutStartTlsIsRefusedBeforeAnythingIsSent {
+    hello = go(begin(startTls("user", "pass"), ["b@y.org"]), 220, ["hi"])
+    expect sent(hello) == "EHLO client.test\r\n"
+    expect advance(hello, reply(250, ["mail.example Hello", "AUTH PLAIN"])) is Err(SmtpError.Protocol(reason))
+    expect reason.contains("STARTTLS")
+}
+
+test smtpsIsSecureFromTheStartAndNeverAsksForStartTls {
+    d = go(go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]), 250, ["mail.example Hello", "STARTTLS", "AUTH PLAIN"])
+    expect d.secure
+    expect sent(d) == "AUTH PLAIN AHVzZXIAcGFzcw==\r\n"
+}
+
+test plainWithNoLoginGoesStraightToMail {
+    d = go(go(begin(plain(None, None), ["b@y.org"]), 220, ["hi"]), 250, ["mail.example Hello"])
+    expect sent(d) == "MAIL FROM:<a@x.org>\r\n"
+}
+
+test aLoginNeedsAuthPlain {
+    after = advance(afterGreeting(), reply(250, ["mail.example Hello", "STARTTLS"]))
+    expect after is Ok(next)
+    secured = afterUpgrade(next)
+    expect advance(copy(secured, phase: SmtpPhase.SecureHello), reply(250, ["mail.example Hello", "AUTH LOGIN XOAUTH2"])) is Err(SmtpError.Protocol(reason))
+    expect reason.contains("AUTH PLAIN")
+}
+
+test theOlderAuthEqualsFormIsRead {
+    d = go(go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]), 250, ["mail.example Hello", "AUTH=PLAIN LOGIN"])
+    expect sent(d) == "AUTH PLAIN AHVzZXIAcGFzcw==\r\n"
+}
+
+test aRefusedRecipientEndsTheSend {
+    d = go(go(go(go(begin(plain(None, None), ["b@y.org", "c@y.org"]), 220, ["hi"]), 250, ["Hello"]), 250, ["OK"]), 250, ["OK"])
+    expect sent(d) == "RCPT TO:<c@y.org>\r\n"
+    expect advance(d, reply(550, ["No such user here"])) is Err(SmtpError.Refused(code, message))
+    expect code == 550
+    expect message.contains("c@y.org")
+    expect message.contains("No such user")
+}
+
+test aTemporaryRefusalKeepsItsCode {
+    greeting = begin(plain(None, None), ["b@y.org"])
+    expect advance(greeting, reply(421, ["Service not available"])) is Err(SmtpError.Refused(code, message))
+    expect code == 421
+    expect message == "Service not available"
+}
+
+test aRefusedSenderIsNamed {
+    mailFrom = go(go(begin(plain(None, None), ["b@y.org"]), 220, ["hi"]), 250, ["Hello"])
+    expect sent(mailFrom) == "MAIL FROM:<a@x.org>\r\n"
+    expect advance(mailFrom, reply(553, ["Sender rejected"])) is Err(SmtpError.Refused(code, message))
+    expect code == 553
+    expect message.contains("a@x.org")
+}
+
+test aMessageOverTheServersSizeIsRefusedBeforeItIsSent {
+    greeted = go(begin(plain(None, None), ["b@y.org"]), 220, ["hi"])
+    expect advance(greeted, reply(250, ["Hello", "SIZE 10"])) is Err(SmtpError.InvalidMail(reason))
+    expect reason.contains("limit")
+}
+
+test aServerThatSaysNoToTheBodyRefuses {
+    d = go(go(go(go(go(begin(plain(None, None), ["b@y.org"]), 220, ["hi"]), 250, ["Hello"]), 250, ["OK"]), 250, ["OK"]), 354, ["go ahead"])
+    expect sent(d) == "the message"
+    expect advance(d, reply(552, ["Message size exceeds limit"])) is Err(SmtpError.Refused(code, message))
+    expect code == 552
+}
+
+private {
+    mail(to: List<string>) -> Mail {
+        return Mail(from: "a@x.org", to: to, subject: "Hello", body: "Hi")
+    }
+
+    startTls(user: string, password: string) -> SmtpTarget {
+        return SmtpTarget(host: "mail.example", port: 587, security: SmtpSecurity.StartTls, user: user, password: password)
+    }
+
+    implicit(user: string, password: string) -> SmtpTarget {
+        return SmtpTarget(host: "mail.example", port: 465, security: SmtpSecurity.Implicit, user: user, password: password)
+    }
+
+    plain(user: string | None, password: string | None) -> SmtpTarget {
+        return SmtpTarget(host: "localhost", port: 1025, security: SmtpSecurity.Plain, user: user, password: password)
+    }
+
+    begin(target: SmtpTarget, to: List<string>) -> Dialogue {
+        return startDialogue(target, mail(to), "client.test", "the message".utf8())
+    }
+
+    afterGreeting() -> Dialogue {
+        return copy(begin(startTls("user", "pass"), ["b@y.org"]), phase: SmtpPhase.Hello)
+    }
+
+    reply(code: int, lines: List<string>) -> SmtpReply {
+        return SmtpReply(code: code, lines: lines)
+    }
+
+    // The dialogue after the server's reply, or the same one when advance
+    // refuses it, so a test that expected progress sees none.
+    go(d: Dialogue, code: int, lines: List<string>) -> Dialogue {
+        match advance(d, reply(code, lines)) {
+            Ok(next) -> next
+            Err(_) -> d
+        }
+    }
+
+    // What the gateway does at this phase, as text.
+    sent(d: Dialogue) -> string {
+        match nextStep(d) {
+            SmtpStep.Listen -> "listen"
+            SmtpStep.Upgrade -> "upgrade"
+            SmtpStep.Send(data) -> textOf(data)
+            SmtpStep.SendAndClose(data) -> "close:${textOf(data)}"
+        }
+    }
+
+    textOf(data: bytes) -> string {
+        match data.utf8() {
+            None -> ""
+            text -> text
+        }
+    }
+}

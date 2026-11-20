@@ -1,0 +1,8 @@
+// SMTP_URL read: where to connect, how it is secured, and the login.
+model SmtpTarget {
+    host: string
+    port: int
+    security: SmtpSecurity
+    user: string | None
+    password: string | None
+}
