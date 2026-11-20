@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"fiig-lang/compiler/runtime"
 )
@@ -49,7 +50,15 @@ func TestFiigHttpKeepsConnectionsToARealServer(t *testing.T) {
 			socket := runtime.SocketProvider{Backend: backend, Pool: runtime.NewSocketPool(runtime.DefaultIdleLimits)}
 			defer socket.Close()
 			in := httpInterpWith(t, socket)
-			for _, path := range []string{"/a", "/b", "/c"} {
+			for i, path := range []string{"/a", "/b", "/c"} {
+				// After the first, wait long enough that the pool's read on
+				// the idle connection is blocked, so reuse has to stop it
+				// with a past deadline (ADR 0109 §4). Over TLS that is the
+				// case the review asked for: crypto/tls must treat the
+				// timeout as temporary and leave the connection usable.
+				if i > 0 {
+					time.Sleep(50 * time.Millisecond)
+				}
 				v, fault := in.Call(context.Background(), "get", map[string]runtime.Value{"url": str(srv.URL + path)})
 				if fault != nil {
 					t.Fatal(fault)
