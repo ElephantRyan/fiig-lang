@@ -12,6 +12,15 @@ import (
 // route binds one element, a model with a key or bytes without one, and
 // says what happens to every outcome of its workflow.
 func (c *checker) checkStreamRoute(route *syntax.Route, wd *syntax.WorkflowDecl) {
+	// I8 (ADR 0111 §3a): the group is deployed state, so it is named, not
+	// derived from where the adapter happens to live; and a new group's
+	// start is a decision, not a default.
+	if strings.TrimSpace(route.Group) == "" {
+		c.report(route.Start, "I8", "stream route %q names no consumer group; write `group \"name\"` after the source, as in `source %q group \"order-intake\" from earliest ...` (ADR 0111 §3a)", route.Path, route.Path)
+	}
+	if route.From == "" {
+		c.report(route.Start, "I8", "stream route %q doesn't say where a new group starts; write `from earliest` to process what is already in the stream, or `from latest` for only what arrives after (ADR 0111 §3a)", route.Path)
+	}
 	if len(route.Args) != 1 || len(wd.Params) != 1 {
 		c.report(route.Start, "I3", "a stream route's call binds exactly one argument, the element, and %s takes %d parameter(s); the route gives %d", wd.Name, len(wd.Params), len(route.Args))
 	}

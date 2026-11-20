@@ -100,7 +100,9 @@ func StreamRunners(adapters []Served, u *types.Universe, in *runtime.Interp, con
 				argType: plan.paramTypes[arg],
 				in:      in,
 				source:  source,
-				sub:     runtime.Subscription{Source: route.Path, Group: a.Name(), Consumer: consumer, WaitMillis: int(streamWait / time.Millisecond)},
+				// The route names its group (ADR 0111 §3a), so moving or
+				// renaming the adapter keeps it.
+				sub:     runtime.Subscription{Source: route.Path, Group: route.Group, Consumer: consumer, WaitMillis: int(streamWait / time.Millisecond), Latest: route.From == "latest"},
 				enter:   enter,
 				timeout: timeout,
 				Logf:    func(string, ...any) {},

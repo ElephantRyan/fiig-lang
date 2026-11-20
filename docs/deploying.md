@@ -196,9 +196,12 @@ from the source the capabilities file binds (ADR 0111 §2):
 {"StreamSource": {"type": "source", "source": "fiig.redis"}}
 ```
 
-`fiig.redis` reads Redis Streams at `REDIS_URL`. Each adapter is a
-consumer group named after it, so every replica shares the work, and a
-producer writes an element as `XADD orders * payload <json>`.
+`fiig.redis` reads Redis Streams at `REDIS_URL`. Each route's `group` is
+a consumer group, so every replica shares the work, and a producer writes
+an element as `XADD orders * payload <json>`. The group is created the
+first time the route runs, at the stream's first entry (`from earliest`)
+or after its last (`from latest`); after that the route's `from` has no
+effect, and renaming the group starts a new one.
 
 - An element that a route retries, or that a stopped process left
   unsettled, comes back after `REDIS_STREAM_RETRY_AFTER_MS` (30 s).

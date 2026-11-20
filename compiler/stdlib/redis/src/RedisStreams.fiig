@@ -1,6 +1,6 @@
 use fiig.stream
 
-// ADR 0111 §7: Redis Streams as a stream source. Each adapter is a
+// ADR 0111 §7: Redis Streams as a stream source. Each route's group is a
 // consumer group, so every process running it shares the entries; an
 // entry's element is its payload field. Retried and unsettled entries are
 // claimed again once pending for REDIS_STREAM_RETRY_AFTER_MS.
@@ -14,9 +14,17 @@ capability RedisStreams provides stream.StreamSource {
         match Redis.send(["XPENDING", source, group, "IDLE", idle, "-", "+", "${batchSize}"]) {
             Err(failure) -> {
                 if isNoGroup(failure) {
-                    // The first receive: the group starts at the stream's
-                    // beginning, so entries written before it are read.
-                    match Redis.send(["XGROUP", "CREATE", source, group, "0", "MKSTREAM"]) {
+                    // The first receive: the group starts where the route
+                    // says (ADR 0111 §3a), at the stream's first entry (0)
+                    // or after its last ($).
+                    startId: string = "0"
+                    match subscription.start {
+                        stream.StartAt.Latest -> {
+                            startId = "$"
+                        }
+                        stream.StartAt.Earliest -> None
+                    }
+                    match Redis.send(["XGROUP", "CREATE", source, group, startId, "MKSTREAM"]) {
                         Err(RedisError.Server(message)) -> {
                             if not message.startsWith("BUSYGROUP") {
                                 return Err(stream.SourceError.Protocol(reason: message))

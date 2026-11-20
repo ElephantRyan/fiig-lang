@@ -1,0 +1,8 @@
+// Where a new consumer group starts (ADR 0111 §3a): at the first element
+// the source still holds, or after the last one, so it sees only what
+// arrives from then on. A group that exists already carries on where it
+// was.
+enum StartAt {
+    Earliest
+    Latest
+}

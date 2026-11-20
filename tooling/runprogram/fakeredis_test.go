@@ -224,7 +224,12 @@ func (r *fakeRedis) command(name string, args []string) string {
 		if s.groups[args[2]] != nil {
 			return "-BUSYGROUP Consumer Group name already exists\r\n"
 		}
-		s.groups[args[2]] = &fakeGroup{pending: map[string]*fakePending{}}
+		g := &fakeGroup{pending: map[string]*fakePending{}}
+		// $ starts after the last entry, 0 at the first.
+		if args[3] == "$" {
+			g.next = len(s.entries)
+		}
+		s.groups[args[2]] = g
 		return "+OK\r\n"
 	case "XPENDING":
 		g := r.group(args[0], args[1])

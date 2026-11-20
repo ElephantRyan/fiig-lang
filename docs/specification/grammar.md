@@ -386,7 +386,7 @@ route         ::= http-route | cli-route | stream-route | schedule-route
 http-route    ::= http-method string-literal '->' route-call { media-clause } [ response-mapping ]
 http-method   ::= 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'QUERY'
 cli-route     ::= 'command' string-literal '->' route-call [ response-mapping ]
-stream-route  ::= 'source' string-literal [ 'key' identifier ] '->' route-call stream-mapping   -- ADR 0111 §3; I1-I4
+stream-route  ::= 'source' string-literal 'group' string-literal 'from' ( 'earliest' | 'latest' ) [ 'key' identifier ] '->' route-call stream-mapping   -- ADR 0111 §3, §3a; I1-I4, I8
 schedule-route ::= ( 'every' | 'cron' ) string-literal '->' route-call schedule-mapping       -- ADR 0112 §1; I5-I7
 route-call    ::= identifier '(' [ route-arg { ',' route-arg } [ ',' ] ] ')'
 route-arg     ::= identifier ':' type [ 'from' ( 'header' | 'cookie' ) string-literal ]   -- ADR 0069 §1; read from text, so string, int, float, decimal, bool, or a payload-free enum, optionally | None (W4, ADR 0080)
@@ -405,7 +405,7 @@ disposition    ::= 'ack' | 'halt' | 'deadLetter' string-literal
 schedule-mapping ::= '{' { pattern '->' ( 'done' | 'halt' ) } '}'       -- required, exhaustive over the workflow's result (I7)
 ```
 
-`stream`, `source`, `key`, `ack`, `halt`, `deadLetter`, `schedule`,
+`stream`, `source`, `group`, `earliest`, `latest`, `key`, `ack`, `halt`, `deadLetter`, `schedule`,
 `every`, `cron`, and `done` are contextual words, keywords only in these
 positions (ADR 0018). An `every` string is a duration that divides a day;
 a `cron` string is five fields, in UTC (ADR 0112 §1).

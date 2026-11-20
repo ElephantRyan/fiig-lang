@@ -476,9 +476,14 @@ type AdapterDecl struct {
 // so one struct covers them rather than duplicating it.
 type Route struct {
 	Span
-	Verb     string
-	Path     string // the route's string-literal content
-	Key      *Ident // a stream route's element key; nil otherwise or when omitted
+	Verb string
+	Path string // the route's string-literal content
+	Key  *Ident // a stream route's element key; nil otherwise or when omitted
+	// Group and From are a stream route's consumer group and where a new
+	// group starts reading, "earliest" or "latest" (ADR 0111 §3a); ""
+	// otherwise or when omitted.
+	Group    string
+	From     string
 	Workflow *Ident // the workflow the route calls
 	Args     []RouteArg
 	Consumes *MediaType    // nil if the route has no `consumes` clause (ADR 0069 §5)

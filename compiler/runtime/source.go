@@ -51,6 +51,7 @@ type SourceProvider struct {
 	sub      *syntax.ModelDecl
 	delivery *syntax.ModelDecl
 	outcome  *syntax.EnumDecl
+	startAt  *syntax.EnumDecl
 }
 
 func (p *SourceProvider) bindInterp(in *Interp) { p.in = in }
@@ -96,6 +97,7 @@ func (p *SourceProvider) Resolve() (*types.Package, string, *Fault) {
 		p.sub, _ = lookup("Subscription").(*syntax.ModelDecl)
 		p.delivery, _ = lookup("Delivery").(*syntax.ModelDecl)
 		p.outcome, _ = lookup("Outcome").(*syntax.EnumDecl)
+		p.startAt, _ = lookup("StartAt").(*syntax.EnumDecl)
 		p.pkg, p.group, p.sc = pkg, group, packageScope(pkg)
 	})
 	if p.err != nil {
@@ -108,6 +110,9 @@ func (p *SourceProvider) Resolve() (*types.Package, string, *Fault) {
 type Subscription struct {
 	Source, Group, Consumer string
 	WaitMillis              int
+	// Latest is a new group starting after the source's last element,
+	// rather than at its first (§3a).
+	Latest bool
 }
 
 // Delivery is one element a receive returned (§1). value is the record as
@@ -126,8 +131,13 @@ type SourceFailure struct{ Variant, Reason string }
 func (f *SourceFailure) Error() string { return f.Variant + ": " + f.Reason }
 
 func (p *SourceProvider) subscription(s Subscription) Value {
+	start := "Earliest"
+	if s.Latest {
+		start = "Latest"
+	}
 	return Record{TypeName: "Subscription", Decl: p.sub, Fields: map[string]Value{
 		"source": Str(s.Source), "group": Str(s.Group), "consumer": Str(s.Consumer), "waitMillis": Int(s.WaitMillis),
+		"start": EnumValue{TypeName: "StartAt", Variant: start, Decl: p.startAt},
 	}}
 }
 

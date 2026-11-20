@@ -553,8 +553,18 @@ func (p *printer) printRoute(r *syntax.Route) {
 		args[i] = printRouteArg(a)
 	}
 	head := fmt.Sprintf("%s %s -> %s", r.Verb, strconv.Quote(r.Path), r.Workflow.Name)
-	if r.Key != nil {
-		head = fmt.Sprintf("%s %s key %s -> %s", r.Verb, strconv.Quote(r.Path), r.Key.Name, r.Workflow.Name)
+	if r.Verb == "source" {
+		head = r.Verb + " " + strconv.Quote(r.Path)
+		if r.Group != "" {
+			head += " group " + strconv.Quote(r.Group)
+		}
+		if r.From != "" {
+			head += " from " + r.From
+		}
+		if r.Key != nil {
+			head += " key " + r.Key.Name
+		}
+		head += " -> " + r.Workflow.Name
 	}
 	var clauses []*syntax.MediaType
 	if r.Consumes != nil {

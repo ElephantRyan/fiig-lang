@@ -116,7 +116,7 @@ its client. `fiig serve` refuses to start a stream adapter with no
 
 ```fiig
 adapter stream OrderIntake {
-    source "orders" key orderId -> placeOrder(order: OrderPlaced) {
+    source "orders" group "order-intake" from earliest key orderId -> placeOrder(order: OrderPlaced) {
         Ok(_) -> ack
         Err(OrderError.OutOfStock(_)) -> retry(attempts: 5) else deadLetter "orders.failed"
         Err(OrderError.Invalid(_)) -> deadLetter "orders.invalid"
@@ -125,7 +125,8 @@ adapter stream OrderIntake {
 ```
 
 ```ebnf
-stream-route ::= 'source' string-literal [ 'key' identifier ] '->' call stream-mapping
+stream-route ::= 'source' string-literal 'group' string-literal 'from' ( 'earliest' | 'latest' )
+                 [ 'key' identifier ] '->' call stream-mapping
 stream-mapping ::= '{' { pattern '->' disposition } '}'
 disposition  ::= 'ack' | 'halt' | 'deadLetter' string-literal
                | 'retry' '(' 'attempts' ':' int-literal ')' [ 'else' ( 'halt' | 'deadLetter' string-literal ) ]
@@ -152,6 +153,28 @@ disposition  ::= 'ack' | 'halt' | 'deadLetter' string-literal
   contextual words (ADR 0018); `retry`, `attempts`, and `else` are already
   keywords, which is also why the contract says `batchSize`, not
   `limit`.
+
+### 3a. The route names its group and where a new one starts
+
+*(Added 2026-11-20 after review: the group was the adapter's package path
+and name, and a new group started at the stream's first element, so
+moving or renaming an adapter silently made a new group that replayed the
+whole stream.)*
+
+- **`group "name"` is required.** A consumer group is state a deployment
+  holds in the broker: which elements have been handled, and by whom. So
+  it is written down, like a table name, and moving the adapter between
+  packages or renaming it changes nothing. Renaming the group is a
+  visible edit, and makes a new group.
+- **`from earliest` or `from latest` is required**, and applies only when
+  the group doesn't exist yet: earliest processes what the stream already
+  holds, latest only what arrives after the group starts (Kafka's
+  `auto.offset.reset`, written where it can be read). A group that exists
+  carries on where it was, whatever the route says.
+- **I8** reports either missing.
+- The contract's `Subscription` gains `start: StartAt` (`Earliest`,
+  `Latest`); `fiig.redis` creates the group at `0` or `$`.
+- `group`, `from`, `earliest`, and `latest` are contextual here.
 
 ### 4. Halt, faults, and elements that don't decode
 
@@ -193,8 +216,7 @@ simplest thing that does. Several processes share a group's elements
 through the source. Processing in parallel by key is a later change that
 the declared `key` makes possible.
 
-`group` is the adapter's name, after its package path for an adapter in a
-dependency (`shop.orders.OrderIntake`). `consumer` is the host name and
+`group` is the route's `group` (§3a). `consumer` is the host name and
 process id. On shutdown the loop finishes the element in hand and stops.
 
 ### 6. Bug classes: I. Stream adapter errors
