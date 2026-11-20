@@ -225,7 +225,11 @@ func membersToSpanned(members []syntax.InterfaceMember) []syntax.Spanned {
 // private block uses for its members.
 func (p *printer) printCapabilityDecl(d *syntax.CapabilityDecl) {
 	line := startLine(d)
-	p.emitLine("capability "+d.Name+" {", line, line)
+	header := "capability " + d.Name
+	if len(d.Declares) > 0 {
+		header += " provides " + strings.Join(d.Declares, ".") // ADR 0105 §3
+	}
+	p.emitLine(header+" {", line, line)
 	p.indent++
 	for i, g := range d.Gateways {
 		if i > 0 {

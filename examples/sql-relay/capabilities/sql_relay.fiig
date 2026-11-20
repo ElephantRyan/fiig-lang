@@ -12,7 +12,7 @@ capability SqlRelay {
     gateway connect(settings: Map<string, string>) -> Result<Connection, db.DatabaseError>
         requires Socket
     {
-        match relayAddress(settings) {
+        match readRelayAddress(settings) {
             None -> Err(db.DatabaseError.Protocol(reason: "the relay's settings need host and port"))
             address -> {
                 match Socket.connect(address.host, address.port) {
