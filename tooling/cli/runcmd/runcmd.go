@@ -43,6 +43,7 @@ import (
 	"fiig-lang/compiler/loader"
 	"fiig-lang/compiler/lockfile"
 	"fiig-lang/compiler/runtime"
+	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
 	"fiig-lang/tooling/migrate"
 	"fiig-lang/tooling/runprogram"
@@ -90,8 +91,10 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	}
 
 	var packages types.Packages
+	var loaded *loader.Loaded
 	if loader.Wanted(root, workspaces) {
-		loaded, loadErrs := loader.Load(root, workspaces)
+		var loadErrs []error
+		loaded, loadErrs = loader.Load(root, workspaces)
 		if len(loadErrs) > 0 {
 			for _, e := range loadErrs {
 				fmt.Fprintln(os.Stderr, "error:", e)
@@ -112,6 +115,32 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 		}
 		fmt.Fprintln(os.Stderr, "refusing to run a program with checker diagnostics")
 		os.Exit(1)
+	}
+	// ADR 0105: `folder.name` runs a declaration of one of the module's
+	// folder packages, `ratings.clamp` or `signin.password.check`.
+	if dot := strings.LastIndex(name, "."); dot > 0 && loaded != nil {
+		pkgPart, declName := name[:dot], name[dot+1:]
+		found := false
+		_, checked, err := runprogram.CheckModulePackages(root, loaded)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		for _, c := range checked {
+			if c.Path == pkgPart || c.Path == loaded.Manifest.Path+"."+pkgPart {
+				files, packages, found = nil, c.Packages, true
+				for i, f := range c.Files {
+					if !syntax.IsTestPath(c.Paths[i]) {
+						files = append(files, f)
+					}
+				}
+			}
+		}
+		if !found {
+			fmt.Fprintf(os.Stderr, "no package %q in this module\n", pkgPart)
+			os.Exit(1)
+		}
+		name = declName
 	}
 	universe, _ := types.BuildUniverse(files) // conflicts already reported by runprogram.Check above
 

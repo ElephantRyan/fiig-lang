@@ -125,6 +125,9 @@ func (c *checker) checkImportNames(file *syntax.File, packages types.Packages) {
 			} else {
 				c.report(imp.Start, "", "package %q has no capability or formulas group %q", strings.Join(imp.Path[:len(imp.Path)-1], "."), tail)
 			}
+		} else if c.ownPath != "" && path == c.ownPath {
+			// ADR 0105: a test in test/<folder>/ is in that folder's package.
+			c.report(imp.Start, "", "this file is in package %q, so it calls that package's declarations by name; remove this use line", path)
 		} else if len(packages) > 0 {
 			// With package context every import resolves to a loaded
 			// package; one that doesn't names a package the manifest

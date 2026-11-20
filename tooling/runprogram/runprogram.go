@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"fiig-lang/compiler/checker"
+	"fiig-lang/compiler/layout"
 	"fiig-lang/compiler/manifest"
 	"fiig-lang/compiler/parser"
 	"fiig-lang/compiler/runtime"
@@ -35,11 +36,18 @@ import (
 func LoadFiles(root string) ([]*syntax.File, []checker.Diagnostic, error) {
 	var files []*syntax.File
 	var diags []checker.Diagnostic
+	// ADR 0105: in a module the program is src/'s top level; its folders
+	// are packages the loader builds.
+	moduleLayout := layout.IsModule(os.DirFS(root))
+	src := filepath.Join(root, layout.Src)
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() && path == filepath.Join(root, "tests") {
+			return filepath.SkipDir
+		}
+		if moduleLayout && d.IsDir() && path != root && path != src {
 			return filepath.SkipDir
 		}
 		if d.IsDir() || filepath.Ext(path) != ".fiig" {

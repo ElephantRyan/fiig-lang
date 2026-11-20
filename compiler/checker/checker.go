@@ -77,6 +77,7 @@ import (
 	"strconv"
 	"strings"
 
+	"fiig-lang/compiler/layout"
 	"fiig-lang/compiler/lexer"
 	"fiig-lang/compiler/manifest"
 	"fiig-lang/compiler/parser"
@@ -136,6 +137,9 @@ func CheckDir(root string, packages types.Packages, skip ...string) ([]Diagnosti
 func CheckDirFiles(root string, packages types.Packages, skip ...string) ([]Diagnostic, []string, []*syntax.File, error) {
 	sources := map[string]string{}
 	var order []string
+	if layout.IsModule(os.DirFS(root)) {
+		return checkModuleRoot(root, packages)
+	}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -241,7 +245,7 @@ func checkSourceTexts(order []string, sources map[string]string, packages types.
 	for _, cf := range conflicts {
 		diags = append(diags, conflictDiagnostics(cf, fileOf)...)
 	}
-	for _, d := range BindProvides(path, universe, files, packages, provides) {
+	for _, d := range BindProvides(path, universe, files, packages, CodeProvides(files, path, provides)) {
 		diags = append(diags, d)
 	}
 	for i := range diags {
@@ -314,7 +318,7 @@ func CheckPackage(files []*syntax.File, packages types.Packages, path string, pr
 	for _, cf := range conflicts {
 		diags = append(diags, conflictDiagnostics(cf, nil)...)
 	}
-	diags = append(diags, BindProvides(path, universe, files, packages, provides)...)
+	diags = append(diags, BindProvides(path, universe, files, packages, CodeProvides(files, path, provides))...)
 	testOnly := testOnlyDecls(files)
 	for _, f := range files {
 		diags = append(diags, checkFileIndexed(f, universe, packages, path, nil, testOnly)...)
@@ -1278,4 +1282,96 @@ func (c *checker) checkCallable(params []syntax.Param, retType syntax.Type, body
 		c.checkBlock(body, ret, env, true)
 	}
 	return ret
+}
+
+// CodeProvides is the manifest's provides (ADR 0043 §2) with each
+// `capability X provides alias.Interface` in files added (ADR 0105 §3):
+// interface path -> group name. The interface is named as the file names
+// it: through an import's alias, or bare for one in path's own package.
+func CodeProvides(files []*syntax.File, path string, manifest map[string]string) map[string]string {
+	var out map[string]string
+	for _, f := range files {
+		for _, d := range f.Decls {
+			g, ok := d.(*syntax.CapabilityDecl)
+			if !ok || len(g.Declares) == 0 {
+				continue
+			}
+			if out == nil {
+				out = map[string]string{}
+				for k, v := range manifest {
+					out[k] = v
+				}
+			}
+			iface := path + "." + strings.Join(g.Declares, ".")
+			if len(g.Declares) > 1 {
+				for _, imp := range f.Imports {
+					alias := imp.Alias
+					if alias == "" {
+						alias = imp.Path[len(imp.Path)-1]
+					}
+					if alias == g.Declares[0] {
+						iface = strings.Join(append(append([]string(nil), imp.Path...), g.Declares[1:]...), ".")
+					}
+				}
+			}
+			out[iface] = g.Name
+		}
+	}
+	if out == nil {
+		return manifest
+	}
+	return out
+}
+
+// checkModuleRoot is CheckDirFiles for a module in ADR 0105's layout: its
+// top-level package, src/*.fiig and their tests, with each source file
+// named after its declaration (ADR 0104). The folders under src/ are
+// packages the loader built.
+func checkModuleRoot(root string, packages types.Packages) ([]Diagnostic, []string, []*syntax.File, error) {
+	pkgs, errs := layout.Packages(os.DirFS(root))
+	var diags []Diagnostic
+	for _, e := range errs {
+		diags = append(diags, Diagnostic{Msg: e.Error()})
+	}
+	var top *layout.Package
+	for _, p := range pkgs {
+		if p.Folder == "" {
+			top = p
+		}
+	}
+	m, _ := manifest.Load(root)
+	var path string
+	var provides map[string]string
+	if m != nil {
+		path, provides = m.Path, m.Provides
+	}
+	return CheckLayoutPackage(root, top, packages, path, provides, diags)
+}
+
+// CheckLayoutPackage checks one package of a module (ADR 0105): its
+// source files and its test files, read from root, with packages its
+// dependencies. Paths are module-relative. diags, when given, are reported
+// first.
+func CheckLayoutPackage(root string, p *layout.Package, packages types.Packages, path string, provides map[string]string, diags []Diagnostic) ([]Diagnostic, []string, []*syntax.File, error) {
+	sources := map[string]string{}
+	order := append(append([]string(nil), p.Sources...), p.Tests...)
+	for _, rel := range order {
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		sources[rel] = string(data)
+	}
+	more, checked := checkSourceTexts(order, sources, packages, path, provides, false)
+	diags = append(diags, more...)
+	files := make([]*syntax.File, len(order))
+	for i, rel := range order {
+		files[i] = checked[rel].File
+		if i < len(p.Sources) && len(files[i].Decls) > 0 {
+			if problem := layout.FileNameProblem(rel, syntax.DeclName(files[i].Decls[0])); problem != "" {
+				diags = append(diags, Diagnostic{File: rel, Msg: problem})
+			}
+		}
+	}
+	return diags, order, files, nil
 }

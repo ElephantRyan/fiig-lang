@@ -711,6 +711,12 @@ func (p *Parser) parseInterfaceDecl() *syntax.InterfaceDecl {
 func (p *Parser) parseCapabilityDecl() *syntax.CapabilityDecl {
 	start := p.advance().Start // 'capability'
 	name := p.expectName()
+	// ADR 0105 §3: `capability X provides alias.Interface`.
+	var provides []string
+	if p.atContextual("provides") {
+		p.advance()
+		provides = p.parseQualifiedName()
+	}
 	p.expect(lexer.LBrace)
 	var gateways []*syntax.GatewayDecl
 	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
@@ -726,7 +732,7 @@ func (p *Parser) parseCapabilityDecl() *syntax.CapabilityDecl {
 		gateways = append(gateways, p.parseGatewayDecl())
 	}
 	end := p.expect(lexer.RBrace).End
-	return &syntax.CapabilityDecl{Span: syntax.Span{Start: start, End: end}, Name: name.Text, Gateways: gateways}
+	return &syntax.CapabilityDecl{Span: syntax.Span{Start: start, End: end}, Name: name.Text, Gateways: gateways, Declares: provides}
 }
 
 // groupHelperHint is the error for a private block in or after a

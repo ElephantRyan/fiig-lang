@@ -49,7 +49,9 @@ type File struct {
 // IsTestPath reports whether rel, a path relative to a package's root
 // with either separator, is under its tests/ directory (ADR 0091 §2).
 func IsTestPath(rel string) bool {
-	return strings.HasPrefix(rel, "tests/") || strings.HasPrefix(rel, "tests\\")
+	rel = strings.ReplaceAll(rel, "\\", "/")
+	// tests/ in the old layout; test/ in a module (ADR 0102).
+	return strings.HasPrefix(rel, "tests/") || strings.HasPrefix(rel, "test/")
 }
 
 // PrivateBlock is ADR 0054's `private { ... }`: members visible only inside
@@ -324,6 +326,10 @@ type CapabilityDecl struct {
 	// types.BindProvides once verified; nil until then. It is what makes the
 	// group assignable to those interfaces.
 	Provides []*InterfaceDecl
+	// Declares is the interface the source says this group provides,
+	// `capability X provides alias.Interface` (ADR 0105 §3), as written;
+	// nil when it says none.
+	Declares []string
 }
 
 // Gateway returns the group's member named name, or nil.

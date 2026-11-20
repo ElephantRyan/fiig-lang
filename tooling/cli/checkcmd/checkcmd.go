@@ -30,6 +30,7 @@ import (
 	"fiig-lang/compiler/lockfile"
 	"fiig-lang/compiler/migration"
 	"fiig-lang/compiler/types"
+	"fiig-lang/tooling/runprogram"
 )
 
 // stringList collects every occurrence of a repeatable flag, rather
@@ -52,8 +53,10 @@ func Main(name string, args []string) {
 	root := fs.Arg(0)
 
 	var packages types.Packages
+	var loaded *loader.Loaded
 	if loader.Wanted(root, workspaces) {
-		loaded, errs := loader.Load(root, workspaces)
+		var errs []error
+		loaded, errs = loader.Load(root, workspaces)
 		if len(errs) > 0 {
 			for _, e := range errs {
 				fmt.Fprintln(os.Stderr, "error:", e)
@@ -71,6 +74,16 @@ func Main(name string, args []string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
+	}
+	if loaded != nil {
+		// ADR 0105: each folder package's tests (its sources the loader
+		// already checked).
+		more, _, err := runprogram.CheckModulePackages(root, loaded)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		diags = append(diags, more...)
 	}
 	// ADR 0096 §1: a migration file that doesn't fit is reported here too,
 	// not first at startup. A dependency's were reported by its load.
