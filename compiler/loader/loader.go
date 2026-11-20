@@ -89,6 +89,7 @@ func Load(root string, workspaceRoots []string) (*Loaded, []error) {
 	if reserved(rootManifest.Path) {
 		return nil, []error{reservedError(root, rootManifest.Path)}
 	}
+	workspaceRoots = withManifestWorkspaces(root, rootManifest.Workspaces, workspaceRoots)
 	rootFiles, _, err := parsePackageDir(os.DirFS(root), root)
 	if err != nil {
 		return nil, []error{err}
@@ -324,7 +325,29 @@ func Wanted(root string, workspaceRoots []string) bool {
 		return true
 	}
 	m, errs := manifest.Load(root)
-	return len(errs) == 0 && len(m.Dependencies) > 0
+	return len(errs) == 0 && (len(m.Dependencies) > 0 || len(m.Workspaces) > 0)
+}
+
+// withManifestWorkspaces adds the root manifest's workspaces (ADR 0097),
+// relative to root, to the ones given on the command line, each once.
+func withManifestWorkspaces(root string, fromManifest, given []string) []string {
+	out := append([]string(nil), given...)
+	seen := map[string]bool{}
+	for _, w := range given {
+		if abs, err := filepath.Abs(w); err == nil {
+			seen[abs] = true
+		}
+	}
+	for _, w := range fromManifest {
+		dir := filepath.Join(root, filepath.FromSlash(w))
+		abs, err := filepath.Abs(dir)
+		if err != nil || seen[abs] {
+			continue
+		}
+		seen[abs] = true
+		out = append(out, dir)
+	}
+	return out
 }
 
 // BuiltinPrefix starts the path of every package the toolchain ships, and

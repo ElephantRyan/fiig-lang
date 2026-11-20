@@ -103,6 +103,10 @@ root, a dotted one from a dependency (its package path, then its name):
 fiig serve -workspace .. -caps caps.json . ordersApi shop.payments.paymentsApi
 ```
 
+`-workspace ..` says where the sibling packages are. To say it once, put
+`"workspaces": [".."]` in the application's `fiig.pkg.json` (ADR 0097),
+and every command finds them without the flag.
+
 They share one listener, one set of request limits, and one CORS policy.
 Two routes that would serve the same requests stop it before it starts,
 so give each domain its own path prefix (`/payments/...`); its URLs then

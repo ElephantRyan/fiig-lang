@@ -342,3 +342,33 @@ func TestLoadChecksDependencies(t *testing.T) {
 		t.Fatalf("errs = %v, want one M1 naming package units", errs)
 	}
 }
+
+// ADR 0097 (abs-recommendations GAPS G16): an application names its
+// workspaces in its manifest, so no -workspace flag is needed.
+func TestLoadReadsTheManifestsWorkspaces(t *testing.T) {
+	ws := t.TempDir()
+	writePkg(t, ws, "leaf", "leaf", "library", "1.0.0", nil, nil, "model LeafMarker { n: int }")
+	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model AppMarker { n: int }")
+	if _, errs := Load(app, nil); len(errs) == 0 {
+		t.Fatal("without workspaces, leaf can't be found")
+	}
+	m := manifest.Manifest{Path: "app", Kind: manifest.Application, Version: "1.0.0", Dependencies: map[string]string{"leaf": "1.0.0"}, Workspaces: []string{".."}}
+	data, _ := json.Marshal(m)
+	if err := os.WriteFile(filepath.Join(app, manifest.Filename), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !Wanted(app, nil) {
+		t.Error("Wanted = false for a manifest with workspaces")
+	}
+	loaded, errs := Load(app, nil)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	if _, ok := loaded.Packages["leaf"]; !ok {
+		t.Errorf("packages = %v, want leaf found through the manifest's workspace", loaded.Packages)
+	}
+	// The same directory given on the command line too is searched once.
+	if _, errs := Load(app, []string{ws}); len(errs) > 0 {
+		t.Fatalf("a workspace named twice: %v", errs)
+	}
+}
