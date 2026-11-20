@@ -247,16 +247,21 @@ func findTests(root string, files []*syntax.File, paths []string, pattern string
 		if !f.Tests || len(f.Decls) == 0 {
 			continue
 		}
-		t, ok := f.Decls[0].(*syntax.TestDecl)
-		if !ok || !strings.Contains(t.Name, pattern) {
-			continue
+		for _, d := range f.Decls {
+			// A test file may hold many tests (ADR 0102 §2).
+			t, ok := d.(*syntax.TestDecl)
+			if !ok || !strings.Contains(t.Name, pattern) {
+				continue
+			}
+			if _, read := sources[paths[i]]; !read {
+				src, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(paths[i])))
+				if err != nil {
+					return nil, nil, err
+				}
+				sources[paths[i]] = strings.Split(strings.ReplaceAll(string(src), "\r\n", "\n"), "\n")
+			}
+			tests = append(tests, test{decl: t, file: paths[i]})
 		}
-		src, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(paths[i])))
-		if err != nil {
-			return nil, nil, err
-		}
-		sources[paths[i]] = strings.Split(strings.ReplaceAll(string(src), "\r\n", "\n"), "\n")
-		tests = append(tests, test{decl: t, file: paths[i]})
 	}
 	return tests, sources, nil
 }

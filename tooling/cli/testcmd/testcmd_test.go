@@ -196,3 +196,27 @@ func TestAConfigIsFakedPerTest(t *testing.T) {
 		t.Fatalf("want one failure naming SHOP_TOKEN, got %+v", unfaked)
 	}
 }
+
+// ADR 0102 §2: a test file holds many tests, sharing its private block.
+func TestManyTestsInOneFileShareHelpers(t *testing.T) {
+	root := writePackage(t, withTests(map[string]string{
+		"tests/check_size.fiig": `test smallIsFine {
+    expect checkSize(small()) is Ok(_)
+}
+
+test bigIsRefused {
+    expect checkSize(small() + 8) is Err(_)
+}
+
+private {
+    small() -> int {
+        return 3
+    }
+}
+`,
+	}))
+	code, results := runJSON(t, root)
+	if code != 0 || len(results) != 2 {
+		t.Fatalf("want 2 passing tests and exit 0, got %d: %+v", code, results)
+	}
+}
