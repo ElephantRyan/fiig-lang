@@ -40,10 +40,22 @@ type stringList []string
 func (s *stringList) String() string     { return strings.Join(*s, ",") }
 func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
 
-// test is one test found under tests/.
+// test is one test found under tests/ (test/ in a module).
 type test struct {
 	decl *syntax.TestDecl
 	file string // relative to the package root
+	u    *unit
+}
+
+// unit is one checked package whose tests run: the top-level package, or
+// one of a module's folders (ADR 0105), and what its tests run on.
+type unit struct {
+	files    []*syntax.File
+	paths    []string
+	packages types.Packages
+	universe *types.Universe
+	imports  map[string]map[string]*types.Package
+	groups   map[string]map[string]*types.GroupRef
 }
 
 // Result is one test's outcome, as -json prints it.
@@ -99,8 +111,10 @@ func Run(root string, workspaces []string, factories runtime.FactoryRegistry) in
 
 func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose, jsonOut bool, workspaces []string, factories runtime.FactoryRegistry) int {
 	var packages types.Packages
+	var loaded *loader.Loaded
 	if loader.Wanted(root, workspaces) {
-		loaded, loadErrs := loader.Load(root, workspaces)
+		var loadErrs []error
+		loaded, loadErrs = loader.Load(root, workspaces)
 		if len(loadErrs) > 0 {
 			for _, e := range loadErrs {
 				fmt.Fprintln(os.Stderr, "error:", e)
@@ -120,6 +134,20 @@ func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 2
 	}
+	// In a module, each folder package is checked with its own tests too
+	// (ADR 0105), and its tests run on its own trees.
+	units := []*unit{{files: files, paths: paths, packages: packages}}
+	if loaded != nil {
+		more, checkedPkgs, err := runprogram.CheckModulePackages(root, loaded)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			return 2
+		}
+		diags = append(diags, more...)
+		for _, c := range checkedPkgs {
+			units = append(units, &unit{files: c.Files, paths: c.Paths, packages: c.Packages})
+		}
+	}
 	if len(diags) > 0 {
 		for _, d := range diags {
 			fmt.Fprintln(os.Stderr, d.String())
@@ -128,10 +156,21 @@ func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose
 		return 2
 	}
 
-	tests, sources, err := findTests(root, files, paths, pattern)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		return 2
+	var tests []test
+	sources := map[string][]string{}
+	for _, u := range units {
+		found, src, err := findTests(root, u.files, u.paths, pattern)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			return 2
+		}
+		for _, t := range found {
+			t.u = u
+			tests = append(tests, t)
+		}
+		for k, v := range src {
+			sources[k] = v
+		}
 	}
 	if len(tests) == 0 {
 		if !jsonOut {
@@ -157,25 +196,37 @@ func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose
 	defer base.Close()
 	_, sharedDatabase := base.Lookup(types.DatabaseName)
 
-	universe, _ := types.BuildUniverse(files)
-	imports := runprogram.BuildImports(files, packages)
-	groups := runprogram.BuildGroups(files, packages)
-	program := runprogram.Program{Universe: universe, Imports: imports, Groups: groups, Renames: runprogram.Renames(root)}
-	names := make([]string, len(tests))
-	for i, t := range tests {
-		names[i] = t.decl.Name
-	}
 	// Without -env-file no variable is set: a test reads only what it
 	// fakes, a default, or what -env-file gives (§5).
 	lookup := func(string) (string, bool) { return "", false }
 	if envFile != "" {
 		lookup = env.Lookup
 	}
-	configs := runtime.New(universe, runtime.NewCapabilityRegistry())
-	if problems := configs.LoadTestConfig(runprogram.ReachableConfig(program, names), lookup); len(problems) > 0 {
-		fmt.Fprintln(os.Stderr, "error: config:", strings.Join(problems, "; "))
-		return 2
+	config := map[*syntax.ConfigDecl]runtime.Record{}
+	for _, u := range units {
+		u.universe, _ = types.BuildUniverse(u.files)
+		u.imports = runprogram.BuildImports(u.files, u.packages)
+		u.groups = runprogram.BuildGroups(u.files, u.packages)
+		program := runprogram.Program{Universe: u.universe, Imports: u.imports, Groups: u.groups, Renames: runprogram.Renames(root)}
+		var names []string
+		for _, t := range tests {
+			if t.u == u {
+				names = append(names, t.decl.Name)
+			}
+		}
+		if len(names) == 0 {
+			continue
+		}
+		configs := runtime.New(u.universe, runtime.NewCapabilityRegistry())
+		if problems := configs.LoadTestConfig(runprogram.ReachableConfig(program, names), lookup); len(problems) > 0 {
+			fmt.Fprintln(os.Stderr, "error: config:", strings.Join(problems, "; "))
+			return 2
+		}
+		for k, v := range configs.Config {
+			config[k] = v
+		}
 	}
+	top := units[0]
 
 	// ADR 0096 §6: every test's database has the migrations.
 	migrations, errs := migrate.Collect(root, packages)
@@ -186,8 +237,8 @@ func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose
 		return 2
 	}
 	if sharedDatabase {
-		shared := runtime.New(universe, base) // a driver written in fiig runs on it
-		shared.Imports, shared.Groups, shared.Packages = imports, groups, packages
+		shared := runtime.New(top.universe, base) // a driver written in fiig runs on it
+		shared.Imports, shared.Groups, shared.Packages = top.imports, top.groups, packages
 		if _, problems := migrate.Run(context.Background(), migrations, base, migrate.Apply); len(problems) > 0 {
 			fmt.Fprintln(os.Stderr, "error: migrations:", strings.Join(problems, "; "))
 			return 1
@@ -206,8 +257,8 @@ func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose
 				}
 			}
 		}
-		in := runtime.New(universe, caps)
-		in.Imports, in.Groups, in.Packages, in.Config = imports, groups, packages, configs.Config
+		in := runtime.New(t.u.universe, caps)
+		in.Imports, in.Groups, in.Packages, in.Config = t.u.imports, t.u.groups, t.u.packages, config
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		start := time.Now()

@@ -214,12 +214,16 @@ func check(root string, names, workspaces []string, verb string) (*checked, erro
 		return nil, err
 	}
 	var packages types.Packages
+	modulePath := ""
 	if loader.Wanted(root, workspaces) {
 		loaded, loadErrs := loader.Load(root, workspaces)
 		if len(loadErrs) > 0 {
 			return nil, errors.Join(loadErrs...)
 		}
 		packages = loaded.Packages
+		if len(loaded.Module) > 0 {
+			modulePath = loaded.Manifest.Path
+		}
 	}
 	diags = append(diags, runprogram.Check(root, files, packages)...)
 	if len(diags) > 0 {
@@ -229,7 +233,7 @@ func check(root string, names, workspaces []string, verb string) (*checked, erro
 		return nil, fmt.Errorf("refusing to %s a program with checker diagnostics", verb)
 	}
 	universe, _ := types.BuildUniverse(files) // conflicts already reported by runprogram.Check above
-	served, err := findAdapters(names, files, packages)
+	served, err := findAdapters(names, files, packages, modulePath)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +243,7 @@ func check(root string, names, workspaces []string, verb string) (*checked, erro
 // findAdapters resolves each name `fiig serve` was given (ADR 0079 §6): a
 // bare name in root's own files, a dotted one as a dependency's package
 // path and then its adapter's name.
-func findAdapters(names []string, files []*syntax.File, packages types.Packages) ([]adapter.Served, error) {
+func findAdapters(names []string, files []*syntax.File, packages types.Packages, modulePath string) ([]adapter.Served, error) {
 	var out []adapter.Served
 	seen := map[string]bool{}
 	for _, name := range names {
@@ -249,6 +253,11 @@ func findAdapters(names []string, files []*syntax.File, packages types.Packages)
 		seen[name] = true
 		if path, adapterName, dotted := cutLast(name); dotted {
 			pkg, ok := packages[path]
+			if !ok && modulePath != "" {
+				// ADR 0105: a folder package named relative to its module,
+				// `ratings.api` for t.app.ratings's adapter api.
+				pkg, ok = packages[modulePath+"."+path]
+			}
 			if !ok {
 				return nil, fmt.Errorf("adapter %s: the application doesn't depend on a package %s", name, path)
 			}

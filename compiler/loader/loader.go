@@ -25,6 +25,7 @@ import (
 
 	"fiig-lang/compiler/capability"
 	"fiig-lang/compiler/checker"
+	"fiig-lang/compiler/layout"
 	"fiig-lang/compiler/lockfile"
 	"fiig-lang/compiler/manifest"
 	"fiig-lang/compiler/migration"
@@ -45,8 +46,12 @@ import (
 // the time Load returns successfully (Milestone 6's security exit
 // criterion: "Imported gateways cannot gain undeclared capabilities").
 type Loaded struct {
-	Manifest     *manifest.Manifest
-	Packages     types.Packages
+	Manifest *manifest.Manifest
+	Packages types.Packages
+	// Module is the root module's packages other than its top-level one,
+	// in import order (ADR 0105), each built and checked; empty for a
+	// root in the old layout.
+	Module       []ModulePackage
 	Lockfile     *lockfile.Lockfile
 	Capabilities []string
 }
@@ -90,11 +95,15 @@ func Load(root string, workspaceRoots []string) (*Loaded, []error) {
 		return nil, []error{reservedError(root, rootManifest.Path)}
 	}
 	workspaceRoots = withManifestWorkspaces(root, rootManifest.Workspaces, workspaceRoots)
-	rootFiles, _, err := parsePackageDir(os.DirFS(root), root)
-	if err != nil {
-		return nil, []error{err}
+	rootLayout := layout.IsModule(os.DirFS(root))
+	var rootCapabilities []string
+	if !rootLayout {
+		rootFiles, _, err := parsePackageDir(os.DirFS(root), root)
+		if err != nil {
+			return nil, []error{err}
+		}
+		rootCapabilities = gatewayCapabilities(rootFiles, rootManifest.Dependencies)
 	}
-	rootCapabilities := gatewayCapabilities(rootFiles, rootManifest.Dependencies)
 
 	index, errs := scanBuiltin()
 	if len(errs) > 0 {
@@ -118,7 +127,7 @@ func Load(root string, workspaceRoots []string) (*Loaded, []error) {
 		return nil, errs
 	}
 
-	l := &loaderState{index: index, built: map[reqKey]*types.Package{}, entries: map[reqKey]lockfile.Entry{}, building: map[reqKey]bool{}}
+	l := &loaderState{index: index, built: map[reqKey]*types.Package{}, modules: map[reqKey]types.Packages{}, entries: map[reqKey]lockfile.Entry{}, building: map[reqKey]bool{}}
 	for key := range reqs {
 		if _, errs := l.build(key); len(errs) > 0 {
 			return nil, errs
@@ -128,7 +137,23 @@ func Load(root string, workspaceRoots []string) (*Loaded, []error) {
 	packages := types.Packages{}
 	for depPath, minStr := range rootManifest.Dependencies {
 		minV, _ := semver.Parse(minStr) // already validated by manifest.Validate
-		packages[depPath] = l.built[reqKey{depPath, minV.Major}]
+		for p, pkg := range l.modules[reqKey{depPath, minV.Major}] {
+			packages[p] = pkg
+		}
+	}
+	var module []ModulePackage
+	if rootLayout {
+		// ADR 0105: the root module's folders are packages the loader builds;
+		// its top-level package is the commands' to check, with its tests.
+		b, errs := buildModule(os.DirFS(root), rootManifest.Path, "", packages, rootManifest.Provides, true)
+		if len(errs) > 0 {
+			return nil, errs
+		}
+		for p, pkg := range b.packages {
+			packages[p] = pkg
+		}
+		module = b.ordered
+		rootCapabilities = gatewayCapabilities(b.files, packagePaths(rootManifest.Dependencies, b.packages))
 	}
 
 	entryList := make([]lockfile.Entry, 0, len(l.entries))
@@ -156,6 +181,7 @@ func Load(root string, workspaceRoots []string) (*Loaded, []error) {
 
 	return &Loaded{
 		Manifest:     rootManifest,
+		Module:       module,
 		Packages:     packages,
 		Lockfile:     &lockfile.Lockfile{Dependencies: entryList},
 		Capabilities: sortedKeys(capabilities),
@@ -325,7 +351,7 @@ func Wanted(root string, workspaceRoots []string) bool {
 		return true
 	}
 	m, errs := manifest.Load(root)
-	return len(errs) == 0 && (len(m.Dependencies) > 0 || len(m.Workspaces) > 0)
+	return len(errs) == 0 && (len(m.Dependencies) > 0 || len(m.Workspaces) > 0 || layout.IsModule(os.DirFS(root)))
 }
 
 // withManifestWorkspaces adds the root manifest's workspaces (ADR 0097),
@@ -477,8 +503,11 @@ func validateInstalled(reqs map[reqKey]semver.Version, index map[string][]discov
 // loaderState carries the mutable state one Load call threads through its
 // recursive, memoized package construction.
 type loaderState struct {
-	index    map[string][]discovered
-	built    map[reqKey]*types.Package
+	index map[string][]discovered
+	built map[reqKey]*types.Package
+	// modules is every package of each built module, by path: one for a
+	// module in the old layout, one per src/ folder in ADR 0105's.
+	modules  map[reqKey]types.Packages
 	entries  map[reqKey]lockfile.Entry
 	building map[reqKey]bool
 }
@@ -502,6 +531,21 @@ func (l *loaderState) build(key reqKey) (*types.Package, []error) {
 	cands := filterMajor(l.index[key.path], key.major) // exactly one, per validateInstalled
 	inst := cands[0]
 
+	depPackages := types.Packages{}
+	for depPath, minStr := range inst.manifest.Dependencies {
+		minV, _ := semver.Parse(minStr) // already validated
+		depKey := reqKey{depPath, minV.Major}
+		if _, errs := l.build(depKey); len(errs) > 0 {
+			return nil, errs
+		}
+		for p, pkg := range l.modules[depKey] {
+			depPackages[p] = pkg
+		}
+	}
+	if layout.IsModule(inst.fsys) {
+		return l.buildLayoutModule(key, inst, depPackages)
+	}
+
 	files, hashed, err := parsePackageDir(inst.fsys, inst.dir)
 	if err != nil {
 		return nil, []error{err}
@@ -517,16 +561,6 @@ func (l *loaderState) build(key reqKey) (*types.Package, []error) {
 	// A migration is part of what the lockfile's hash covers (ADR 0096).
 	for _, m := range migrations {
 		hashed[migration.Dir+"/"+m.Name+".sql"] = []byte(m.SQL)
-	}
-
-	depPackages := types.Packages{}
-	for depPath, minStr := range inst.manifest.Dependencies {
-		minV, _ := semver.Parse(minStr) // already validated
-		depPkg, errs := l.build(reqKey{depPath, minV.Major})
-		if len(errs) > 0 {
-			return nil, errs
-		}
-		depPackages[depPath] = depPkg
 	}
 
 	pkg, _ := checker.BuildPackage(files, depPackages)
@@ -548,6 +582,7 @@ func (l *loaderState) build(key reqKey) (*types.Package, []error) {
 	pkg.Provides = inst.manifest.Provides
 	pkg.Migrations = migrations
 	l.built[key] = pkg
+	l.modules[key] = types.Packages{key.path: pkg}
 	l.entries[key] = lockfile.Entry{
 		Path:         key.path,
 		Version:      inst.manifest.Version,
@@ -628,6 +663,53 @@ func boolKeys[V any](m map[string]V) map[string]bool {
 	out := make(map[string]bool, len(m))
 	for k := range m {
 		out[k] = true
+	}
+	return out
+}
+
+// buildLayoutModule builds a dependency in ADR 0105's layout: every package
+// under its src/, its migrations, and its lockfile entry.
+func (l *loaderState) buildLayoutModule(key reqKey, inst discovered, deps types.Packages) (*types.Package, []error) {
+	where := filepath.ToSlash(inst.dir)
+	b, errs := buildModule(inst.fsys, key.path, where, deps, inst.manifest.Provides, false)
+	if len(errs) > 0 {
+		return nil, errs
+	}
+	migrations, migrationErrs := migration.Read(inst.fsys)
+	if len(migrationErrs) > 0 {
+		errs := make([]error, len(migrationErrs))
+		for i, e := range migrationErrs {
+			errs[i] = fmt.Errorf("package %s (%s): %v", key.path, where, e)
+		}
+		return nil, errs
+	}
+	for _, m := range migrations {
+		b.hashed[migration.Dir+"/"+m.Name+".sql"] = []byte(m.SQL)
+	}
+	root := b.packages[key.path]
+	root.Migrations = migrations
+	l.built[key] = root
+	l.modules[key] = b.packages
+	l.entries[key] = lockfile.Entry{
+		Path:         key.path,
+		Version:      inst.manifest.Version,
+		Hash:         lockfile.HashFiles(b.hashed),
+		Source:       where,
+		Capabilities: gatewayCapabilities(b.files, packagePaths(inst.manifest.Dependencies, b.packages)),
+		Origin:       inst.manifest.Origin,
+	}
+	return root, nil
+}
+
+// packagePaths is deps' paths and every path in pkgs, for
+// gatewayCapabilities to tell a package import from a group import.
+func packagePaths(deps map[string]string, pkgs types.Packages) map[string]string {
+	out := map[string]string{}
+	for k, v := range deps {
+		out[k] = v
+	}
+	for k := range pkgs {
+		out[k] = ""
 	}
 	return out
 }
