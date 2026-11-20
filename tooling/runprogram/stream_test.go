@@ -91,11 +91,11 @@ const (
 // streamRunnerOf is streamRunner over program, a variant of streamProgram.
 func streamRunnerOf(t *testing.T, redis *fakeRedis, program map[string]string) *adapter.StreamRunner {
 	t.Helper()
-	return streamRunnerWith(t, redis, program, testRetryAfter)
+	return streamRunnerWith(t, redis, program, testRetryAfter, "OrderIntake")
 }
 
 // streamRunnerWith is streamRunnerOf with REDIS_STREAM_RETRY_AFTER_MS.
-func streamRunnerWith(t *testing.T, redis *fakeRedis, program map[string]string, retryAfter string) *adapter.StreamRunner {
+func streamRunnerWith(t *testing.T, redis *fakeRedis, program map[string]string, retryAfter, adapterName string) *adapter.StreamRunner {
 	t.Helper()
 	root := t.TempDir()
 	for name, src := range fixture.Module(program) {
@@ -128,7 +128,7 @@ func streamRunnerWith(t *testing.T, redis *fakeRedis, program map[string]string,
 	in.Imports = BuildImports(files, loaded.Packages)
 	in.Groups = BuildGroups(files, loaded.Packages)
 	in.Packages = loaded.Packages
-	d, _ := u.Lookup("OrderIntake")
+	d, _ := u.Lookup(adapterName)
 	runners, err := adapter.StreamRunners([]adapter.Served{{Decl: d.(*syntax.AdapterDecl)}}, u, in, "test-1", testElementTimeout)
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +137,7 @@ func streamRunnerWith(t *testing.T, redis *fakeRedis, program map[string]string,
 	reach := Program{Universe: u, Imports: in.Imports, Groups: in.Groups}
 	env := map[string]string{"REDIS_URL": redis.url(), "REDIS_STREAM_RETRY_AFTER_MS": retryAfter}
 	lookup := func(name string) (string, bool) { v, ok := env[name]; return v, ok }
-	sources := ReachableConfigFrom(reach, []Entry{{Name: "OrderIntake"}, {Package: pkg, Name: group}})
+	sources := ReachableConfigFrom(reach, []Entry{{Name: adapterName}, {Package: pkg, Name: group}})
 	if problems := in.LoadConfig(sources, lookup); len(problems) > 0 {
 		t.Fatal(problems)
 	}
@@ -222,9 +222,49 @@ func TestStreamBatchFitsTheRedeliveryDelay(t *testing.T) {
 		t.Errorf("XREADGROUP asked for %d entries, want 2 (1000 ms / 500 ms an element)", n)
 	}
 	var halt *adapter.Halt
-	err := streamRunnerWith(t, redis, streamProgram, "400").Run(context.Background())
+	err := streamRunnerWith(t, redis, streamProgram, "400", "OrderIntake").Run(context.Background())
 	if !errors.As(err, &halt) || !strings.Contains(halt.Reason, "REDIS_STREAM_RETRY_AFTER_MS is 400") {
 		t.Errorf("a 400 ms delay with 500 ms elements: %v", err)
+	}
+}
+
+// Item 6 of the review: a payload that isn't UTF-8 is dead-lettered as it
+// is, through Redis.sendBytes, rather than failing and coming back forever.
+func TestStreamDeadLettersBinaryPayloads(t *testing.T) {
+	redis := startFakeRedis(t, "pw")
+	raw := string([]byte{0xff, 0xfe, 0x00, 'x'})
+	id := redis.add("raw", "payload", raw)
+	program := map[string]string{}
+	for name, src := range streamProgram {
+		program[name] = src
+	}
+	program["take_raw.fiig"] = `workflow takeRaw(payload: bytes) -> Result<None, OrderError> {
+    return Err(OrderError.Invalid(reason: "unreadable"))
+}`
+	program["raw_intake.fiig"] = `adapter stream RawIntake {
+    source "raw" group "raw" from earliest -> takeRaw(payload: bytes) {
+        Ok(_) -> ack
+        Err(_) -> deadLetter "raw.failed"
+    }
+}`
+	runner := streamRunnerWith(t, redis, program, testRetryAfter, "RawIntake")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+	deadline := time.Now().Add(4 * time.Second)
+	for len(redis.payloads("raw.failed")) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if got := redis.payloads("raw.failed"); len(got) != 1 || got[0] != raw {
+		t.Errorf("raw.failed = %q, want [%q]", got, raw)
+	}
+	if n := redis.pending("raw", "raw"); n != 0 {
+		t.Errorf("%d left pending; %s should be acked once moved", n, id)
 	}
 }
 

@@ -71,6 +71,21 @@ The gateway is `send`, as `HttpClient.send` is (ADR 0074), because
 Arguments are strings. A binary value (an image, a compressed blob)
 would need a `bytes` form; nothing in the corpus asks for one yet.
 
+### 1a. `Redis.sendBytes`, for values that aren't text
+
+*(Added 2026-11-20, the owner's decision on review item 6: dead-lettering
+a stream payload that isn't UTF-8 failed, and the entry came back
+forever.)*
+
+```fiig
+gateway sendBytes(args: List<bytes>) -> Result<RespValue, RedisError>
+```
+
+`send` with every argument as bytes, since Redis strings are
+binary-safe. ADR 0111's dead-lettering uses it, so any payload moves as it
+arrived. The two gateways repeat one body, because a gateway can't call
+another.
+
 ### 2. Where the server is: `REDIS_URL`
 
 ```fiig
@@ -123,7 +138,7 @@ user, Redis 6 ACLs), `SELECT`, RESP2 replies.
 
 Out: pipelining, `MULTI`/`EXEC` across calls, pub/sub (a connection that
 carries a session, ADR 0109 §7), RESP3, Sentinel, Cluster redirects
-(`MOVED`, `ASK`), and `bytes` arguments.
+(`MOVED`, `ASK`). *(`bytes` arguments were out too, until §1a.)*
 
 ## Alternatives considered
 
