@@ -1624,6 +1624,18 @@ func (p *Parser) parsePrimary() syntax.Expr {
 		return p.parseConcurrentExpr()
 	case lexer.KwRetry:
 		return p.parseRetryExpr()
+	case lexer.KwIf, lexer.KwMatch:
+		// `x = if a > b { a } else { b }`, a habit from Kotlin and Rust:
+		// say once that it isn't a value, then parse it as the statement it
+		// is, so its braces don't turn the rest of the file into errors.
+		if p.at(lexer.KwIf) {
+			p.errorf(start, "`if` is a statement, not a value; assign or return in each branch (for the larger or smaller of two numbers, use math.max or math.min)")
+			p.parseIfStmt()
+		} else {
+			p.errorf(start, "`match` is a statement, not a value; assign or return in each arm, or make the match the last statement of the body")
+			p.parseMatchStmt()
+		}
+		return &syntax.Ident{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: syntax.ErrorName}
 	default:
 		p.errorf(start, "expected an expression, got %s", p.cur().Kind)
 		p.advance()

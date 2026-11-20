@@ -102,6 +102,21 @@ func isNumeric(t types.Type) bool {
 	return ok && (p.Name == "int" || p.Name == "float" || p.Name == "decimal")
 }
 
+// interpolated is e as it would sit inside an interpolated string: a
+// string literal's own text, anything else as `${e}`.
+func interpolated(e syntax.Expr) string {
+	if lit, ok := e.(*syntax.StringLit); ok {
+		text := format.Expr(lit)
+		return text[1 : len(text)-1]
+	}
+	return "${" + format.Expr(e) + "}"
+}
+
+func isString(t types.Type) bool {
+	p, ok := t.(types.Primitive)
+	return ok && p.Name == "string"
+}
+
 // constantScale is the scale a constant lands with as a decimal (ADR 0064
 // §7): a literal's, through any parentheses or `-`, or -1 for a computed
 // constant, which takes the smallest scale that holds it exactly.
@@ -160,6 +175,11 @@ func (c *checker) arithmetic(e *syntax.BinaryExpr, lt, rt types.Type) types.Type
 			side = e.Right
 		}
 		start, _ := side.(syntax.Spanned).Bounds()
+		if e.Op == syntax.OpAdd && (isString(lt) || isString(rt)) {
+			// A habit from languages where `+` joins strings.
+			c.report(e.Start, "A1", "`+` doesn't join strings; interpolate instead: \"%s%s\"", interpolated(e.Left), interpolated(e.Right))
+			return types.Unknown{}
+		}
 		c.report(start, "A1", "type mismatch: got %s, expected int, float, or decimal", t)
 		return types.Unknown{}
 	}
