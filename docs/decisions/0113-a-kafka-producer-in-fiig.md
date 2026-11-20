@@ -1,0 +1,165 @@
+# ADR 0113: A Kafka Producer in fiig, At Least Once
+
+Status: Proposed (2026-11-20); §2 implemented
+Date: 2026-11-20
+Related: ADR 0042 (the socket floor), ADR 0058 (binary patterns), ADR
+0060 (Socket), ADR 0063 (int overflow faults), ADR 0071 (config), ADR
+0075 (the crypto group), ADR 0109 (connections kept between calls, and
+its open question 2), ADR 0110 (`fiig.redis`, the client this follows).
+
+## Context
+
+Kafka is the next protocol on ADR 0042's list, and the one most asked for
+in service work. A consumer needs group membership held on a connection
+across calls, which waits on ADR 0109's open question 2. A producer
+doesn't: each produce is a request and a response, which ADR 0109's kept
+connections already serve.
+
+What a producer needs that fiig lacks:
+
+- **CRC-32C.** A record batch carries a CRC-32C (Castagnoli) of
+  everything after the field. Computing it in fiig is possible but a
+  table-driven checksum over every byte sent, in a tree-walking
+  interpreter, is the hot path of the whole producer.
+- **Producer state between calls.** Every client since Kafka 3.0 enables
+  idempotence by default: the broker hands the producer an id, and the
+  producer numbers each partition's batches so the broker drops a
+  duplicate. That id and those sequence numbers have to outlive a call,
+  and fiig has nowhere to keep them (ADR 0109 open question 2). So does a
+  cache of which broker leads each partition.
+
+| Client | Language | Idempotent by default | Partitioner for a keyed record |
+| --- | --- | --- | --- |
+| Java client | Java | yes (3.0+) | murmur2 of the key |
+| librdkafka | C | yes (2.x) | `consistent_random` (CRC32), murmur2 configurable |
+| franz-go | Go | yes | murmur2, matching Java |
+| kafka-python | Python | no | murmur2 |
+| brod | Erlang | no | its own hash unless set |
+
+## Decision
+
+### 1. `fiig.kafka`: one gateway, at least once
+
+```fiig
+capability Kafka {
+    gateway send(topic: string, records: List<KafkaRecord>) -> Result<List<Sent>, KafkaError>
+        requires Socket
+}
+
+model KafkaRecord {
+    key: bytes | None
+    value: bytes
+    headers: List<KafkaHeader> | None
+}
+```
+
+`send` writes the records to `topic` and returns each one's partition and
+offset, in the order given, once every partition leader has acknowledged
+them with `acks=all`.
+
+**It is at least once, and the ADR says so plainly.** There is no
+idempotence and no transactions. If a reply is lost after the broker
+wrote the batch, `send` returns `Err` and a caller that sends again writes
+the records twice. A consumer that must not act twice keys its work by
+something in the record. Idempotence needs a producer id and per-partition
+sequence numbers that outlive one call, which is ADR 0109's open question
+2; this producer should gain it when that is decided, not invent a store
+for it here.
+
+`send` doesn't retry. Every error comes back, with `retriable` set as
+Kafka's protocol marks the code, and the caller decides, as with
+`fiig.http` (ADR 0074 §9).
+
+### 2. CRC-32C is a primitive: `crypto.crc32c(data) -> int`
+
+It joins the crypto group beside `sha256`, as an unsigned 32-bit value in
+an `int`. It is a checksum, not a cryptographic hash, and its comment says
+so. ADR 0042 admits a primitive only when fiig can't express it; this one
+fiig can express, and it is admitted for speed, the first primitive to
+be. The test is the one ADR 0042 would apply to any later case: the
+function is fixed by a standard, has no options, and runs over every
+byte a protocol sends.
+
+### 3. Partitions: Java's, so keys land where other producers put them
+
+- **A keyed record** goes to `murmur2(key) & 0x7fffffff` modulo the
+  partition count, as the Java client, franz-go, and kafka-python do. A
+  Java service and a fiig service writing the same key reach the same
+  partition, so the key's ordering holds across them. murmur2 is written
+  in fiig over 32-bit arithmetic that can't overflow (ADR 0063): XOR via
+  `bytes.xor`, shifts via division, and multiplication split in halves.
+- **Records without a key**, in one call, all go to one partition, chosen
+  from the clock: one batch, as the Java client's sticky partitioner does.
+
+### 4. Each call reads the metadata
+
+`send` asks a bootstrap broker for the topic's partitions and their
+leaders (Metadata v4), then sends each leader its partitions' batches
+(Produce v8). Without state between calls there is no metadata cache, so
+every call pays one round trip more than a Java producer, over a kept
+connection (ADR 0109). A new connection is first checked with ApiVersions,
+so an old broker is `Err(Unsupported)`, not a closed socket. Kafka allows
+requests to be pipelined, and the check is read-only, so it goes in the
+same write as the request; unlike Redis's `SELECT` (ADR 0110), nothing
+is changed if it fails.
+
+`allow_auto_topic_creation` is false: a misspelled topic is
+`Err(UnknownTopic)`, not a new topic.
+
+### 5. Record batches carry their compression bits
+
+A batch is Kafka's v2 format (magic 2). Its attributes field holds the
+codec in bits 0-2 (`none`, `gzip`, `snappy`, `lz4`, `zstd`), and the
+encoder takes a `Compression` value, so adding codecs changes one
+conversion. This version sends `None` only; snappy and lz4 are the next
+ADR, gzip and zstd after.
+
+### 6. Configuration
+
+```fiig
+config KafkaServer {
+    bootstrap: string from env "KAFKA_BOOTSTRAP"            // host:port[,host:port...]
+    tls: bool from env "KAFKA_TLS" = false
+    clientId: string from env "KAFKA_CLIENT_ID" = "fiig"
+    timeoutMillis: int from env "KAFKA_TIMEOUT_MS" = 30000
+}
+```
+
+`timeoutMillis` bounds a whole `send` and is the produce request's
+`timeout_ms`.
+
+### 7. Scope
+
+In: Produce to any number of partitions in one call, keys, headers,
+PLAINTEXT and TLS.
+
+Out: idempotence and transactions (§1), SASL (PLAIN, SCRAM, OAUTHBEARER),
+compression (§5), a metadata cache, retries, and flexible request
+versions (Kafka 2.4's tagged fields), which a future broker that drops the
+old versions will need.
+
+## Alternatives considered
+
+- **Idempotence with state in the program**, such as a producer id kept
+  in a database row. It would make every send a database write, and the
+  sequence numbers are per partition per broker session.
+- **A Go producer** (franz-go) behind a capability: fast to build, and
+  what ADR 0042 exists to prevent.
+- **CRC-32C in fiig.** Expressible, and slow on the producer's hottest
+  path. §2 states the speed test that let it in.
+- **librdkafka's `consistent_random`** partitioner: matches only other
+  librdkafka clients, not the Java ecosystem most Kafka shops run.
+
+## Consequences
+
+- `crypto.crc32c` in `compiler/types/crypto.go` and `compiler/runtime`.
+- New built-in package `fiig.kafka`.
+- `docs/known-limitations.md` names the at-least-once guarantee.
+
+## Open questions
+
+1. **Idempotence** and a metadata cache, after ADR 0109's open question 2.
+2. **SASL**, which most hosted Kafka needs: SCRAM can reuse
+   `crypto.pbkdf2Sha256` (ADR 0085), PLAIN is a handshake.
+3. **Flexible versions**, before a broker that drops the non-flexible
+   ones ships.
