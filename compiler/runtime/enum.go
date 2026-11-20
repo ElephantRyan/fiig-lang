@@ -111,6 +111,13 @@ func (in *Interp) declScope(d syntax.Decl) scope {
 		if p.Universe != nil && p.Universe.Decls[name] == d {
 			return packageScope(p), true
 		}
+		// A private member of a dependency runs in its file's scope, with
+		// its package's imports.
+		if p.Universe != nil && p.Universe.IsPrivate(d) {
+			sc := packageScope(p)
+			sc.universe = p.Universe.ScopeOf(d)
+			return sc, true
+		}
 		for _, dep := range p.Dependencies {
 			if sc, ok := walk(dep); ok {
 				return sc, true

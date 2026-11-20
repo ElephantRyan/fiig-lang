@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"fiig-lang/compiler/checker"
+	"fiig-lang/compiler/syntax"
+	"fiig-lang/compiler/types"
 )
 
 // ADR 0054: private helpers and models run in their file's scope, and
@@ -136,5 +140,51 @@ private {
 	}
 	if want := (EnumValue{TypeName: "Result", Variant: "Ok", Fields: []Value{Str("Dune")}}); !strings.Contains(fmt.Sprint(v), "Dune") {
 		t.Fatalf("titleOf = %v, want an Ok holding %v", v, want)
+	}
+}
+
+// G49, second half: the private models belong to a dependency, not to the
+// package the run starts in.
+func TestJSONDecodesNestedPrivateModelsOfADependency(t *testing.T) {
+	libFile := mustParseFile(t, `conversion titleOf(body: bytes) -> Result<string, JsonError> {
+    item: Item = json.decode(body)?
+    return Ok(item.media.title)
+}
+
+private {
+    model Item {
+        media: Media
+    }
+
+    model Media {
+        title: string
+    }
+}
+`)
+	if diags := checker.Check([]*syntax.File{libFile}, nil); len(diags) > 0 {
+		t.Fatalf("checker: %+v", diags)
+	}
+	lib := buildTestPackage(t, []*syntax.File{libFile}, nil)
+	rootFile := mustParseFile(t, `use lib.books as books
+
+rule read(body: bytes) -> Result<string, JsonError> {
+    return books.titleOf(body)
+}
+`)
+	packages := types.Packages{"lib.books": lib}
+	universe, conflicts := types.BuildUniverse([]*syntax.File{rootFile})
+	if len(conflicts) > 0 {
+		t.Fatalf("unexpected conflicts: %+v", conflicts)
+	}
+	in := New(universe, NewCapabilityRegistry())
+	in.Imports = map[string]map[string]*types.Package{"read": checker.ResolveFileImports(rootFile, packages)}
+
+	body := Bytes{B: []byte(`{"media": {"title": "Dune"}}`)}
+	v, fault := in.Call(context.Background(), "read", map[string]Value{"body": body})
+	if fault != nil {
+		t.Fatalf("Call: %v", fault)
+	}
+	if !strings.Contains(fmt.Sprint(v), "Dune") {
+		t.Fatalf("read = %v, want an Ok holding Dune", v)
 	}
 }
