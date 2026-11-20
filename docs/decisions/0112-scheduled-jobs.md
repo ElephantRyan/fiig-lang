@@ -120,7 +120,10 @@ runtime claims each firing before running it, and runs it only on `true`.
 Since every replica computes the same firing times (§1), the key needs no
 leader election and no heartbeat, and a replica whose clock runs a little
 late simply loses the claim. `holdMillis` is the time to the next firing,
-so the claim outlives the run and then expires.
+so the claim outlives the run and then expires, and never less than a
+minute *(added after review, 2026-11-20)*: an `every "2s"` claim held 2 s
+would let a replica whose clock runs 3 s late claim a firing that already
+ran.
 
 The capabilities file binds it, and **a schedule adapter with no lock
 bound doesn't start**:

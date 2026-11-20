@@ -16,7 +16,10 @@ import (
 // the route's workflow with the next firing as its deadline, and logs an
 // Err the mapping sends to done, or halts.
 
-const lockTimeout = 10 * time.Second
+const (
+	lockTimeout  = 10 * time.Second
+	minClaimHold = time.Minute
+)
 
 // ScheduleRunner runs one schedule route.
 type ScheduleRunner struct {
@@ -134,7 +137,11 @@ func (r *ScheduleRunner) fire(ctx context.Context, fire time.Time) *Halt {
 	after := r.sched.Next(fire)
 	element := "the firing at " + fire.UTC().Format(time.RFC3339)
 	lctx, cancel := context.WithTimeout(r.enter(ctx), lockTimeout)
-	claimed, failure, fault := r.lock.Claim(lctx, r.name, fire.UnixMilli(), r.holder, after.Sub(fire).Milliseconds())
+	// Held to the next firing, and never less than a minute, so a replica
+	// whose clock runs late by less than that can't claim a firing that
+	// has already run once its claim expired (ADR 0112 §4).
+	hold := max(after.Sub(fire), minClaimHold)
+	claimed, failure, fault := r.lock.Claim(lctx, r.name, fire.UnixMilli(), r.holder, hold.Milliseconds())
 	cancel()
 	if fault != nil {
 		return &Halt{Route: r.name, Element: element, Reason: "claiming it faulted: " + fault.Message}

@@ -125,6 +125,18 @@ func (c *fakeClock) Wait(ctx context.Context, d time.Duration) bool {
 // with lock bound as ScheduleLock and the given holder.
 func scheduleRunner(t *testing.T, redis *fakeRedis, lock map[string]any, adapterName, holder string) *adapter.ScheduleRunner {
 	t.Helper()
+	factory := runtime.FactoryRegistry{"lock": runtime.LockFactory, "local": runtime.LocalLockFactory}[lock["type"].(string)]
+	p, err := factory(lock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return scheduleRunnerWithLock(t, redis, p, adapterName, holder)
+}
+
+// scheduleRunnerWithLock is scheduleRunner with a lock provider built
+// already, such as a test's own.
+func scheduleRunnerWithLock(t *testing.T, redis *fakeRedis, p runtime.CapabilityProvider, adapterName, holder string) *adapter.ScheduleRunner {
+	t.Helper()
 	root := t.TempDir()
 	for name, src := range fixture.Module(scheduleProgram) {
 		os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
@@ -145,11 +157,6 @@ func scheduleRunner(t *testing.T, redis *fakeRedis, lock map[string]any, adapter
 	}
 	u, _ := types.BuildUniverse(files)
 	caps := runtime.NewCapabilityRegistry()
-	factory := runtime.FactoryRegistry{"lock": runtime.LockFactory, "local": runtime.LocalLockFactory}[lock["type"].(string)]
-	p, err := factory(lock)
-	if err != nil {
-		t.Fatal(err)
-	}
 	caps.Register(runtime.ScheduleLockCapability, p)
 	RegisterDefaults(caps)
 	t.Cleanup(caps.Close)
@@ -265,6 +272,41 @@ func TestScheduleFaultSkipsTheFiring(t *testing.T) {
 	}
 	if got := logs.all(); strings.Count(got, "faulted, so it was skipped") != 2 {
 		t.Errorf("logs = %q", got)
+	}
+}
+
+// recordingLock claims every firing and remembers how long each was held.
+type recordingLock struct {
+	mu    sync.Mutex
+	holds []int64
+}
+
+func (l *recordingLock) Call(context.Context, string, []runtime.Value) (runtime.Value, *runtime.Fault) {
+	return nil, nil
+}
+
+func (l *recordingLock) Claim(_ context.Context, _ string, _ int64, _ string, holdMillis int64) (bool, error, *runtime.Fault) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.holds = append(l.holds, holdMillis)
+	return true, nil, nil
+}
+
+func (l *recordingLock) Describe() string { return "a test" }
+
+// Review (ADR 0112 §4): a claim is held to the next firing but never less
+// than a minute, so an every "1s" job's claims don't expire while a
+// replica with a late clock could still claim them.
+func TestScheduleClaimsAreHeldAMinute(t *testing.T) {
+	redis := startFakeRedis(t, "pw")
+	lock := &recordingLock{}
+	clock := &fakeClock{now: time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC), stops: 1}
+	r := on(scheduleRunnerWithLock(t, redis, lock, "Spinner", "only"), clock, &logLines{})
+	if err := r.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(lock.holds) != 1 || lock.holds[0] != 60000 {
+		t.Errorf("holds = %v, want [60000]", lock.holds)
 	}
 }
 
