@@ -175,8 +175,9 @@ activity validateNewCustomer(input: NewCustomer) -> Result<NewCustomer, Customer
 // GATEWAY — the only declaration that touches a capability, and exactly one
 // (ADR 0010). `idempotent` is optional and follows the capability name.
 // A gateway may not call another gateway (ADR 0031). A query's row type
-// comes from context, and its columns fill the model by name; the SQL
-// text is a literal, values are bound after it (ADR 0082).          [built]
+// comes from context, and its columns fill the model by name, ignoring
+// case and underscores, so `created_at` fills `createdAt` (ADR 0094); the
+// SQL text is a literal, values are bound after it (ADR 0082).      [built]
 gateway getCustomer(id: string) -> Result<Customer, CustomerError>
     requires Database
     idempotent

@@ -280,6 +280,17 @@ func (c *checker) rowRefusal(t types.Type) string {
 					return "field " + f.Name + " is " + ft.String()
 				}
 			}
+			// ADR 0094 §3: a column matches a field ignoring case and
+			// underscores, so two fields that agree that way would read
+			// the same column.
+			byKey := map[string]string{}
+			for _, f := range model.AllFields() {
+				key := syntax.ColumnKey(f.Name)
+				if other, taken := byKey[key]; taken {
+					return "fields " + other + " and " + f.Name + " would read the same column, since a column matches a field ignoring case and underscores (ADR 0094 §3)"
+				}
+				byKey[key] = f.Name
+			}
 			return ""
 		}
 	}

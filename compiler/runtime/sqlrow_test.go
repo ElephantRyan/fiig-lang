@@ -7,8 +7,9 @@ import (
 	"fiig-lang/compiler/types"
 )
 
-// ADR 0082 §6-§7: a query's rows read into the row type by exact column
-// name, each value by its field's type.
+// ADR 0082 §6-§7 and ADR 0094: a query's rows read into the row type by
+// column name, ignoring case and underscores, each value by its field's
+// type.
 
 func rowUniverse(t *testing.T) (*types.Universe, types.Type) {
 	t.Helper()
@@ -96,7 +97,7 @@ func TestReadRowRefusals(t *testing.T) {
 	}
 }
 
-func TestReadRowMatchesColumnsExactly(t *testing.T) {
+func TestReadRowChecksColumnsBothWays(t *testing.T) {
 	u, parcel := rowUniverse(t)
 	missing := parcelRow()
 	delete(missing.Fields, "label")
@@ -118,5 +119,40 @@ func TestReadRowOneColumn(t *testing.T) {
 	_, err = readRow(Record{Fields: map[string]Value{"a": Int(1), "b": Int(2)}}, types.Primitive{Name: "int"}, nil)
 	if err == nil || !strings.Contains(err.Error(), "returns 2 columns") {
 		t.Fatalf("err = %v, want two columns refused", err)
+	}
+}
+
+// ADR 0094: snake_case, upper case, and Postgres's folded aliases fill a
+// camelCase field; an exact name wins; two columns for one field fault.
+func TestReadRowMatchesIgnoringCaseAndUnderscores(t *testing.T) {
+	u := universeFromSource(t, `model Rating {
+    userId: string
+    createdAt: int
+    score: int
+}`)
+	d, _ := u.Lookup("Rating")
+	rating := types.Named{Name: "Rating", Decl: d}
+	for _, cols := range [][3]string{
+		{"user_id", "created_at", "score"},
+		{"USER_ID", "CREATED_AT", "SCORE"},
+		{"userid", "createdat", "score"},
+		{"userId", "createdAt", "score"},
+	} {
+		row := Record{Fields: map[string]Value{cols[0]: Str("u1"), cols[1]: Int(7), cols[2]: Int(9)}}
+		v, err := readRow(row, rating, universeFields(u))
+		if err != nil {
+			t.Fatalf("%v: %v", cols, err)
+		}
+		if got := v.(Record).Fields["userId"]; got != Value(Str("u1")) {
+			t.Errorf("%v: userId = %v", cols, got)
+		}
+	}
+	both := Record{Fields: map[string]Value{"user_id": Str("a"), "userid": Str("b"), "created_at": Int(1), "score": Int(1)}}
+	if _, err := readRow(both, rating, universeFields(u)); err == nil || !strings.Contains(err.Error(), `columns "user_id" and "userid" both fill Rating.userId`) {
+		t.Errorf("err = %v, want two columns for one field", err)
+	}
+	missing := Record{Fields: map[string]Value{"user_id": Str("a"), "score": Int(1)}}
+	if _, err := readRow(missing, rating, universeFields(u)); err == nil || !strings.Contains(err.Error(), "Rating.createdAt has no column (looked for createdAt or created_at)") {
+		t.Errorf("err = %v, want the spellings looked for", err)
 	}
 }

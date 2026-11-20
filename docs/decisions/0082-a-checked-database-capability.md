@@ -191,6 +191,10 @@ union is Q3, since one column holds one value.
 
 ### 6. Columns are matched to fields by exact name, and SQL renames
 
+*Amended by ADR 0094: a column matches a field ignoring case and
+underscores, so `user_id` fills `userId` with no `AS`, and Postgres's
+folded aliases match. The checks both ways below still apply.*
+
 Each field reads the column with its name, compared exactly. A column
 named differently is renamed in the query, with `AS`:
 

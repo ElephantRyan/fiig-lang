@@ -66,8 +66,8 @@ func (in *Interp) readQuery(op string, got Value, into types.Type) (Value, *Faul
 }
 
 // readRow fills t from one row. A model reads each field from the column
-// of its name, and the match is exact both ways (§6); any other t is a
-// one-column row.
+// whose name matches it (§6, ADR 0094), and the match is checked both
+// ways; any other t is a one-column row.
 func readRow(row Record, t types.Type, u fieldTypes) (Value, error) {
 	if named, ok := t.(types.Named); ok {
 		if decl, ok := named.Decl.(*syntax.ModelDecl); ok {
@@ -83,35 +83,79 @@ func readRow(row Record, t types.Type, u fieldTypes) (Value, error) {
 	return nil, nil
 }
 
+// readModelRow matches each column to a field: the field of its exact
+// name, or else the one whose name matches ignoring case and underscores
+// (ADR 0094 §1), so user_id, USER_ID, and Postgres's folded userid all
+// fill userId. Two columns for one field, a column for no field, and a
+// field with no column each fault (§2).
 func readModelRow(row Record, decl *syntax.ModelDecl, u fieldTypes) (Value, error) {
 	all := decl.AllFields()
+	exact := make(map[string]bool, len(all))
+	byKey := make(map[string]string, len(all))
+	for _, f := range all {
+		exact[f.Name] = true
+		byKey[syntax.ColumnKey(f.Name)] = f.Name
+	}
+	cols := make([]string, 0, len(row.Fields))
+	for col := range row.Fields {
+		cols = append(cols, col)
+	}
+	sort.Strings(cols)
+	columnOf := make(map[string]string, len(all))
+	var extra []string
+	for _, col := range cols {
+		field, ok := col, exact[col]
+		if !ok {
+			field, ok = byKey[syntax.ColumnKey(col)]
+		}
+		if !ok {
+			extra = append(extra, strconv.Quote(col))
+			continue
+		}
+		if other, taken := columnOf[field]; taken {
+			return nil, fmt.Errorf("columns %q and %q both fill %s.%s; select one of them (ADR 0094 §2)", other, col, decl.Name, field)
+		}
+		columnOf[field] = col
+	}
+	if len(extra) > 0 {
+		return nil, fmt.Errorf("column %s has no field in %s; select only the columns %s reads", strings.Join(extra, ", "), decl.Name, decl.Name)
+	}
 	fields := make(map[string]Value, len(all))
 	for _, f := range all {
-		v, present := row.Fields[f.Name]
+		col, present := columnOf[f.Name]
 		if !present {
-			return nil, fmt.Errorf("%s.%s has no column; the query returns %s (rename one with AS)", decl.Name, f.Name, columnList(row))
+			return nil, fmt.Errorf("%s.%s has no column (looked for %s); the query returns %s", decl.Name, f.Name, lookedFor(f.Name), columnList(row))
 		}
 		ft, ok := u(decl, f.Type)
 		if !ok {
 			return nil, fmt.Errorf("%s.%s has a type that doesn't resolve", decl.Name, f.Name)
 		}
-		read, err := readColumn(f.Name, v, ft, decl.Name+"."+f.Name)
+		read, err := readColumn(col, row.Fields[col], ft, decl.Name+"."+f.Name)
 		if err != nil {
 			return nil, err
 		}
 		fields[f.Name] = read
 	}
-	if len(row.Fields) > len(all) {
-		var extra []string
-		for col := range row.Fields {
-			if _, ok := fields[col]; !ok {
-				extra = append(extra, strconv.Quote(col))
-			}
-		}
-		sort.Strings(extra)
-		return nil, fmt.Errorf("column %s has no field in %s; select only the columns %s reads", strings.Join(extra, ", "), decl.Name, decl.Name)
-	}
 	return Record{TypeName: decl.Name, Fields: fields, Decl: decl}, nil
+}
+
+// lookedFor is a field's name and its snake_case spelling, the two a
+// reader is likeliest to have meant: "userId or user_id".
+func lookedFor(field string) string {
+	var snake strings.Builder
+	for i, r := range field {
+		if r >= 'A' && r <= 'Z' {
+			if i > 0 {
+				snake.WriteByte('_')
+			}
+			r += 'a' - 'A'
+		}
+		snake.WriteRune(r)
+	}
+	if snake.String() == field {
+		return field
+	}
+	return field + " or " + snake.String()
 }
 
 // readColumn reads one stored value as t, by §7's table; what names the
