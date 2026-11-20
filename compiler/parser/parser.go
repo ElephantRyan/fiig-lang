@@ -493,19 +493,24 @@ func (p *Parser) parseModelDecl() *syntax.ModelDecl {
 	return &syntax.ModelDecl{Span: syntax.Span{Start: start, End: end}, Name: name.Text, Fields: fields}
 }
 
-// parseConfigDecl parses `config Name { name: Type from env "NAME" = default }`
-// (ADR 0071 §1). `from` and `env` are contextual here only, as they are in a
-// route argument.
+// parseConfigDecl parses `config Name [when condition] { name: Type from env
+// "NAME" = default }` (ADR 0071 §1, ADR 0122). `from`, `env` and `when` are
+// contextual here only, as `from` and `env` are in a route argument.
 func (p *Parser) parseConfigDecl() *syntax.ConfigDecl {
 	start := p.advance().Start // 'config'
 	name := p.expectName()
+	var when syntax.Expr
+	if p.atContextual("when") {
+		p.advance()
+		when = p.parseExpression()
+	}
 	p.expect(lexer.LBrace)
 	var fields []syntax.ConfigField
 	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
 		p.guardProgress(func() { fields = append(fields, p.parseConfigField()) })
 	}
 	end := p.expect(lexer.RBrace).End
-	return &syntax.ConfigDecl{Span: syntax.Span{Start: start, End: end}, Name: name.Text, Fields: fields}
+	return &syntax.ConfigDecl{Span: syntax.Span{Start: start, End: end}, Name: name.Text, When: when, Fields: fields}
 }
 
 func (p *Parser) parseConfigField() syntax.ConfigField {

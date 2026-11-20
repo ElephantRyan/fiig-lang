@@ -201,7 +201,11 @@ func (p *printer) printDecl(d syntax.Decl) {
 		for i, f := range d.Fields {
 			spanned[i] = f
 		}
-		p.printFieldedDecl("config "+d.Name, spanned, startLine(d), func(i int) string {
+		header := "config " + d.Name
+		if d.When != nil {
+			header += " when " + printExpr(d.When)
+		}
+		p.printFieldedDecl(header, spanned, startLine(d), func(i int) string {
 			f := d.Fields[i]
 			line := fmt.Sprintf("%s: %s from env %s", f.Name, printType(f.Type), strconv.Quote(f.Env))
 			if f.Default != nil {

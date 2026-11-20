@@ -12,6 +12,9 @@ import (
 //     outside §1's set, an environment variable name that isn't one, a
 //     default that isn't a constant of the field's type, a default on a
 //     Secret, or a field declared twice.
+//   - V2: a `when` condition (ADR 0122) that isn't a bool built from
+//     comparisons, and/or/not, literals, enum variants, and fields of
+//     config declarations that have no condition of their own.
 //   - B10, widened: reading config outside an activity or a gateway (§2).
 //   - S1: a Secret shown, interpolated into a string or able to cross the
 //     adapter boundary (§4).
@@ -23,6 +26,7 @@ func (c *checker) checkConfigDecl(d *syntax.ConfigDecl) {
 	if !isUpper(d.Name) {
 		c.report(d.Start, "N1", "config %q must be capitalized; it is read as %s.field, like a capability group (ADR 0071 §1)", d.Name, d.Name)
 	}
+	c.checkWhen(d)
 	seen := map[string]bool{}
 	for _, f := range d.Fields {
 		if seen[f.Name] {
@@ -148,4 +152,91 @@ func (c *checker) checkNoSecretInSignature(params []syntax.Param, retType syntax
 		check(p.Type, "parameter "+p.Name)
 	}
 	check(retType, "the return type")
+}
+
+// checkWhen is V2 (ADR 0122 §1). The loader evaluates a condition at startup,
+// before any program code runs, so it may use only what is known then: the
+// environment, read through other config declarations. Those must have no
+// condition of their own, so there is no chain to order and no cycle to
+// find, and a condition never reads a config that might be absent.
+func (c *checker) checkWhen(d *syntax.ConfigDecl) {
+	if d.When == nil {
+		return
+	}
+	if !c.whenShape(d, d.When) {
+		return
+	}
+	// Reading config is for a gateway or an activity (B10); a condition is
+	// the loader reading it, so it is checked as a gateway would read it.
+	saved := c.callerKind
+	c.callerKind = kindGateway
+	t := c.inferExpr(d.When, map[string]types.Type{})
+	c.callerKind = saved
+	if p, ok := t.(types.Primitive); !ok || p.Name != "bool" {
+		start, _ := d.When.(syntax.Spanned).Bounds()
+		c.report(start, "V2", "config %s's `when` is %s, not a bool (ADR 0122 §1)", d.Name, t)
+	}
+}
+
+// whenShape reports whether e uses only what a startup condition may, and
+// says what it may not otherwise.
+func (c *checker) whenShape(d *syntax.ConfigDecl, e syntax.Expr) bool {
+	start, _ := e.(syntax.Spanned).Bounds()
+	bad := func(what string) bool {
+		c.report(start, "V2", "config %s's `when` can't use %s; it is read once at startup, from comparisons (==, !=), and, or, not, literals, enum variants, and fields of config that has no `when` of its own (ADR 0122 §1)", d.Name, what)
+		return false
+	}
+	switch e := e.(type) {
+	case *syntax.ParenExpr:
+		return c.whenShape(d, e.Inner)
+	case *syntax.NotExpr:
+		return c.whenShape(d, e.Operand)
+	case *syntax.BinaryExpr:
+		switch e.Op {
+		case syntax.OpEq, syntax.OpNe, syntax.OpAnd, syntax.OpOr:
+			left := c.whenShape(d, e.Left)
+			right := c.whenShape(d, e.Right)
+			return left && right
+		}
+		return bad("the operator " + string(e.Op))
+	case *syntax.IntLit:
+		return true
+	case *syntax.StringLit:
+		for _, part := range e.Parts {
+			if part.Interp != nil {
+				return bad("an interpolated string")
+			}
+		}
+		return true
+	case *syntax.Ident:
+		if e.Name == "true" || e.Name == "false" {
+			return true
+		}
+		return bad("the name " + e.Name + " (name a config field as Config.field)")
+	case *syntax.FieldAccess:
+		target, ok := e.Target.(*syntax.Ident)
+		if !ok {
+			return bad("a field of anything but a config declaration or an enum")
+		}
+		if cd, isConfig := c.configRef(target.Name); isConfig {
+			switch {
+			case cd == d:
+				return bad("its own fields")
+			case cd.When != nil:
+				return bad(cd.Name + ", which has a `when` of its own")
+			}
+			if _, has := cd.Field(e.Field); !has {
+				c.report(start, "", "config %s has no field %q", cd.Name, e.Field)
+				return false
+			}
+			return true
+		}
+		if decl, found := c.lookup(target.Name); found {
+			if _, isEnum := decl.(*syntax.EnumDecl); isEnum {
+				return true
+			}
+		}
+		return bad(target.Name + "." + e.Field)
+	}
+	return bad("this expression")
 }

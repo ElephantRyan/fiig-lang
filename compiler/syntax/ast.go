@@ -379,9 +379,15 @@ type FormulaDecl struct {
 // through the environment, each read and checked once, before the program
 // starts. Callers read a field as `Name.field`, from an activity or a
 // gateway only (§2).
+//
+// When, if set, is ADR 0122's condition: the config is present only when it
+// holds, and absent as a whole otherwise. The loader reads it at startup from
+// other config values, so a deployment that doesn't use a feature needn't
+// set the feature's variables.
 type ConfigDecl struct {
 	Span
 	Name   string
+	When   Expr
 	Fields []ConfigField
 }
 

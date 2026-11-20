@@ -266,7 +266,7 @@ capability-decl  ::= 'capability' identifier '{' { gateway-decl } '}'
 formulas-decl  ::= 'formulas' identifier '{' { formula-member } '}'
 formula-member ::= 'formula' identifier params '->' type [ block ]
 
-config-decl  ::= 'config' identifier '{' { config-field } '}'
+config-decl  ::= 'config' identifier [ 'when' expression ] '{' { config-field } '}'   // `when` is contextual (ADR 0122)
 config-field ::= identifier ':' type 'from' 'env' string [ '=' expression ]   // `from` and `env` are contextual
 ```
 

@@ -185,6 +185,7 @@ starts. Reading one outside an activity or a gateway is B10, like `Clock`.
 | # | Bug class | Status |
 |---|---|---|
 | V1 | A config field of a type an environment variable's text can't be read as (anything but `string`, `int`, `float`, `decimal`, `bool`, an enum, or `Secret`, optionally `\| None`), an environment variable name that isn't one, a default that isn't a constant or doesn't fit the field's type (A1), a default on a `Secret`, which would put the secret in the source, or a field declared twice | Attested — `config_error.fiig` (`Billing.apiKey`); `compiler/checker`'s `TestConfigDeclarationsAreV1`. What only the deployment can get wrong (unset, or `86400s` for an int) is the startup report, every problem at once (`compiler/runtime`'s `TestEveryConfigProblemIsReportedAtOnce`) |
+| V2 | A config's `when` (ADR 0122) that isn't a bool made of comparisons (`==`, `!=`), `and`, `or`, `not`, literals, enum variants, and fields of config declarations that have no `when` of their own; or that reads its own fields | Attested — `compiler/checker`'s `TestAWhenOutsideTheSubsetIsV2`, `TestAWhenIsABool`, `TestAWhenCantReadConfigThatHasAWhen`. The runtime half, a config whose condition is false and is read anyway, is a fault: `compiler/runtime`'s `TestAConfigWhoseWhenIsFalseIsNotRequired` |
 
 ## S. Secret errors (ADR 0071 §4)
 
