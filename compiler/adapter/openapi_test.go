@@ -67,8 +67,15 @@ func TestOpenAPIExplicitMappingRoute(t *testing.T) {
 	if _, ok := responses["200"]; !ok {
 		t.Fatalf("missing explicit 200 response: %#v", responses)
 	}
-	if _, ok := responses["default"]; !ok {
-		t.Fatalf("missing \"default\" response for the ExprResponse arm (customerErrorToHttpResponse): %#v", responses)
+	// customerErrorToHttpResponse builds its responses with constant
+	// statuses, so each is described by its own (ADR 0098 §1).
+	for _, code := range []string{"404", "409", "500"} {
+		if _, ok := responses[code]; !ok {
+			t.Errorf("missing the %s that customerErrorToHttpResponse builds: %#v", code, responses)
+		}
+	}
+	if _, ok := responses["default"]; ok {
+		t.Errorf("a default response beside the conversion's own statuses: %#v", responses)
 	}
 }
 
@@ -148,10 +155,17 @@ func TestOpenAPIHeadersCookiesAndMediaTypes(t *testing.T) {
 	got, _ := json.Marshal(me["parameters"])
 	want := `[{"in":"header","name":"Authorization","required":true,"schema":{"type":"string"}},` +
 		`{"in":"header","name":"X-Request-Id","required":false,"schema":{"type":"string"}},` +
-		`{"in":"cookie","name":"sid","required":false,"schema":{"type":"string"}},` +
 		`{"in":"header","name":"X-Page","required":false,"schema":{"type":"integer"}}]`
 	if string(got) != want {
 		t.Fatalf("parameters = %s\nwant %s", got, want)
+	}
+	// ADR 0098 §2: the cookie is a security scheme, optional here since
+	// the argument is `string | None`.
+	if sec, _ := json.Marshal(me["security"]); string(sec) != `[{"sid":[]},{}]` {
+		t.Errorf("security = %s", sec)
+	}
+	if schemes, _ := json.Marshal(doc["components"]); string(schemes) != `{"securitySchemes":{"sid":{"in":"cookie","name":"sid","type":"apiKey"}}}` {
+		t.Errorf("components = %s", schemes)
 	}
 
 	csv := paths["/csv"].(map[string]any)["post"].(map[string]any)

@@ -39,6 +39,7 @@ func GenerateOpenAPI(d *syntax.AdapterDecl, u *types.Universe) (map[string]any, 
 // one, in u alone.
 func GenerateOpenAPIFor(adapters []Served, u *types.Universe, in *runtime.Interp) (map[string]any, error) {
 	paths := map[string]any{}
+	schemes := map[string]any{}
 	var names []string
 	for _, a := range adapters {
 		d := a.Decl
@@ -46,7 +47,7 @@ func GenerateOpenAPIFor(adapters []Served, u *types.Universe, in *runtime.Interp
 			return nil, fmt.Errorf("adapter %q is not an http adapter", a.Name())
 		}
 		names = append(names, a.Name())
-		r := resolver{u: u, in: in}
+		r := resolver{u: u, in: in, schemes: schemes}
 		if a.Package != nil {
 			r.u = a.Package.Universe
 		}
@@ -71,11 +72,15 @@ func GenerateOpenAPIFor(adapters []Served, u *types.Universe, in *runtime.Interp
 			entry[method] = op
 		}
 	}
-	return map[string]any{
+	doc := map[string]any{
 		"openapi": "3.0.3",
 		"info":    map[string]any{"title": strings.Join(names, ", "), "version": "0.0.0"},
 		"paths":   paths,
-	}, nil
+	}
+	if len(schemes) > 0 {
+		doc["components"] = map[string]any{"securitySchemes": schemes}
+	}
+	return doc, nil
 }
 
 // resolver resolves the types the document describes: in u, the package
@@ -84,6 +89,9 @@ func GenerateOpenAPIFor(adapters []Served, u *types.Universe, in *runtime.Interp
 type resolver struct {
 	u  *types.Universe
 	in *runtime.Interp
+	// schemes collects the document's security schemes: one per cookie a
+	// route reads (ADR 0098 §2).
+	schemes map[string]any
 }
 
 // decl resolves t, written in owner's declaration.
@@ -117,12 +125,27 @@ func buildOperation(route *syntax.Route, r resolver) (map[string]any, error) {
 	}
 	// ADR 0069 §1: header and cookie arguments, which OpenAPI has its own
 	// `in` for. A `T | None` argument is optional.
+	var security []any
 	for _, arg := range route.Args {
 		if arg.Source == "" {
 			continue
 		}
 		pt := paramType[arg.Name]
+		if arg.Source == "cookie" && r.schemes != nil {
+			// ADR 0098 §2: a browser sends cookies by itself, and its code
+			// can't set one (Cookie is a forbidden header in fetch), so a
+			// cookie is a security scheme, not a parameter a client fills.
+			r.schemes[arg.SourceName] = map[string]any{"type": "apiKey", "in": "cookie", "name": arg.SourceName}
+			security = append(security, map[string]any{arg.SourceName: []any{}})
+			if runtime.IsOptional(pt) {
+				security = append(security, map[string]any{})
+			}
+			continue
+		}
 		params = append(params, map[string]any{"name": arg.SourceName, "in": arg.Source, "required": !runtime.IsOptional(pt), "schema": schemaFor(nonNone(pt), r)})
+	}
+	if len(security) > 0 {
+		op["security"] = security
 	}
 	if len(params) > 0 {
 		op["parameters"] = params
@@ -187,17 +210,119 @@ func buildResponses(route *syntax.Route, wd *syntax.WorkflowDecl, r resolver) (m
 				responses[code] = map[string]any{"description": ""}
 			}
 		case *syntax.ExprResponse:
-			// The actual status is only known dynamically (inside whatever
-			// this expression calls) — described under "default" rather
-			// than guessed at. Its body is HttpResponse<B>'s B (ADR 0069 §3).
+			// The body is HttpResponse<B>'s B (ADR 0069 §3). The status is
+			// the conversion's: each constant `status:` it builds its
+			// response with (ADR 0098 §1), else 2XX for an Ok arm and
+			// "default" for any other, never one arm over another's.
 			exprType, _ := resolveExprType(v.Value, r)
 			if b, ok := types.IsHttpResponse(exprType); ok {
 				exprType = b
 			}
-			responses["default"] = responseObject(exprType, media, r)
+			built := builtResponses(v.Value, r)
+			if len(built) == 0 {
+				code := "default"
+				if armOk {
+					code = "2XX"
+				}
+				built = []builtResponse{{code: code}}
+			}
+			for _, b := range built {
+				if _, taken := responses[b.code]; taken {
+					continue
+				}
+				obj := responseObject(exprType, media, r)
+				if b.redirect {
+					obj = map[string]any{"description": "a redirect"}
+					if b.location {
+						obj["headers"] = map[string]any{"Location": map[string]any{"schema": map[string]any{"type": "string"}}}
+					}
+				}
+				responses[b.code] = obj
+			}
 		}
 	}
 	return responses, nil
+}
+
+// builtResponse is one response a conversion builds with a constant
+// status.
+type builtResponse struct {
+	code     string
+	redirect bool // a 3xx, which has no body to describe
+	location bool // its headers name a Location
+}
+
+// builtResponses reads the statuses of the HttpResponse(...) constructions
+// in the body of the declaration e calls, when each is a constant (ADR
+// 0098 §1): `return HttpResponse(status: 302, headers: ["Location": ...])`
+// is a 302 with a Location. A computed status gives nothing to read.
+func builtResponses(e syntax.Expr, r resolver) []builtResponse {
+	call, ok := e.(*syntax.CallExpr)
+	if !ok {
+		return nil
+	}
+	ident, ok := call.Callee.(*syntax.Ident)
+	if !ok {
+		return nil
+	}
+	decl, found := r.u.Lookup(ident.Name)
+	if !found {
+		return nil
+	}
+	var body *syntax.Block
+	switch d := decl.(type) {
+	case *syntax.ConversionDecl:
+		body = d.Body
+	case *syntax.RuleDecl:
+		body = d.Body
+	}
+	if body == nil {
+		return nil
+	}
+	var out []builtResponse
+	seen := map[string]bool{}
+	computed := false
+	syntax.WalkBlockExprs(body, func(x syntax.Expr) {
+		c, ok := x.(*syntax.CallExpr)
+		if !ok {
+			return
+		}
+		if id, ok := c.Callee.(*syntax.Ident); !ok || id.Name != types.HttpResponseName {
+			return
+		}
+		var b builtResponse
+		for _, a := range c.Args {
+			switch a.Name {
+			case "status":
+				lit, ok := a.Value.(*syntax.IntLit)
+				if !ok {
+					computed = true
+					return
+				}
+				b.code = lit.Text
+			case "headers":
+				if m, ok := a.Value.(*syntax.MapLit); ok {
+					for _, en := range m.Entries {
+						if s, ok := en.Key.(*syntax.StringLit); ok && strings.EqualFold(stringLitText(s), "Location") {
+							b.location = true
+						}
+					}
+				}
+			}
+		}
+		if b.code == "" || seen[b.code] {
+			return
+		}
+		seen[b.code] = true
+		b.redirect = strings.HasPrefix(b.code, "3")
+		out = append(out, b)
+	})
+	if computed {
+		// One status known and another not: describing only the known one
+		// would hide the rest.
+		return nil
+	}
+	return out
 }
 
 func statusAndBody(v syntax.ResponseValue) (code string, body syntax.Expr, hasBody bool) {
@@ -501,4 +626,16 @@ func variantSchema(name string, props map[string]any, required []string) map[str
 // discriminator.
 func taggedUnion(variants []any) map[string]any {
 	return map[string]any{"oneOf": variants, "discriminator": map[string]any{"propertyName": "variant"}}
+}
+
+// stringLitText is a string literal's text with any interpolation left
+// out; enough to recognise a constant header name.
+func stringLitText(s *syntax.StringLit) string {
+	var b strings.Builder
+	for _, p := range s.Parts {
+		if p.Interp == nil {
+			b.WriteString(p.Text)
+		}
+	}
+	return b.String()
 }
