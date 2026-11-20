@@ -196,7 +196,8 @@ from the source the capabilities file binds (ADR 0111 §2):
 {"StreamSource": {"type": "source", "source": "fiig.redis"}}
 ```
 
-`fiig.redis` reads Redis Streams at `REDIS_URL`. Each route's `group` is
+`fiig.redis` reads Redis Streams at `REDIS_URL`, on Redis 6.2 or later.
+Each process is one consumer, named after its host. Each route's `group` is
 a consumer group, so every replica shares the work, and a producer writes
 an element as `XADD orders * payload <json>`. The group is created the
 first time the route runs, at the stream's first entry (`from earliest`)

@@ -1,6 +1,7 @@
 package servecmd
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -38,5 +39,18 @@ func TestReadLimits(t *testing.T) {
 		if !strings.Contains(got, name) {
 			t.Errorf("no problem reported for %s in:\n%s", name, got)
 		}
+	}
+}
+
+// Review of ADR 0111 §5: the consumer name is the host's alone, the same
+// across restarts, so a stream group doesn't gain a dead consumer for
+// every process that ever ran.
+func TestConsumerNameIsStableAcrossRestarts(t *testing.T) {
+	host, err := os.Hostname()
+	if err != nil {
+		t.Skip(err)
+	}
+	if got := consumerName(); got != host {
+		t.Errorf("consumerName() = %q, want the host name %q", got, host)
 	}
 }
