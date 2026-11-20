@@ -75,6 +75,8 @@ Start with [getting started](docs/getting-started.md), then
 
 - [Language tour](docs/specification/tour.md)
 - [Grammar](docs/specification/grammar.md)
+- [Writing a client](docs/writing-a-client.md): a capability group over
+  fiig.http, with its shared steps written once
 - [A modular monolith](docs/modular-monolith.md): domains in one
   application that can be split out later
 - [Bug classes](docs/specification/bug-classes.md): every diagnostic code
