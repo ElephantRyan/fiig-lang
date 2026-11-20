@@ -1,8 +1,7 @@
 # ADR 0096: Migrations
 
-Status: Proposed (built 2026-11-19 under the owner's goal to work through
-the abs-recommendations gaps; the two choices below, applying at start and
-one set of files, were the owner's)
+Status: Accepted (2026-11-20). Implemented 2026-11-19; see Implementation
+notes.
 Date: 2026-11-19
 Related: ADR 0071 (startup refuses with every problem listed), ADR 0079
 §6a (a package's own Database binding), ADR 0082 (the Database

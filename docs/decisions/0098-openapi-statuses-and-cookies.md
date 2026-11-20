@@ -1,7 +1,7 @@
 # ADR 0098: OpenAPI Statuses From Conversions, and Cookies as Security Schemes
 
-Status: Proposed (built 2026-11-19 under the owner's goal to work through
-the abs-recommendations gaps; awaiting review)
+Status: Accepted (2026-11-20). Implemented 2026-11-19; see Implementation
+notes.
 Date: 2026-11-19
 Amends: ADR 0017's OpenAPI description of an expression arm, ADR 0069 §1
 (cookie arguments in the document).
