@@ -30,6 +30,24 @@ object FiigDeclarations {
         return null
     }
 
+    /**
+     * The kind a file's icon shows: its first declaration's kind, or `test`
+     * for a file of tests (`test` isn't a keyword, so [first] can't see it).
+     */
+    fun iconKind(file: PsiFile): String? {
+        val start = file.firstChild ?: return null
+        var depth = 0
+        for (leaf in start.siblings()) {
+            when (leaf.elementType) {
+                FiigTokens.LBRACE -> depth++
+                FiigTokens.RBRACE -> depth--
+                FiigTokens.IDENTIFIER -> if (depth == 0 && leaf.text == "test") return "test"
+                FiigTokens.KEYWORD -> if (depth == 0 && leaf.text in KINDS) return leaf.text
+            }
+        }
+        return null
+    }
+
     /** The declaration whose kind keyword is [keyword]. */
     fun of(keyword: PsiElement): FiigDeclaration? {
         if (keyword.elementType != FiigTokens.KEYWORD || keyword.text !in KINDS) return null
