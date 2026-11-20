@@ -10,8 +10,13 @@ capability RedisStreams provides stream.StreamSource {
     {
         source = subscription.source
         group = subscription.group
-        idle = "${RedisStreamSettings.retryAfterMillis}"
-        match Redis.send(["XPENDING", source, group, "IDLE", idle, "-", "+", "${batchSize}"]) {
+        retryAfter = RedisStreamSettings.retryAfterMillis
+        idle = "${retryAfter}"
+        // An entry this receive hands out is reclaimed by another consumer
+        // once it has been pending retryAfter, so take no more than can be
+        // handled, one after another, within that (ADR 0111 §5a).
+        count = fitBatch(batchSize, retryAfter, subscription.handleMillis)?
+        match Redis.send(["XPENDING", source, group, "IDLE", idle, "-", "+", "${count}"]) {
             Err(failure) -> {
                 if isNoGroup(failure) {
                     // The first receive: the group starts where the route
@@ -62,7 +67,7 @@ capability RedisStreams provides stream.StreamSource {
             }
         }
         read = Redis.send(
-            ["XREADGROUP", "GROUP", group, subscription.consumer, "COUNT", "${batchSize}", "BLOCK", "${subscription.waitMillis}", "STREAMS", source, ">"],
+            ["XREADGROUP", "GROUP", group, subscription.consumer, "COUNT", "${count}", "BLOCK", "${subscription.waitMillis}", "STREAMS", source, ">"],
         )
         reply = mapErr(e in read): sourceErrorOf(e)?
         // [[stream name, [entry, ...]]], or Null when nothing came in time.

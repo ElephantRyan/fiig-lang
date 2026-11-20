@@ -204,7 +204,10 @@ or after its last (`from latest`); after that the route's `from` has no
 effect, and renaming the group starts a new one.
 
 - An element that a route retries, or that a stopped process left
-  unsettled, comes back after `REDIS_STREAM_RETRY_AFTER_MS` (30 s).
+  unsettled, comes back after `REDIS_STREAM_RETRY_AFTER_MS` (5 minutes).
+  It must be longer than one element may take, `REQUEST_TIMEOUT` plus
+  10 s; `fiig serve` halts the route at its first read when it isn't, and
+  reads no more at once than fit in it (ADR 0111 §5a).
 - A route that halts (its mapping says `halt`, a `retry` runs out of
   attempts with no `else`, the workflow faults, or a payload doesn't
   decode) stops `fiig serve` with an error naming the element, which stays
