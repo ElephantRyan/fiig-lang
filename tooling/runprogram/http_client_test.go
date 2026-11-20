@@ -99,6 +99,13 @@ func TestHeaderValueTakesARequestsHeaders(t *testing.T) {
 // returns an interpreter whose Socket is script.
 func httpInterp(t *testing.T, script *runtime.ScriptedSocket) *runtime.Interp {
 	t.Helper()
+	return httpInterpWith(t, runtime.SocketProvider{Backend: script})
+}
+
+// httpInterpWith is httpInterp with socket, which may keep connections
+// (ADR 0109).
+func httpInterpWith(t *testing.T, socket runtime.SocketProvider) *runtime.Interp {
+	t.Helper()
 	root := t.TempDir()
 	for name, src := range fixture.Module(httpProgram) {
 		os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
@@ -122,7 +129,7 @@ func httpInterp(t *testing.T, script *runtime.ScriptedSocket) *runtime.Interp {
 	}
 	u, _ := types.BuildUniverse(files)
 	caps := runtime.NewCapabilityRegistry()
-	caps.Register("Socket", runtime.SocketProvider{Backend: script})
+	caps.Register("Socket", socket)
 	RegisterDefaults(caps)
 	in := runtime.New(u, caps)
 	in.Imports = BuildImports(files, loaded.Packages)
@@ -181,44 +188,44 @@ func TestFiigHttpClient(t *testing.T) {
 	cases := []httpCase{
 		{"https GET with Content-Length", "get", map[string]runtime.Value{"url": str("https://api.example.com/v1/items?limit=2#top")},
 			[]*runtime.SocketPeer{peer("api.example.com", 443, tlsStep,
-				expect("GET /v1/items?limit=2 HTTP/1.1\r\nHost: api.example.com\r\n"+ua+"Connection: close\r\n\r\n"),
+				expect("GET /v1/items?limit=2 HTTP/1.1\r\nHost: api.example.com\r\n"+ua+"\r\n"),
 				send("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 11\r\n\r\n{\"ok\":true}"))},
 			`200 {"ok":true} Content-Type=application/json Content-Length=11`},
 		{"plain http, a port, and a 404 is a reply", "get", map[string]runtime.Value{"url": str("http://localhost:8080")},
 			[]*runtime.SocketPeer{peer("localhost", 8080,
-				expect("GET / HTTP/1.1\r\nHost: localhost:8080\r\n"+ua+"Connection: close\r\n\r\n"),
+				expect("GET / HTTP/1.1\r\nHost: localhost:8080\r\n"+ua+"\r\n"),
 				send("HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\nnot found"))},
 			"404 not found Content-Length=9"},
 		{"a redirect is a reply", "get", map[string]runtime.Value{"url": str("http://old.example.com/a")},
 			[]*runtime.SocketPeer{peer("old.example.com", 80,
-				expect("GET /a HTTP/1.1\r\nHost: old.example.com\r\n"+ua+"Connection: close\r\n\r\n"),
+				expect("GET /a HTTP/1.1\r\nHost: old.example.com\r\n"+ua+"\r\n"),
 				send("HTTP/1.1 301 Moved Permanently\r\nLocation: https://new.example.com/a\r\nContent-Length: 0\r\n\r\n"))},
 			"301  Location=https://new.example.com/a Content-Length=0"},
 		{"a form POST; 100 Continue skipped; a chunked reply in pieces", "postForm",
 			map[string]runtime.Value{"url": str("https://pay.example.com/v1/charges"), "amount": str("1250"), "note": str("tea & cake/2")},
 			[]*runtime.SocketPeer{peer("pay.example.com", 443, tlsStep,
-				expect("POST /v1/charges HTTP/1.1\r\nHost: pay.example.com\r\nAuthorization: Bearer sk_test\r\nContent-Type: application/x-www-form-urlencoded\r\n"+ua+"Content-Length: 33\r\nConnection: close\r\n\r\namount=1250&note=tea+%26+cake%2F2"),
+				expect("POST /v1/charges HTTP/1.1\r\nHost: pay.example.com\r\nAuthorization: Bearer sk_test\r\nContent-Type: application/x-www-form-urlencoded\r\n"+ua+"Content-Length: 33\r\n\r\namount=1250&note=tea+%26+cake%2F2"),
 				send("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 201 Created\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nch_1"),
 				send("\r\n6;ext=1\r\n23\r\n45\r\n0\r\nX-Trailer: dropped\r\n\r\n"))},
 			"201 ch_123\r\n45 Transfer-Encoding=chunked"},
 		{"HEAD has no body, whatever Content-Length says", "head", map[string]runtime.Value{"url": str("http://h.example.com/file")},
 			[]*runtime.SocketPeer{peer("h.example.com", 80,
-				expect("HEAD /file HTTP/1.1\r\nHost: h.example.com\r\n"+ua+"Connection: close\r\n\r\n"),
+				expect("HEAD /file HTTP/1.1\r\nHost: h.example.com\r\n"+ua+"\r\n"),
 				send("HTTP/1.1 200 OK\r\nContent-Length: 5000\r\n\r\n"))},
 			"200  Content-Length=5000"},
 		{"no length: the body runs until close; folded header joined", "get", map[string]runtime.Value{"url": str("http://[::1]:9000/x")},
 			[]*runtime.SocketPeer{peer("::1", 9000,
-				expect("GET /x HTTP/1.1\r\nHost: [::1]:9000\r\n"+ua+"Connection: close\r\n\r\n"),
+				expect("GET /x HTTP/1.1\r\nHost: [::1]:9000\r\n"+ua+"\r\n"),
 				send("HTTP/1.0 200 OK\r\nX-Long: one\r\n two\r\n\r\npart one, "), send("part two"), hangup)},
 			"200 part one, part two X-Long=one two"},
 		{"a reply cut short is malformed", "get", map[string]runtime.Value{"url": str("http://short.example.com/")},
 			[]*runtime.SocketPeer{peer("short.example.com", 80,
-				expect("GET / HTTP/1.1\r\nHost: short.example.com\r\n"+ua+"Connection: close\r\n\r\n"),
+				expect("GET / HTTP/1.1\r\nHost: short.example.com\r\n"+ua+"\r\n"),
 				send("HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nabc"), hangup)},
 			"MalformedReply the server closed the connection after 3 of the 10 bytes its Content-Length promised"},
 		{"a reply that isn't HTTP", "get", map[string]runtime.Value{"url": str("http://ssh.example.com:22/")},
 			[]*runtime.SocketPeer{peer("ssh.example.com", 22,
-				expect("GET / HTTP/1.1\r\nHost: ssh.example.com:22\r\n"+ua+"Connection: close\r\n\r\n"),
+				expect("GET / HTTP/1.1\r\nHost: ssh.example.com:22\r\n"+ua+"\r\n"),
 				send("SSH-2.0-OpenSSH_9.6\r\n\r\n"))},
 			`MalformedReply the status line "SSH-2.0-OpenSSH_9.6" isn't HTTP/1.1`},
 		{"the server's socket error", "get", map[string]runtime.Value{"url": str("http://down.example.com/")},
@@ -227,7 +234,7 @@ func TestFiigHttpClient(t *testing.T) {
 		{"a header that sets its own User-Agent", "withHeader",
 			map[string]runtime.Value{"url": str("http://a.example.com/r/1"), "name": str("user-agent"), "value": str("billing/2"), "timeout": runtime.Int(1000)},
 			[]*runtime.SocketPeer{peer("a.example.com", 80,
-				expect("DELETE /r/1 HTTP/1.1\r\nHost: a.example.com\r\nuser-agent: billing/2\r\nConnection: close\r\n\r\n"),
+				expect("DELETE /r/1 HTTP/1.1\r\nHost: a.example.com\r\nuser-agent: billing/2\r\n\r\n"),
 				send("HTTP/1.1 204 No Content\r\n\r\n"))},
 			"204 "},
 	}
@@ -274,7 +281,7 @@ func TestFiigHttpClient(t *testing.T) {
 // value the caller can act on.
 func TestFiigHttpTimesOut(t *testing.T) {
 	script := &runtime.ScriptedSocket{Peers: []*runtime.SocketPeer{peer("slow.example.com", 80,
-		expect("DELETE / HTTP/1.1\r\nHost: slow.example.com\r\nX-A: 1\r\nUser-Agent: fiig-http/1\r\nConnection: close\r\n\r\n"),
+		expect("DELETE / HTTP/1.1\r\nHost: slow.example.com\r\nX-A: 1\r\nUser-Agent: fiig-http/1\r\n\r\n"),
 		runtime.SocketStep{Stall: true})}}
 	v, fault := httpInterp(t, script).Call(context.Background(), "withHeader", map[string]runtime.Value{
 		"url": str("http://slow.example.com"), "name": str("X-A"), "value": str("1"), "timeout": runtime.Int(50),
@@ -381,5 +388,79 @@ func TestPathSegment(t *testing.T) {
 	want := "b-12_x.y~|..%2F..%2Fapi%2Fusers|a%20b%3Fc%23d%25e|Zo%C3%AB|None|None|None"
 	if fault != nil || got.String() != want {
 		t.Fatalf("got %v, %v\nwant %s", got, fault, want)
+	}
+}
+
+// ADR 0109 §6: send keeps a connection whose reply ended where its length
+// said, uses it for the next request to the same host, and sends an
+// idempotent request again on a new connection when a kept one turns out
+// to have been closed while idle.
+func TestFiigHttpKeepsConnections(t *testing.T) {
+	const ua = "User-Agent: fiig-http/1" + "\r\n"
+	get := func(path string) string {
+		return "GET " + path + " HTTP/1.1\r\nHost: api.example.com\r\n" + ua + "\r\n"
+	}
+	post := "POST /c HTTP/1.1\r\nHost: api.example.com\r\nAuthorization: Bearer sk_test\r\nContent-Type: application/x-www-form-urlencoded\r\n" + ua + "Content-Length: 15\r\n\r\namount=1&note=x"
+	ok := "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"
+	cases := []struct {
+		name   string
+		entry  string
+		args   map[string]runtime.Value
+		peers  []*runtime.SocketPeer
+		want   string // the second reply, as describeReply gives it
+		kept   int    // connections the pool holds at the end
+		closed []bool // which peers end closed
+	}{
+		{"reused for the next request", "get", map[string]runtime.Value{"url": str("https://api.example.com/b")},
+			[]*runtime.SocketPeer{peer("api.example.com", 443, tlsStep,
+				expect(get("/b")), send(ok),
+				expect(get("/b")), send("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\ntwo\r\n0\r\n\r\n"))},
+			"200 two", 1, []bool{false}},
+		{"stale, so sent again on a new connection", "get", map[string]runtime.Value{"url": str("https://api.example.com/b")},
+			[]*runtime.SocketPeer{
+				peer("api.example.com", 443, tlsStep, expect(get("/b")), send(ok), expect(get("/b")), hangup),
+				peer("api.example.com", 443, tlsStep, expect(get("/b")), send("HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nnew")),
+			},
+			"200 new", 1, []bool{true, false}},
+		{"a POST is not sent twice", "postForm",
+			map[string]runtime.Value{"url": str("https://api.example.com/c"), "amount": str("1"), "note": str("x")},
+			[]*runtime.SocketPeer{peer("api.example.com", 443, tlsStep, expect(post), send(ok), expect(post), hangup)},
+			"MalformedReply the server closed the connection without replying", 0, []bool{true}},
+		{"Connection: close is honoured", "get", map[string]runtime.Value{"url": str("https://api.example.com/b")},
+			[]*runtime.SocketPeer{
+				peer("api.example.com", 443, tlsStep, expect(get("/b")), send("HTTP/1.1 200 OK\r\nConnection: keep-alive, close\r\nContent-Length: 2\r\n\r\nok")),
+				peer("api.example.com", 443, tlsStep, expect(get("/b")), send("HTTP/1.0 200 OK\r\nContent-Length: 3\r\n\r\nold")),
+			},
+			"200 old", 0, []bool{true, true}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			script := &runtime.ScriptedSocket{Peers: c.peers}
+			socket := runtime.SocketProvider{Backend: script, Pool: runtime.NewSocketPool(runtime.DefaultIdleLimits)}
+			defer socket.Close()
+			in := httpInterpWith(t, socket)
+			var got string
+			for range 2 {
+				v, fault := in.Call(context.Background(), c.entry, c.args)
+				if fault != nil {
+					t.Fatalf("fault: %v", fault)
+				}
+				got = describeReply(v)
+			}
+			if !strings.HasPrefix(got, c.want) {
+				t.Errorf("second reply %q, want %q", got, c.want)
+			}
+			if err := script.Done(); err != nil {
+				t.Error(err)
+			}
+			if n := socket.Pool.Idle(); n != c.kept {
+				t.Errorf("pool holds %d, want %d", n, c.kept)
+			}
+			for i, p := range c.peers {
+				if p.Closed() != c.closed[i] {
+					t.Errorf("peer %d closed = %v, want %v", i, p.Closed(), c.closed[i])
+				}
+			}
+		})
 	}
 }

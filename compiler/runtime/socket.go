@@ -71,7 +71,13 @@ func (c Connection) String() string {
 // at once, two readers may not interleave. startTls holds both. stateMu
 // guards closed and superseded, which close may change mid-read.
 type connHandle struct {
-	addr       string
+	addr string
+	// host and port are what connect was given, and tlsName the server
+	// name TLS was verified for, "" before any: the key Socket.keep files
+	// the connection under (ADR 0109 §2).
+	host       string
+	port       int
+	tlsName    string
 	owner      *resourceOwner
 	readMu     sync.Mutex
 	writeMu    sync.Mutex
@@ -79,6 +85,10 @@ type connHandle struct {
 	t          Transport
 	closed     bool
 	superseded bool
+	// failed is set once an operation returned a SocketError, and kept
+	// once Socket.keep gave the connection to the pool (ADR 0109 §3).
+	failed bool
+	kept   bool
 }
 
 // usable returns the handle's transport, or the fault for using it after
@@ -88,6 +98,8 @@ func (h *connHandle) usable(op string) (Transport, *Fault) {
 	h.stateMu.Lock()
 	defer h.stateMu.Unlock()
 	switch {
+	case h.kept:
+		return nil, Faultf("Socket.%s: this connection was given to Socket.keep, so it belongs to the pool now", op)
 	case h.superseded:
 		return nil, Faultf("Socket.%s: this connection was upgraded by startTls; use the connection startTls returned", op)
 	case h.closed && h.owner.isEnded():
@@ -98,10 +110,16 @@ func (h *connHandle) usable(op string) (Transport, *Fault) {
 	return h.t, nil
 }
 
+func (h *connHandle) markFailed() {
+	h.stateMu.Lock()
+	h.failed = true
+	h.stateMu.Unlock()
+}
+
 func (h *connHandle) closeTransport() {
 	h.stateMu.Lock()
 	defer h.stateMu.Unlock()
-	if h.closed || h.superseded {
+	if h.closed || h.superseded || h.kept {
 		return
 	}
 	h.closed = true
@@ -112,6 +130,9 @@ func (h *connHandle) closeTransport() {
 // beneath it (ADR 0060 §5, Erlang's port-owner model). Interp.Call creates
 // one and ends it on the way out, however the call ends.
 type resourceOwner struct {
+	// driver marks the owner of a connection a database driver opened for
+	// ADR 0084's pool, which Socket.keep must not take (ADR 0109 §3).
+	driver  bool
 	mu      sync.Mutex
 	handles []*connHandle
 	ended   bool
@@ -167,12 +188,16 @@ func (o *resourceOwner) end() {
 // SocketProvider is the `Socket` primitive capability.
 type SocketProvider struct {
 	Backend SocketBackend
+	// Pool keeps connections between calls (ADR 0109); nil keeps none,
+	// so reuse finds nothing and keep closes.
+	Pool *SocketPool
 }
 
 // NewSocketProvider is the real Socket: TCP via net, TLS via crypto/tls
-// against the host's trust store.
+// against the host's trust store, keeping idle connections within ADR
+// 0109's default limits.
 func NewSocketProvider() SocketProvider {
-	return SocketProvider{Backend: NetBackend{}}
+	return SocketProvider{Backend: NetBackend{}, Pool: NewSocketPool(DefaultIdleLimits)}
 }
 
 // socketArity is how many arguments each operation takes before its
@@ -247,6 +272,22 @@ func (p SocketProvider) call(ctx context.Context, method string, args []Value) (
 		}
 		h.closeTransport()
 		return None{}, nil
+	case "reuse":
+		host, port, secure, session, f := reuseArgs(args)
+		if f != nil {
+			return nil, f
+		}
+		return p.reuse(ctx, host, port, secure, session)
+	case "keep":
+		h, f := connArg(method, args, 2)
+		if f != nil {
+			return nil, f
+		}
+		session, ok := args[1].(Str)
+		if !ok {
+			return nil, Faultf("Socket.keep: session must be a string")
+		}
+		return p.keep(ctx, h, string(session))
 	}
 	return nil, Faultf("Socket has no operation %q", method)
 }
@@ -294,7 +335,10 @@ func (p SocketProvider) connect(ctx context.Context, host string, port int, secu
 		}
 		t = tt
 	}
-	h := &connHandle{addr: net.JoinHostPort(host, strconv.Itoa(port)), owner: owner, t: t}
+	h := &connHandle{addr: addrOf(host, port), host: host, port: port, owner: owner, t: t}
+	if secure {
+		h.tlsName = host
+	}
 	if !owner.track(h) {
 		_ = t.Close()
 		return nil, Faultf("Socket.connect: the owning call has already ended")
@@ -313,12 +357,13 @@ func (p SocketProvider) startTls(ctx context.Context, h *connHandle, serverName 
 	}
 	tt, err := p.Backend.StartTLS(ctx, t, serverName)
 	if err != nil {
+		h.markFailed()
 		return socketErr(ctx, "startTls", err)
 	}
 	h.stateMu.Lock()
 	h.superseded = true
 	h.stateMu.Unlock()
-	next := &connHandle{addr: h.addr, owner: h.owner, t: tt}
+	next := &connHandle{addr: h.addr, host: h.host, port: h.port, tlsName: serverName, owner: h.owner, t: tt}
 	if !h.owner.track(next) {
 		_ = tt.Close()
 		return nil, Faultf("Socket.startTls: the owning call has already ended")
@@ -342,6 +387,7 @@ func read(ctx context.Context, h *connHandle) (Value, *Fault) {
 			return Result{Ok: true, Value: Bytes{B: buf[:n:n]}}, nil
 		}
 		if err != nil {
+			h.markFailed()
 			return socketErr(ctx, "read", err)
 		}
 	}
@@ -360,6 +406,7 @@ func write(ctx context.Context, h *connHandle, data []byte) (Value, *Fault) {
 		n, err := t.Write(data)
 		data = data[n:]
 		if err != nil {
+			h.markFailed()
 			return socketErr(ctx, "write", err)
 		}
 	}

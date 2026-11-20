@@ -224,6 +224,23 @@ func (c *scriptedConn) Close() error {
 	return nil
 }
 
+// staleWhileIdle is the peer having closed the connection or having bytes
+// waiting for the program, checked when Socket.reuse takes it (ADR 0109
+// §4). A script that has ended is idle, not stale.
+func (c *scriptedConn) staleWhileIdle() bool {
+	p := c.peer
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return true
+	}
+	if p.pos >= len(p.Steps) {
+		return false
+	}
+	st := p.Steps[p.pos]
+	return st.Hangup || st.Send != nil
+}
+
 // SetDeadline releases a stalled read; the provider calls it when the call's
 // context is done.
 func (c *scriptedConn) SetDeadline(time.Time) error {

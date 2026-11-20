@@ -63,11 +63,14 @@ doesn't have to discover them.
 - **Two models, or `int | decimal`, in one union** decode by the order
   the members are written (ADR 0081 open questions 1 and 2). Enums that
   read the same JSON are refused (J3).
-- **The HTTP client opens a connection per request** (ADR 0074 §8):
-  `fiig.http` has no pool, so every `send` pays a TCP and, for `https`, a
-  TLS handshake. No HTTP/2, compression, proxies, cookie jar, streaming
-  bodies, multipart, or client certificates (§9), and redirects come back
-  as replies (§4).
+- **The HTTP client is HTTP/1.1 only** (ADR 0074 §9): no HTTP/2,
+  compression, proxies, cookie jar, streaming bodies, multipart, or client
+  certificates, and redirects come back as replies (§4). Connections are
+  kept between requests (ADR 0109), one request at a time each.
+- **No connection outlives every call** (ADR 0109 open question 2): a
+  connection is kept idle between calls, but nothing can hold a
+  subscription, Postgres `LISTEN`, or an HTTP/2 connection shared by
+  concurrent requests.
 - **No limit on a reply's size** (ADR 0074 open question 2): the timeout
   bounds how long a reply takes, not how much memory it uses.
 - **Request limits are per service, not per route** (ADR 0076 open

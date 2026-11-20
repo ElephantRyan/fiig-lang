@@ -107,6 +107,22 @@ client certificate to present to whom (ADR 0086):
 - Host names are always verified, and nothing turns verification off; a
   development server's CA goes in `trust`.
 
+`Socket` also keeps idle connections between requests, so `fiig.http`
+doesn't pay a new TCP and TLS handshake for every call to the same host
+(ADR 0109). The defaults suit most services; `idle` changes them:
+
+```json
+{"Socket": {"type": "socket", "idle": {"perKey": 10, "total": 100, "timeout": "90s"}}}
+```
+
+- `perKey` is how many idle connections are kept for one host, port, and
+  package; `total` is the most kept across all of them.
+- `timeout` closes a connection idle that long. Keep it below the idle
+  timeout of the servers you call (or of a proxy between), or the first
+  request after a quiet spell finds a closed connection. `fiig.http` sends
+  a `GET`, `PUT`, or `DELETE` again when that happens, but never a `POST`
+  or `PATCH`.
+
 A capability can also be bound for one package's workflows, so each
 domain of a modular monolith keeps its own database (ADR 0079 §6a); see
 [A modular monolith in fiig](modular-monolith.md):

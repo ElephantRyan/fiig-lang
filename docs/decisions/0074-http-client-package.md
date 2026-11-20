@@ -328,6 +328,10 @@ amount=1250&currency=usd
 
 ### 8. One connection per request, for now
 
+> **Superseded by ADR 0109 §6 (2026-11-20):** `send` keeps a connection
+> whose reply ended where its length said, uses it for the next request
+> to the same host, and no longer sends `Connection: close`.
+
 Each `send` connects, writes, reads, and closes, sending
 `Connection: close`. All four precedents pool connections, which saves a
 TCP and TLS handshake per request (one to three round trips). Fiig can't
@@ -399,7 +403,7 @@ never time out. A deadline bounds the whole exchange with one number.
 
 ## Open questions
 
-1. **Connection pooling.** Reusing a connection across calls needs ADR 0060
+1. **Connection pooling.** *(Closed by ADR 0109.)* Reusing a connection across calls needs ADR 0060
    §5 relaxed: a pool that owns connections beyond one call, keyed by
    scheme, host, and port, closing idle ones. Worth designing when a
    service's latency shows the cost.

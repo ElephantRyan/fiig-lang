@@ -1,0 +1,9 @@
+// The server closed or reset the connection: what a kept connection that
+// went stale while idle looks like (ADR 0109 §6).
+conversion closedByServer(failure: SocketError) -> bool {
+    match failure {
+        SocketError.Closed -> true
+        SocketError.Reset -> true
+        _ -> false
+    }
+}

@@ -210,6 +210,10 @@ stops a `while true` (ADR 0059 §4).
 > **Amended by ADR 0084 §4 (2026-11-16):** a connection a database
 > driver's `connect` opens for the runtime's pool belongs to the pool,
 > which closes it; every other connection still belongs to its call.
+>
+> **Amended by ADR 0109 §1 (2026-11-20):** a connection given to
+> `Socket.keep` belongs to `Socket`'s pool until a later call takes it
+> with `Socket.reuse`, which makes that call its owner.
 
 Fiig has no destructors (Rust's `Drop`), no `defer` (Go) and no
 `try`-with-resources (Java), and finalizers run at times nobody can
