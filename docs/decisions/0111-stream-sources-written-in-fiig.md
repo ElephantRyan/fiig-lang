@@ -241,8 +241,13 @@ taken by a second consumer while still waiting in the first.)*
   with the defaults (40 s an element) is a batch of 7. It is also the
   retry delay, since a retried entry is reclaimed after it.
 
-`group` is the route's `group` (§3a). `consumer` is the host name and
-process id. On shutdown the loop finishes the element in hand and stops.
+`group` is the route's `group` (§3a). `consumer` is the host name, which a
+pod or machine keeps across restarts *(after review, 2026-11-20: it was
+the host and process id, so a group gained a dead consumer every time a
+process restarted)*. Two processes on one host share a consumer, which
+Redis allows: they share its pending entries, and §7's reclaim applies
+to them the same. On shutdown the loop finishes the element in hand and
+stops.
 
 ### 6. Bug classes: I. Stream adapter errors
 
@@ -262,7 +267,8 @@ without a class, as other misplaced route syntax is.
 
 `fiig.redis` provides `StreamSource` as the capability group
 `RedisStreams`, whose gateways `require Redis` (ADR 0110), so the
-connection handling is the client's.
+connection handling is the client's. It needs Redis 6.2 or later, for
+`XPENDING`'s `IDLE` filter.
 
 - **An element is a stream entry with a `payload` field.** A producer
   writes `XADD orders * payload <json>`. Redis entries are flat maps of

@@ -357,17 +357,19 @@ func findAdapters(names []string, files []*syntax.File, packages types.Packages,
 	return out, nil
 }
 
-// cutLast splits a dotted name at its last dot.
 // consumerName is this process among a stream group's consumers (ADR
-// 0111 §5): the host and process id, unique while it runs.
+// 0111 §5): the host name, which a pod or a machine keeps across restarts,
+// so a group doesn't gain a dead consumer every time a process restarts.
+// It also holds this process's schedule claims (ADR 0112 §4).
 func consumerName() string {
 	host, err := os.Hostname()
 	if err != nil || host == "" {
 		host = "fiig"
 	}
-	return fmt.Sprintf("%s-%d", host, os.Getpid())
+	return host
 }
 
+// cutLast splits a dotted name at its last dot.
 func cutLast(name string) (string, string, bool) {
 	i := strings.LastIndex(name, ".")
 	if i < 0 {
