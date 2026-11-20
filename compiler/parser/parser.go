@@ -27,6 +27,15 @@ type Error struct {
 	Rule string `json:"rule,omitempty"`
 }
 
+// String is "line:col: message", with the bug class when there is one,
+// as the checker's diagnostics print.
+func (e Error) String() string {
+	if e.Rule != "" {
+		return fmt.Sprintf("%s: [%s] %s", e.At, e.Rule, e.Msg)
+	}
+	return fmt.Sprintf("%s: %s", e.At, e.Msg)
+}
+
 type Parser struct {
 	toks   []lexer.Token
 	pos    int
@@ -1198,6 +1207,19 @@ func (p *Parser) parseStatement() syntax.Stmt {
 	}
 }
 
+// atStatementOnly reports whether a statement that is never an
+// expression starts here, and its first word.
+func (p *Parser) atStatementOnly() (string, bool) {
+	switch {
+	case p.at(lexer.KwReturn), p.at(lexer.KwFor), p.at(lexer.KwWhile), p.at(lexer.KwBreak),
+		p.at(lexer.KwContinue), p.at(lexer.KwTransaction), p.atExpect():
+		return p.cur().Text, true
+	case p.atName() && (p.peek(1).Kind == lexer.Equals || p.peek(1).Kind == lexer.Colon):
+		return p.cur().Text + " =", true
+	}
+	return "", false
+}
+
 // atExpect reports whether an `expect` statement (ADR 0091 §3) starts
 // here: the word `expect` with an expression after it on the same line.
 // `expect = ...`, `expect: T = ...`, and `expect.x` keep their ordinary
@@ -1339,7 +1361,16 @@ func (p *Parser) parseMatchArm() syntax.MatchArm {
 	start := p.cur().Start
 	pat := p.parsePattern()
 	p.expect(lexer.Arrow)
-	body := p.parseBody()
+	var body syntax.Body
+	if word, ok := p.atStatementOnly(); ok {
+		// A habit from languages where an arm takes any statement.
+		stmtStart := p.cur().Start
+		p.errorf(stmtStart, "`%s` is a statement, and an arm takes an expression or a block; wrap it in braces: `-> { %s ... }`", word, word)
+		stmt := p.parseStatement()
+		body = &syntax.Block{Span: syntax.Span{Start: stmtStart, End: p.cur().Start}, Stmts: []syntax.Stmt{stmt}}
+	} else {
+		body = p.parseBody()
+	}
 	return syntax.MatchArm{Span: syntax.Span{Start: start, End: p.cur().Start}, Pattern: pat, Body: body}
 }
 
@@ -1352,6 +1383,20 @@ func (p *Parser) parsePattern() syntax.Pattern {
 	if p.at(lexer.Underscore) {
 		p.advance()
 		return &syntax.WildcardPattern{Span: syntax.Span{Start: start, End: p.cur().Start}}
+	}
+	switch p.cur().Kind {
+	case lexer.Int, lexer.Float, lexer.StringStart, lexer.Minus:
+		// Patterns bind names; they don't hold values to compare against.
+		text := p.cur().Text
+		if p.at(lexer.Minus) {
+			text = "-" + p.peek(1).Text
+		}
+		if p.at(lexer.StringStart) {
+			text = "\"...\""
+		}
+		p.parseUnary()
+		p.errorf(start, "a pattern can't hold a literal (%s); bind a name and compare it: `Rejected(status)`, then `status == %s`", text, text)
+		return &syntax.NamePattern{Span: syntax.Span{Start: start, End: p.cur().Start}, Path: []string{syntax.ErrorName}}
 	}
 	path := p.parseQualifiedName()
 	if p.at(lexer.LParen) {

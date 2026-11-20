@@ -71,6 +71,22 @@ gateway withHeader(url: string, name: string, value: string, timeout: int) -> Re
         timeoutMillis: timeout,
     ))
 }`,
+	"header_of.fiig": `use fiig.http
+activity headerOf(token: string) -> string {
+    bare = http.Request(method: http.Method.Get, url: "http://x.example.com")
+    sent = http.Request(method: http.Method.Get, url: "http://x.example.com", headers: [http.Header(name: "Authorization", value: token)])
+    return "${http.headerValue(bare.headers, "authorization")} ${http.headerValue(sent.headers, "AUTHORIZATION")}"
+}`,
+}
+
+// TestHeaderValueTakesARequestsHeaders is abs-recommendations GAPS G11:
+// headerValue takes Request.headers as it is, List<Header> | None.
+func TestHeaderValueTakesARequestsHeaders(t *testing.T) {
+	in := httpInterp(t, &runtime.ScriptedSocket{})
+	got, fault := in.Call(context.Background(), "headerOf", map[string]runtime.Value{"token": str("Bearer t1")})
+	if fault != nil || got.String() != "None Bearer t1" {
+		t.Fatalf("got %v, %v; want None Bearer t1", got, fault)
+	}
 }
 
 // httpInterp writes httpProgram to a fresh root, loads it with no

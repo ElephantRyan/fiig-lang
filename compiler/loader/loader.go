@@ -14,6 +14,7 @@
 package loader
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -543,7 +544,13 @@ func parsePackageDir(fsys fs.FS, dir string) ([]*syntax.File, map[string][]byte,
 		}
 		file, parseErrs := parser.Parse(string(src))
 		if len(parseErrs) > 0 {
-			return fmt.Errorf("%s: %v", filepath.ToSlash(filepath.Join(dir, path)), parseErrs)
+			// One line per error, each naming its file, as the checker's do.
+			name := filepath.ToSlash(filepath.Join(dir, path))
+			lines := make([]string, len(parseErrs))
+			for i, e := range parseErrs {
+				lines[i] = name + ":" + e.String()
+			}
+			return errors.New(strings.Join(lines, "\n"))
 		}
 		files = append(files, file)
 		hashed[path] = src
