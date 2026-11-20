@@ -82,7 +82,12 @@ doesn't return a `Result`).
 - **There is no `retry`.** The next firing is the retry. A job that needs
   to try again sooner fires more often and checks whether there is work.
 
-A fault halts, as it does on a stream route.
+**A fault fails its firing only**: it is logged and the next firing runs
+*(amended 2026-11-20 after review; this first said a fault halts, as on a
+stream route)*. A stream halts on a fault because the element would
+otherwise be lost or retried forever; a schedule's next firing is already
+its retry, as an overrun's is (§3), so stopping a process that may also
+serve requests buys nothing. `halt` stays for what the mapping asks.
 
 ### 3. A run ends by the next firing
 

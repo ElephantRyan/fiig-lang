@@ -236,8 +236,9 @@ runs every firing in this process, for a single replica. With neither,
 
 - A firing missed while no process ran is skipped; the next one runs.
 - A run is stopped when the next firing comes, and logged as an overrun.
-- A failed run that the mapping sends to `done` is logged; one it sends to
-  `halt`, or a fault, stops `fiig serve` with an error.
+- A failed run that the mapping sends to `done` is logged, and so is a
+  run that faults; the next firing runs as usual. One the mapping sends to
+  `halt` stops `fiig serve` with an error.
 
 ## Migrations
 

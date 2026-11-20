@@ -159,7 +159,11 @@ func (r *ScheduleRunner) fire(ctx context.Context, fire time.Time) *Halt {
 			r.Logf("schedule %s: %s overran into the next firing, so it was stopped (ADR 0112 §3)", r.name, element)
 			return nil
 		}
-		return &Halt{Route: r.name, Element: element, Reason: "the workflow faulted: " + fault.Message}
+		// A fault fails this firing only (ADR 0112 §2, as amended): the
+		// next firing is the retry, and only the mapping's halt stops the
+		// process.
+		r.Logf("schedule %s: %s faulted, so it was skipped: %s", r.name, element, fault.Message)
+		return nil
 	}
 	for _, arm := range r.route.Mapping {
 		if !runtime.MatchPattern(arm.Pattern, result, runtime.NewEnv()) {
