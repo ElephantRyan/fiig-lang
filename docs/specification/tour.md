@@ -427,13 +427,13 @@ best = scores.sortedDescending()   // stable; sorted() ascends
 top = best.firstOrNone()           // int | None; first() faults when empty
 seen = best.contains(10)           // ==, so floats use math.containsClose
 // Sorting records needs a key: evaluated once per element, stable, and
-// limited to what a rule may call. Ties keep their order.
+// limited to calls with no effect (ADR 0100). Ties keep their order.
 ranked = sorted(book in books): book.score descending
 // More keys join with `then`, each with its own direction (ADR 0093).
 shelf = sorted(book in books): book.author then book.year descending
 
 // List forms (ADR 0093): the body is written in place, runs once per
-// element, and may call only what a rule may.
+// element, and may call what its declaration may, minus effects (ADR 0100).
 good = filter(r in ratings): r.score >= 4         // List<Rating>
 ids = map(r in ratings): r.itemId                 // List<string>
 byItem = groupBy(r in ratings): r.itemId          // Map<string, List<Rating>>

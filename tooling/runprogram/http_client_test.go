@@ -71,6 +71,10 @@ gateway withHeader(url: string, name: string, value: string, timeout: int) -> Re
         timeoutMillis: timeout,
     ))
 }`,
+	"segments.fiig": `use fiig.http
+activity segments() -> string {
+    return "${http.pathSegment("b-12_x.y~")}|${http.pathSegment("../../api/users")}|${http.pathSegment("a b?c#d%e")}|${http.pathSegment("Zoë")}|${http.pathSegment("..")}|${http.pathSegment(".")}|${http.pathSegment("")}"
+}`,
 	"header_of.fiig": `use fiig.http
 activity headerOf(token: string) -> string {
     bare = http.Request(method: http.Method.Get, url: "http://x.example.com")
@@ -363,5 +367,16 @@ conversion pick() -> string {
 				t.Errorf("diags = %v, want one containing %q", diags, c.want)
 			}
 		})
+	}
+}
+
+// ADR 0101 (abs-recommendations GAPS G34): pathSegment encodes everything
+// that could change a URL's shape, and refuses what encoding can't save.
+func TestPathSegment(t *testing.T) {
+	in := httpInterp(t, &runtime.ScriptedSocket{})
+	got, fault := in.Call(context.Background(), "segments", nil)
+	want := "b-12_x.y~|..%2F..%2Fapi%2Fusers|a%20b%3Fc%23d%25e|Zo%C3%AB|None|None|None"
+	if fault != nil || got.String() != want {
+		t.Fatalf("got %v, %v\nwant %s", got, fault, want)
 	}
 }

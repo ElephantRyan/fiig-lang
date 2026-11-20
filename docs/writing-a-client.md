@@ -63,6 +63,21 @@ the conversion `shelfFailure` says what a status means (401 is
   ordinary rules and conversions, which also means each one can be tested
   by passing it values.
 
+## Putting an argument into a path
+
+Text a caller supplied goes into a path through `http.pathSegment` (ADR
+0101), never straight into the interpolation: an id like
+`../../api/users` would otherwise reach another endpoint with the
+client's credentials. It percent-encodes what could change the URL's
+shape, and is `None` for empty, `.` and `..`:
+
+```fiig
+match http.pathSegment(id) {
+    None -> Err(ShelfError.NotFound)
+    safe -> shelfBook(token, safe)
+}
+```
+
 ## Testing it
 
 Fake `HttpClient`, not the client, so the real gateway bodies run (ADR

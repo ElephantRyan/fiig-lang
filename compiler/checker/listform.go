@@ -27,7 +27,7 @@ func (c *checker) formElem(form string, iterable syntax.Expr, env map[string]typ
 // name and the calls a rule may make.
 func (c *checker) inFormBody(form string, e syntax.Expr, env map[string]types.Type) types.Type {
 	savedKind, savedForm := c.callerKind, c.inForm
-	c.callerKind, c.inForm = kindRule, form
+	c.callerKind, c.inForm = c.pureKind(), form
 	defer func() { c.callerKind, c.inForm = savedKind, savedForm }()
 	if form == "sum" && isConstant(e) {
 		t, _ := c.landConstant(e, intType)
@@ -45,21 +45,23 @@ func (c *checker) formWhat() string {
 }
 
 func (c *checker) formADR() string {
-	switch c.inForm {
-	case "sorted":
-		return "ADR 0065 §3"
-	case "mapErr":
-		return "ADR 0095 §3"
-	}
-	return "ADR 0093 §2"
+	return "ADR 0100"
 }
 
 // formMayCall is what report and checkEffect say a form's body may call.
 func (c *checker) formMayCall() string {
-	if c.inForm == "mapErr" {
-		return "what the enclosing declaration may, but nothing with an effect"
+	return "what the enclosing declaration may, but nothing with an effect"
+}
+
+// pureKind is the caller kind a form's body is checked as (ADR 0100):
+// what the enclosing declaration may call, minus effects. A rule's or a
+// formula's stays its own; every wider kind's pure part is exactly a
+// conversion's table.
+func (c *checker) pureKind() declKind {
+	if c.callerKind == kindRule || c.callerKind == kindFormula {
+		return c.callerKind
 	}
-	return "only what a rule may, formulas and methods"
+	return kindConversion
 }
 
 // checkExpectedMapErr handles a mapErr form where the context gives it a
@@ -121,10 +123,7 @@ func (c *checker) inferMapErr(e *syntax.ListForm, valueWant types.Type, env map[
 	// §3: what the enclosing declaration may call, minus effects. A
 	// conversion's table is exactly the pure part of every wider kind's.
 	savedKind, savedForm := c.callerKind, c.inForm
-	if c.callerKind != kindRule && c.callerKind != kindFormula {
-		c.callerKind = kindConversion
-	}
-	c.inForm = "mapErr"
+	c.callerKind, c.inForm = c.pureKind(), "mapErr"
 	body := c.inferExpr(e.Body, bodyEnv)
 	c.callerKind, c.inForm = savedKind, savedForm
 	return types.Generic{Name: "Result", Args: []types.Type{g.Args[0], body}}
