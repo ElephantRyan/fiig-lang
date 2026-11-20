@@ -1,0 +1,55 @@
+test aWellFormedMailPasses {
+    expect checkMail(mailTo(["b@y.org", "c@y.org"])) is Ok(_)
+}
+
+test aMailWithNoRecipientIsRefused {
+    expect checkMail(mailTo([])) is Err(SmtpError.InvalidMail(reason))
+}
+
+test moreThan100RecipientsAreRefused {
+    many: List<string> = []
+    n: int = 0
+    while n < 101 {
+        many = append(many, "r${n}@y.org")
+        n = n + 1
+    }
+    expect checkMail(mailTo(many)) is Err(SmtpError.InvalidMail(reason))
+}
+
+test anAddressIsOneAtWithSomethingEachSide {
+    for bad in ["nobody", "@y.org", "b@", "a@b@c.org", "", "ab"] {
+        expect checkMail(mailTo([bad])) is Err(SmtpError.InvalidMail(reason))
+    }
+}
+
+test anAddressCantCarryAProtocolLine {
+    // Each of these, written into RCPT TO:<...> or a To: header, would
+    // end the line and start another of the caller's choosing.
+    for bad in ["b@y.org\r\nRCPT TO:<z@z.org>", "b@y.org>\r\nDATA", "b @y.org", "<b@y.org>", "\"b\"@y.org", "b@y.org,c@y.org", "b@yé.org"] {
+        expect checkMail(mailTo([bad])) is Err(SmtpError.InvalidMail(reason))
+    }
+}
+
+test theSenderIsCheckedToo {
+    mail = Mail(from: "a@x.org\r\nBcc: z@z.org", to: ["b@y.org"], subject: "s", body: "x")
+    expect checkMail(mail) is Err(SmtpError.InvalidMail(reason))
+}
+
+test aSubjectCantHaveALineBreak {
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "hi\r\nBcc: z@z.org", body: "x")
+    expect checkMail(mail) is Err(SmtpError.InvalidMail(reason))
+    other = Mail(from: "a@x.org", to: ["b@y.org"], subject: "hi\nthere", body: "x")
+    expect checkMail(other) is Err(SmtpError.InvalidMail(reason2))
+}
+
+test aReasonNamesTheAddressByPositionNotText {
+    expect checkMail(mailTo(["b@y.org", "evil\r\naddress"])) is Err(SmtpError.InvalidMail(reason))
+    expect reason.contains("recipient 2")
+    expect not reason.contains("evil")
+}
+
+private {
+    mailTo(to: List<string>) -> Mail {
+        return Mail(from: "a@x.org", to: to, subject: "Hello", body: "Hi")
+    }
+}

@@ -1,0 +1,10 @@
+// What sending a mail can come to. A Refused code of 4xx says try again
+// later and 5xx says the server won't take it; the message is the server's
+// own text and never holds the URL or the password.
+enum SmtpError {
+    Socket(failure: SocketError)
+    Refused(code: int, message: string)
+    Protocol(reason: string)
+    InvalidUrl(reason: string)
+    InvalidMail(reason: string)
+}

@@ -1,0 +1,17 @@
+// A send in progress (ADR 0120 §3): what it is sending, where it has got
+// to, and what the server has said it can do. Every step of the SMTP
+// conversation is decided from this by pure conversions, so the gateway only
+// moves bytes.
+model Dialogue {
+    target: SmtpTarget
+    mail: Mail
+    hello: string
+    data: bytes
+    phase: SmtpPhase
+    secure: bool
+    recipient: int
+    startTls: bool
+    authPlain: bool
+    // The most bytes the server takes in a message, 0 when it says nothing.
+    sizeLimit: int
+}

@@ -1,0 +1,58 @@
+// A mail that can be sent as written (ADR 0120 §2). Addresses go into
+// protocol lines and headers, so a line break or a space in one could write
+// a command or a header of the caller's choosing; they're refused instead.
+// The reasons say which address, never what it said.
+conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
+    if not validAddress(mail.from) {
+        return Err(SmtpError.InvalidMail(reason: "the sender isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"))
+    }
+    if mail.to.length() == 0 {
+        return Err(SmtpError.InvalidMail(reason: "a mail has at least one recipient"))
+    }
+    if mail.to.length() > 100 {
+        return Err(SmtpError.InvalidMail(reason: "a mail has at most 100 recipients"))
+    }
+    number: int = 1
+    for recipient in mail.to {
+        if not validAddress(recipient) {
+            return Err(SmtpError.InvalidMail(reason: "recipient ${number} isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"))
+        }
+        number = number + 1
+    }
+    if mail.subject.contains("\r") or mail.subject.contains("\n") {
+        return Err(SmtpError.InvalidMail(reason: "the subject has a line break"))
+    }
+    if mail.subject.utf8().length() > 900 {
+        return Err(SmtpError.InvalidMail(reason: "the subject is longer than 900 bytes"))
+    }
+    return Ok(None)
+}
+
+private {
+    // local@domain in plain ASCII: exactly one @ with something on each
+    // side, and none of the characters that end or quote an address.
+    validAddress(text: string) -> bool {
+        raw = text.utf8()
+        if raw.length() < 3 or raw.length() > 254 {
+            return false
+        }
+        ats: int = 0
+        at: int = -1
+        i: int = 0
+        while i < raw.length() {
+            b = raw.at(i)
+            if b <= 32 or b >= 127 {
+                return false
+            }
+            if b == 34 or b == 40 or b == 41 or b == 44 or b == 58 or b == 59 or b == 60 or b == 62 or b == 91 or b == 92 or b == 93 {
+                return false
+            }
+            if b == 64 {
+                ats = ats + 1
+                at = i
+            }
+            i = i + 1
+        }
+        return ats == 1 and at > 0 and at < raw.length() - 1
+    }
+}

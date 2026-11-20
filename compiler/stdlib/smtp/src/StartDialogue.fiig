@@ -1,0 +1,16 @@
+// A send that has connected. A connection that is TLS from its first byte
+// (smtps://) is secure already.
+conversion startDialogue(target: SmtpTarget, mail: Mail, hello: string, data: bytes) -> Dialogue {
+    return Dialogue(
+        target: target,
+        mail: mail,
+        hello: hello,
+        data: data,
+        phase: SmtpPhase.Greeting,
+        secure: target.security == SmtpSecurity.Implicit,
+        recipient: 0,
+        startTls: false,
+        authPlain: false,
+        sizeLimit: 0,
+    )
+}

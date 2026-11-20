@@ -1,0 +1,5 @@
+// The handshake is done: everything the server said before it is forgotten
+// (RFC 3207 §4.2), so the conversation starts again with EHLO.
+conversion afterUpgrade(d: Dialogue) -> Dialogue {
+    return copy(d, phase: SmtpPhase.SecureHello, secure: true, startTls: false, authPlain: false, sizeLimit: 0)
+}

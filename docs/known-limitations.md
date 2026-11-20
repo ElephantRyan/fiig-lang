@@ -69,6 +69,11 @@ doesn't have to discover them.
   compression, proxies, cookie jar, streaming bodies, multipart, or client
   certificates, and redirects come back as replies (§4). Connections are
   kept between requests (ADR 0109), one request at a time each.
+- **`fiig.smtp` sends plain-text mail only** (ADR 0120): no HTML or
+  attachments, Cc, Bcc, Reply-To or display names, no login but AUTH PLAIN
+  (so no XOAUTH2 for Gmail or Microsoft 365), no internationalised
+  addresses, and one connection per mail. A mail to several recipients goes
+  to all of them or to none.
 - **No connection outlives every call** (ADR 0109 open question 2): a
   connection is kept idle between calls, but nothing can hold a
   subscription, Postgres `LISTEN`, or an HTTP/2 connection shared by

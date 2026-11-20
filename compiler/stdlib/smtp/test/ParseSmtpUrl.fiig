@@ -1,0 +1,62 @@
+test smtpStartsPlainAndUpgrades {
+    expect parseSmtpUrl("smtp://mail.example") is Ok(target)
+    expect target == SmtpTarget(host: "mail.example", port: 587, security: SmtpSecurity.StartTls, user: None, password: None)
+}
+
+test smtpsIsTlsFromTheFirstByte {
+    expect parseSmtpUrl("smtps://mail.example") is Ok(target)
+    expect target.security == SmtpSecurity.Implicit
+    expect target.port == 465
+}
+
+test plainIsForALocalServer {
+    expect parseSmtpUrl("smtp+plain://localhost:1025") is Ok(target)
+    expect target.security == SmtpSecurity.Plain
+    expect target.port == 1025
+}
+
+test aLoginAndAPort {
+    expect parseSmtpUrl("smtp://apikey:s3cret@smtp.example.com:2525") is Ok(target)
+    expect target.host == "smtp.example.com"
+    expect target.port == 2525
+    expect orEmpty(target.user) == "apikey"
+}
+
+test aLoginIsPercentDecoded {
+    // user@example, and a password with an @ and a colon.
+    expect parseSmtpUrl("smtp://user%40example:p%40ss%3Aword@mail.example") is Ok(target)
+    expect orEmpty(target.user) == "user@example"
+    expect orEmpty(target.password) == "p@ss:word"
+}
+
+test anIpv6HostIsInBrackets {
+    expect parseSmtpUrl("smtps://[::1]:465") is Ok(target)
+    expect target.host == "::1"
+    expect target.port == 465
+}
+
+test aTrailingSlashIsFine {
+    expect parseSmtpUrl("smtp://mail.example/") is Ok(target)
+    expect target.host == "mail.example"
+}
+
+test whatCantBeReadIsRefused {
+    for bad in ["mail.example", "http://mail.example", "smtp://", "smtp://mail.example:0", "smtp://mail.example:99999", "smtp://mail.example:abc", "smtp://a:b:c:d", "smtp://[::1", "smtp://mail.example/inbox", "smtp://mail.example?x=1", "smtp://:pw@mail.example", "smtp://u%2@mail.example"] {
+        expect parseSmtpUrl(bad) is Err(SmtpError.InvalidUrl(reason))
+    }
+}
+
+test aReasonNeverRepeatsThePassword {
+    expect parseSmtpUrl("smtp://user:hunter2@mail.example:abc") is Err(SmtpError.InvalidUrl(reason))
+    expect not reason.contains("hunter2")
+    expect not reason.contains("user")
+}
+
+private {
+    orEmpty(text: string | None) -> string {
+        match text {
+            None -> ""
+            value -> value
+        }
+    }
+}

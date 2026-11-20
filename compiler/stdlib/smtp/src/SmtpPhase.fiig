@@ -1,0 +1,15 @@
+// Where a send has got to. Upgrading is the moment between the server's
+// agreement to STARTTLS and the handshake, which has no reply to read.
+enum SmtpPhase {
+    Greeting
+    Hello
+    StartTls
+    Upgrading
+    SecureHello
+    Auth
+    MailFrom
+    Rcpt
+    Data
+    Body
+    Quit
+}

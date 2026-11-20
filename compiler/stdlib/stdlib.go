@@ -8,5 +8,5 @@ import "embed"
 
 // FS holds one directory per package, each with its own fiig.pkg.json.
 //
-//go:embed http postgres redis schedule sql stream
+//go:embed http postgres redis schedule smtp sql stream
 var FS embed.FS

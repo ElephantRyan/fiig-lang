@@ -1,0 +1,92 @@
+test aPlainMailGoesAs7bit {
+    mail = Mail(from: "a@x.org", to: ["b@y.org", "c@y.org"], subject: "Hello", body: "Hi\r\n.a dot line\r\nbye")
+    head = "From: a@x.org\r\nTo: b@y.org, c@y.org\r\nSubject: Hello\r\nDate: D\r\nMessage-ID: <t@x.org>\r\n"
+    head2 = "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n"
+    expect textOf(mailData(mail, "D", "t@x.org")) == "${head}${head2}\r\nHi\r\n..a dot line\r\nbye\r\n.\r\n"
+}
+
+test lineEndingsAreAllCrlf {
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "one\ntwo\rthree\r\nfour\n")
+    expect textOf(mailData(mail, "D", "t@x.org")).endsWith("\r\none\r\ntwo\r\nthree\r\nfour\r\n.\r\n")
+}
+
+test anEmptyBodyIsOneEmptyLine {
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "")
+    expect textOf(mailData(mail, "D", "t@x.org")).endsWith("\r\n\r\n\r\n.\r\n")
+}
+
+test aBodyWithNonAsciiGoesAsBase64 {
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "héllo")
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    expect text.contains("Content-Transfer-Encoding: base64\r\n")
+    // "héllo" and a CRLF, in base64.
+    expect text.endsWith("\r\n\r\naMOpbGxvDQo=\r\n.\r\n")
+}
+
+test aLongBase64BodyIsWrappedAt76 {
+    long = repeated("é", 100)
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: long)
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    expect longestLine(text) <= 76
+}
+
+test aLineOverTheSmtpLimitGoesAsBase64 {
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: repeated("a", 1000))
+    expect textOf(mailData(mail, "D", "t@x.org")).contains("Content-Transfer-Encoding: base64\r\n")
+}
+
+test anAsciiSubjectIsWrittenAsItIs {
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "Order 42: shipped", body: "x")
+    expect textOf(mailData(mail, "D", "t@x.org")).contains("Subject: Order 42: shipped\r\n")
+}
+
+test aSubjectWithNonAsciiIsAnEncodedWord {
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "Grüße", body: "x")
+    expect textOf(mailData(mail, "D", "t@x.org")).contains("Subject: =?UTF-8?B?R3LDvMOfZQ==?=\r\n")
+}
+
+test aLongSubjectIsCutBetweenCharacters {
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: repeated("é", 30), body: "x")
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    // 60 bytes: a word of 42 (21 whole characters), then the other 18.
+    expect text.contains("?=\r\n =?UTF-8?B?")
+    expect longestLine(text) <= 78
+}
+
+test aCharacterAcrossTheCutIsKeptWhole {
+    // 41 ASCII bytes then é (2 bytes): the word ends after the é, not in it.
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "${repeated("a", 41)}é", body: "x")
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    expect not text.contains("?=\r\n =?UTF-8?B?")
+}
+
+private {
+    textOf(data: bytes) -> string {
+        match data.utf8() {
+            None -> ""
+            text -> text
+        }
+    }
+
+    repeated(piece: string, times: int) -> string {
+        out: string = ""
+        n: int = 0
+        while n < times {
+            out = "${out}${piece}"
+            n = n + 1
+        }
+        return out
+    }
+
+    // The most bytes any line of the header and body has, between CRLFs.
+    longestLine(text: string) -> int {
+        best: int = 0
+        for line in text.split("\r\n") {
+            size = line.utf8().length()
+            if size > best {
+                best = size
+            }
+        }
+        return best
+    }
+}
