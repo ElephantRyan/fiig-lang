@@ -1,8 +1,11 @@
-// Which elements a receive is for (ADR 0111 §1). Every process running an
-// adapter consumes as one group, so each element goes to one of them.
+// Which elements a receive is for (ADR 0111 §1). Every process running a
+// route consumes as one group, the route's `group`, so each element goes
+// to one of them; start is where that group begins when it doesn't exist
+// yet (§3a).
 model Subscription {
     source: string
     group: string
     consumer: string
     waitMillis: int
+    start: StartAt
 }

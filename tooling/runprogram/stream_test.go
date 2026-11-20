@@ -64,7 +64,7 @@ gateway markProcessed(orderId: string) -> Result<None, OrderError>
     return record(order)
 }`,
 	"order_intake.fiig": `adapter stream OrderIntake {
-    source "orders" key orderId -> placeOrder(order: OrderPlaced) {
+    source "orders" group "intake" from earliest key orderId -> placeOrder(order: OrderPlaced) {
         Ok(_) -> ack
         Err(OrderError.OutOfStock(_)) -> retry(attempts: 2) else deadLetter "orders.failed"
         Err(OrderError.Invalid(_)) -> deadLetter "orders.invalid"
@@ -77,8 +77,14 @@ gateway markProcessed(orderId: string) -> Result<None, OrderError>
 // returns the runner for OrderIntake, reading from redis.
 func streamRunner(t *testing.T, redis *fakeRedis) *adapter.StreamRunner {
 	t.Helper()
+	return streamRunnerOf(t, redis, streamProgram)
+}
+
+// streamRunnerOf is streamRunner over program, a variant of streamProgram.
+func streamRunnerOf(t *testing.T, redis *fakeRedis, program map[string]string) *adapter.StreamRunner {
+	t.Helper()
 	root := t.TempDir()
-	for name, src := range fixture.Module(streamProgram) {
+	for name, src := range fixture.Module(program) {
 		os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
 		if err := os.WriteFile(filepath.Join(root, name), []byte(src), 0o644); err != nil {
 			t.Fatal(err)
@@ -114,10 +120,10 @@ func streamRunner(t *testing.T, redis *fakeRedis) *adapter.StreamRunner {
 		t.Fatal(err)
 	}
 	pkg, group, _ := runners[0].Source().Resolve()
-	program := Program{Universe: u, Imports: in.Imports, Groups: in.Groups}
+	reach := Program{Universe: u, Imports: in.Imports, Groups: in.Groups}
 	env := map[string]string{"REDIS_URL": redis.url(), "REDIS_STREAM_RETRY_AFTER_MS": "50"}
 	lookup := func(name string) (string, bool) { v, ok := env[name]; return v, ok }
-	sources := ReachableConfigFrom(program, []Entry{{Name: "OrderIntake"}, {Package: pkg, Name: group}})
+	sources := ReachableConfigFrom(reach, []Entry{{Name: "OrderIntake"}, {Package: pkg, Name: group}})
 	if problems := in.LoadConfig(sources, lookup); len(problems) > 0 {
 		t.Fatal(problems)
 	}
@@ -159,7 +165,7 @@ func TestStreamAdapterOverRedisStreams(t *testing.T) {
 
 	// An operator deals with the bad entry; an order written while the
 	// runner waits is processed, and shutdown stops it cleanly.
-	redis.ack("orders", "OrderIntake", bad)
+	redis.ack("orders", "intake", bad)
 	done := make(chan error, 1)
 	live, stop := context.WithCancel(ctx)
 	go func() { done <- runner.Run(live) }()
@@ -176,12 +182,42 @@ func TestStreamAdapterOverRedisStreams(t *testing.T) {
 	if n := redis.counter("processed:o5"); n != 1 {
 		t.Errorf("o5 processed %d times", n)
 	}
-	if n := redis.pending("orders", "OrderIntake"); n != 0 {
+	if n := redis.pending("orders", "intake"); n != 0 {
 		t.Errorf("%d entries left pending", n)
 	}
 	// ADR 0109: the client keeps its connection, so three runs and their
 	// polling share a handful at most.
 	if n := redis.accepted.Load(); n > 3 {
 		t.Errorf("Redis saw %d connections", n)
+	}
+}
+
+// ADR 0111 §3a: a new group declared `from latest` skips what the stream
+// already holds and reads what arrives after it starts.
+func TestStreamGroupFromLatest(t *testing.T) {
+	redis := startFakeRedis(t, "pw")
+	redis.add("orders", "payload", `{"orderId":"old","quantity":1}`)
+	program := map[string]string{}
+	for name, src := range streamProgram {
+		program[name] = src
+	}
+	program["order_intake.fiig"] = strings.Replace(streamProgram["order_intake.fiig"], "from earliest", "from latest", 1)
+	runner := streamRunnerOf(t, redis, program)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+	time.Sleep(150 * time.Millisecond)
+	redis.add("orders", "payload", `{"orderId":"new","quantity":1}`)
+	deadline := time.Now().Add(5 * time.Second)
+	for redis.counter("processed:new") == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if redis.counter("processed:new") != 1 || redis.counter("processed:old") != 0 {
+		t.Errorf("processed new %d, old %d; want 1 and 0", redis.counter("processed:new"), redis.counter("processed:old"))
 	}
 }

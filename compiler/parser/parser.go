@@ -990,6 +990,24 @@ func (p *Parser) parseStreamRoute(start lexer.Pos) *syntax.Route {
 		p.errorf(lit.Start, "interpolation is not allowed in a source name")
 	}
 	route := &syntax.Route{Verb: "source", Path: plainText(lit)}
+	// `group "name"` and `from earliest|latest` (ADR 0111 §3a); the checker
+	// reports either missing (I8).
+	if p.atContextual("group") {
+		p.advance()
+		g := p.parseStringLit()
+		if hasInterp(g) {
+			p.errorf(g.Start, "interpolation is not allowed in a group name")
+		}
+		route.Group = plainText(g)
+	}
+	if p.atContextual("from") {
+		p.advance()
+		if p.atContextual("earliest") || p.atContextual("latest") {
+			route.From = p.advance().Text
+		} else {
+			p.errorf(p.cur().Start, "expected 'earliest' or 'latest' after 'from', got %s", p.cur().Kind)
+		}
+	}
 	if p.atContextual("key") {
 		p.advance()
 		keyTok := p.expectName()
