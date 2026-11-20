@@ -111,7 +111,10 @@ doesn't have to discover them.
 - **Stream adapters read Redis Streams only** (ADR 0111): no Kafka or
   NATS (they keep state on a connection, ADR 0109 open question 2), no
   replay of one element by id, and one element at a time per route, with
-  a fixed batch of 16 and a 2 s wait. Scheduled jobs have no adapter yet.
+  a fixed batch of 16 and a 2 s wait.
+- **Schedules are UTC only** (ADR 0112 open question 1), with no jitter
+  and no catching up on firings missed while nothing ran; cron has no
+  names (`MON`), `L`, `W`, `#`, or seconds.
 - See `docs/specification/grammar.md`'s "Known gaps" for open syntax
   questions.
 
