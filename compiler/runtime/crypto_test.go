@@ -198,6 +198,39 @@ func TestPasswordHashesWaitForASlot(t *testing.T) {
 	}
 }
 
+// ADR 0113 §2: CRC-32C against known answers: the "123456789" check value
+// every CRC catalogue gives for CRC-32C, and RFC 3720 Appendix B.4's four
+// 32-byte iSCSI vectors (which it writes low byte first).
+func TestCrc32cVectors(t *testing.T) {
+	in := checkedInterp(t, `rule checksum(data: bytes) -> int {
+    return crypto.crc32c(data)
+}`)
+	run := func(n int, f func(i int) byte) []byte {
+		out := make([]byte, n)
+		for i := range out {
+			out[i] = f(i)
+		}
+		return out
+	}
+	cases := []struct {
+		name string
+		data []byte
+		want int64
+	}{
+		{"empty", nil, 0},
+		{"check value", []byte("123456789"), 0xE3069283},
+		{"32 zeros", run(32, func(int) byte { return 0 }), 0x8A9136AA},
+		{"32 ones", run(32, func(int) byte { return 0xFF }), 0x62A8AB43},
+		{"ascending", run(32, func(i int) byte { return byte(i) }), 0x46DD794E},
+		{"descending", run(32, func(i int) byte { return byte(31 - i) }), 0x113FDB5C},
+	}
+	for _, c := range cases {
+		if got := callOK(t, in, "checksum", map[string]Value{"data": Bytes{B: c.data}}); got != Value(Int(c.want)) {
+			t.Errorf("%s: crc32c = %v, want %d (0x%08X)", c.name, got, c.want, c.want)
+		}
+	}
+}
+
 // ADR 0085 §7: PBKDF2-HMAC-SHA-256 against RFC 7914 §11's first vector
 // (P "passwd", S "salt", c 1; its first 32 bytes), and xor.
 func TestPbkdf2AndXor(t *testing.T) {

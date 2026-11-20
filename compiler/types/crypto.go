@@ -23,6 +23,10 @@ var cryptoFormulas = map[string]Method{
 	"equal":      {[]Param{p("a", bytesType), p("b", bytesType)}, boolType},
 	// ADR 0085 §7: for protocols that specify PBKDF2, such as SCRAM.
 	"pbkdf2Sha256": {[]Param{p("password", Union{Members: []Type{SecretType, bytesType}}), p("salt", bytesType), p("iterations", intType)}, bytesType},
+	// ADR 0113 §2: CRC-32C (Castagnoli), the checksum Kafka record batches
+	// carry. A checksum for catching corruption, not a cryptographic hash:
+	// anyone can make data with any CRC.
+	"crc32c": {[]Param{p("data", bytesType)}, intType},
 
 	HashPasswordFormula: {[]Param{p("password", stringType)}, stringType},
 	"passwordMatches":   {[]Param{p("password", stringType), p("stored", stringType)}, boolType},

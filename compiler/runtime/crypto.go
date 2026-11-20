@@ -8,6 +8,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"hash/crc32"
 	goruntime "runtime"
 	"strconv"
 	"strings"
@@ -61,7 +62,13 @@ const maxPbkdf2Iterations = 10_000_000
 
 type cryptoFunc func(ctx context.Context, in *Interp, args []Value) (Value, *Fault)
 
+// castagnoli is CRC-32C's table (ADR 0113 §2).
+var castagnoli = crc32.MakeTable(crc32.Castagnoli)
+
 var cryptoFormulas = map[string]cryptoFunc{
+	"crc32c": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
+		return Int(crc32.Checksum(args[0].(Bytes).B, castagnoli)), nil
+	},
 	"sha256": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
 		sum := sha256.Sum256(args[0].(Bytes).B)
 		return Bytes{B: sum[:]}, nil
