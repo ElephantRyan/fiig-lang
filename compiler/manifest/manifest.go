@@ -49,6 +49,12 @@ type Manifest struct {
 	Version      string            `json:"version"`
 	Dependencies map[string]string `json:"dependencies,omitempty"`
 
+	// Workspaces is where to look for this package's dependencies, as
+	// directories relative to the package, the way -workspace names them
+	// on the command line (ADR 0097). Only the root package's are read:
+	// a dependency's dependencies are found from the root's.
+	Workspaces []string `json:"workspaces,omitempty"`
+
 	// Capabilities is the explicit allowlist of capability names (a
 	// gateway's `requires` clause, grammar.md §4) this package's own
 	// build is permitted to touch — the resolved build list, across
@@ -186,6 +192,11 @@ func (m *Manifest) Validate() []error {
 	for _, capability := range m.Capabilities {
 		if !identifierPattern.MatchString(capability) {
 			errs = append(errs, fmt.Errorf("capability %q is not a valid capability name", capability))
+		}
+	}
+	for _, w := range m.Workspaces {
+		if strings.TrimSpace(w) == "" {
+			errs = append(errs, fmt.Errorf("workspaces: an entry is empty; name a directory, relative to this package, such as \"..\" (ADR 0097)"))
 		}
 	}
 	if len(m.Environment) > 0 && m.Kind != Application {
