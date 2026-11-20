@@ -5,7 +5,7 @@ Date: 2026-11-20
 Amends: ADR 0091 §1 ("a test calls what a workflow may"), ADR 0044
 ("nothing calls a workflow" gains one caller: a test).
 Related: ADR 0079 (another package's workflow is reached through a
-gateway), ADR 0102 (`test/workflows/` mirrors `src/workflows/`).
+gateway), ADR 0102 (a workflow's file has a mirrored test file).
 
 ## Context
 
@@ -25,7 +25,7 @@ workflow from one doesn't add an edge the program has.
 A test may call a workflow of its own package, as it calls an activity:
 
 ```
-// test/workflows/rate.fiig
+// test/ratings/Rate.fiig
 test ratingTwiceKeepsTheFirstCreatedAt {
     fake Clock { ... }
     expect rate(input: RatingInput(itemId: "b-1", score: 8)) is Ok(first)
@@ -55,12 +55,12 @@ test ratingTwiceKeepsTheFirstCreatedAt {
 
 - **Test through the adapter** (a fake request in, a response out). Tests
   the route too, but needs a request syntax in tests; worth its own ADR.
-- **Keep testing activities only.** Leaves `src/workflows/` without a
+- **Keep testing activities only.** Leaves a workflow's file without a
   mirror under ADR 0102, and the composition untested.
 
 ## Consequences
 
-- `test/workflows/` mirrors `src/workflows/`.
+- A workflow's file has a mirrored test file (ADR 0102).
 - The registry's call graph is unchanged: tests aren't in it.
 
 ## Open questions
