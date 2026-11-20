@@ -1,0 +1,12 @@
+// AWS's published derivation example (for IAM, but the derivation is the
+// same for S3): the key for 2012-02-15, us-east-1, iam.
+test awsPublishedExample {
+    key = signingKey("wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", "20120215", "us-east-1", "iam")
+    expect key.toHex() == "f4780e2d9f65fa895f9c67b32ce1baf0b0d8a43505a000a1a9e090d414db404d"
+}
+
+test theServiceAndRegionChangeTheKey {
+    s3 = signingKey("wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", "20130524", "us-east-1", "s3")
+    expect s3.toHex() == "f117494eff5d09da21cbf7f0339559ea04fc9582d31299cb992be70a6b27c97a"
+    expect s3 != signingKey("wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", "20130524", "eu-west-1", "s3")
+}

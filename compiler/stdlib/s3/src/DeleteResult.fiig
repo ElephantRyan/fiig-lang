@@ -1,0 +1,10 @@
+use fiig.http
+
+// A DELETE is done when the server says 204 (or 200). S3 answers 204 for a
+// key that was never there, so a delete is safe to repeat.
+conversion deleteResult(reply: http.Reply) -> Result<None, S3Error> {
+    if reply.status == 204 or reply.status == 200 {
+        return Ok(None)
+    }
+    return Err(errorOf(reply))
+}

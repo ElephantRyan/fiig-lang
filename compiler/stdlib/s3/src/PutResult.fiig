@@ -1,0 +1,9 @@
+use fiig.http
+
+// A PUT is stored when the server says 200; anything else is its error.
+conversion putResult(reply: http.Reply) -> Result<None, S3Error> {
+    if reply.status == 200 {
+        return Ok(None)
+    }
+    return Err(errorOf(reply))
+}
