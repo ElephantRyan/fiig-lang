@@ -1,7 +1,7 @@
 # ADR 0095: `mapErr(e in result): newError`
 
-Status: Proposed (built 2026-11-19 under the owner's goal to work through
-the abs-recommendations gaps; awaiting review)
+Status: Accepted (2026-11-20). Implemented 2026-11-19; see Implementation
+notes.
 Date: 2026-11-19
 Amends: `grammar.md` (a list-form-shaped expression over a `Result`).
 Related: ADR 0006 (`?` never converts an error), ADR 0073 §2

@@ -1,7 +1,7 @@
 # ADR 0099: `or` Gives an Optional Value a Default
 
-Status: Proposed (built 2026-11-20 under the owner's goal to work through
-the abs-recommendations gaps; awaiting review)
+Status: Accepted (2026-11-20). Implemented 2026-11-20; see Implementation
+notes.
 Date: 2026-11-20
 Amends: ADR 0041 (`and`/`or` are bool-only).
 Related: ADR 0040 (bare-name `match` arms narrow `T | None`), ADR 0063

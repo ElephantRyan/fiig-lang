@@ -1,7 +1,7 @@
 # ADR 0097: Workspaces in the Manifest
 
-Status: Proposed (built 2026-11-19 under the owner's goal to work through
-the abs-recommendations gaps; awaiting review)
+Status: Accepted (2026-11-20). Implemented 2026-11-19; see Implementation
+notes.
 Date: 2026-11-19
 Related: ADR 0033 (the workspace-scanned loader), ADR 0037 (more than one
 root), ADR 0079 (a modular monolith's sibling packages),
