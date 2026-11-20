@@ -166,10 +166,14 @@ func ReachableConfigFrom(p Program, entries []Entry) []runtime.ConfigSource {
 	w := walkFrom(p, entries)
 	var out []runtime.ConfigSource
 	for d, sc := range w.configs {
-		out = append(out, runtime.ConfigSource{
+		src := runtime.ConfigSource{
 			Decl: d, Universe: sc.universe, Imports: UniversesOf(sc.imports),
-			Package: sc.path, Rename: p.Renames[sc.path],
-		})
+			Package: sc.path, Rename: p.Renames[sc.path], Groups: sc.groups,
+		}
+		if d.When != nil {
+			src.WhenText = format.Expr(d.When)
+		}
+		out = append(out, src)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Package != out[j].Package {
@@ -328,14 +332,48 @@ func (w *walker) one(e syntax.Expr, sc configScope) {
 			return
 		}
 		if g, ok := sc.groups[target.Name]; ok && g.Config != nil {
-			if _, done := w.configs[g.Config]; !done {
-				w.configs[g.Config] = packageScope(g.Package)
-			}
+			w.addConfig(g.Config, packageScope(g.Package))
 		} else if d, found := sc.universe.Lookup(target.Name); found {
 			if cd, ok := d.(*syntax.ConfigDecl); ok {
-				if _, done := w.configs[cd]; !done {
-					w.configs[cd] = sc
-				}
+				w.addConfig(cd, sc)
+			}
+		}
+	}
+}
+
+// addConfig records cd as read, in the scope its package runs in. A config
+// with a `when` (ADR 0122) also needs the config its condition reads, to
+// evaluate it, whether or not any code reads that.
+func (w *walker) addConfig(cd *syntax.ConfigDecl, sc configScope) {
+	if _, done := w.configs[cd]; done {
+		return
+	}
+	w.configs[cd] = sc
+	if cd.When != nil {
+		w.whenConfigs(cd.When, sc)
+	}
+}
+
+// whenConfigs adds the config declarations a condition names, `Config.field`.
+func (w *walker) whenConfigs(e syntax.Expr, sc configScope) {
+	switch e := e.(type) {
+	case *syntax.ParenExpr:
+		w.whenConfigs(e.Inner, sc)
+	case *syntax.NotExpr:
+		w.whenConfigs(e.Operand, sc)
+	case *syntax.BinaryExpr:
+		w.whenConfigs(e.Left, sc)
+		w.whenConfigs(e.Right, sc)
+	case *syntax.FieldAccess:
+		target, ok := e.Target.(*syntax.Ident)
+		if !ok {
+			return
+		}
+		if g, ok := sc.groups[target.Name]; ok && g.Config != nil {
+			w.addConfig(g.Config, packageScope(g.Package))
+		} else if d, found := sc.universe.Lookup(target.Name); found {
+			if cd, ok := d.(*syntax.ConfigDecl); ok {
+				w.addConfig(cd, sc)
 			}
 		}
 	}
@@ -404,6 +442,10 @@ func Variables(sources []runtime.ConfigSource, capsPath string) ([]Variable, err
 				v.Requirement = "= " + format.Expr(f.Default)
 			} else if _, ok := f.Type.(*syntax.UnionType); ok {
 				v.Requirement = "optional"
+			}
+			// A config with a `when` is only read when it holds (ADR 0122).
+			if src.WhenText != "" {
+				v.Requirement += " when " + src.WhenText
 			}
 			out = append(out, v)
 		}

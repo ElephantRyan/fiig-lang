@@ -29,6 +29,11 @@ type ConfigSource struct {
 	Imports  map[string]*types.Universe
 	Package  string
 	Rename   map[string]string // the package's variable -> the deployment's
+	// Groups are the capability-group and config imports its `when`
+	// condition may name (`use acme.signin.SignInConfig`); WhenText is the
+	// condition as written, for messages and `fiig config` (ADR 0122).
+	Groups   map[string]*types.GroupRef
+	WhenText string
 }
 
 // EnvName is the variable a field actually reads: its own, or the one the
@@ -76,48 +81,101 @@ func (in *Interp) LoadTestConfig(sources []ConfigSource, lookup Lookup) []string
 func (in *Interp) loadConfig(sources []ConfigSource, lookup Lookup, partial bool) []string {
 	var problems []string
 	values := map[*syntax.ConfigDecl]Record{}
+	absent := map[*syntax.ConfigDecl]string{}
+	// A config with a `when` (ADR 0122) is read after the others, since its
+	// condition is evaluated from their values: first the unconditional
+	// sources, then each conditional one that its condition lets in.
+	var conditional []ConfigSource
 	for _, src := range sources {
-		rec := Record{Fields: map[string]Value{}}
-		for _, f := range src.Decl.Fields {
-			t, _ := types.ResolveWithImports(f.Type, src.Universe, src.Imports)
-			name := src.EnvName(f)
-			text, set := lookup(name)
-			if set && text == "" {
-				set = false
+		if src.Decl.When != nil {
+			conditional = append(conditional, src)
+			continue
+		}
+		problems = append(problems, in.readSource(src, lookup, partial, values)...)
+	}
+	savedConfig := in.Config
+	in.Config = values
+	for _, src := range conditional {
+		// `fiig test` loads config partially, and a test fakes what it reads
+		// (ADR 0091 §5), so a conditional config is present there.
+		if !partial {
+			present, why := in.whenHolds(src)
+			if why != "" {
+				// Its condition read config that didn't load, which is
+				// already a problem above; nothing more to say yet.
+				continue
 			}
-			switch {
-			case set:
-				v, problem := in.readConfigValue(src, text, name, t)
-				if problem != "" {
-					shown := strconv.Quote(text)
-					if types.HoldsSecret(t, nil) {
-						shown = "(hidden)"
-					}
-					problems = append(problems, fmt.Sprintf("%s=%s isn't %s; %s", name, shown, problem, src.Where(f)))
-					continue
-				}
-				rec.Fields[f.Name] = v
-			case f.Default != nil:
-				v, fault := in.configDefault(src, f, t)
-				if fault != nil {
-					problems = append(problems, fmt.Sprintf("%s's default: %s", src.Where(f), fault.Message))
-					continue
-				}
-				rec.Fields[f.Name] = v
-			case admitsNoneType(t):
-				rec.Fields[f.Name] = None{}
-			case partial:
-			default:
-				problems = append(problems, fmt.Sprintf("%s is unset; %s needs %s", name, src.Where(f), article(withoutNoneType(t))))
+			if !present {
+				absent[src.Decl] = fmt.Sprintf("config %s isn't set in this deployment: its condition (%s) is false (ADR 0122)", src.Decl.Name, src.WhenText)
+				continue
 			}
 		}
-		values[src.Decl] = rec
+		problems = append(problems, in.readSource(src, lookup, partial, values)...)
 	}
 	if len(problems) > 0 {
+		in.Config = savedConfig
 		return problems
 	}
 	in.Config = values
+	in.ConfigAbsent = absent
 	return nil
+}
+
+// whenHolds evaluates src's `when` from the config values read so far. why
+// is set instead when it can't be evaluated.
+func (in *Interp) whenHolds(src ConfigSource) (holds bool, why string) {
+	ctx := withScope(context.Background(), scope{universe: src.Universe, groups: src.Groups})
+	v, fault := in.EvalExpr(ctx, src.Decl.When, NewEnv())
+	if fault != nil {
+		return false, fault.Message
+	}
+	b, ok := v.(Bool)
+	if !ok {
+		return false, fmt.Sprintf("its condition is %s, not a bool", v)
+	}
+	return bool(b), ""
+}
+
+// readSource reads one config declaration's fields into values and returns
+// what was wrong with them.
+func (in *Interp) readSource(src ConfigSource, lookup Lookup, partial bool, values map[*syntax.ConfigDecl]Record) []string {
+	var problems []string
+	rec := Record{Fields: map[string]Value{}}
+	for _, f := range src.Decl.Fields {
+		t, _ := types.ResolveWithImports(f.Type, src.Universe, src.Imports)
+		name := src.EnvName(f)
+		text, set := lookup(name)
+		if set && text == "" {
+			set = false
+		}
+		switch {
+		case set:
+			v, problem := in.readConfigValue(src, text, name, t)
+			if problem != "" {
+				shown := strconv.Quote(text)
+				if types.HoldsSecret(t, nil) {
+					shown = "(hidden)"
+				}
+				problems = append(problems, fmt.Sprintf("%s=%s isn't %s; %s", name, shown, problem, src.Where(f)))
+				continue
+			}
+			rec.Fields[f.Name] = v
+		case f.Default != nil:
+			v, fault := in.configDefault(src, f, t)
+			if fault != nil {
+				problems = append(problems, fmt.Sprintf("%s's default: %s", src.Where(f), fault.Message))
+				continue
+			}
+			rec.Fields[f.Name] = v
+		case admitsNoneType(t):
+			rec.Fields[f.Name] = None{}
+		case partial:
+		default:
+			problems = append(problems, fmt.Sprintf("%s is unset; %s needs %s", name, src.Where(f), article(withoutNoneType(t))))
+		}
+	}
+	values[src.Decl] = rec
+	return problems
 }
 
 // readConfigValue reads one variable's text as t, or says what it isn't.
@@ -263,6 +321,9 @@ func (in *Interp) readConfig(ctx context.Context, d *syntax.ConfigDecl, field st
 func (in *Interp) configValue(d *syntax.ConfigDecl, field string) (Value, *Fault) {
 	rec, ok := in.Config[d]
 	if !ok {
+		if why, absent := in.ConfigAbsent[d]; absent {
+			return nil, Faultf("%s", why)
+		}
 		return nil, Faultf("config %s was not read before the program started", d.Name)
 	}
 	v, ok := rec.Fields[field]

@@ -8,6 +8,7 @@ by import and renaming in the application manifest; §6 accepted with one
 lookup, one report, and one checklist; §7 settled ADR 0070 §1 as
 deployment input; §8 accepted with the testing note.
 Date: 2026-11-06
+Amended by: ADR 0122 (a config may be required only `when` another says so).
 Related: ADR 0027 (capability configuration, `${NAME}` in the caps file),
 ADR 0035 (capability security review), ADR 0042 (closed primitive set),
 ADR 0043 (fiig providers; its open question on parameterized providers),

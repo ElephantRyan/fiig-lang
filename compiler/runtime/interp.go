@@ -42,6 +42,9 @@ type Interp struct {
 	// Config is every config declaration's values (ADR 0071), read once by
 	// LoadConfig before the program starts.
 	Config map[*syntax.ConfigDecl]Record
+	// ConfigAbsent is each config declaration whose `when` is false in this
+	// deployment (ADR 0122), with why; reading one faults.
+	ConfigAbsent map[*syntax.ConfigDecl]string
 
 	Capabilities *CapabilityRegistry
 	Clock        Clock
