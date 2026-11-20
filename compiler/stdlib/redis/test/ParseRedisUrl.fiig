@@ -47,21 +47,25 @@ test newConnectionAuthenticatesAndSelects {
         password: "pw",
         database: 3,
     )
-    request = commandRequest(target, ["GET", "k"], true)
-    expect request.replies == 3
-    expect request.data == "*3\r\n$4\r\nAUTH\r\n$3\r\napp\r\n$2\r\npw\r\n*2\r\n$6\r\nSELECT\r\n$1\r\n3\r\n*2\r\n$3\r\nGET\r\n$1\r\nk\r\n".utf8()
+    setup = setupRequest(target)
+    expect setup.replies == 2
+    expect setup.data == "*3\r\n$4\r\nAUTH\r\n$3\r\napp\r\n$2\r\npw\r\n*2\r\n$6\r\nSELECT\r\n$1\r\n3\r\n".utf8()
 }
 
-test keptConnectionSendsOnlyTheCommand {
+test noSetupWithoutPasswordOrDatabase {
     target = RedisTarget(
         host: "h",
         port: 6379,
         secure: false,
         user: None,
-        password: "pw",
-        database: 3,
+        password: None,
+        database: 0,
     )
-    request = commandRequest(target, ["PING"], false)
+    expect setupRequest(target).replies == 0
+}
+
+test aCommandIsOneArray {
+    request = commandRequest(["PING".utf8()])
     expect request.replies == 1
     expect request.data == "*1\r\n$4\r\nPING\r\n".utf8()
 }
@@ -78,10 +82,11 @@ test commandsThatChangeTheConnection {
 }
 
 test errorRepliesAreErrors {
-    expect commandReply([RespValue.Simple(text: "OK"), RespValue.Integer(value: 2)]) is Ok(RespValue.Integer(value))
+    expect commandReply(RespValue.Integer(value: 2)) is Ok(RespValue.Integer(value))
     expect value == 2
-    expect commandReply([RespValue.Error(text: "WRONGPASS invalid username-password pair"), RespValue.Bulk(data: <<>>)]) is Err(RedisError.Server(message))
-    expect message.startsWith("WRONGPASS")
-    expect not setupAccepted([RespValue.Error(text: "WRONGPASS x"), RespValue.Null])
-    expect setupAccepted([RespValue.Simple(text: "OK"), RespValue.Error(text: "ERR wrong type")])
+    expect commandReply(RespValue.Error(text: "ERR wrong type")) is Err(RedisError.Server(message))
+    expect message.startsWith("ERR")
+    expect setupRefusal([RespValue.Simple(text: "OK"), RespValue.Error(text: "ERR DB index is out of range")]) is RedisError.Server(refused)
+    expect refused.contains("out of range")
+    expect setupRefusal([RespValue.Simple(text: "OK"), RespValue.Simple(text: "OK")]) == None
 }

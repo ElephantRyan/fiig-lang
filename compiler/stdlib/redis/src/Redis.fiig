@@ -1,12 +1,18 @@
 // ADR 0110: a Redis client written in fiig over Socket. A command goes out
 // on a connection kept by an earlier one with the same server, user, and
-// database (ADR 0109), or on a new one set up with AUTH and SELECT first.
+// database (ADR 0109), or on a new one set up with AUTH and SELECT first:
+// the setup is sent and its replies read before the command is written,
+// so a refused SELECT never lets the command run on database 0 (§3).
 capability Redis {
     gateway send(args: List<string>) -> Result<RespValue, RedisError>
         requires Socket
     {
         if args.length() == 0 {
             return Err(RedisError.InvalidCommand(reason: "a command has at least its name"))
+        }
+        words: List<bytes> = []
+        for word in args {
+            words = append(words, word.utf8())
         }
         target = parseRedisUrl(RedisServer.url.reveal())?
         until: int = Clock.now() + RedisServer.timeoutMillis
@@ -17,11 +23,14 @@ capability Redis {
             tls: target.secure,
             session: session,
         )
-        fresh: bool = false
+        phases: List<RedisRequest> = []
         opened: Result<Connection, SocketError> = Err(SocketError.Closed)
         match reused {
             None -> {
-                fresh = true
+                setup = setupRequest(target)
+                if setup.replies > 0 {
+                    phases = [setup]
+                }
                 if target.secure {
                     opened = Socket.connectTls(target.host, target.port, deadline: until)
                 } else {
@@ -32,45 +41,60 @@ capability Redis {
                 opened = Ok(kept)
             }
         }
+        phases = append(phases, commandRequest(words))
         connection = mapErr(e in opened): RedisError.Socket(failure: e)?
-        request = commandRequest(target, args, fresh)
-        match Socket.write(connection, request.data, deadline: until) {
-            Err(failure) -> {
-                Socket.close(connection)
-                return Err(RedisError.Socket(failure: failure))
-            }
-            Ok(_) -> None
-        }
         buffer: bytes = <<>>
         replies: List<RespValue> = []
-        while replies.length() < request.replies {
-            match readResp(buffer) {
-                RespRead.Done(value, rest) -> {
-                    replies = append(replies, value)
-                    buffer = rest
-                }
-                RespRead.Malformed(reason) -> {
+        phase: int = 0
+        while phase < phases.length() {
+            request = phases.at(phase)
+            match Socket.write(connection, request.data, deadline: until) {
+                Err(failure) -> {
                     Socket.close(connection)
-                    return Err(RedisError.MalformedReply(reason: reason))
+                    return Err(RedisError.Socket(failure: failure))
                 }
-                RespRead.NeedMore -> {
-                    match Socket.read(connection, deadline: until) {
-                        Ok(chunk) -> {
-                            buffer = <<buffer: bytes, chunk: bytes>>
-                        }
-                        Err(failure) -> {
-                            Socket.close(connection)
-                            return Err(RedisError.Socket(failure: failure))
+                Ok(_) -> None
+            }
+            replies = []
+            while replies.length() < request.replies {
+                match readResp(buffer) {
+                    RespRead.Done(value, rest) -> {
+                        replies = append(replies, value)
+                        buffer = rest
+                    }
+                    RespRead.Malformed(reason) -> {
+                        Socket.close(connection)
+                        return Err(RedisError.MalformedReply(reason: reason))
+                    }
+                    RespRead.NeedMore -> {
+                        match Socket.read(connection, deadline: until) {
+                            Ok(chunk) -> {
+                                buffer = <<buffer: bytes, chunk: bytes>>
+                            }
+                            Err(failure) -> {
+                                Socket.close(connection)
+                                return Err(RedisError.Socket(failure: failure))
+                            }
                         }
                     }
                 }
             }
+            if phase + 1 < phases.length() {
+                match setupRefusal(replies) {
+                    None -> None
+                    refused -> {
+                        Socket.close(connection)
+                        return Err(refused)
+                    }
+                }
+            }
+            phase = phase + 1
         }
-        if buffer.length() == 0 and keepsConnection(args) and setupAccepted(replies) {
+        if buffer.length() == 0 and keepsConnection(args) {
             Socket.keep(connection, session: session)
         } else {
             Socket.close(connection)
         }
-        return commandReply(replies)
+        return commandReply(replies.first())
     }
 }

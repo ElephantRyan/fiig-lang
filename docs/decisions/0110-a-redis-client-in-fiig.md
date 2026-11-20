@@ -95,7 +95,11 @@ never the URL itself.
 
 A command first tries `Socket.reuse(host, port, tls, session)`. Only a
 new connection sends `AUTH` (when the URL has a password) and `SELECT`
-(when the database isn't 0). The `session` is `"user=<user> db=<n>"`,
+(when the database isn't 0). **Those are sent, and their replies read,
+before the command is written** *(fixed 2026-11-20 after review: the first
+build sent all three in one write, so a refused `SELECT`, a database index
+out of range, still let the command run on database 0)*. A refusal is
+`Err(Server(...))`, and the connection is closed. The `session` is `"user=<user> db=<n>"`,
 which is what those two commands leave on the connection, so a
 connection set up for database 2 never serves a call configured for
 database 0.
@@ -144,11 +148,13 @@ carries a session, ADR 0109 §7), RESP3, Sentinel, Cluster redirects
 - `compiler/stdlib/redis/src`: `Redis` (the gateway), `RedisError`,
   `RedisServer`, `RedisTarget`, and the conversions it calls:
   `parseRedisUrl` (with percent-decoding for a user and password),
-  `commandRequest` (AUTH and SELECT and the command in one write, their
-  replies read in order), `sessionOf`, `commandReply`, `setupAccepted`,
-  and `keepsConnection`.
+  `setupRequest` (AUTH and SELECT, one write) and `commandRequest` (the
+  command), sent as two phases with `setupRefusal` checked between them,
+  `sessionOf`, `commandReply`, and `keepsConnection`.
 - **A connection whose AUTH or SELECT was refused is closed, not kept**,
-  since it isn't what its session says. The first draft kept it.
+  since it isn't what its session says, and the command isn't sent.
+  `tooling/runprogram`'s `TestRefusedSelectDoesNotRunTheCommand` is the
+  review's case.
 - Tests: `test/ParseRedisUrl.fiig` (the URL forms and refusals, the bytes
   a new and a kept connection write, error replies); the client against
   the in-memory Redis in `tooling/runprogram`'s

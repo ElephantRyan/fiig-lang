@@ -1,0 +1,14 @@
+// The first error among a new connection's setup replies, such as
+// WRONGPASS from AUTH or "ERR DB index is out of range" from SELECT, or
+// None when the server accepted them all (ADR 0110 §3).
+conversion setupRefusal(replies: List<RespValue>) -> RedisError | None {
+    for reply in replies {
+        match reply {
+            RespValue.Error(text) -> {
+                return RedisError.Server(message: text)
+            }
+            _ -> None
+        }
+    }
+    return None
+}
