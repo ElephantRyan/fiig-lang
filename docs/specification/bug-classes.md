@@ -228,11 +228,12 @@ attests them (T2 also by any program file).
 | T6 | A test reaches an operation its fake lacks, or a provider a rule can return that it doesn't fake (§4) | Attested — `TestTestBugClasses` |
 | T7 | A fake of a capability with no fiig declaration (§4): there's nothing to check it against | Attested — `TestTestBugClasses` |
 
-## I. Stream adapter errors (ADR 0047, ADR 0111)
+## I. Stream and schedule adapter errors (ADR 0047, ADR 0111, ADR 0112)
 
 A stream route binds one element from a source, names it by a key, and
 says what happens to every outcome of its workflow, since a stream has no
-caller to hand an error to.
+caller to hand an error to. A schedule route (I5-I7, ADR 0112's sections)
+fires a workflow at times its schedule names, with the same obligation.
 
 | # | Bug class | Status |
 |---|---|---|
@@ -240,6 +241,9 @@ caller to hand an error to.
 | I2 | A stream route has no mapping, or its mapping doesn't cover `Ok` and every variant of the workflow's `Err` enum; or a `retry(attempts: N)` with N below 1 (§3) | Attested — `TestStreamRouteBugClasses` |
 | I3 | A stream route's call, or its workflow, doesn't take exactly one argument: there is one element to bind it from (§6) | Attested — `TestStreamRouteBugClasses` |
 | I4 | A stream element that is neither a model, decoded from the payload's JSON, nor `bytes`, the payload as it arrived (§3) | Attested — `TestStreamElementMustBeAModelOrBytes` |
+| I5 | A schedule route's `every` isn't a duration, is under 1 s, or doesn't divide a day; or its `cron` isn't five valid fields, or never fires (`0 0 31 2 *`) (§1) | Attested — `compiler/checker`'s `TestScheduleRouteBugClasses` |
+| I6 | A scheduled workflow takes anything but nothing or one `int`, the firing time, or the route's arguments don't match it (§1) | Attested — `TestScheduleRouteBugClasses` |
+| I7 | A schedule route has no mapping, or its mapping doesn't cover `Ok` and every variant of the workflow's `Err` enum (§2) | Attested — `TestScheduleRouteBugClasses` |
 
 ## Explicitly out of scope (not statically checkable)
 
