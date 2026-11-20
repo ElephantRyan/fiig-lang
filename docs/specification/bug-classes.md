@@ -227,6 +227,19 @@ attests them (T2 also by any program file).
 | T6 | A test reaches an operation its fake lacks, or a provider a rule can return that it doesn't fake (§4) | Attested — `TestTestBugClasses` |
 | T7 | A fake of a capability with no fiig declaration (§4): there's nothing to check it against | Attested — `TestTestBugClasses` |
 
+## I. Stream adapter errors (ADR 0047, ADR 0111)
+
+A stream route binds one element from a source, names it by a key, and
+says what happens to every outcome of its workflow, since a stream has no
+caller to hand an error to.
+
+| # | Bug class | Status |
+|---|---|---|
+| I1 | A stream route's key is missing for a model element, isn't a field of the model, or is a field text can't carry (W4's types); or a `bytes` element's route has a key (§3) | Attested — `compiler/checker`'s `TestStreamRouteBugClasses` |
+| I2 | A stream route has no mapping, or its mapping doesn't cover `Ok` and every variant of the workflow's `Err` enum; or a `retry(attempts: N)` with N below 1 (§3) | Attested — `TestStreamRouteBugClasses` |
+| I3 | A stream route's call, or its workflow, doesn't take exactly one argument: there is one element to bind it from (§6) | Attested — `TestStreamRouteBugClasses` |
+| I4 | A stream element that is neither a model, decoded from the payload's JSON, nor `bytes`, the payload as it arrived (§3) | Attested — `TestStreamElementMustBeAModelOrBytes` |
+
 ## Explicitly out of scope (not statically checkable)
 
 Some §3 statements read like rules but aren't things a compiler can reject —

@@ -1,6 +1,6 @@
 # ADR 0047: Streams Are a Third Adapter Kind; a Stream Route Declares Key, Disposition, and Replay
 
-Status: **Proposed — awaiting review.**
+Status: Accepted, as amended by ADR 0111 (2026-11-20), which says where elements come from and changes §4-§6.
 Date: 2026-10-12
 Related: ADR 0009/0021 (adapter route binding — this reuses both), ADR 0044
 (workflow as the uncallable adapter boundary), ADR 0042 (socket floor, and

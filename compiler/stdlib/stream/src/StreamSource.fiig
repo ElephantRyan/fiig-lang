@@ -1,0 +1,9 @@
+// ADR 0111 §1: what a stream source written in fiig provides. A program
+// never calls it: an `adapter stream` route names a source, and the runtime
+// receives its elements, runs the route's workflow on each, and settles
+// the outcome. A source's manifest names the group that fulfils it:
+// "provides": {"fiig.stream.StreamSource": "RedisStreams"}.
+interface StreamSource {
+    receive(subscription: Subscription, batchSize: int) -> Result<List<Delivery>, SourceError>
+    settle(subscription: Subscription, delivery: Delivery, outcome: Outcome) -> Result<None, SourceError>
+}

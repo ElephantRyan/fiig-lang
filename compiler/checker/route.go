@@ -15,8 +15,11 @@ import (
 // type clauses (ADR 0069 §5).
 func (c *checker) checkAdapterRoutes(d *syntax.AdapterDecl) {
 	isHTTP := d.Kind == syntax.AdapterHTTP
+	isStream := d.Kind == syntax.AdapterStream
 	for _, route := range d.Routes {
-		c.checkMediaClauses(route, isHTTP)
+		if !isStream {
+			c.checkMediaClauses(route, isHTTP)
+		}
 		decl, found := c.lookup(route.Workflow.Name)
 		if !found {
 			if !c.ambiguous(route.Workflow.Name) {
@@ -27,6 +30,10 @@ func (c *checker) checkAdapterRoutes(d *syntax.AdapterDecl) {
 		wd, ok := decl.(*syntax.WorkflowDecl)
 		if !ok {
 			c.report(route.Workflow.Start, "B6", "adapter route must call an exported workflow; %q is not one", route.Workflow.Name)
+			continue
+		}
+		if isStream {
+			c.checkStreamRoute(route, wd)
 			continue
 		}
 		c.checkRouteBinding(route, wd, isHTTP)

@@ -8,7 +8,9 @@ doesn't have to discover them.
 
 - **SQLite and Postgres are the databases built in.** SQLite through
   `libraries/sql` (Go), Postgres through `fiig.postgres`, written in fiig
-  (ADR 0085). No MySQL, Redis, Kafka, or queues.
+  (ADR 0085). No MySQL. Redis is `fiig.redis` (ADR 0110): one command
+  per call, string arguments only, no pipelining, pub/sub, Sentinel, or
+  Cluster.
 - **No certificate revocation checks** (CRL, OCSP), certificate pinning,
   keys in an HSM or cloud KMS, or encrypted private keys (ADR 0086 open
   questions). Custom CAs and client certificates are configured on
@@ -106,7 +108,10 @@ doesn't have to discover them.
   and the rest (ADR 0093); a function can't be stored or passed.
   An error type is changed with `mapErr(e in result): newError` (ADR
   0095), which needs neither.
-- **Streams and queue consumers** (ADR 0047) are designed, not built.
+- **Stream adapters read Redis Streams only** (ADR 0111): no Kafka or
+  NATS (they keep state on a connection, ADR 0109 open question 2), no
+  replay of one element by id, and one element at a time per route, with
+  a fixed batch of 16 and a 2 s wait. Scheduled jobs have no adapter yet.
 - See `docs/specification/grammar.md`'s "Known gaps" for open syntax
   questions.
 

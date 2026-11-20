@@ -1,0 +1,5 @@
+// ADR 0111 §7: how long an entry stays pending, retried or unsettled,
+// before a receive claims it again.
+config RedisStreamSettings {
+    retryAfterMillis: int from env "REDIS_STREAM_RETRY_AFTER_MS" = 30000
+}

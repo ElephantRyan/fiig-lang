@@ -1,0 +1,6 @@
+// What a command writes, and how many replies come back: one, or one more
+// for each command that sets up a new connection first (ADR 0110 §3).
+model RedisRequest {
+    data: bytes
+    replies: int
+}

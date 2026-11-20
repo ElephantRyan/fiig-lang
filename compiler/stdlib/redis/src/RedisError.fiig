@@ -1,0 +1,10 @@
+// ADR 0110 §1: why a command failed. A server's error reply is Server,
+// with its text, such as "WRONGTYPE Operation against a key holding the
+// wrong kind of value".
+enum RedisError {
+    Socket(failure: SocketError)
+    Server(message: string)
+    MalformedReply(reason: string)
+    InvalidUrl(reason: string)
+    InvalidCommand(reason: string)
+}

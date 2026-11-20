@@ -571,6 +571,10 @@ func routeSummaries(routes []*syntax.Route) []string {
 	out := make([]string, len(routes))
 	for i, r := range routes {
 		out[i] = fmt.Sprintf("%s %s", r.Verb, r.Path)
+		// A stream route's key names its elements (ADR 0111 §3).
+		if r.Key != nil {
+			out[i] += " key " + r.Key.Name
+		}
 	}
 	return out
 }

@@ -1,0 +1,5 @@
+// One entry XPENDING lists: its id, and how often the group was given it.
+model PendingEntry {
+    id: string
+    deliveries: int
+}

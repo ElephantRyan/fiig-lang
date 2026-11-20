@@ -125,7 +125,7 @@ func LoadCapabilitiesFileWith(path string, extraFactories runtime.FactoryRegistr
 	if !ok {
 		return nil, nil, fmt.Errorf("capabilities file must be a JSON object")
 	}
-	factories := runtime.FactoryRegistry{"scripted": ScriptedFactory, "socket": SocketFactory, "socket-script": SocketScriptFactory, "random-seeded": RandomSeededFactory, "driver": runtime.DriverFactory}
+	factories := runtime.FactoryRegistry{"scripted": ScriptedFactory, "socket": SocketFactory, "socket-script": SocketScriptFactory, "random-seeded": RandomSeededFactory, "driver": runtime.DriverFactory, "source": runtime.SourceFactory}
 	for name, f := range extraFactories {
 		factories[name] = f
 	}

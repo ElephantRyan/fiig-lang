@@ -1,0 +1,87 @@
+test plainUrlTakesDefaults {
+    expect parseRedisUrl("redis://cache.internal") is Ok(target)
+    expect target == RedisTarget(host: "cache.internal", port: 6379, secure: false, user: None, password: None, database: 0)
+}
+
+test everyPartOfAUrl {
+    expect parseRedisUrl("rediss://app:s3cr%40t:x@cache.example.com:6380/2") is Ok(target)
+    expect target == RedisTarget(host: "cache.example.com", port: 6380, secure: true, user: "app", password: "s3cr@t:x", database: 2)
+}
+
+test passwordWithoutUser {
+    expect parseRedisUrl("redis://:hunter2@localhost/") is Ok(target)
+    expect target.user == None
+    expect target.password == "hunter2"
+    expect target.database == 0
+}
+
+test ipv6Host {
+    expect parseRedisUrl("redis://[::1]:7000") is Ok(target)
+    expect target.host == "::1"
+    expect target.port == 7000
+}
+
+test refusalsNeverShowTheUrl {
+    cases = [
+        "http://localhost",
+        "redis://",
+        "redis://h:99999",
+        "redis://h/x",
+        "redis://h/1/2",
+        "redis://h?tls=1",
+        "redis://u:%4@h",
+        "redis://a:b:c",
+    ]
+    for url in cases {
+        expect parseRedisUrl(url) is Err(RedisError.InvalidUrl(reason))
+        expect not reason.contains(url)
+    }
+}
+
+test newConnectionAuthenticatesAndSelects {
+    target = RedisTarget(
+        host: "h",
+        port: 6379,
+        secure: false,
+        user: "app",
+        password: "pw",
+        database: 3,
+    )
+    request = commandRequest(target, ["GET", "k"], true)
+    expect request.replies == 3
+    expect request.data == "*3\r\n$4\r\nAUTH\r\n$3\r\napp\r\n$2\r\npw\r\n*2\r\n$6\r\nSELECT\r\n$1\r\n3\r\n*2\r\n$3\r\nGET\r\n$1\r\nk\r\n".utf8()
+}
+
+test keptConnectionSendsOnlyTheCommand {
+    target = RedisTarget(
+        host: "h",
+        port: 6379,
+        secure: false,
+        user: None,
+        password: "pw",
+        database: 3,
+    )
+    request = commandRequest(target, ["PING"], false)
+    expect request.replies == 1
+    expect request.data == "*1\r\n$4\r\nPING\r\n".utf8()
+}
+
+test sessionNamesUserAndDatabase {
+    expect sessionOf(RedisTarget(host: "h", port: 1, secure: false, user: None, password: None, database: 0)) == "user=default db=0"
+    expect sessionOf(RedisTarget(host: "h", port: 1, secure: false, user: "app", password: "x", database: 4)) == "user=app db=4"
+}
+
+test commandsThatChangeTheConnection {
+    expect keepsConnection(["get", "k"])
+    expect not keepsConnection(["subscribe", "news"])
+    expect not keepsConnection(["MULTI"])
+}
+
+test errorRepliesAreErrors {
+    expect commandReply([RespValue.Simple(text: "OK"), RespValue.Integer(value: 2)]) is Ok(RespValue.Integer(value))
+    expect value == 2
+    expect commandReply([RespValue.Error(text: "WRONGPASS invalid username-password pair"), RespValue.Bulk(data: <<>>)]) is Err(RedisError.Server(message))
+    expect message.startsWith("WRONGPASS")
+    expect not setupAccepted([RespValue.Error(text: "WRONGPASS x"), RespValue.Null])
+    expect setupAccepted([RespValue.Simple(text: "OK"), RespValue.Error(text: "ERR wrong type")])
+}

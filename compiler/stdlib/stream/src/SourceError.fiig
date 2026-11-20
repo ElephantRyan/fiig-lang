@@ -1,0 +1,6 @@
+// Why a receive or settle failed (ADR 0111 §1). The runtime waits and
+// asks again after either.
+enum SourceError {
+    Unavailable(reason: string)
+    Protocol(reason: string)
+}

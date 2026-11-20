@@ -109,7 +109,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(2)
 	}
-	handler, bindings, caps, err := load(fs.Arg(0), fs.Args()[1:], *capsPath, workspaces, factories, cors, limits, env, originProblems, mode)
+	handler, streams, bindings, caps, err := load(fs.Arg(0), fs.Args()[1:], *capsPath, workspaces, factories, cors, limits, env, originProblems, mode)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -122,6 +122,21 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// ADR 0111 §4-§5: each stream route runs until shutdown; one that halts
+	// stops the whole process, so the halt is seen and the element is
+	// delivered again to whatever runs the adapter next.
+	halted := make(chan error, len(streams))
+	running := make(chan struct{}, len(streams))
+	for _, r := range streams {
+		r.Logf = log.Printf
+		go func() {
+			defer func() { running <- struct{}{} }()
+			if err := r.Run(ctx); err != nil {
+				halted <- err
+				stop()
+			}
+		}()
+	}
 	go func() {
 		<-ctx.Done()
 		done, cancel := context.WithTimeout(context.Background(), *shutdown)
@@ -135,13 +150,26 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	if cors != nil {
 		log.Printf("fiig: allowing cross-origin calls from %s", strings.Join(cors.Origins(), ", "))
 	}
+	for _, r := range streams {
+		log.Printf("fiig: reading stream %s from %s", r.Name(), r.Source().Path())
+	}
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
+	// Each stream route finishes the element in hand (ADR 0111 §5).
+	for range streams {
+		<-running
+	}
 	// Requests have drained; a driver's pool closes its connections (ADR
 	// 0084 §3).
 	caps.Close()
+	select {
+	case err := <-halted:
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	default:
+	}
 	log.Print("fiig: stopped")
 }
 
@@ -149,16 +177,25 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 // names, with every configuration problem (ADR 0071 §3's one report)
 // found first. It returns ADR 0079 §6a's listing of each domain's
 // capability bindings, for the startup log.
-func load(root string, names []string, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string, mode migrate.Mode) (http.Handler, []string, *runtime.CapabilityRegistry, error) {
+func load(root string, names []string, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string, mode migrate.Mode) (http.Handler, []*adapter.StreamRunner, []string, *runtime.CapabilityRegistry, error) {
 	p, err := check(root, names, workspaces, "serve")
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	files, packages, universe, served := p.files, p.packages, p.universe, p.served
+	var streamed []adapter.Served
+	var httpServed []adapter.Served
+	for _, s := range served {
+		if s.Decl.Kind == syntax.AdapterStream {
+			streamed = append(streamed, s)
+		} else {
+			httpServed = append(httpServed, s)
+		}
+	}
 
 	caps, capProblems, err := runprogram.LoadCapabilitiesFileWith(capsPath, factories, env.Lookup)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("-caps: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("-caps: %w", err)
 	}
 	problems = append(capProblems, problems...)
 	if caps == nil {
@@ -166,7 +203,7 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	}
 	problems = append(problems, runprogram.UnknownPackages(caps.Packages(), packages)...)
 	if err := runprogram.RefuseSeededRandom(caps); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	runprogram.RegisterDefaults(caps)
 	in := runtime.New(universe, caps)
@@ -178,22 +215,32 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	for i, s := range served {
 		entries[i] = runprogram.Entry{Package: s.Package, Name: s.Decl.Name}
 	}
+	streams, err := adapter.StreamRunners(streamed, universe, in, consumerName(), limits.RequestTimeout)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	// A source reads its own config (ADR 0111 §2), which no workflow
+	// reaches, so its gateways are entries too.
+	for _, r := range streams {
+		pkg, group, _ := r.Source().Resolve()
+		entries = append(entries, runprogram.Entry{Package: pkg, Name: group})
+	}
 	problems = append(problems, in.LoadConfig(runprogram.ReachableConfigFrom(program, entries), env.Lookup)...)
 	if err := runprogram.ConfigReport(problems); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if err := runprogram.Migrate(context.Background(), root, packages, caps, mode); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	h, err := adapter.HTTPHandlerFor(served, universe, in, limits)
+	h, err := adapter.HTTPHandlerFor(httpServed, universe, in, limits)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	h, err = adapter.WithCORSFor(h, served, cors)
+	h, err = adapter.WithCORSFor(h, httpServed, cors)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	return h, runprogram.Bindings(packages, caps.BoundFor, caps.Packages()), caps, nil
+	return h, streams, runprogram.Bindings(packages, caps.BoundFor, caps.Packages()), caps, nil
 }
 
 // checked is a program loaded and checked, with the adapters it was asked
@@ -286,6 +333,16 @@ func findAdapters(names []string, files []*syntax.File, packages types.Packages,
 }
 
 // cutLast splits a dotted name at its last dot.
+// consumerName is this process among a stream group's consumers (ADR
+// 0111 §5): the host and process id, unique while it runs.
+func consumerName() string {
+	host, err := os.Hostname()
+	if err != nil || host == "" {
+		host = "fiig"
+	}
+	return fmt.Sprintf("%s-%d", host, os.Getpid())
+}
+
 func cutLast(name string) (string, string, bool) {
 	i := strings.LastIndex(name, ".")
 	if i < 0 {
