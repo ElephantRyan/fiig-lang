@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -32,6 +33,16 @@ rule total(a: kernel.Money, b: kernel.Money) -> decimal {
 `,
 	"app/rules/greet.fiig": `rule greet(name: string) -> string {
     return "é${name}"
+}
+`,
+	"app/conversions/welcome.fiig": `conversion welcome(name: string) -> string {
+    return shout(greet(name))
+}
+
+private {
+    shout(s: string) -> string {
+        return "${s}!"
+    }
 }
 `,
 	"app/rules/broken.fiig": `rule broken(n: int) -> string {
@@ -282,5 +293,22 @@ func TestAHalfTypedFileKeepsNavigation(t *testing.T) {
 	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/rules/total.fiig", 3, 23)))
 	if len(locs) != 1 || locs[0].URI != c.uri("kernel/models/money.fiig") {
 		t.Fatalf("definition while the file doesn't parse = %+v, want the last good answer", locs)
+	}
+}
+
+// ADR 0106 §1: each call is a token of its callee's kind.
+func TestSemanticTokensGiveEachCallItsKind(t *testing.T) {
+	c, init := startClient(t, nil)
+	if !strings.Contains(string(init), `"semanticTokensProvider"`) {
+		t.Fatalf("initialize doesn't offer semantic tokens: %s", init)
+	}
+	c.diagnostics(c.uri("app/rules/broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	got := decode[struct {
+		Data []int `json:"data"`
+	}](t, c.request("textDocument/semanticTokens/full", map[string]any{"textDocument": map[string]any{"uri": c.uri("app/conversions/welcome.fiig")}}))
+	// shout (helper, 6) at 1:11, then greet (rule, 0) at 1:17.
+	want := []int{1, 11, 5, 6, 0, 0, 6, 5, 0, 0}
+	if fmt.Sprint(got.Data) != fmt.Sprint(want) {
+		t.Errorf("tokens = %v, want %v", got.Data, want)
 	}
 }

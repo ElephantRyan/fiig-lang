@@ -153,6 +153,10 @@ func (s *server) handle(m *message) (any, *rpcError) {
 				"documentFormattingProvider": true,
 				"documentSymbolProvider":     true,
 				"workspaceSymbolProvider":    true,
+				"semanticTokensProvider": map[string]any{
+					"legend": map[string]any{"tokenTypes": semanticTokenTypes, "tokenModifiers": []string{}},
+					"full":   true,
+				},
 			},
 			"serverInfo": map[string]any{"name": "fiig", "version": version.Version},
 		}, nil
@@ -250,6 +254,14 @@ func (s *server) handle(m *message) (any, *rpcError) {
 			return nil, err
 		}
 		return s.formatting(p.TextDocument.URI), nil
+	case "textDocument/semanticTokens/full":
+		p, err := params[struct {
+			TextDocument textDocumentIdentifier `json:"textDocument"`
+		}](m)
+		if err != nil {
+			return nil, err
+		}
+		return s.semanticTokens(p.TextDocument.URI), nil
 	case "textDocument/documentSymbol":
 		p, err := params[struct {
 			TextDocument textDocumentIdentifier `json:"textDocument"`
