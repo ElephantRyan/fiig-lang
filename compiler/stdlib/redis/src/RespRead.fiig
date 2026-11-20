@@ -1,0 +1,7 @@
+// What readResp makes of the bytes read so far: one whole reply and what
+// followed it, or a request for more bytes.
+enum RespRead {
+    NeedMore
+    Done(value: RespValue, rest: bytes)
+    Malformed(reason: string)
+}
