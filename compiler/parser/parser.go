@@ -253,6 +253,8 @@ func (p *Parser) parseFilePrivateBlock(f *syntax.File) {
 	default:
 		switch d := f.Decls[0].(type) {
 		case *syntax.RuleDecl, *syntax.ConversionDecl, *syntax.ActivityDecl, *syntax.GatewayDecl, *syntax.WorkflowDecl, *syntax.TestDecl:
+		case *syntax.CapabilityDecl:
+			p.errorf(start, "%s", groupHelperHint)
 		default:
 			p.errorf(start, "%s %q may not have a private block; only a rule, conversion, activity, gateway, workflow, or test holds code a helper could serve (ADR 0054)", syntax.DeclKindName(d), syntax.DeclName(d))
 		}
@@ -698,16 +700,45 @@ func (p *Parser) parseCapabilityDecl() *syntax.CapabilityDecl {
 	p.expect(lexer.LBrace)
 	var gateways []*syntax.GatewayDecl
 	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
-		p.guardProgress(func() {
-			if !p.at(lexer.KwGateway) {
+		if !p.at(lexer.KwGateway) {
+			if p.at(lexer.KwPrivate) {
+				p.errorf(p.cur().Start, "%s", groupHelperHint)
+			} else {
 				p.errorf(p.cur().Start, "a capability group holds only gateways, got %s", p.cur().Kind)
-				return
 			}
-			gateways = append(gateways, p.parseGatewayDecl())
-		})
+			p.skipToGroupMember()
+			continue
+		}
+		gateways = append(gateways, p.parseGatewayDecl())
 	}
 	end := p.expect(lexer.RBrace).End
 	return &syntax.CapabilityDecl{Span: syntax.Span{Start: start, End: end}, Name: name.Text, Gateways: gateways}
+}
+
+// groupHelperHint is the error for a private block in or after a
+// capability group: what a group's gateways share instead (abs-recommendations
+// GAPS G8).
+const groupHelperHint = "a capability group may not have a private block; to share steps between its gateways, put them in a conversion that turns a result into the group's error, and call it with `?`, as fiig.postgres does: `connection = connectionOr(Socket.connect(host, port))?` (docs/writing-a-client.md)"
+
+// skipToGroupMember skips what isn't a gateway in a capability group, up
+// to the next `gateway` or the group's closing brace, so one wrong member
+// is one error.
+func (p *Parser) skipToGroupMember() {
+	depth := 0
+	for !p.at(lexer.EOF) {
+		switch {
+		case p.at(lexer.LBrace):
+			depth++
+		case p.at(lexer.RBrace):
+			if depth == 0 {
+				return
+			}
+			depth--
+		case p.at(lexer.KwGateway) && depth == 0:
+			return
+		}
+		p.advance()
+	}
 }
 
 // parseFormulasDecl parses `formulas name { formula ... }` (ADR 0049 §2.1).
