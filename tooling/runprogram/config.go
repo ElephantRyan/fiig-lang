@@ -121,9 +121,9 @@ type Entry struct {
 	Name    string
 }
 
-// ReachableConfigFrom is ReachableConfig from entries in the root and its
-// dependencies, so one report covers every adapter a process serves.
-func ReachableConfigFrom(p Program, entries []Entry) []runtime.ConfigSource {
+// walkFrom visits everything entries reach, in the root and its
+// dependencies.
+func walkFrom(p Program, entries []Entry) *walker {
 	w := &walker{program: p, seen: map[syntax.Decl]bool{}, configs: map[*syntax.ConfigDecl]configScope{}}
 	for _, e := range entries {
 		if e.Package != nil {
@@ -136,6 +136,34 @@ func ReachableConfigFrom(p Program, entries []Entry) []runtime.ConfigSource {
 			w.visit(d, w.rootScope(e.Name))
 		}
 	}
+	return w
+}
+
+// ReachedPackages is the paths of the packages whose declarations entries
+// reach: the packages a `fiig config` of those entries would run code in
+// (abs-recommendations G51). A declaration the program only names, never
+// calls, doesn't count, and neither does a package nothing reaches.
+func ReachedPackages(p Program, entries []Entry, packages types.Packages) map[string]bool {
+	w := walkFrom(p, entries)
+	owner := map[syntax.Decl]string{}
+	for path, pkg := range packages {
+		for _, d := range pkg.Universe.Decls {
+			owner[d] = path
+		}
+	}
+	reached := map[string]bool{}
+	for d := range w.seen {
+		if path, ok := owner[d]; ok {
+			reached[path] = true
+		}
+	}
+	return reached
+}
+
+// ReachableConfigFrom is ReachableConfig from entries in the root and its
+// dependencies, so one report covers every adapter a process serves.
+func ReachableConfigFrom(p Program, entries []Entry) []runtime.ConfigSource {
+	w := walkFrom(p, entries)
 	var out []runtime.ConfigSource
 	for d, sc := range w.configs {
 		out = append(out, runtime.ConfigSource{
