@@ -11,6 +11,7 @@ import (
 
 	"fiig-lang/compiler/loader"
 	"fiig-lang/compiler/runtime"
+	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
 	"fiig-lang/libraries/sql/sqlrelay"
 	"fiig-lang/tooling/runprogram"
@@ -47,12 +48,21 @@ func startRelay(t *testing.T, poolConfig map[string]any) *relayRig {
 	if len(errs) > 0 {
 		t.Fatalf("load: %v", errs)
 	}
-	files, diags, err := runprogram.LoadFiles(root)
+	// relay-notes keeps its code in the notes folder package (ADR 0108), so
+	// the program run is that package, checked as `fiig test` checks it.
+	diags, checked, err := runprogram.CheckModulePackages(root, loaded)
 	if err != nil || len(diags) > 0 {
-		t.Fatalf("files: %v %v", err, diags)
+		t.Fatalf("check: %v %v", err, diags)
 	}
-	if diags := runprogram.Check(root, files, loaded.Packages); len(diags) > 0 {
-		t.Fatalf("check: %v", diags)
+	var files []*syntax.File
+	var known types.Packages
+	for _, c := range checked {
+		if c.Path == loaded.Manifest.Path+".notes" {
+			files, known = c.Files, c.Packages
+		}
+	}
+	if files == nil {
+		t.Fatalf("relay-notes has no notes package among %d", len(checked))
 	}
 	universe, _ := types.BuildUniverse(files)
 
@@ -68,8 +78,8 @@ func startRelay(t *testing.T, poolConfig map[string]any) *relayRig {
 	}
 	caps.Register("Socket", runtime.NewSocketProvider())
 	in := runtime.New(universe, caps)
-	in.Imports = runprogram.BuildImports(files, loaded.Packages)
-	in.Groups = runprogram.BuildGroups(files, loaded.Packages)
+	in.Imports = runprogram.BuildImports(files, known)
+	in.Groups = runprogram.BuildGroups(files, known)
 	in.Packages = loaded.Packages
 	t.Cleanup(caps.Close)
 	p, _ := caps.Lookup("Database")

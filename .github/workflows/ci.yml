@@ -23,6 +23,21 @@ jobs:
       - name: gofmt
         run: test -z "$(gofmt -l compiler tooling cmd libraries)"
 
+  # The race detector needs cgo, which the Windows development machines don't
+  # have, so it runs here. The socket pool (ADR 0109), the stream and schedule
+  # loops, and the driver pool are the concurrent code.
+  race:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: "**/go.sum"
+      - run: go test -race ./...
+      - run: go test -race ./...
+        working-directory: libraries/sql
+
   intellij:
     runs-on: ubuntu-latest
     steps:
