@@ -19,6 +19,21 @@ class FiigPluginTest : BasePlatformTestCase() {
         assertSame(FiigFileType, FileTypeManager.getInstance().getFileTypeByFileName("GetCustomer.fiig"))
     }
 
+    // ADR 0108: an application's src/ holds only folders, so a new file made
+    // directly there must start with one; a library's top level and a folder
+    // are unaffected.
+    fun testAnApplicationsSrcNeedsAFolder() {
+        val application = """{"path": "t.app", "kind": "application", "version": "1.0.0"}"""
+        val library = """{"path": "t.lib", "kind": "library", "version": "1.0.0"}"""
+        assertNotNull(FiigNaming.topLevelProblem("src", application, "getOrder"))
+        assertNull(FiigNaming.topLevelProblem("src", application, "orders/getOrder"))
+        assertNull(FiigNaming.topLevelProblem("src", application, "orders\\getOrder"))
+        assertNull(FiigNaming.topLevelProblem("src", application, ""))
+        assertNull(FiigNaming.topLevelProblem("orders", application, "getOrder"))
+        assertNull(FiigNaming.topLevelProblem("src", library, "getOrder"))
+        assertNull(FiigNaming.topLevelProblem("src", null, "getOrder"))
+    }
+
     // A file's icon is its declaration's kind; every kind has its own.
     fun testFileIconByKind() {
         val provider = FiigIconProvider()
