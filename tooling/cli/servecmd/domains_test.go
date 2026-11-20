@@ -83,11 +83,11 @@ func TestMonolithServesBothDomains(t *testing.T) {
 		"packages": {"shop.payments": {"Database": {"type": "recorder", "name": "payments"}}}
 	}`)
 	env, _ := runprogram.NewEnvironment("")
-	h, _, bindings, _, err := load(filepath.Join(examples, "shop-orders"), []string{"ordersApi", "shop.payments.paymentsApi"}, caps, []string{examples}, r.factory(), nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
+	h, _, bindings, _, err := load(filepath.Join(examples, "shop-orders"), []string{"shop.orders.orders.ordersApi", "shop.payments.paymentsApi"}, caps, []string{examples}, r.factory(), nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(bindings, "\n"); got != "shop.payments: Database (its own binding)" {
+	if got := strings.Join(bindings, "\n"); got != "shop.orders.orders: Database (shared with the application)\nshop.payments: Database (its own binding)" {
 		t.Errorf("bindings: got %q", got)
 	}
 
@@ -114,11 +114,11 @@ func TestDomainSharesTheDatabaseWithoutABinding(t *testing.T) {
 	r := &recorder{seen: map[string][]string{}}
 	caps := writeFile(t, "caps.json", `{"Database": {"type": "recorder", "name": "orders"}}`)
 	env, _ := runprogram.NewEnvironment("")
-	h, _, bindings, _, err := load(filepath.Join(examples, "shop-orders"), []string{"ordersApi"}, caps, []string{examples}, r.factory(), nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
+	h, _, bindings, _, err := load(filepath.Join(examples, "shop-orders"), []string{"shop.orders.orders.ordersApi"}, caps, []string{examples}, r.factory(), nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(bindings, "\n"); got != "shop.payments: Database (shared with the application)" {
+	if got := strings.Join(bindings, "\n"); got != "shop.orders.orders: Database (shared with the application)\nshop.payments: Database (shared with the application)" {
 		t.Errorf("bindings: got %q", got)
 	}
 	if code, body := post(t, h, "/orders/o-1", `{"amount": 10, "currency": "EUR"}`); code != 201 {
@@ -141,10 +141,10 @@ func TestServeRefusesWhatItCantServe(t *testing.T) {
 		caps  string
 		want  string
 	}{
-		{[]string{"ordersApi", "shop.billing.billingApi"}, `{}`, "doesn't depend on a package shop.billing"},
-		{[]string{"ordersApi", "shop.payments.nope"}, `{}`, `package shop.payments has no adapter named "nope"`},
-		{[]string{"ordersApi", "ordersApi"}, `{}`, "named twice"},
-		{[]string{"ordersApi"}, `{"packages": {"shop.billing": {"Database": {"type": "recorder"}}}}`, "binds for package shop.billing, which the application doesn't depend on"},
+		{[]string{"shop.orders.orders.ordersApi", "shop.billing.billingApi"}, `{}`, "doesn't depend on a package shop.billing"},
+		{[]string{"shop.orders.orders.ordersApi", "shop.payments.nope"}, `{}`, `package shop.payments has no adapter named "nope"`},
+		{[]string{"shop.orders.orders.ordersApi", "shop.orders.orders.ordersApi"}, `{}`, "named twice"},
+		{[]string{"shop.orders.orders.ordersApi"}, `{"packages": {"shop.billing": {"Database": {"type": "recorder"}}}}`, "binds for package shop.billing, which the application doesn't depend on"},
 	}
 	for _, tc := range cases {
 		r := &recorder{seen: map[string][]string{}}
@@ -164,11 +164,11 @@ func TestSplitChangesOnlyTheGateway(t *testing.T) {
 	examples := examplesDir(t)
 	monolith, split := filepath.Join(examples, "shop-orders"), filepath.Join(examples, "shop-orders-split")
 	changed := map[string]bool{
-		"src/ChargeOrder.fiig":     true,
-		"fiig.pkg.json":            true,
-		"fiig.lock.json":           true,
-		"caps.json":                true,
-		"src/PaymentsService.fiig": true,
+		"src/orders/ChargeOrder.fiig":     true,
+		"fiig.pkg.json":                   true,
+		"fiig.lock.json":                  true,
+		"caps.json":                       true,
+		"src/orders/PaymentsService.fiig": true,
 	}
 	a, b := filesUnder(t, monolith), filesUnder(t, split)
 	for name := range changed {
@@ -197,7 +197,7 @@ func TestSplitChangesOnlyTheGateway(t *testing.T) {
 	server := httptest.NewServer(payments)
 	defer server.Close()
 	t.Setenv("PAYMENTS_URL", server.URL)
-	orders, _, _, _, err := load(split, []string{"ordersApi"}, writeFile(t, "caps.json", `{"Database": {"type": "recorder", "name": "orders"}, "Socket": {"type": "socket"}}`), []string{examples}, r.factory(), nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
+	orders, _, _, _, err := load(split, []string{"shop.splitorders.orders.ordersApi"}, writeFile(t, "caps.json", `{"Database": {"type": "recorder", "name": "orders"}, "Socket": {"type": "socket"}}`), []string{examples}, r.factory(), nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
 	if err != nil {
 		t.Fatal(err)
 	}

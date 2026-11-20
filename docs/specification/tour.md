@@ -591,7 +591,8 @@ abs-recommendations/
 
 A package is imported by its path (`use abs.recommendations.ratings`);
 packages in a module may not import each other in a cycle, and the
-top-level package isn't importable from its folders. `fiig run . ratings.rate`
+top-level package isn't importable from its folders, and an application's
+top level declares nothing (ADR 0108). `fiig run . ratings.rate`
 runs a folder package's declaration. A capability group says which
 interface it fulfills: `capability Square provides payments.PaymentProvider`.
 `fiig fmt -layout <dir>` moves an older package to this layout.

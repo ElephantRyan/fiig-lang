@@ -53,7 +53,8 @@ abs-recommendations/
   fiig.pkg.json            module abs.recommendations
   migrations/
   src/
-    Health.fiig            package abs.recommendations
+    health/                package abs.recommendations.health
+      Health.fiig
     ratings/               package abs.recommendations.ratings
       Rate.fiig
       LoadUserAndBook.fiig

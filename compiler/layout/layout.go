@@ -161,6 +161,17 @@ func FileNameProblem(p, decl string) string {
 	return fmt.Sprintf("%s declares %s, so its file is %s (ADR 0104); fiig fmt -layout renames it", p, decl, path.Join(path.Dir(p), want))
 }
 
+// TopLevelProblem is what's wrong with a source file at p (module-relative)
+// of an application: it sits directly in src/, where an application declares
+// nothing (ADR 0108), or "". A library's top-level package is its public
+// face, so the rule is the caller's to apply to applications only.
+func TopLevelProblem(p string) string {
+	if path.Dir(p) != Src {
+		return ""
+	}
+	return fmt.Sprintf("an application's declarations live in a folder, one per domain (ADR 0108); move %s to src/<domain>/%s", p, path.Base(p))
+}
+
 // IsScenario reports whether a module-relative test file is in
 // test/scenarios/.
 func IsScenario(p string) bool {

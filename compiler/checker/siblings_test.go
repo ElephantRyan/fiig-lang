@@ -69,3 +69,26 @@ func TestSourceStillImportsOnlyItsDependencies(t *testing.T) {
 		t.Fatalf("a source file may not import a package its package doesn't depend on, got %+v", diags)
 	}
 }
+
+// ADR 0102 §3a: a test may call a workflow of a package of its own module,
+// as an adapter does; another module's workflow is still refused (B8).
+func TestATestMayCallASiblingsWorkflow(t *testing.T) {
+	b := types.Packages{"t.app.b": siblingPackage(t, "workflow run(n: int) -> int {\n    return n\n}\n")}
+	sources := map[string]string{
+		"src/Own.fiig":   ownRule,
+		"test/Runs.fiig": "use t.app.b\n\ntest runs {\n    expect b.run(3) == 3\n}\n",
+	}
+	diags, _ := CheckSourcesWithSiblings(sources, nil, b, "t.app.a", nil)
+	for _, d := range diags {
+		t.Errorf("a test calling a sibling's workflow: %+v", d)
+	}
+	// The same package as a dependency, not a sibling, is another module's.
+	diags, _ = CheckSourcesWithSiblings(sources, b, nil, "t.app.a", nil)
+	found := false
+	for _, d := range diags {
+		found = found || d.Rule == "B8"
+	}
+	if !found {
+		t.Errorf("another module's workflow should be B8, got %+v", diags)
+	}
+}

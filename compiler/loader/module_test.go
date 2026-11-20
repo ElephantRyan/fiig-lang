@@ -27,7 +27,7 @@ func writeTree(t *testing.T, files map[string]string) string {
 
 func appModule(extra map[string]string) map[string]string {
 	files := map[string]string{
-		"app/fiig.pkg.json":                   `{"path": "t.app", "kind": "application", "version": "1.0.0"}`,
+		"app/fiig.pkg.json":                   `{"path": "t.app", "kind": "library", "version": "1.0.0"}`,
 		"app/src/Greeting.fiig":               "use t.app.ratings\n\nconversion greeting(score: int) -> string {\n    return \"rated ${ratings.clamp(score)}\"\n}\n",
 		"app/src/ratings/Clamp.fiig":          "use t.app.ratings.limits\n\nconversion clamp(score: int) -> int {\n    return math.min(score, limits.highest())\n}\n",
 		"app/src/ratings/limits/Highest.fiig": "rule highest() -> int {\n    return 10\n}\n",
@@ -97,5 +97,33 @@ func TestTheLayoutsRules(t *testing.T) {
 				t.Errorf("errors = %v\nwant one containing %q", all, c.want)
 			}
 		})
+	}
+}
+
+// ADR 0108: an application declares nothing at the top level; a library's
+// top-level package is its public face.
+func TestAnApplicationHasNoTopLevelDeclarations(t *testing.T) {
+	topLevel := func(kind string) []checker.Diagnostic {
+		files := appModule(nil)
+		files["app/fiig.pkg.json"] = `{"path": "t.app", "kind": "` + kind + `", "version": "1.0.0"}`
+		ws := writeTree(t, files)
+		root := filepath.Join(ws, "app")
+		loaded, errs := Load(root, nil)
+		if len(errs) > 0 {
+			t.Fatal(errs)
+		}
+		diags, _, _, err := checker.CheckDirFiles(root, loaded.Packages)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return diags
+	}
+	if diags := topLevel("library"); len(diags) != 0 {
+		t.Errorf("a library's top level: %v", diags)
+	}
+	diags := topLevel("application")
+	if len(diags) != 1 || diags[0].Rule != "H6" || diags[0].File != "src/Greeting.fiig" ||
+		!strings.Contains(diags[0].Msg, "move src/Greeting.fiig to src/<domain>/Greeting.fiig") {
+		t.Errorf("an application's top level = %v, want one H6 on src/Greeting.fiig", diags)
 	}
 }
