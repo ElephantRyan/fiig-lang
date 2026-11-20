@@ -170,6 +170,27 @@ the same lookup. SIGINT or SIGTERM stops
 accepting connections and gives in-flight requests `-shutdown` (10s) to
 finish, then closes a driver's pooled connections.
 
+## Migrations
+
+A package's schema lives in `migrations/<number>_<name>.sql`, plain SQL
+(ADR 0096). `fiig serve` and `fiig run` apply pending migrations at
+startup, each in its own transaction, and record them in the
+database's `fiig_migrations` table. Two instances starting at once don't
+both run one: the second waits on the first's record and finds it
+applied. A deployment refuses to start, listing every problem, when an
+applied migration was edited or is missing, or a new one is numbered
+before one already applied.
+
+To run migrations as their own step instead, as a release job:
+
+```
+fiig migrate -caps caps.json .           # apply, printing each one
+fiig migrate -check -caps caps.json .    # list what's pending; exit 1 if any
+fiig serve -migrate=check -caps caps.json . api   # refuse to start while any are pending
+```
+
+There are no down migrations: undo one with another.
+
 ## As a container
 
 Each release publishes the image as `ghcr.io/elephantryan/fiig:<version>`.

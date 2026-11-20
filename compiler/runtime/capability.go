@@ -127,6 +127,18 @@ func (r *CapabilityRegistry) Packages() []string {
 	return out
 }
 
+// LookupFor returns the provider for capability while a workflow of the
+// package at path runs: its own binding, else the process-wide one (ADR
+// 0079 §6a). Migrations use it to reach each package's database (ADR 0096
+// §2).
+func (r *CapabilityRegistry) LookupFor(path, capability string) (CapabilityProvider, bool) {
+	if p, ok := r.packages[path][capability]; ok {
+		return p, true
+	}
+	p, ok := r.providers[capability]
+	return p, ok
+}
+
 // Lookup returns the process-wide provider registered for capability, if
 // any.
 func (r *CapabilityRegistry) Lookup(capability string) (CapabilityProvider, bool) {

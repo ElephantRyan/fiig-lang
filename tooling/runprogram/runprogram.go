@@ -9,10 +9,13 @@
 package runprogram
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"fiig-lang/compiler/checker"
 	"fiig-lang/compiler/manifest"
@@ -20,6 +23,7 @@ import (
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
+	"fiig-lang/tooling/migrate"
 )
 
 // LoadFiles parses every .fiig file under root, mirroring
@@ -176,4 +180,22 @@ func ParseArgs(argsJSON string) (map[string]any, error) {
 		return nil, fmt.Errorf("must be a JSON object")
 	}
 	return args, nil
+}
+
+// Migrate brings the program's databases up to date before it starts
+// (ADR 0096 §2), logging each migration it applies, or refuses with
+// every problem at once, as a configuration problem does.
+func Migrate(ctx context.Context, root string, packages types.Packages, caps *runtime.CapabilityRegistry, mode migrate.Mode) error {
+	pkgs, errs := migrate.Collect(root, packages)
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	applied, problems := migrate.Run(ctx, pkgs, caps, mode)
+	for _, a := range applied {
+		fmt.Fprintln(os.Stderr, "fiig: applied migration", a)
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("refusing to start:\n  %s", strings.Join(problems, "\n  "))
+	}
+	return nil
 }

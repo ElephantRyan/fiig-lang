@@ -33,6 +33,7 @@ import (
 	"fiig-lang/tooling/cli/checkcmd"
 	"fiig-lang/tooling/cli/configcmd"
 	"fiig-lang/tooling/cli/fmtcmd"
+	"fiig-lang/tooling/cli/migratecmd"
 	"fiig-lang/tooling/cli/runcmd"
 	"fiig-lang/tooling/cli/servecmd"
 	"fiig-lang/tooling/cli/testcmd"
@@ -48,6 +49,7 @@ commands:
   openapi   print the OpenAPI document for what serve would serve
   config    list the environment variables a program reads
   test      run a package's tests (tests/)
+  migrate   apply a program's pending migrations (migrations/)
   fmt       format .fiig files
   catalog   generate, search, and compare a program's registry
   lsp       run the language server an editor starts (stdin/stdout)
@@ -75,6 +77,8 @@ func main() {
 		configcmd.Main("fiig config", args)
 	case "test":
 		testcmd.Main("fiig test", args, sql)
+	case "migrate":
+		migratecmd.Main("fiig migrate", args, sql)
 	case "fmt":
 		fmtcmd.Main("fiig fmt", args)
 	case "catalog":

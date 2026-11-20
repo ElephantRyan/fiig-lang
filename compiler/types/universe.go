@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"fiig-lang/compiler/lexer"
+	"fiig-lang/compiler/migration"
 	"fiig-lang/compiler/syntax"
 )
 
@@ -73,6 +74,9 @@ type Package struct {
 	// by the checker; the runtime finds a database driver's group here
 	// (ADR 0084 §1). nil for a package built without a manifest.
 	Provides map[string]string
+	// Migrations is the package's schema migrations (ADR 0096), in number
+	// order; nil when it has none.
+	Migrations []migration.File
 }
 
 // Packages maps a canonical dotted package path (manifest.Manifest.Path)

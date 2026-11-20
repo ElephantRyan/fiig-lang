@@ -1,7 +1,6 @@
 // saveRatings is all or nothing: the second rating fails its check, so the
 // first one is rolled back with it.
 test badBatchStoresNothing {
-    createSchema()
     saved = saveRatings(
         [Rating(item: "dune", score: 9, note: "great"), Rating(item: "emma", score: 0, note: "unrated")],
     )

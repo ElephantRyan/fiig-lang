@@ -1,7 +1,8 @@
 # Getting started
 
 This builds and runs `examples/getting-started`, a small ratings service:
-a model, a validation rule, two SQLite gateways, and an HTTP adapter. You
+a model, a validation rule, two SQLite gateways, a migration, and an HTTP
+adapter. You
 need the `fiig` binary and nothing else; SQLite is built in.
 
 ## 1. Install
@@ -31,13 +32,16 @@ fiig check .
 No output means every file type-checks. `fiig` refuses to run or serve a
 program that doesn't.
 
-## 3. Create the table and rate something
+## 3. Rate something
 
 `caps.json` connects the `Database` capability to a SQLite file,
-`ratings.db`, created on first use.
+`ratings.db`, created on first use. The table is
+`migrations/0001_create_ratings.sql`: `fiig run` and `fiig serve` apply a
+migration the first time they start, and record it in the database's
+`fiig_migrations` table (ADR 0096). To change the schema later, add
+`0002_...sql`; a migration that has run is never edited.
 
 ```
-fiig run -caps caps.json . setup
 fiig run -caps caps.json -args '{"input": {"item": "dune", "score": 9, "note": "great"}}' . rate
 fiig run -caps caps.json -args '{"item": "dune"}' . readRating
 ```
@@ -92,8 +96,8 @@ code; `docs/specification/bug-classes.md` lists them, and
 
 ## 6. Test it
 
-`tests/` holds tests written in fiig. Each one gets its own empty
-in-memory database, so the gateways run their real SQL:
+`tests/` holds tests written in fiig. Each one gets its own in-memory
+database with the migrations applied, so the gateways run their real SQL:
 
 ```
 fiig test -v .
