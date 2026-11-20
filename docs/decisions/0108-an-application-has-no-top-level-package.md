@@ -137,11 +137,10 @@ to it.
 ## Open questions
 
 
-1. **What folder does `fiig fmt -layout` move top-level files into?** The
-   module path's last segment is the obvious default, but `abs.recommendations`
-   gives `recommendations`, which may collide with a real domain. Probably
-   it should ask, or take `-into <name>`.
-2. **A module that is both** (an application others import from). ADR 0105
+1. *(Settled: `fiig fmt -layout -into <folder>` names it. The author names
+   the domain, since the module path's last segment can collide with a real
+   one, so an application with loose files and no `-into` is refused.)*
+1. **A module that is both** (an application others import from). ADR 0105
    says a library meant for other projects stays a module of its own, so
    this shouldn't arise. If it does, this ADR says it's a library.
 
@@ -160,5 +159,9 @@ to it.
   test.
 - **A scenario test in the empty top level imports a sibling and calls its
   workflows** (§2a), which needed the B8 change in ADR 0102 §3a.
-- **Open question 1 stays open:** `fiig fmt -layout` doesn't pick a folder
-  for loose top-level files. The migration was a move by hand.
+- **`fiig fmt -layout -into <folder>`** puts the root module's loose files
+  in that folder, with their tests beside them, and an application with
+  loose files and no `-into` is refused naming the flag. A scenario test, which
+  stays in the top-level package, is listed as "by hand": it needs a `use` of
+  the folder and qualified calls, which the tool doesn't rewrite. A library
+  keeps its top-level files. `compiler/layout.ValidFolder` checks the name.
