@@ -139,3 +139,8 @@ func TestListLiteralConstantsTakeTheElementType(t *testing.T) {
 	}
 	wantDiag(t, checkSrc(t, "rule r(n: int) -> int {\n    xs = [n, 2.5]\n    return n\n}"), "A1", "constant 2.5 is not a whole number")
 }
+
+// `+` on a string says to interpolate, with the string to write.
+func TestPlusOnStringsSuggestsInterpolation(t *testing.T) {
+	wantDiag(t, checkSrc(t, "rule r(note: string) -> string {\n    return note + \"x\"\n}"), "A1", "interpolate instead: \"${note}x\"")
+}
