@@ -30,6 +30,9 @@ func (c *checker) checkExpected(e syntax.Expr, expected types.Type, env map[stri
 	if c.checkExpectedJson(e, expected, env) {
 		return
 	}
+	if c.checkExpectedMapErr(e, expected, env) {
+		return
+	}
 	if call, ok := e.(*syntax.CallExpr); ok {
 		if ident, ok := call.Callee.(*syntax.Ident); ok && (ident.Name == "Ok" || ident.Name == "Err") {
 			c.checkOkErr(call, ident.Name, expected, env)

@@ -762,7 +762,7 @@ meaning.
 ```ebnf
 list-form ::= list-form-name '(' identifier 'in' expression ')' ':' expression
 list-form-name ::= 'filter' | 'map' | 'groupBy' | 'count' | 'any' | 'all'
-                 | 'sum' | 'max' | 'min' | 'maxOrNone' | 'minOrNone'
+                 | 'sum' | 'max' | 'min' | 'maxOrNone' | 'minOrNone' | 'mapErr'
 ```
 
 ADR 0093: the body is evaluated once per element, in list order, with the
@@ -780,6 +780,7 @@ is A13.
 | `sum(x in xs): e` | `int`, `float`, `decimal` | the body's type; `0` on `[]`, `int` for a constant body |
 | `max(x in xs): k` / `min(x in xs): k` | ordered (M3) | the key; faults on `[]` |
 | `maxOrNone(x in xs): k` / `minOrNone(x in xs): k` | ordered (M3) | the key, or `None` on `[]` |
+| `mapErr(e in r): b` (ADR 0095) | any `E2`; `e` is `r`'s error | `Result<T, E2>` for `r: Result<T, E1>`; a trailing `?` applies to the whole form |
 
 Each name is contextual, like `sorted`: the form starts only at
 `name ( identifier in`, so `math.max(a, b)`, a local named `count`, and a

@@ -100,9 +100,8 @@ doesn't have to discover them.
 - **No user-defined generics** and no lambdas (ADR 0056). List work is
   done with forms whose body is written in place, `filter(x in xs): ...`
   and the rest (ADR 0093); a function can't be stored or passed.
-  Without generics, a client's gateways each repeat four lines to decode
-  a reply and turn a `JsonError` into the client's error
-  ([writing a client](writing-a-client.md)).
+  An error type is changed with `mapErr(e in result): newError` (ADR
+  0095), which needs neither.
 - **Streams and queue consumers** (ADR 0047) are designed, not built.
 - See `docs/specification/grammar.md`'s "Known gaps" for open syntax
   questions.

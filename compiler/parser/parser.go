@@ -1959,8 +1959,10 @@ func (p *Parser) atListForm() bool {
 	return syntax.ListForms[p.cur().Text] && isNameToken(p.cur().Kind) && p.peek(1).Kind == lexer.LParen && isNameToken(p.peek(2).Kind) && p.peek(3).Kind == lexer.KwIn
 }
 
-// parseListForm parses `form(x in xs): body`.
-func (p *Parser) parseListForm() *syntax.ListForm {
+// parseListForm parses `form(x in xs): body`. A mapErr's body is an error
+// value, so a `?` that ends it belongs to the whole form (ADR 0095 §1):
+// `mapErr(e in r): Wrap(e)?` is `(mapErr(e in r): Wrap(e))?`.
+func (p *Parser) parseListForm() syntax.Expr {
 	formTok := p.advance()
 	p.expect(lexer.LParen)
 	varTok := p.expectName()
@@ -1969,7 +1971,12 @@ func (p *Parser) parseListForm() *syntax.ListForm {
 	p.expect(lexer.RParen)
 	p.expect(lexer.Colon)
 	body := p.parseExpression()
-	return &syntax.ListForm{Span: syntax.Span{Start: formTok.Start, End: p.cur().Start}, Form: formTok.Text, Var: varTok.Text, Iterable: iterable, Body: body}
+	form := &syntax.ListForm{Span: syntax.Span{Start: formTok.Start, End: p.cur().Start}, Form: formTok.Text, Var: varTok.Text, Iterable: iterable, Body: body}
+	if try, ok := body.(*syntax.TryExpr); ok && form.Form == "mapErr" {
+		form.Body = try.Operand
+		return &syntax.TryExpr{Span: form.Span, Operand: form}
+	}
+	return form
 }
 
 func (p *Parser) parseRetryExpr() *syntax.RetryExpr {

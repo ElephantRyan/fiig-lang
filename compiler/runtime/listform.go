@@ -11,6 +11,9 @@ import (
 // once per element, in list order; any and all stop at the first element
 // that decides them.
 func (in *Interp) evalListForm(ctx context.Context, e *syntax.ListForm, env *Env) (Value, bool, *Fault) {
+	if e.Form == "mapErr" {
+		return in.evalMapErr(ctx, e, env)
+	}
 	v, earlyReturn, fault := in.formList(ctx, e.Form, e.Iterable, env)
 	if fault != nil || earlyReturn {
 		return v, earlyReturn, fault
@@ -115,4 +118,27 @@ func (in *Interp) evalListForm(ctx context.Context, e *syntax.ListForm, env *Env
 		return None{}, false, nil
 	}
 	return acc, false, nil
+}
+
+// evalMapErr is ADR 0095's `mapErr(e in result): body`: an Ok passes
+// through, and an Err's value is bound to e and replaced by the body's.
+func (in *Interp) evalMapErr(ctx context.Context, e *syntax.ListForm, env *Env) (Value, bool, *Fault) {
+	v, earlyReturn, fault := in.evalExpr(ctx, e.Iterable, env)
+	if fault != nil || earlyReturn {
+		return v, earlyReturn, fault
+	}
+	r, ok := v.(Result)
+	if !ok {
+		return nil, false, Faultf("mapErr takes a Result, got %s", v)
+	}
+	if r.Ok {
+		return r, false, nil
+	}
+	bodyEnv := env.Child()
+	bodyEnv.Bind(e.Var, r.Value)
+	b, earlyReturn, fault := in.evalExpr(ctx, e.Body, bodyEnv)
+	if fault != nil || earlyReturn {
+		return b, earlyReturn, fault
+	}
+	return Result{Ok: false, Value: b}, false, nil
 }

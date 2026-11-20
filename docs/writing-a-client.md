@@ -17,11 +17,7 @@ capability ShelfApi {
         requires HttpClient
     {
         reply = shelfReply(HttpClient.send(shelfGet(Shelf.url, "/api/books/${id}", token)))?
-        parsed: Result<Book, JsonError> = json.decode(reply.body)
-        match parsed {
-            Err(failure) -> Err(ShelfError.Unreadable(failure: failure))
-            Ok(found) -> Ok(found)
-        }
+        return mapErr(e in json.decode(reply.body)): ShelfError.Unreadable(failure: e)
     }
 }
 ```
@@ -92,9 +88,16 @@ test bookSendsTheToken {
 }
 ```
 
-## What still repeats
+## Decoding the reply
 
-The last four lines of each gateway, decoding the body and turning a
-`JsonError` into the client's error. Sharing them needs a conversion over
-any decoded type, which needs generics; fiig has none yet (see
-[known limitations](known-limitations.md)).
+`json.decode` returns a `Result<T, JsonError>`, and `mapErr` (ADR 0095)
+turns its error into the client's, so the decode is one line. To keep the
+value and do more with it, add `?`:
+
+```fiig
+found: ShelfItem = mapErr(e in json.decode(reply.body)): ShelfError.Unreadable(failure: e)?
+return Ok(bookOfItem(found))
+```
+
+`json.decode` still takes its type from the line it's on (`found:
+ShelfItem`, or the gateway's return type).
