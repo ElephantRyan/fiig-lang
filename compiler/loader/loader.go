@@ -135,7 +135,7 @@ func Load(root string, workspaceRoots []string) (*Loaded, []error) {
 	}
 	sort.Slice(entryList, func(i, j int) bool { return entryList[i].Path < entryList[j].Path })
 
-	if errs := checkCapabilities(rootManifest.Capabilities, rootManifest.NativeCapabilities, rootCapabilities, entryList); len(errs) > 0 {
+	if errs := checkCapabilities(string(rootManifest.Kind), rootManifest.Capabilities, rootManifest.NativeCapabilities, rootCapabilities, entryList); len(errs) > 0 {
 		return nil, errs
 	}
 	if errs := checkRenames(rootManifest, packages); len(errs) > 0 {
@@ -246,7 +246,7 @@ func sortedKeys(m map[string]bool) []string {
 // (the manifest's NativeCapabilities grandfather list). Otherwise a new
 // Go-only domain capability could slip in, which is how the floor ended up
 // at the domain layer in the first place.
-func checkCapabilities(declared, native, rootCapabilities []string, entries []lockfile.Entry) []error {
+func checkCapabilities(kind string, declared, native, rootCapabilities []string, entries []lockfile.Entry) []error {
 	declaredSet := map[string]bool{}
 	for _, c := range declared {
 		declaredSet[c] = true
@@ -258,7 +258,7 @@ func checkCapabilities(declared, native, rootCapabilities []string, entries []lo
 	var errs []error
 	check := func(c, who string) {
 		if !declaredSet[c] {
-			errs = append(errs, fmt.Errorf("capability %q is required by %s but not declared in this application's manifest capabilities list", c, who))
+			errs = append(errs, fmt.Errorf("capability %q is required by %s but not declared in this %s's manifest; add %q to \"capabilities\" in its fiig.pkg.json", c, who, kind, c))
 		}
 		if !capability.IsPrimitive(c) && !nativeSet[c] {
 			errs = append(errs, fmt.Errorf("capability %q (required by %s) is neither a primitive (%s) nor listed in the manifest's nativeCapabilities; a domain capability needs a fiig fulfiller (ADR 0042)", c, who, strings.Join(capability.Primitives(), ", ")))

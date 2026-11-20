@@ -91,3 +91,14 @@ func indent(s string) string {
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
+
+// GAPS G20: `is` inside an expression is one error.
+func TestIsInAnExpressionIsOneError(t *testing.T) {
+	_, errs := Parse(`rule r(users: List<User>) -> int {
+    return count(u in users): u.email is not None
+}
+`)
+	if len(errs) != 1 || !strings.Contains(errs[0].Msg, "`is` takes a pattern only in `expect x is Pattern`") {
+		t.Fatalf("want one error, got %v", errs)
+	}
+}

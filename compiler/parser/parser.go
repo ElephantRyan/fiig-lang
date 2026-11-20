@@ -1212,7 +1212,7 @@ func (p *Parser) parseStatement() syntax.Stmt {
 		return p.parseContinueStmt()
 	case p.atExpect():
 		start := p.advance().Start // 'expect'
-		cond := p.parseExpression()
+		cond := p.parseOr()        // not parseExpression, which refuses a trailing `is`
 		var pat syntax.Pattern
 		if p.atContextual("is") && p.cur().Start.Line == p.peek(-1).End.Line {
 			p.advance() // 'is'
@@ -1485,7 +1485,18 @@ func (p *Parser) parseBody() syntax.Body {
 // ---- expressions -----------------------------------------------------
 
 func (p *Parser) parseExpression() syntax.Expr {
-	return p.parseOr()
+	e := p.parseOr()
+	if p.atContextual("is") && p.sameLine() {
+		// abs-recommendations GAPS G20: `is` reads like a boolean test,
+		// but only `expect` takes a pattern this way.
+		p.errorf(p.cur().Start, "`is` takes a pattern only in `expect x is Pattern`; elsewhere, match on the value, or write a helper that does")
+		p.advance()
+		if p.at(lexer.KwNot) {
+			p.advance()
+		}
+		p.parsePattern()
+	}
+	return e
 }
 
 // binaryExpr builds a BinaryExpr spanning both operands, so tooling that

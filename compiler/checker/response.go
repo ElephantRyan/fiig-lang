@@ -69,6 +69,16 @@ func (c *checker) checkResponseArms(route *syntax.Route, wd *syntax.WorkflowDecl
 	defer func() { c.callerKind = saved }()
 	for _, arm := range route.Mapping {
 		env := map[string]types.Type{}
+		if !c.patternFits(arm.Pattern, ret, env) {
+			// abs-recommendations GAPS G22: an Ok arm on a workflow that
+			// returns a plain value checked, then faulted on every request.
+			start, _ := arm.Pattern.(syntax.Spanned).Bounds()
+			hint := ""
+			if _, isResult := ret.(types.Generic); !isResult || ret.(types.Generic).Name != "Result" {
+				hint = "; bind the value with a name instead, as in `found -> 200 found`"
+			}
+			c.report(start, "A1", "workflow %s returns %s, which this arm's pattern can never match%s", wd.Name, ret, hint)
+		}
 		c.bindPattern(arm.Pattern, ret, env)
 		switch v := arm.Value.(type) {
 		case *syntax.StatusResponse:

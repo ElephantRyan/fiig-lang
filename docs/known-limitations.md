@@ -118,6 +118,8 @@ doesn't have to discover them.
 - **`calls` only counts.** A test that wants the arguments a fake saw
   stores them in its `Database`.
 - **No shared fakes.** A fake used by many tests is written in each.
+  A test file may have a `private` block of helpers, for building values
+  the test needs, but the helpers are that file's alone.
 - **No literal patterns**: `expect r is Err(e)` then `expect e == ...`,
   two lines where one would do. A literal in a pattern is one error that
   says so.

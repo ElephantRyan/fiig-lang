@@ -467,7 +467,7 @@ func checkFileIndexed(file *syntax.File, universe *types.Universe, packages type
 	c := &checker{index: index,
 		universe: universe, imports: ResolveFileImports(file, packages), groups: ResolveFileGroups(file, packages),
 		aliases: map[string]*syntax.Import{}, g4Reported: map[*syntax.Import]bool{}, ownPath: ownPath,
-		testOnly: testOnly, inTestsFile: file.Tests,
+		testOnly: testOnly, inTestsFile: file.Tests, packages: packages,
 	}
 	if len(file.Decls) > 0 {
 		c.entry = file.Decls[0]
@@ -534,7 +534,9 @@ func (c *checker) checkPrivateBlock(entry syntax.Decl, block *syntax.PrivateBloc
 			if gw, ok := entry.(*syntax.GatewayDecl); ok {
 				c.requires = gw.Requires
 			}
+			c.inHelper = true
 			c.checkCallable(h.Params, h.ReturnType, h.Body)
+			c.inHelper = false
 			c.requires = ""
 			continue
 		}
@@ -749,6 +751,12 @@ type checker struct {
 	inFake  bool
 	fakes   map[string]fakeTarget
 	fakeOps map[string]bool
+	// inHelper is true while checking a private helper, which returns
+	// its own declared type even in a test's file.
+	inHelper bool
+	// packages is every package this one was built against, so a
+	// diagnostic can name the `use` a missing name needs.
+	packages types.Packages
 }
 
 // lookup resolves a bare name against the universe for the purpose of
@@ -1168,6 +1176,12 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 	}
 	if calleeKind == kindWorkflow && (c.callerKind == kindGateway || c.callerKind == kindActivity || c.callerKind == kindWorkflow || c.callerKind == kindTest) {
 		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s may not call workflow %q; a workflow is called only from outside its package, by an adapter or by another package's gateway (ADR 0079 §2)", c.callerKind, calleeName)
+		return
+	}
+	if c.callerKind == kindRule && (calleeKind == kindConversion || calleeKind == kindRule) && c.entry != nil && callee != c.entry {
+		// abs-recommendations GAPS G18: a rule calls only formulas; a
+		// conversion may call rules and conversions.
+		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "rule may not call %s %q; a rule calls only formulas and methods, so make %s a conversion, which may call rules and conversions (fiig-lang.md §3.2)", calleeKind, calleeName, syntax.DeclName(c.entry))
 		return
 	}
 	c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s may not call %s %q", c.callerKind, calleeKind, calleeName)
