@@ -5,7 +5,7 @@
       "path": "acme.http",
       "version": "1.0.0",
       "hash": "sha256:afc92218476e9a6436899c6cde6350d38abb0988951711ae61c91538e0294048",
-      "source": "examples/acme-http",
+      "source": "acme-http",
       "capabilities": [
         "Socket"
       ]
@@ -14,25 +14,25 @@
       "path": "acme.payments",
       "version": "1.0.0",
       "hash": "sha256:68b721cfbd54ecd05d55fd44006723c33ffc4847ad654c99f4a5ac5d28a44651",
-      "source": "examples/acme-payments"
+      "source": "acme-payments"
     },
     {
       "path": "acme.square",
       "version": "1.0.0",
       "hash": "sha256:b76e699e9a62ede23c3eabf3229238096135dfa07a35020438621316965dc92a",
-      "source": "examples/acme-square"
+      "source": "acme-square"
     },
     {
       "path": "acme.stripe",
       "version": "1.0.0",
       "hash": "sha256:f94396ddb89083d07c18d34850e7e767d8dbac9c0937582c33b231223c5a24f5",
-      "source": "examples/acme-stripe"
+      "source": "acme-stripe"
     },
     {
       "path": "checkout.core",
       "version": "1.0.0",
       "hash": "sha256:c64db13f8d084af46e9e16e25a7d2371c3ff9ddb74d01b5d32f3d8ff053541fc",
-      "source": "examples/checkout-core",
+      "source": "checkout-core",
       "capabilities": [
         "Socket"
       ]

@@ -23,6 +23,6 @@ capability Client {
             }
         }
         Socket.close(connection)
-        return Ok(webReply(response))
+        return Ok(readWebReply(response))
     }
 }
