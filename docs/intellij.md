@@ -30,7 +30,7 @@ binary can be found.
 | Highlighting | colors under **Settings \| Editor \| Color Scheme \| fiig**; each call is coloured by what it calls (rule, conversion, activity, gateway, workflow, ...) under **Calls** (ADR 0106) |
 | Editing | brace matching, `Ctrl+/` comments, folding of blocks and comment runs, TODO |
 | Running | a ▶ in the gutter on a `workflow` (Run), an `adapter http` (Serve), or any other file's declaration (Check), and a **fiig** run configuration for `fiig run`, `serve`, and `check` |
-| New files | **New \| fiig File**: pick a kind and a name; `get customer` makes `getCustomer` in `get_customer.fiig` |
+| New files | **New \| fiig File**: pick a kind and a name; `get customer` makes `getCustomer` in `GetCustomer.fiig` (ADR 0104) |
 | Manifests and capabilities files | completion and validation in `fiig.pkg.json`, `caps.json`, `caps.*.json`, and `capabilities.json` |
 
 ## Build it
