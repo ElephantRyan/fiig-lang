@@ -46,6 +46,8 @@ type Plan struct {
 	Remove    []string
 	Manifest  []byte
 	Scenarios []string
+	// Notes are what the author must do by hand after the move.
+	Notes []string
 }
 
 type module struct {
@@ -66,7 +68,13 @@ type source struct {
 }
 
 // Relayout plans the move of the module at root, with absorb folded in.
-func Relayout(root string, absorb []Absorb) (*Plan, error) {
+// into names the folder package that takes the root module's files that
+// would otherwise sit directly in src/; an application has none there (ADR
+// 0108), so for one with such files into is required.
+func Relayout(root string, absorb []Absorb, into string) (*Plan, error) {
+	if into != "" && !layout.ValidFolder(into) {
+		return nil, fmt.Errorf("-into %q isn't a folder name: use lowercase letters and digits, starting with a letter (ADR 0105)", into)
+	}
 	rm, errs := manifest.Load(root)
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("%s: %v (a module needs a fiig.pkg.json)", root, errs[0])
@@ -158,6 +166,25 @@ func Relayout(root string, absorb []Absorb) (*Plan, error) {
 		return nil, fmt.Errorf("a manifest says capability group %s provides an interface, but no file declares it", group)
 	}
 
+	// An application declares nothing at the top level (ADR 0108): its loose
+	// files go into one folder, which only the author can name.
+	loose := 0
+	for _, s := range sources {
+		if s.mod.folder == "" && path.Dir(s.rel) == layout.Src {
+			loose++
+		}
+	}
+	if loose > 0 && into == "" && rm.Kind == manifest.Application {
+		return nil, fmt.Errorf("%d files would sit directly in src/, but an application's declarations live in a folder, one per domain (ADR 0108); name the folder with -into <folder>", loose)
+	}
+	if loose > 0 && into != "" {
+		for _, s := range sources {
+			if s.mod.folder == "" && path.Dir(s.rel) == layout.Src {
+				s.rel = path.Join(layout.Src, into, path.Base(s.rel))
+			}
+		}
+	}
+
 	seen := map[string]*source{}
 	for _, s := range sources {
 		key := strings.ToLower(s.rel)
@@ -191,6 +218,9 @@ func Relayout(root string, absorb []Absorb) (*Plan, error) {
 		} else {
 			dest = path.Join(layout.Test, layout.Scenarios, layout.FileName(t.name))
 			plan.Scenarios = append(plan.Scenarios, fmt.Sprintf("%s (from %s)", dest, t.abs))
+			if loose > 0 && into != "" {
+				plan.Notes = append(plan.Notes, fmt.Sprintf("%s is in the top-level package, which holds nothing now: add `use %s` and call %s's declarations through it", dest, layout.PathOf(rm.Path, into), into))
+			}
 		}
 		if _, ok := groups[dest]; !ok {
 			order = append(order, dest)

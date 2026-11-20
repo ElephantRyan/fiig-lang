@@ -595,7 +595,8 @@ top-level package isn't importable from its folders, and an application's
 top level declares nothing (ADR 0108). `fiig run . ratings.rate`
 runs a folder package's declaration. A capability group says which
 interface it fulfills: `capability Square provides payments.PaymentProvider`.
-`fiig fmt -layout <dir>` moves an older package to this layout.
+`fiig fmt -layout [-into folder] <dir>` moves an older package to this
+layout; an application's loose files go in the folder `-into` names.
 
 The manifest, `fiig.pkg.json`:
 

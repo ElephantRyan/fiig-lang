@@ -36,11 +36,12 @@ func Main(name string, args []string) {
 	asJSON := fs.Bool("json", false, "print format errors as a JSON array instead of one line each")
 	relayoutFlag := fs.Bool("layout", false, "move the module in the one directory given to src/ and test/, with files named after their declarations (ADRs 0102, 0104, 0105)")
 	dryRun := fs.Bool("n", false, "with -layout, print what would move and change nothing")
+	into := fs.String("into", "", "with -layout, the folder package for files that would sit directly in src/; an application needs one (ADR 0108)")
 	var absorb absorbList
 	fs.Var(&absorb, "absorb", "with -layout, DIR=folder: fold the module in DIR into this one as src/folder/, rewriting imports of it; repeatable")
 	fs.Parse(args)
 	if *relayoutFlag {
-		os.Exit(runLayout(fs.Args(), absorb, *dryRun))
+		os.Exit(runLayout(fs.Args(), absorb, *into, *dryRun))
 	}
 
 	if fs.NArg() == 0 {
@@ -110,12 +111,12 @@ func (a *absorbList) Set(v string) error {
 }
 
 // runLayout is `fiig fmt -layout`.
-func runLayout(args []string, absorb absorbList, dryRun bool) int {
+func runLayout(args []string, absorb absorbList, into string, dryRun bool) int {
 	if len(args) != 1 {
-		fmt.Fprintln(os.Stderr, "usage: fiig fmt -layout [-n] [-absorb DIR=folder]... <module>")
+		fmt.Fprintln(os.Stderr, "usage: fiig fmt -layout [-n] [-into folder] [-absorb DIR=folder]... <module>")
 		return 2
 	}
-	plan, err := relayout.Relayout(args[0], absorb)
+	plan, err := relayout.Relayout(args[0], absorb, into)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 1
@@ -136,6 +137,9 @@ func runLayout(args []string, absorb absorbList, dryRun bool) int {
 	}
 	for _, sc := range plan.Scenarios {
 		fmt.Printf("to place: %s checks more than one file, or none; it is in test/scenarios/ until you move it\n", sc)
+	}
+	for _, n := range plan.Notes {
+		fmt.Printf("by hand: %s\n", n)
 	}
 	if dryRun {
 		return 0

@@ -51,6 +51,10 @@ func PathOf(modulePath, folder string) string {
 
 var folderName = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
 
+// ValidFolder reports whether name can be one segment of a package folder:
+// lowercase letters and digits, starting with a letter (ADR 0105).
+func ValidFolder(name string) bool { return folderName.MatchString(name) }
+
 // Packages is every package of the module in fsys, in folder order, with
 // every way the module breaks the layout: a .fiig file outside src/ and
 // test/, a folder name that isn't a path segment, a test file that mirrors
