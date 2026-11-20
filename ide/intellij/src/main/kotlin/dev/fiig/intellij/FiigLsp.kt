@@ -4,6 +4,7 @@ import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
@@ -13,6 +14,8 @@ import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
 import com.intellij.platform.lsp.api.customization.LspCustomization
 import com.intellij.platform.lsp.api.customization.LspFormattingCustomizer
 import com.intellij.platform.lsp.api.customization.LspFormattingSupport
+import com.intellij.platform.lsp.api.customization.LspSemanticTokensCustomizer
+import com.intellij.platform.lsp.api.customization.LspSemanticTokensSupport
 
 /** ADR 0090 §3: one `fiig lsp` per project with a `.fiig` file. */
 class FiigLspIntegrationProvider : LspIntegrationProvider {
@@ -57,6 +60,12 @@ class FiigLspServerDescriptor(project: Project, private val binary: String) : Pr
         override val formattingCustomizer: LspFormattingCustomizer = object : LspFormattingSupport() {
             override fun shouldFormatThisFileExclusivelyByServer(file: VirtualFile, ideCanFormatThisFileItself: Boolean, serverExplicitlyWantsToFormatThisFile: Boolean): Boolean =
                 file.extension == "fiig"
+        }
+
+        // ADR 0106 §1: each call coloured by its callee's kind.
+        override val semanticTokensCustomizer: LspSemanticTokensCustomizer = object : LspSemanticTokensSupport() {
+            override fun getTextAttributesKey(tokenType: String, modifiers: List<String>): TextAttributesKey? =
+                FiigColors.BY_SEMANTIC_TYPE[tokenType]
         }
     }
 }

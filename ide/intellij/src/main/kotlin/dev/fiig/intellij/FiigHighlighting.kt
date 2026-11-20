@@ -34,6 +34,30 @@ object FiigColors {
     val COMMA = createTextAttributesKey("FIIG_COMMA", D.COMMA)
     val DOT = createTextAttributesKey("FIIG_DOT", D.DOT)
     val BAD = createTextAttributesKey("FIIG_BAD_CHARACTER", HighlighterColors.BAD_CHARACTER)
+
+    // ADR 0106 §1: a call, coloured by the kind of what it calls, from the
+    // language server's semantic tokens. Pure calls and calls with effects
+    // start from different colours.
+    val RULE_CALL = createTextAttributesKey("FIIG_RULE_CALL", D.FUNCTION_CALL)
+    val CONVERSION_CALL = createTextAttributesKey("FIIG_CONVERSION_CALL", D.FUNCTION_CALL)
+    val FORMULA_CALL = createTextAttributesKey("FIIG_FORMULA_CALL", D.FUNCTION_CALL)
+    val HELPER_CALL = createTextAttributesKey("FIIG_HELPER_CALL", D.FUNCTION_CALL)
+    val ACTIVITY_CALL = createTextAttributesKey("FIIG_ACTIVITY_CALL", D.INSTANCE_METHOD)
+    val GATEWAY_CALL = createTextAttributesKey("FIIG_GATEWAY_CALL", D.STATIC_METHOD)
+    val WORKFLOW_CALL = createTextAttributesKey("FIIG_WORKFLOW_CALL", D.CONSTANT)
+    val CAPABILITY_CALL = createTextAttributesKey("FIIG_CAPABILITY_CALL", D.STATIC_METHOD)
+
+    /** The language server's token types (tooling/lsp/semantic.go), to colours. */
+    val BY_SEMANTIC_TYPE = mapOf(
+        "rule" to RULE_CALL,
+        "conversion" to CONVERSION_CALL,
+        "formula" to FORMULA_CALL,
+        "helper" to HELPER_CALL,
+        "activity" to ACTIVITY_CALL,
+        "gateway" to GATEWAY_CALL,
+        "workflow" to WORKFLOW_CALL,
+        "capability" to CAPABILITY_CALL,
+    )
 }
 
 class FiigSyntaxHighlighter : SyntaxHighlighterBase() {
@@ -71,7 +95,9 @@ class FiigColorSettingsPage : ColorSettingsPage {
     override fun getIcon(): Icon = FiigIcons.FILE
     override fun getHighlighter(): SyntaxHighlighter = FiigSyntaxHighlighter()
     override fun getDisplayName(): String = "fiig"
-    override fun getAdditionalHighlightingTagToDescriptorMap(): Map<String, TextAttributesKey>? = null
+    // The demo marks calls with tags, since the page has no language server.
+    override fun getAdditionalHighlightingTagToDescriptorMap(): Map<String, TextAttributesKey> =
+        FiigColors.BY_SEMANTIC_TYPE.mapKeys { (type, _) -> "${type}Call" }
     override fun getColorDescriptors(): Array<ColorDescriptor> = ColorDescriptor.EMPTY_ARRAY
 
     override fun getAttributeDescriptors(): Array<AttributesDescriptor> = arrayOf(
@@ -91,6 +117,14 @@ class FiigColorSettingsPage : ColorSettingsPage {
         AttributesDescriptor("Braces and operators//Comma", FiigColors.COMMA),
         AttributesDescriptor("Braces and operators//Dot", FiigColors.DOT),
         AttributesDescriptor("Bad character", FiigColors.BAD),
+        AttributesDescriptor("Calls//Rule", FiigColors.RULE_CALL),
+        AttributesDescriptor("Calls//Conversion", FiigColors.CONVERSION_CALL),
+        AttributesDescriptor("Calls//Formula", FiigColors.FORMULA_CALL),
+        AttributesDescriptor("Calls//Private helper", FiigColors.HELPER_CALL),
+        AttributesDescriptor("Calls//Activity", FiigColors.ACTIVITY_CALL),
+        AttributesDescriptor("Calls//Gateway", FiigColors.GATEWAY_CALL),
+        AttributesDescriptor("Calls//Workflow", FiigColors.WORKFLOW_CALL),
+        AttributesDescriptor("Calls//Capability operation", FiigColors.CAPABILITY_CALL),
     )
 
     override fun getDemoText(): String = """
@@ -104,6 +138,15 @@ class FiigColorSettingsPage : ColorSettingsPage {
                 found -> Ok(found)
                 None -> Err(RatingError.NotFound(item))
             }
+        }
+
+        workflow rate(item: string) -> Result<Rating, RatingError> {
+            found = <activityCall>loadRating</activityCall>(item)?
+            return <ruleCall>checkRating</ruleCall>(found)
+        }
+
+        activity loadRating(item: string) -> Result<Rating, RatingError> {
+            return <gatewayCall>findRating</gatewayCall>(item)
         }
 
         rule label(score: int, weight: decimal) -> string {

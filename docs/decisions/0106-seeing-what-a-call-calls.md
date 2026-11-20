@@ -1,6 +1,6 @@
 # ADR 0106: Seeing What a Call Calls: Highlighting and `fiig calls`
 
-Status: Accepted (2026-11-20). Not yet implemented.
+Status: Accepted (2026-11-20). Implemented 2026-11-20.
 Date: 2026-11-20
 Related: ADR 0050 §2.3 (call-site tones), ADR 0090 (the IntelliJ plugin),
 Milestone 3 (the registry), ADR 0107 (workflows don't call gateways).
@@ -57,3 +57,20 @@ saveRating        activity   effects: Database
 ## Consequences
 
 - No source changes.
+
+## Implementation notes
+
+Built 2026-11-20.
+
+- `fiig calls` (`tooling/cli/callscmd`) reads the registry. The program
+  root is the nearest directory with a `fiig.pkg.json`, else the current
+  directory, or `-root`. Building it found a registry bug: an activity
+  calling a name outside the tree the registry was generated from was
+  marked pure; it no longer is.
+- `fiig lsp` answers `textDocument/semanticTokens/full` with a token per
+  call, typed by the callee's kind (`tooling/lsp/semantic.go`).
+- The IntelliJ plugin maps each type to a colour under **Color Scheme |
+  fiig | Calls**. Pure calls start from the function-call colour,
+  activities from the instance-method colour, gateways and capability
+  operations from the static-method colour. Verified Compatible with
+  IntelliJ IDEA 2026.2 and 2026.3.

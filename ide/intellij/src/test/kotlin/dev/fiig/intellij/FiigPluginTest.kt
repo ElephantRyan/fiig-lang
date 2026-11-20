@@ -24,7 +24,19 @@ class FiigPluginTest : BasePlatformTestCase() {
         assertSame(FiigColors.KEYWORD, h.getTokenHighlights(FiigTokens.KEYWORD).single())
         assertSame(FiigColors.TYPE_NAME, h.getTokenHighlights(FiigTokens.TYPE_NAME).single())
         assertSame(FiigColors.INVALID_ESCAPE, h.getTokenHighlights(FiigTokens.INVALID_ESCAPE).single())
-        assertEquals(16, FiigColorSettingsPage().attributeDescriptors.size)
+        assertEquals(24, FiigColorSettingsPage().attributeDescriptors.size)
+    }
+
+    // ADR 0106 §1: every token type tooling/lsp/semantic.go sends has a
+    // colour, and the settings page's demo tags name them.
+    fun testEveryCallKindHasAColour() {
+        val types = listOf("rule", "conversion", "activity", "gateway", "workflow", "formula", "helper", "capability")
+        assertEquals(types.toSet(), FiigColors.BY_SEMANTIC_TYPE.keys)
+        val tags = FiigColorSettingsPage().additionalHighlightingTagToDescriptorMap
+        for (tag in listOf("activityCall", "ruleCall", "gatewayCall")) {
+            assertTrue(FiigColorSettingsPage().demoText.contains("<$tag>"))
+            assertNotNull(tags[tag])
+        }
     }
 
     fun testBracesMatch() {
