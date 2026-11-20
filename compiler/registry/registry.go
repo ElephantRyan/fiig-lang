@@ -389,10 +389,18 @@ func Generate(root string) ([]*Card, []FileError, error) {
 			callable[c.Name] = true
 		}
 	}
+	// A call to a name the registry doesn't know (a declaration outside
+	// the tree it was generated from) can't be shown pure, so an activity
+	// making one isn't marked pure.
+	unknownCalls := map[*Card]bool{}
 	for _, c := range cards {
-		c.Dependencies = filterKnown(c.Dependencies, callable)
+		known := filterKnown(c.Dependencies, callable)
+		if len(known) != len(c.Dependencies) && c.Kind == "activity" {
+			unknownCalls[c] = true
+		}
+		c.Dependencies = known
 	}
-	derivePurity(cards)
+	derivePurity(cards, unknownCalls)
 
 	return cards, fileErrs, nil
 }
@@ -442,7 +450,7 @@ func dedupe(names []string) []string {
 // activity may now call a capability group or a provider directly). Rules and conversions are pure by construction; a
 // gateway, a workflow, or an unresolvable callee is not. A call cycle
 // (itself a checker error, B9) is treated as impure rather than looping.
-func derivePurity(cards []*Card) {
+func derivePurity(cards []*Card, unknownCalls map[*Card]bool) {
 	byName := map[string]*Card{}
 	for _, c := range cards {
 		byName[c.Name] = c
@@ -460,7 +468,7 @@ func derivePurity(cards []*Card) {
 			return c.Pure
 		}
 		state[c.Name] = 1
-		ok := len(c.Uses) == 0
+		ok := len(c.Uses) == 0 && !unknownCalls[c]
 		for _, dep := range c.Dependencies {
 			if callee := byName[dep]; callee == nil || !pure(callee) {
 				ok = false
