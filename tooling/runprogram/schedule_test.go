@@ -68,6 +68,19 @@ gateway countTick(firedAt: int) -> Result<None, JobError>
     }
     return Ok(None)
 }`,
+	"broken.fiig": `workflow broken(firedAt: int) -> Result<None, JobError> {
+    zero = firedAt - firedAt
+    n = firedAt / zero
+    if n > 0 {
+        return Ok(None)
+    }
+    return Ok(None)
+}`,
+	"faulter.fiig": `adapter schedule Faulter {
+    every "15m" -> broken(firedAt: int) {
+        _ -> halt
+    }
+}`,
 	"jobs.fiig": `adapter schedule Jobs {
     every "15m" -> tick(firedAt: int) {
         Ok(_) -> done
@@ -235,6 +248,22 @@ func TestScheduleOverrunIsStopped(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := logs.all(); strings.Count(got, "overran into the next firing") != 2 {
+		t.Errorf("logs = %q", got)
+	}
+}
+
+// Review fix 4 (§2, as amended): a fault fails its firing only, is logged,
+// and the next firing runs; the mapping's halt is never reached, since a
+// faulted run has no result to match.
+func TestScheduleFaultSkipsTheFiring(t *testing.T) {
+	redis := startFakeRedis(t, "pw")
+	clock := &fakeClock{now: time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC), stops: 2}
+	var logs logLines
+	r := on(scheduleRunner(t, redis, map[string]any{"type": "local"}, "Faulter", "only"), clock, &logs)
+	if err := r.Run(context.Background()); err != nil {
+		t.Fatalf("got %v, want the run to carry on past both faults", err)
+	}
+	if got := logs.all(); strings.Count(got, "faulted, so it was skipped") != 2 {
 		t.Errorf("logs = %q", got)
 	}
 }
