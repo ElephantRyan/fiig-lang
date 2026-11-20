@@ -148,6 +148,8 @@ func (in *Interp) evalExpr(ctx context.Context, e syntax.Expr, env *Env) (Value,
 		return in.evalConcurrent(ctx, e, env)
 	case *syntax.SortedExpr:
 		return in.evalSorted(ctx, e, env)
+	case *syntax.ListForm:
+		return in.evalListForm(ctx, e, env)
 	case *syntax.RetryExpr:
 		return in.evalRetry(ctx, e, env)
 	default:

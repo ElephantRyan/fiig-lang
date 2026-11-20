@@ -1030,11 +1030,17 @@ func printExpr(e syntax.Expr) string {
 		}
 		return "[" + strings.Join(parts, ", ") + "]"
 	case *syntax.SortedExpr:
-		mod := ""
-		if e.Descending {
-			mod = ", descending"
+		// The old header `descending` is printed on the key (ADR 0093 §4).
+		keys := make([]string, len(e.Keys))
+		for i, k := range e.Keys {
+			keys[i] = printExpr(k.Key)
+			if k.Descending {
+				keys[i] += " descending"
+			}
 		}
-		return fmt.Sprintf("sorted(%s in %s%s): %s", e.Var, printExpr(e.Iterable), mod, printExpr(e.Key))
+		return fmt.Sprintf("sorted(%s in %s): %s", e.Var, printExpr(e.Iterable), strings.Join(keys, " then "))
+	case *syntax.ListForm:
+		return fmt.Sprintf("%s(%s in %s): %s", e.Form, e.Var, printExpr(e.Iterable), printExpr(e.Body))
 	case *syntax.RetryExpr:
 		return fmt.Sprintf("retry(attempts: %s): %s", printExpr(e.Attempts), printBodyInline(e.Body))
 	default:

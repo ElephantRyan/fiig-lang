@@ -1,6 +1,8 @@
 # ADR 0065: List Queries, Sorting, and `Map`
 
-Status: Accepted (2026-10-29, one-decision-at-a-time review). Implemented
+Status: Accepted (2026-10-29, one-decision-at-a-time review). Amended by
+ADR 0093: §3 takes more keys joined by `then`, `descending` moves onto each
+key, open question 1 is closed, and §6's `Map` gains `atOr`. Implemented
 2026-11-03 in four steps; see Implementation notes. Two pieces wait: a map
 literal as a constant (§5's last sentence), and a JSON object's member
 order when decoded into a `Map`, which is ADR 0062's.

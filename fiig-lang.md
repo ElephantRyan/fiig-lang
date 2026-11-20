@@ -862,7 +862,9 @@ The following choices should be written as short architecture decision records b
 14. How far a kind's body may declare things, and whether lambdas belong
     in the language. **Private members decided and implemented in ADR 0054
     (Accepted, implemented 2026-10-17). Lambdas decided against, for now, in
-    ADR 0056 (Accepted 2026-10-19). Only private enums are still open.** The proposal
+    ADR 0056 (Accepted 2026-10-19); its §3 answer, list forms written in
+    place (`filter`, `map`, `groupBy`, `sum`, ...), is ADR 0093 (implemented
+    2026-11-19). Only private enums are still open.** The proposal
     from review: each top-level kind (`rule`, `conversion`, `activity`,
     `gateway`, `workflow`) is a unit like a Java class, with one public
     entry function and private helpers declared inside it. Candidates for

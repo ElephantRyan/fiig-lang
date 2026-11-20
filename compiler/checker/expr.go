@@ -154,6 +154,8 @@ func (c *checker) inferExprType(e syntax.Expr, env map[string]types.Type) types.
 		return c.inferConcurrent(e, env)
 	case *syntax.SortedExpr:
 		return c.inferSorted(e, env)
+	case *syntax.ListForm:
+		return c.inferListForm(e, env)
 	case *syntax.RetryExpr:
 		c.checkRetry(e)
 		return c.inferBody(e.Body, env)
@@ -338,40 +340,6 @@ func (c *checker) inferTry(e *syntax.TryExpr, env map[string]types.Type) types.T
 		return g.Args[0]
 	}
 	return types.Unknown{}
-}
-
-// inferSorted checks ADR 0065 §3's keyed sort. The key must be ordered
-// (M3), and may call only what a rule body may, whatever kind encloses it,
-// so a sort can't reach a gateway and order by outside state.
-func (c *checker) inferSorted(e *syntax.SortedExpr, env map[string]types.Type) types.Type {
-	iterType := c.inferExpr(e.Iterable, env)
-	elemType := types.Type(types.Unknown{})
-	g, isList := iterType.(types.Generic)
-	if isList && g.Name == "List" && len(g.Args) == 1 {
-		elemType = g.Args[0]
-	} else if _, unknown := iterType.(types.Unknown); !unknown {
-		start, _ := e.Iterable.(syntax.Spanned).Bounds()
-		c.report(start, "A1", "sorted takes a List, got %s", iterType)
-		iterType = types.Unknown{}
-	}
-	keyEnv := childEnv(env)
-	keyEnv[e.Var] = elemType
-	c.checkLocalName(e.Var, elemType, e.Start)
-
-	savedKind, savedKey := c.callerKind, c.inSortKey
-	c.callerKind, c.inSortKey = kindRule, true
-	keyType := c.inferExpr(e.Key, keyEnv)
-	c.callerKind, c.inSortKey = savedKind, savedKey
-
-	if !ordered(keyType) {
-		start, _ := e.Key.(syntax.Spanned).Bounds()
-		if admitsNone(keyType) {
-			c.report(start, "M3", "a sorted key of type %s is not ordered; decide where None goes, for example with a match in a private helper", keyType)
-		} else {
-			c.report(start, "M3", "a sorted key must be int, float, decimal, or string, got %s", keyType)
-		}
-	}
-	return iterType
 }
 
 // admitsNone reports whether t is a union with None in it: `T | None`.

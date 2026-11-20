@@ -253,6 +253,9 @@ func (c *checker) checkUnhandledResultExpr(e syntax.Expr, at lexer.Pos, env map[
 	if _, ok := e.(*syntax.SortedExpr); ok {
 		c.report(at, "A13", "the result of sorted(...) is discarded; it returns a new list and changes nothing, so assign it")
 	}
+	if f, ok := e.(*syntax.ListForm); ok {
+		c.report(at, "A13", "the result of %s(...) is discarded; it returns a value and changes nothing, so assign it", f.Form)
+	}
 	if call, ok := e.(*syntax.CallExpr); ok {
 		if fa, ok := call.Callee.(*syntax.FieldAccess); ok && c.methodCalls[fa] {
 			c.report(at, "A13", "the result of %s() is discarded; methods return a new value and change nothing, so use it or assign it", fa.Field)

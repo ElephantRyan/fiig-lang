@@ -1,6 +1,7 @@
 # ADR 0056: No Lambdas or Function Values, For Now
 
-Status: **Accepted** (2026-10-19).
+Status: **Accepted** (2026-10-19). Its §3 answer, list forms written in
+place, is ADR 0093.
 Date: 2026-10-19
 Amends: `fiig-lang.md` §8 item 14 (lambdas stop being an open question).
 Related: ADR 0046 (enum dispatch; list literals deferred in §7), ADR 0043

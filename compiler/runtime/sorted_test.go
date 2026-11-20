@@ -10,7 +10,7 @@ func TestSortedForm(t *testing.T) {
 	model := "model Parcel {\n    id: string\n    kilograms: decimal\n    region: string\n}"
 	rule := `activity order(parcels: List<Parcel>, descending: bool) -> string {
     if descending {
-        heavy = sorted(p in parcels, descending): p.kilograms
+        heavy = sorted(p in parcels): p.kilograms descending
         return "${ids(heavy)}"
     }
     light = sorted(p in parcels): p.kilograms

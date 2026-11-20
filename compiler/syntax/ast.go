@@ -1091,15 +1091,45 @@ type MapEntry struct {
 	Key, Value Expr
 }
 
-// SortedExpr is ADR 0065 §3's keyed sort, `sorted(x in xs): key` or
-// `sorted(x in xs, descending): key`: a new list of xs's elements, stably
-// ordered by Key, which is evaluated once per element with Var bound to it.
+// SortedExpr is ADR 0065 §3's keyed sort, `sorted(x in xs): key`, or with
+// more keys joined by `then`, each followed by `descending` or not (ADR
+// 0093 §4): a new list of xs's elements, stably ordered by Keys in turn,
+// each evaluated once per element with Var bound to it. HeaderDescending
+// marks the old `sorted(x in xs, descending): key` spelling, which the
+// checker rejects and fiig fmt rewrites; the parser has already moved its
+// direction onto the key.
 type SortedExpr struct {
 	Span
-	Var        string
-	Iterable   Expr
-	Descending bool
+	Var              string
+	Iterable         Expr
+	Keys             []SortKey
+	HeaderDescending bool
+}
+
+// SortKey is one of a sorted form's keys.
+type SortKey struct {
 	Key        Expr
+	Descending bool
+}
+
+// ListForm is one of ADR 0093's list forms, `filter(x in xs): body` and
+// the rest: Body is evaluated once per element with Var bound to it.
+type ListForm struct {
+	Span
+	Form     string // a ListForms member
+	Var      string
+	Iterable Expr
+	Body     Expr
+	// SumType is a sum's body type, "int", "float", or "decimal", set by
+	// the checker: the type of the 0 an empty list sums to.
+	SumType string
+}
+
+// ListForms are ADR 0093 §1's form names. Each is contextual: it starts
+// a form only at `name ( ident in`.
+var ListForms = map[string]bool{
+	"filter": true, "map": true, "groupBy": true, "count": true, "any": true, "all": true,
+	"sum": true, "max": true, "min": true, "maxOrNone": true, "minOrNone": true,
 }
 
 type RetryExpr struct {
@@ -1124,6 +1154,7 @@ func (*BytesLit) exprNode()       {}
 func (*ConcurrentExpr) exprNode() {}
 func (*RetryExpr) exprNode()      {}
 func (*SortedExpr) exprNode()     {}
+func (*ListForm) exprNode()       {}
 func (*MapLit) exprNode()         {}
 
 // AdmitsNone reports whether a written type is None or a union with None

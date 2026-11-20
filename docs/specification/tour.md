@@ -411,7 +411,19 @@ top = best.firstOrNone()           // int | None; first() faults when empty
 seen = best.contains(10)           // ==, so floats use math.containsClose
 // Sorting records needs a key: evaluated once per element, stable, and
 // limited to what a rule may call. Ties keep their order.
-ranked = sorted(book in books, descending): book.score
+ranked = sorted(book in books): book.score descending
+// More keys join with `then`, each with its own direction (ADR 0093).
+shelf = sorted(book in books): book.author then book.year descending
+
+// List forms (ADR 0093): the body is written in place, runs once per
+// element, and may call only what a rule may.
+good = filter(r in ratings): r.score >= 4         // List<Rating>
+ids = map(r in ratings): r.itemId                 // List<string>
+byItem = groupBy(r in ratings): r.itemId          // Map<string, List<Rating>>
+total = sum(r in ratings): r.score                // 0 for []
+newest = max(r in ratings): r.updatedAt           // faults on []; maxOrNone doesn't
+many = count(r in ratings): r.recommended         // also any(...) and all(...)
+seen = byItem.atOr("b-12", [])                    // a map value or a default
 
 // Map (ADR 0065): immutable, in insertion order, keys compared with ==.
 limits = ["small": 10, "large": 500]       // Map<string, int>; [:] is empty

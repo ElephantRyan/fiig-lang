@@ -728,10 +728,11 @@ type checker struct {
 	// method (ADR 0049 §2.6). Those are pure, so discarding one's result
 	// is A13 (ADR 0065 §6).
 	methodCalls map[*syntax.FieldAccess]bool
-	// inSortKey is true while checking a sorted form's key (ADR 0065 §3),
-	// which may call only what a rule may: callerKind is rule meanwhile,
-	// and report notes why on an effect diagnostic.
-	inSortKey bool
+	// inForm names the form whose key or body is being checked, sorted
+	// (ADR 0065 §3) or an ADR 0093 list form, and is "" elsewhere. A form
+	// may call only what a rule may: callerKind is rule meanwhile, and
+	// report notes why on an effect diagnostic.
+	inForm string
 	// mapKeyReported keeps checkMapKey to one M1 per position, since a
 	// type can be resolved more than once.
 	mapKeyReported map[lexer.Pos]bool
@@ -783,8 +784,8 @@ func (c *checker) report(at lexer.Pos, rule, format string, args ...any) {
 		}
 	}
 	msg := fmt.Sprintf(format, args...)
-	if c.inSortKey && rule != "" && (rule[0] == 'B' || rule[0] == 'P') {
-		msg += " (a sorted key may call only what a rule may: formulas and methods, ADR 0065 §3)"
+	if c.inForm != "" && rule != "" && (rule[0] == 'B' || rule[0] == 'P') {
+		msg += fmt.Sprintf(" (%s may call only what a rule may: formulas and methods, %s)", c.formWhat(), c.formADR())
 	}
 	c.diags = append(c.diags, Diagnostic{Msg: msg, At: at, Rule: rule})
 }
@@ -1136,12 +1137,12 @@ func bugClassForEffect(caller, callee declKind) string {
 func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeName string, at lexer.Pos) {
 	foreign := c.foreignWorkflow
 	c.foreignWorkflow = ""
-	if !c.inSortKey && callee != c.entry && c.sameFile(callee) {
+	if c.inForm == "" && callee != c.entry && c.sameFile(callee) {
 		return
 	}
 	// ADR 0079 §1: another package's workflow is reached from a gateway
 	// that requires that package, and from nothing else.
-	if calleeKind == kindWorkflow && foreign != "" && !c.inSortKey {
+	if calleeKind == kindWorkflow && foreign != "" && c.inForm == "" {
 		switch c.callerKind {
 		case kindGateway:
 			if c.requires != foreign {
@@ -1157,10 +1158,12 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 	if !tracked || allowed[calleeKind] {
 		return
 	}
-	if c.inSortKey {
-		c.inSortKey = false
-		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "a sorted key may not call %s %q; it may call only what a rule may, formulas and methods, so the order can't depend on outside state (ADR 0065 §3)", calleeKind, calleeName)
-		c.inSortKey = true
+	if c.inForm != "" {
+		form := c.inForm
+		msg := fmt.Sprintf("%s may not call %s %q; it may call only what a rule may, formulas and methods, so its value can't depend on outside state (%s)", c.formWhat(), calleeKind, calleeName, c.formADR())
+		c.inForm = ""
+		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s", msg)
+		c.inForm = form
 		return
 	}
 	if calleeKind == kindWorkflow && (c.callerKind == kindGateway || c.callerKind == kindActivity || c.callerKind == kindWorkflow || c.callerKind == kindTest) {
