@@ -5,10 +5,14 @@
 // declaration or an http adapter, it lists only what that entry reaches,
 // which is what `fiig run` or `fiig serve` of it demands; an http adapter
 // adds fiig serve's own LISTEN_ADDR, ALLOW_ORIGINS, and ADR 0076's limits.
+// An entry is named as `fiig serve` names one (ADR 0079 §6): bare for the
+// root, or a folder package's path (`ratings.ratingsApi`), and several may
+// be given, so one report covers every adapter a process serves. With none,
+// every package of the module is listed (abs-recommendations G44).
 //
 // Usage:
 //
-//	fiig config [-caps FILE] [-workspace DIR]... <root> [entry]
+//	fiig config [-caps FILE] [-workspace DIR]... <root> [entry...]
 package configcmd
 
 import (
@@ -16,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -37,8 +42,8 @@ func Main(name string, args []string) {
 	var workspaces stringList
 	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable")
 	fs.Parse(args)
-	if fs.NArg() < 1 || fs.NArg() > 2 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-caps FILE] [-workspace DIR]... <root> [entry]")
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-caps FILE] [-workspace DIR]... <root> [entry...]")
 		os.Exit(2)
 	}
 	root := fs.Arg(0)
@@ -47,6 +52,8 @@ func Main(name string, args []string) {
 		fail(err)
 	}
 	var packages types.Packages
+	var modulePath string
+	var moduleOwn []*types.Package
 	if loader.Wanted(root, workspaces) {
 		loaded, errs := loader.Load(root, workspaces)
 		if len(errs) > 0 {
@@ -56,6 +63,12 @@ func Main(name string, args []string) {
 			os.Exit(1)
 		}
 		packages = loaded.Packages
+		if len(loaded.Module) > 0 {
+			modulePath = loaded.Manifest.Path
+			for _, m := range loaded.Module {
+				moduleOwn = append(moduleOwn, m.Package)
+			}
+		}
 	}
 	diags = append(diags, runprogram.Check(root, files, packages)...)
 	if len(diags) > 0 {
@@ -72,28 +85,52 @@ func Main(name string, args []string) {
 		Renames:  runprogram.Renames(root),
 	}
 	sources := runprogram.AllConfig(program)
+	// With no entry, the module's folder packages count too: an application's
+	// own code is in them, and the top-level package holds none (ADR 0108).
+	if fs.NArg() == 1 && len(moduleOwn) > 0 {
+		var all []runprogram.Entry
+		for _, pkg := range moduleOwn {
+			var names []string
+			for name := range pkg.Universe.Decls {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				all = append(all, runprogram.Entry{Package: pkg, Name: name})
+			}
+		}
+		sources = append(sources, runprogram.ReachableConfigFrom(program, all)...)
+	}
 	serving := true
-	if fs.NArg() == 2 {
-		entry := fs.Arg(1)
-		d, ok := universe.Lookup(entry)
-		if !ok {
-			fail(fmt.Errorf("no declaration named %q", entry))
-		}
-		ad, isAdapter := d.(*syntax.AdapterDecl)
-		serving = isAdapter && ad.Kind != syntax.AdapterCLI
-		entries := []runprogram.Entry{{Name: entry}}
-		// A stream adapter's source and a schedule adapter's lock read their
-		// own config (ADR 0111 §2, ADR 0112 §4), and the capabilities file,
-		// not the program, says which, so every package that provides one
-		// is listed.
-		iface := ""
-		if isAdapter {
-			iface = map[syntax.AdapterKind]string{syntax.AdapterStream: runtime.StreamSourceInterface, syntax.AdapterSchedule: runtime.ScheduleLockInterface}[ad.Kind]
-		}
-		if iface != "" {
-			for _, pkg := range packages {
-				if group := pkg.Provides[iface]; group != "" {
-					entries = append(entries, runprogram.Entry{Package: pkg, Name: group})
+	if fs.NArg() >= 2 {
+		serving = false
+		var entries []runprogram.Entry
+		seen := map[string]bool{}
+		for _, name := range fs.Args()[1:] {
+			if seen[name] {
+				fail(fmt.Errorf("entry %s is named twice", name))
+			}
+			seen[name] = true
+			pkg, bare, d, ok := resolveEntry(name, universe, packages, modulePath)
+			if !ok {
+				fail(fmt.Errorf("no declaration named %q", name))
+			}
+			ad, isAdapter := d.(*syntax.AdapterDecl)
+			serving = serving || isAdapter && ad.Kind != syntax.AdapterCLI
+			entries = append(entries, runprogram.Entry{Package: pkg, Name: bare})
+			// A stream adapter's source and a schedule adapter's lock read their
+			// own config (ADR 0111 §2, ADR 0112 §4), and the capabilities file,
+			// not the program, says which, so every package that provides one
+			// is listed.
+			iface := ""
+			if isAdapter {
+				iface = map[syntax.AdapterKind]string{syntax.AdapterStream: runtime.StreamSourceInterface, syntax.AdapterSchedule: runtime.ScheduleLockInterface}[ad.Kind]
+			}
+			if iface != "" {
+				for _, other := range packages {
+					if group := other.Provides[iface]; group != "" {
+						entries = append(entries, runprogram.Entry{Package: other, Name: group})
+					}
 				}
 			}
 		}
@@ -139,6 +176,28 @@ func Main(name string, args []string) {
 			fmt.Println("  " + b)
 		}
 	}
+}
+
+// resolveEntry finds the declaration an entry names: bare in the root's
+// own files, or a package's path and then the name, the path in full or
+// relative to the module (`ratings.ratingsApi`), as fiig serve reads it.
+// pkg is nil for the root.
+func resolveEntry(name string, root *types.Universe, packages types.Packages, modulePath string) (pkg *types.Package, bare string, d syntax.Decl, ok bool) {
+	i := strings.LastIndex(name, ".")
+	if i < 0 {
+		d, ok = root.Lookup(name)
+		return nil, name, d, ok
+	}
+	path, bare := name[:i], name[i+1:]
+	pkg, found := packages[path]
+	if !found && modulePath != "" {
+		pkg, found = packages[modulePath+"."+path]
+	}
+	if !found {
+		return nil, "", nil, false
+	}
+	d, ok = pkg.Universe.Lookup(bare)
+	return pkg, bare, d, ok
 }
 
 func fail(err error) {
