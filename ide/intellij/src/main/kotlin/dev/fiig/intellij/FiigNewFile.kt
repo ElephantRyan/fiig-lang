@@ -18,7 +18,7 @@ class FiigNewFileAction : CreateFileFromTemplateAction("fiig File", "Create a fi
     override fun buildDialog(project: Project, directory: PsiDirectory, builder: CreateFileFromTemplateDialog.Builder) {
         builder.setTitle("New fiig File")
         for (kind in FiigNaming.KINDS) {
-            builder.addKind(kind.replaceFirstChar { it.uppercase() }, FiigIcons.FILE, FiigNaming.template(kind))
+            builder.addKind(kind.replaceFirstChar { it.uppercase() }, FiigIcons.forKind(kind),FiigNaming.template(kind))
         }
     }
 

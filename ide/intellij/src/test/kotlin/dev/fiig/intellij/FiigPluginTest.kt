@@ -19,6 +19,20 @@ class FiigPluginTest : BasePlatformTestCase() {
         assertSame(FiigFileType, FileTypeManager.getInstance().getFileTypeByFileName("GetCustomer.fiig"))
     }
 
+    // A file's icon is its declaration's kind; every kind has its own.
+    fun testFileIconByKind() {
+        val provider = FiigIconProvider()
+        fun iconOf(text: String) = provider.getIcon(myFixture.configureByText("X.fiig", text), 0)
+        assertSame(FiigIcons.forKind("rule"), iconOf("// a comment\nrule r(x: int) -> int { return x }\n"))
+        assertSame(FiigIcons.forKind("model"), iconOf("model M {\n    a: int\n}\n"))
+        assertSame(FiigIcons.forKind("adapter"), iconOf("adapter http api {\n}\n"))
+        assertSame(FiigIcons.forKind("test"), iconOf("test t {\n}\n"))
+        assertNull(iconOf("// nothing yet\n"))
+        val icons = (FiigNaming.KINDS + "test").map(FiigIcons::forKind)
+        assertEquals(icons.size, icons.toSet().size)
+        assertFalse(icons.any { it === FiigIcons.FILE })
+    }
+
     fun testHighlightingByTokenKind() {
         val h = FiigSyntaxHighlighter()
         assertSame(FiigColors.KEYWORD, h.getTokenHighlights(FiigTokens.KEYWORD).single())

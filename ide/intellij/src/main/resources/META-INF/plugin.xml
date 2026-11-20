@@ -15,6 +15,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="fiig" language="fiig" extensions="fiig" fieldName="INSTANCE"
                   implementationClass="dev.fiig.intellij.FiigFileType"/>
+        <iconProvider implementation="dev.fiig.intellij.FiigIconProvider"/>
         <lang.parserDefinition language="fiig" implementationClass="dev.fiig.intellij.FiigParserDefinition"/>
         <lang.syntaxHighlighterFactory language="fiig" implementationClass="dev.fiig.intellij.FiigSyntaxHighlighterFactory"/>
         <colorSettingsPage implementation="dev.fiig.intellij.FiigColorSettingsPage"/>
