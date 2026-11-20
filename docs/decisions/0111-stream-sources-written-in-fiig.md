@@ -216,6 +216,25 @@ simplest thing that does. Several processes share a group's elements
 through the source. Processing in parallel by key is a later change that
 the declared `key` makes possible.
 
+### 5a. A batch fits inside the redelivery delay
+
+*(Added 2026-11-20 after review: a batch of 16 handled one at a time, up to
+the 30 s request timeout each, outlived the 30 s after which Redis hands
+an unsettled entry to another consumer, so later entries in a batch were
+taken by a second consumer while still waiting in the first.)*
+
+- `Subscription` gains `handleMillis`: the longest one element may take,
+  its workflow's timeout (`REQUEST_TIMEOUT`) and its settle (10 s).
+- A source that reclaims unsettled elements after a delay takes no more
+  in one receive than it can see handled within it. `fiig.redis` takes
+  `REDIS_STREAM_RETRY_AFTER_MS / handleMillis`, at most the runtime's 16.
+- When not even one fits, the source returns the new
+  `SourceError.Misconfigured(reason)`, which halts the route at its first
+  receive with a message naming the setting.
+- `REDIS_STREAM_RETRY_AFTER_MS` defaults to 5 minutes, up from 30 s, which
+  with the defaults (40 s an element) is a batch of 7. It is also the
+  retry delay, since a retried entry is reclaimed after it.
+
 `group` is the route's `group` (§3a). `consumer` is the host name and
 process id. On shutdown the loop finishes the element in hand and stops.
 
@@ -244,7 +263,7 @@ connection handling is the client's.
   strings, and one field holding the JSON is how the element keeps its
   types.
 - **`receive`** first reclaims entries this group left pending longer than
-  `REDIS_STREAM_RETRY_AFTER_MS` (default 30 s) with `XPENDING` and
+  `REDIS_STREAM_RETRY_AFTER_MS` (default 5 minutes, §5a) with `XPENDING` and
   `XCLAIM`, using the delivery count Redis keeps for `attempt`. With none
   to reclaim, it reads new ones with `XREADGROUP ... BLOCK`. The group is
   created at the start of the stream (`XGROUP CREATE ... 0 MKSTREAM`) the

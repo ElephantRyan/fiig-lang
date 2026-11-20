@@ -1,11 +1,15 @@
 // Which elements a receive is for (ADR 0111 §1). Every process running a
 // route consumes as one group, the route's `group`, so each element goes
 // to one of them; start is where that group begins when it doesn't exist
-// yet (§3a).
+// yet (§3a). handleMillis is the longest the runtime may take over one
+// element it receives, its workflow and its settle together (§5a): a source
+// that hands an unsettled element to another consumer after a delay must
+// receive no more at once than it can see handled within that delay.
 model Subscription {
     source: string
     group: string
     consumer: string
     waitMillis: int
     start: StartAt
+    handleMillis: int
 }

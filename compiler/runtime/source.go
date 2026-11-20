@@ -113,6 +113,9 @@ type Subscription struct {
 	// Latest is a new group starting after the source's last element,
 	// rather than at its first (§3a).
 	Latest bool
+	// HandleMillis is the longest one element may take, its workflow and
+	// its settle together (§5a).
+	HandleMillis int
 }
 
 // Delivery is one element a receive returned (§1). value is the record as
@@ -137,7 +140,8 @@ func (p *SourceProvider) subscription(s Subscription) Value {
 	}
 	return Record{TypeName: "Subscription", Decl: p.sub, Fields: map[string]Value{
 		"source": Str(s.Source), "group": Str(s.Group), "consumer": Str(s.Consumer), "waitMillis": Int(s.WaitMillis),
-		"start": EnumValue{TypeName: "StartAt", Variant: start, Decl: p.startAt},
+		"start":        EnumValue{TypeName: "StartAt", Variant: start, Decl: p.startAt},
+		"handleMillis": Int(s.HandleMillis),
 	}}
 }
 

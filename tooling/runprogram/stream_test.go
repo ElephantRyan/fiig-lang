@@ -80,8 +80,22 @@ func streamRunner(t *testing.T, redis *fakeRedis) *adapter.StreamRunner {
 	return streamRunnerOf(t, redis, streamProgram)
 }
 
+// The test runner's timing (ADR 0111 §5a): a workflow and a settle may take
+// 250 ms each, so an element may take 500 ms, and an unsettled one comes
+// back after a second, which fits a batch of two.
+const (
+	testElementTimeout = 250 * time.Millisecond
+	testRetryAfter     = "1000"
+)
+
 // streamRunnerOf is streamRunner over program, a variant of streamProgram.
 func streamRunnerOf(t *testing.T, redis *fakeRedis, program map[string]string) *adapter.StreamRunner {
+	t.Helper()
+	return streamRunnerWith(t, redis, program, testRetryAfter)
+}
+
+// streamRunnerWith is streamRunnerOf with REDIS_STREAM_RETRY_AFTER_MS.
+func streamRunnerWith(t *testing.T, redis *fakeRedis, program map[string]string, retryAfter string) *adapter.StreamRunner {
 	t.Helper()
 	root := t.TempDir()
 	for name, src := range fixture.Module(program) {
@@ -115,18 +129,19 @@ func streamRunnerOf(t *testing.T, redis *fakeRedis, program map[string]string) *
 	in.Groups = BuildGroups(files, loaded.Packages)
 	in.Packages = loaded.Packages
 	d, _ := u.Lookup("OrderIntake")
-	runners, err := adapter.StreamRunners([]adapter.Served{{Decl: d.(*syntax.AdapterDecl)}}, u, in, "test-1", 5*time.Second)
+	runners, err := adapter.StreamRunners([]adapter.Served{{Decl: d.(*syntax.AdapterDecl)}}, u, in, "test-1", testElementTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pkg, group, _ := runners[0].Source().Resolve()
 	reach := Program{Universe: u, Imports: in.Imports, Groups: in.Groups}
-	env := map[string]string{"REDIS_URL": redis.url(), "REDIS_STREAM_RETRY_AFTER_MS": "50"}
+	env := map[string]string{"REDIS_URL": redis.url(), "REDIS_STREAM_RETRY_AFTER_MS": retryAfter}
 	lookup := func(name string) (string, bool) { v, ok := env[name]; return v, ok }
 	sources := ReachableConfigFrom(reach, []Entry{{Name: "OrderIntake"}, {Package: pkg, Name: group}})
 	if problems := in.LoadConfig(sources, lookup); len(problems) > 0 {
 		t.Fatal(problems)
 	}
+	runners[0].SettleTimeout = testElementTimeout
 	return runners[0]
 }
 
@@ -155,7 +170,7 @@ func TestStreamAdapterOverRedisStreams(t *testing.T) {
 
 	// A restart: o3 comes back as attempt 2, its last, and goes to
 	// orders.failed; the bad payload is delivered again and halts again.
-	time.Sleep(80 * time.Millisecond)
+	time.Sleep(1100 * time.Millisecond)
 	if err := runner.Run(ctx); !errors.As(err, &halt) || !strings.Contains(halt.Element, bad) {
 		t.Fatalf("second run: %v", err)
 	}
@@ -189,6 +204,27 @@ func TestStreamAdapterOverRedisStreams(t *testing.T) {
 	// polling share a handful at most.
 	if n := redis.accepted.Load(); n > 3 {
 		t.Errorf("Redis saw %d connections", n)
+	}
+}
+
+// Review fix 3 (ADR 0111 §5a): a receive takes no more entries than can be
+// handled before the first is reclaimed, here two of the runtime's 16; and
+// a delay no element fits in halts, naming the setting.
+func TestStreamBatchFitsTheRedeliveryDelay(t *testing.T) {
+	redis := startFakeRedis(t, "pw")
+	runner := streamRunner(t, redis)
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+	if err := runner.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := redis.lastCount.Load(); n != 2 {
+		t.Errorf("XREADGROUP asked for %d entries, want 2 (1000 ms / 500 ms an element)", n)
+	}
+	var halt *adapter.Halt
+	err := streamRunnerWith(t, redis, streamProgram, "400").Run(context.Background())
+	if !errors.As(err, &halt) || !strings.Contains(halt.Reason, "REDIS_STREAM_RETRY_AFTER_MS is 400") {
+		t.Errorf("a 400 ms delay with 500 ms elements: %v", err)
 	}
 }
 

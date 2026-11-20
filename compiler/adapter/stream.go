@@ -2,6 +2,7 @@ package adapter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,6 +20,7 @@ const (
 	streamBatch    = 16
 	streamWait     = 2 * time.Second
 	sourceTimeout  = 30 * time.Second
+	settleTimeout  = 10 * time.Second
 	firstBackoff   = time.Second
 	longestBackoff = 30 * time.Second
 )
@@ -48,6 +50,10 @@ type StreamRunner struct {
 	sub     runtime.Subscription
 	enter   func(context.Context) context.Context
 	timeout time.Duration
+	// SettleTimeout bounds one settle (10 s unless a test sets it); with
+	// the workflow's timeout it is the handleMillis the source is told
+	// (ADR 0111 §5a).
+	SettleTimeout time.Duration
 	// Logf reports what the loop can carry on past: a source that's
 	// unavailable, a settle that failed.
 	Logf func(format string, args ...any)
@@ -102,10 +108,11 @@ func StreamRunners(adapters []Served, u *types.Universe, in *runtime.Interp, con
 				source:  source,
 				// The route names its group (ADR 0111 §3a), so moving or
 				// renaming the adapter keeps it.
-				sub:     runtime.Subscription{Source: route.Path, Group: route.Group, Consumer: consumer, WaitMillis: int(streamWait / time.Millisecond), Latest: route.From == "latest"},
-				enter:   enter,
-				timeout: timeout,
-				Logf:    func(string, ...any) {},
+				sub:           runtime.Subscription{Source: route.Path, Group: route.Group, Consumer: consumer, WaitMillis: int(streamWait / time.Millisecond), Latest: route.From == "latest"},
+				enter:         enter,
+				timeout:       timeout,
+				SettleTimeout: settleTimeout,
+				Logf:          func(string, ...any) {},
 			})
 		}
 	}
@@ -116,6 +123,7 @@ func StreamRunners(adapters []Served, u *types.Universe, in *runtime.Interp, con
 // until the route halts, returning the *Halt. An element already being
 // handled when ctx ends is finished and settled first (§5).
 func (r *StreamRunner) Run(ctx context.Context) error {
+	r.sub.HandleMillis = int((r.timeout + r.SettleTimeout) / time.Millisecond)
 	backoff := firstBackoff
 	for ctx.Err() == nil {
 		rctx, cancel := context.WithTimeout(r.enter(ctx), sourceTimeout)
@@ -126,6 +134,10 @@ func (r *StreamRunner) Run(ctx context.Context) error {
 		}
 		if fault != nil {
 			return &Halt{Route: r.name, Element: "receive", Reason: "the source faulted: " + fault.Message}
+		}
+		var sf *runtime.SourceFailure
+		if errors.As(failure, &sf) && sf.Variant == "Misconfigured" {
+			return &Halt{Route: r.name, Element: "receive", Reason: "the source is misconfigured: " + sf.Reason}
 		}
 		if failure != nil {
 			r.Logf("stream %s: the source can't be read (%v); trying again in %s", r.name, failure, backoff)
@@ -150,7 +162,7 @@ func (r *StreamRunner) Run(ctx context.Context) error {
 			if halt != nil {
 				return halt
 			}
-			sctx, cancel := context.WithTimeout(r.enter(ectx), sourceTimeout)
+			sctx, cancel := context.WithTimeout(r.enter(ectx), r.SettleTimeout)
 			failure, fault := r.source.Settle(sctx, r.sub, d, outcome, target)
 			cancel()
 			if fault != nil {

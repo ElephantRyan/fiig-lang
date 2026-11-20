@@ -1,6 +1,9 @@
 // Why a receive or settle failed (ADR 0111 §1). The runtime waits and
-// asks again after either.
+// asks again after Unavailable or Protocol. Misconfigured is a setting
+// that can never work, such as a redelivery delay shorter than one
+// element may take (§5a), and halts the route.
 enum SourceError {
     Unavailable(reason: string)
     Protocol(reason: string)
+    Misconfigured(reason: string)
 }
