@@ -166,6 +166,12 @@ doesn't have to discover them.
 - **Strings aren't normalized** (ADR 0067 §8): `é` as one code point and
   as `e` plus a combining accent are different strings. No locale-aware
   sorting, and no regular expressions.
+- **Building a string or a list is limited only by memory** (ADR 0129 §1a).
+  `repeat`, `padLeft`, `padRight`, `append` and interpolation have no size
+  cap. They fault only when a length overflows. A count or size that comes
+  from a request must be bounded by a rule first. Running out of memory
+  stops the whole process, not just the request, because a Go program can't
+  recover from it.
 - **No user-defined generics** and no lambdas (ADR 0056). List work is
   done with forms whose body is written in place, `filter(x in xs): ...`
   and the rest (ADR 0093); a function can't be stored or passed.
