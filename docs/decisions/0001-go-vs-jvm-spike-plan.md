@@ -1,6 +1,6 @@
 # Spike Plan: Go vs JVM Bootstrap Target
 
-Status: Proposed
+Status: Superseded by ADR 0002 (Go was chosen; the spike was not needed).
 Timebox: 3 working days
 Decides: Decision record #1 (language.md §8)
 

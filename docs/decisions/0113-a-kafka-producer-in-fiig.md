@@ -162,6 +162,9 @@ old versions will need.
 ## Open questions
 
 1. **Idempotence** and a metadata cache, after ADR 0109's open question 2.
+   *(2026-11-21: that question is answered: sessions, ADR 0114 as built by
+   ADR 0117, can hold a producer id, sequence numbers, and metadata.
+   Neither is built yet.)*
 2. **SASL**, which most hosted Kafka needs: SCRAM can reuse
    `crypto.pbkdf2Sha256` (ADR 0085), PLAIN is a handshake.
 3. **Flexible versions**, before a broker that drops the non-flexible

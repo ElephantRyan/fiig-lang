@@ -269,6 +269,17 @@ refuses to start the adapter.
   run that faults; the next firing runs as usual. One the mapping sends to
   `halt` stops `fiig serve` with an error.
 
+To run a job now, by hand, run the route's workflow with `fiig run`,
+passing the firing time the route would pass, in Unix milliseconds (ADR
+0112 open question 2):
+
+```
+fiig run -caps caps.json -args '{"firedAt": 1763704800000}' . nightlyReport
+```
+
+The argument is named as the route names it. This run claims no lock, so
+it runs alongside whatever the schedule fires.
+
 ## Startup adapters
 
 An `adapter startup` checks the deployment before anything serves (ADR
