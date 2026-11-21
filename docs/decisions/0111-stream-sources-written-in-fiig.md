@@ -1,6 +1,6 @@
 # ADR 0111: Stream Sources Written in fiig, and the Stream Adapter
 
-Status: Proposed, implemented (2026-11-20)
+Status: Accepted (2026-11-20; the owner approved it in review). Implemented 2026-11-20.
 Date: 2026-11-20
 Accepts, as amended here: ADR 0047 (streams are a third adapter kind).
 Related: ADR 0014 (`idempotent`), ADR 0021 (route binding), ADR 0042 (the

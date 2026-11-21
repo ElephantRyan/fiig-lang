@@ -1,6 +1,6 @@
 # ADR 0120: Sending Mail by SMTP, Written in fiig
 
-Status: Proposed, implemented (2026-11-20)
+Status: Accepted (2026-11-20; the owner approved it in review). Implemented 2026-11-20.
 Date: 2026-11-20
 Related: ADR 0042 (the socket floor; Milestone 7's "no domain capability is
 backed by Go"), ADR 0043 (capability groups), ADR 0058 (binary patterns),

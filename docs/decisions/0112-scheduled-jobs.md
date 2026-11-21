@@ -1,6 +1,6 @@
 # ADR 0112: Scheduled Jobs Are a Fourth Adapter Kind
 
-Status: Proposed, implemented (2026-11-20)
+Status: Accepted (2026-11-20; the owner approved it in review). Implemented 2026-11-20.
 Date: 2026-11-20
 Related: ADR 0044 (workflow as the adapter boundary), ADR 0047 and ADR
 0111 (stream adapters, which this follows), ADR 0068 (`Clock`), ADR 0079

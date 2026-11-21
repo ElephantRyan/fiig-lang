@@ -1,6 +1,6 @@
 # ADR 0113: A Kafka Producer in fiig, At Least Once
 
-Status: Proposed, implemented (2026-11-20)
+Status: Accepted (2026-11-20; the owner approved it in review). Implemented 2026-11-20.
 Date: 2026-11-20
 Related: ADR 0042 (the socket floor), ADR 0058 (binary patterns), ADR
 0060 (Socket), ADR 0063 (int overflow faults), ADR 0071 (config), ADR
