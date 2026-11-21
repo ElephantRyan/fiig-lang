@@ -60,6 +60,12 @@ func (e *Env) reset() {
 	e.index = nil
 }
 
+// bindFresh is Bind in a scope reset has just emptied, where name can't
+// be bound yet, so there is nothing to look for first.
+func (e *Env) bindFresh(name string, v Value) {
+	e.vars = append(e.vars, binding{name: name, v: v})
+}
+
 // find is name's position in e's own bindings, or -1.
 func (e *Env) find(name string) int {
 	if e.index != nil {

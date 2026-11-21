@@ -66,7 +66,12 @@ func newCallFrame(n int) (*callFrame, []Value) {
 type callCtx struct {
 	context.Context
 	info callInfo
+	// done is the caller's Done, read once per call rather than through
+	// every context layer below on every check (ADR 0115 §5).
+	done <-chan struct{}
 }
+
+func (c *callCtx) Done() <-chan struct{} { return c.done }
 
 func (c *callCtx) Value(key any) any {
 	if _, ok := key.(callKey); ok {
