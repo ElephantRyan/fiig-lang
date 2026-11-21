@@ -1,0 +1,391 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "fileTypes": [
+    "fiig"
+  ],
+  "name": "fiig",
+  "patterns": [
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#declaration"
+    },
+    {
+      "include": "#keyword"
+    },
+    {
+      "include": "#constant"
+    },
+    {
+      "include": "#type"
+    },
+    {
+      "include": "#call"
+    },
+    {
+      "include": "#number"
+    },
+    {
+      "include": "#operator"
+    },
+    {
+      "include": "#punctuation"
+    },
+    {
+      "include": "#identifier"
+    },
+    {
+      "include": "#invalid"
+    }
+  ],
+  "repository": {
+    "call": {
+      "match": "(?<![A-Za-z0-9_])[a-z][A-Za-z0-9_]*(?=\\s*\\()",
+      "name": "entity.name.function.call.fiig"
+    },
+    "comment": {
+      "match": "//.*$",
+      "name": "comment.line.double-slash.fiig"
+    },
+    "constant": {
+      "patterns": [
+        {
+          "match": "(?<![A-Za-z0-9_])(?:true|false)(?![A-Za-z0-9_])",
+          "name": "constant.language.boolean.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])(?:None)(?![A-Za-z0-9_])",
+          "name": "constant.language.none.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])_(?![A-Za-z0-9_])",
+          "name": "variable.language.wildcard.fiig"
+        }
+      ]
+    },
+    "declaration": {
+      "patterns": [
+        {
+          "captures": {
+            "1": {
+              "name": "storage.type.fiig"
+            },
+            "2": {
+              "name": "entity.name.function.fiig"
+            }
+          },
+          "match": "((?<![A-Za-z0-9_])(?:rule|conversion|activity|gateway|workflow|formula)(?![A-Za-z0-9_]))\\s+([A-Za-z][A-Za-z0-9_]*)"
+        },
+        {
+          "captures": {
+            "1": {
+              "name": "storage.type.fiig"
+            },
+            "2": {
+              "name": "keyword.other.fiig"
+            },
+            "3": {
+              "name": "entity.name.function.fiig"
+            }
+          },
+          "match": "((?<![A-Za-z0-9_])(?:adapter)(?![A-Za-z0-9_]))\\s+([A-Za-z][A-Za-z0-9_]*)\\s+([A-Za-z][A-Za-z0-9_]*)"
+        },
+        {
+          "captures": {
+            "1": {
+              "name": "storage.type.fiig"
+            },
+            "2": {
+              "name": "entity.name.type.fiig"
+            }
+          },
+          "match": "((?<![A-Za-z0-9_])(?:model|enum|interface|capability|config|formulas)(?![A-Za-z0-9_]))\\s+([A-Za-z][A-Za-z0-9_]*)"
+        },
+        {
+          "captures": {
+            "1": {
+              "name": "storage.type.fiig"
+            },
+            "2": {
+              "name": "entity.name.type.fiig"
+            }
+          },
+          "match": "^\\s*(application)\\s+([A-Za-z][A-Za-z0-9_]*)(?=\\s*\\{)"
+        },
+        {
+          "captures": {
+            "1": {
+              "name": "storage.type.fiig"
+            },
+            "2": {
+              "name": "entity.name.function.fiig"
+            }
+          },
+          "match": "^\\s*(test)\\s+([A-Za-z][A-Za-z0-9_]*)(?=\\s*\\{)"
+        },
+        {
+          "captures": {
+            "1": {
+              "name": "keyword.other.http-method.fiig"
+            }
+          },
+          "match": "^\\s*(DELETE|GET|PATCH|POST|PUT|QUERY)(?=\\s+\")"
+        }
+      ]
+    },
+    "identifier": {
+      "match": "[A-Za-z][A-Za-z0-9_]*",
+      "name": "variable.other.fiig"
+    },
+    "interpolation": {
+      "begin": "\\$\\{",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.begin.fiig"
+        }
+      },
+      "contentName": "source.fiig",
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.end.fiig"
+        }
+      },
+      "name": "meta.interpolation.fiig",
+      "patterns": [
+        {
+          "include": "#nested-braces"
+        },
+        {
+          "include": "$self"
+        }
+      ]
+    },
+    "invalid": {
+      "match": "\\S",
+      "name": "invalid.illegal.character.fiig"
+    },
+    "keyword": {
+      "patterns": [
+        {
+          "match": "(?<=\\.)(?<![A-Za-z0-9_])(?:activity|adapter|and|as|attempts|break|capability|cli|command|concurrent|config|continue|conversion|else|enum|exit|for|formula|formulas|gateway|http|idempotent|if|in|interface|limit|match|model|not|or|preserveOrder|private|requires|retry|return|rule|transaction|use|while|workflow)(?![A-Za-z0-9_])",
+          "name": "variable.other.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])(?:activity|adapter|and|as|attempts|break|capability|cli|command|concurrent|config|continue|conversion|else|enum|exit|for|formula|formulas|gateway|http|idempotent|if|in|interface|limit|match|model|not|or|preserveOrder|private|requires|retry|return|rule|transaction|use|while|workflow)(?![A-Za-z0-9_])(?=\\.)",
+          "name": "variable.other.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])(?:break|concurrent|continue|else|exit|for|if|match|retry|return|transaction|while)(?![A-Za-z0-9_])",
+          "name": "keyword.control.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])(?:as|use)(?![A-Za-z0-9_])",
+          "name": "keyword.control.import.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])(?:and|not|or)(?![A-Za-z0-9_])",
+          "name": "keyword.operator.word.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])(?:attempts|cli|command|http|in|limit)(?![A-Za-z0-9_])",
+          "name": "keyword.other.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])(?:idempotent|preserveOrder|private|requires)(?![A-Za-z0-9_])",
+          "name": "storage.modifier.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])(?:activity|adapter|capability|config|conversion|enum|formula|formulas|gateway|interface|model|rule|workflow)(?![A-Za-z0-9_])",
+          "name": "storage.type.fiig"
+        }
+      ]
+    },
+    "nested-braces": {
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.block.begin.fiig"
+        }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.block.end.fiig"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#nested-braces"
+        },
+        {
+          "include": "$self"
+        }
+      ]
+    },
+    "number": {
+      "patterns": [
+        {
+          "match": "(?<![A-Za-z0-9_])0[xX][0-9A-Fa-f]+(?![A-Za-z0-9_])",
+          "name": "constant.numeric.integer.hexadecimal.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])[0-9]+(?:\\.[0-9]+)?[eE][+-]?[0-9]+(?![A-Za-z0-9_])",
+          "name": "constant.numeric.float.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])[0-9]+\\.[0-9]+(?![A-Za-z0-9_])",
+          "name": "constant.numeric.float.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])[0-9]+(?![A-Za-z0-9_])",
+          "name": "constant.numeric.integer.fiig"
+        }
+      ]
+    },
+    "operator": {
+      "patterns": [
+        {
+          "match": "->",
+          "name": "keyword.operator.arrow.fiig"
+        },
+        {
+          "match": "<<",
+          "name": "punctuation.definition.binary.begin.fiig"
+        },
+        {
+          "match": ">>",
+          "name": "punctuation.definition.binary.end.fiig"
+        },
+        {
+          "match": "==|!=|<=|>=|<|>",
+          "name": "keyword.operator.comparison.fiig"
+        },
+        {
+          "match": "=",
+          "name": "keyword.operator.assignment.fiig"
+        },
+        {
+          "match": "[-+*/%]",
+          "name": "keyword.operator.arithmetic.fiig"
+        },
+        {
+          "match": "\\?",
+          "name": "keyword.operator.propagate.fiig"
+        },
+        {
+          "match": "\\|",
+          "name": "keyword.operator.union.fiig"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "match": "\\{",
+          "name": "punctuation.section.block.begin.fiig"
+        },
+        {
+          "match": "\\}",
+          "name": "punctuation.section.block.end.fiig"
+        },
+        {
+          "match": "\\(",
+          "name": "punctuation.section.parens.begin.fiig"
+        },
+        {
+          "match": "\\)",
+          "name": "punctuation.section.parens.end.fiig"
+        },
+        {
+          "match": "\\[",
+          "name": "punctuation.section.brackets.begin.fiig"
+        },
+        {
+          "match": "\\]",
+          "name": "punctuation.section.brackets.end.fiig"
+        },
+        {
+          "match": ",",
+          "name": "punctuation.separator.comma.fiig"
+        },
+        {
+          "match": ":",
+          "name": "punctuation.separator.colon.fiig"
+        },
+        {
+          "match": "\\.",
+          "name": "punctuation.accessor.fiig"
+        }
+      ]
+    },
+    "string": {
+      "begin": "\"",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.fiig"
+        }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.fiig"
+        }
+      },
+      "name": "string.quoted.double.fiig",
+      "patterns": [
+        {
+          "match": "\\\\[\"\\\\ntr$]",
+          "name": "constant.character.escape.fiig"
+        },
+        {
+          "match": "\\\\.?",
+          "name": "invalid.illegal.escape.fiig"
+        },
+        {
+          "include": "#interpolation"
+        }
+      ]
+    },
+    "type": {
+      "patterns": [
+        {
+          "begin": "(?<![A-Za-z0-9_])([A-Z][A-Za-z0-9_]*)(<)(?!<)",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.type.fiig"
+            },
+            "2": {
+              "name": "punctuation.definition.generic.begin.fiig"
+            }
+          },
+          "end": ">",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.generic.end.fiig"
+            }
+          },
+          "name": "meta.generic.fiig",
+          "patterns": [
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "match": "(?<!\\.)(?<![A-Za-z0-9_])(?:bool|bytes|decimal|float|int|string)(?![A-Za-z0-9_])",
+          "name": "support.type.primitive.fiig"
+        },
+        {
+          "match": "(?<![A-Za-z0-9_])[A-Z][A-Za-z0-9_]*(?![A-Za-z0-9_])",
+          "name": "entity.name.type.fiig"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.fiig"
+}

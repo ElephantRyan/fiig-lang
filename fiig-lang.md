@@ -736,7 +736,7 @@ Deliverables:
 
 - Stable machine-readable diagnostics from `check-cli` (JSON: file, line, column, end position, message, code) — done (ADR 0089 §5, 2026-11-17)
 - `.fiig` file type with registered extension, decided per the prototype backlog — done (ADR 0090 §2, 2026-11-18)
-- TextMate grammar generated from or checked against the lexer's token definitions, for syntax highlighting — superseded by a native lexer whose keywords are generated from the compiler's (ADR 0090 §2, 2026-11-18)
+- TextMate grammar generated from or checked against the lexer's token definitions, for syntax highlighting — superseded by a native lexer whose keywords are generated from the compiler's (ADR 0090 §2, 2026-11-18); a TextMate grammar for other editors and GitHub came later, generated the same way (`ide/textmate`, 2026-11-21)
 - Language server wrapping the compiler: live diagnostics, hover, and go-to-definition — done (ADR 0089, 2026-11-17): `fiig lsp`, also find usages, symbols, and formatting
 - Completion driven by registry contracts and values in scope
 - Caller views and find-usages on registry identities
