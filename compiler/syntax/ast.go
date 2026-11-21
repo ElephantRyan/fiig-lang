@@ -93,6 +93,10 @@ type Field struct {
 	// JSON is the member name a `from json "name"` clause gives a model or
 	// payload field (ADR 0073 §7b); "" when it has none. Use JSONName.
 	JSON string
+	// Base64URL marks a field written `from json base64url` (ADR 0078 §6):
+	// the `bytes` it holds are written as unpadded base64url instead of
+	// standard base64. Reading accepts either alphabet regardless.
+	Base64URL bool
 }
 
 // JSONName is the member the field reads and writes in JSON: its
@@ -114,6 +118,8 @@ type FlatField struct {
 	Type Type
 	Via  []string
 	JSON string
+	// Base64URL is the field's `from json base64url` (ADR 0078 §6).
+	Base64URL bool
 }
 
 type Param struct {
@@ -147,7 +153,7 @@ func (m *ModelDecl) AllFields() []Field {
 	}
 	out := make([]Field, len(m.Flat))
 	for i, f := range m.Flat {
-		out[i] = Field{Span: f.Span, Name: f.Name, Type: f.Type, JSON: f.JSON}
+		out[i] = Field{Span: f.Span, Name: f.Name, Type: f.Type, JSON: f.JSON, Base64URL: f.Base64URL}
 	}
 	return out
 }

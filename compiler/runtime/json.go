@@ -657,6 +657,15 @@ func EncodePrettyJSON(v Value) ([]byte, error) {
 }
 
 func writeBodyJSON(b *bytes.Buffer, v Value) error {
+	return writeJSONValue(b, v, false)
+}
+
+// writeJSONValue is writeBodyJSON for a value a field holds: base64url is
+// the field's `from json base64url` (ADR 0078 §6), which writes its bytes,
+// through `| None`, a List, and a Map's values, as unpadded base64url, the
+// form toBase64Url() returns. A model or enum inside starts over with its
+// own fields' clauses.
+func writeJSONValue(b *bytes.Buffer, v Value, base64url bool) error {
 	switch v := v.(type) {
 	case Int:
 		b.WriteString(strconv.FormatInt(int64(v), 10))
@@ -667,20 +676,24 @@ func writeBodyJSON(b *bytes.Buffer, v Value) error {
 	case Str:
 		writeJSONString(b, string(v))
 	case Bytes:
-		writeJSONString(b, base64.StdEncoding.EncodeToString(v.B)) // ADR 0078 §1
+		if base64url {
+			writeJSONString(b, base64.RawURLEncoding.EncodeToString(v.B)) // ADR 0078 §6
+		} else {
+			writeJSONString(b, base64.StdEncoding.EncodeToString(v.B)) // ADR 0078 §1
+		}
 	case Bool:
 		b.WriteString(strconv.FormatBool(bool(v)))
 	case None:
 		b.WriteString("null")
 	case List:
-		return writeJSONArray(b, len(v.Elems), func(i int) error { return writeBodyJSON(b, v.Elems[i]) })
+		return writeJSONArray(b, len(v.Elems), func(i int) error { return writeJSONValue(b, v.Elems[i], base64url) })
 	case Map:
-		return writeJSONMap(b, v)
+		return writeJSONMap(b, v, base64url)
 	case Record:
 		var members []bodyMember
 		if v.Decl != nil {
 			for _, f := range v.Decl.AllFields() {
-				members = append(members, bodyMember{f.JSONName(), v.Fields[f.Name]})
+				members = append(members, bodyMember{f.JSONName(), v.Fields[f.Name], f.Base64URL})
 			}
 		} else {
 			names := make([]string, 0, len(v.Fields))
@@ -689,7 +702,7 @@ func writeBodyJSON(b *bytes.Buffer, v Value) error {
 			}
 			sort.Strings(names)
 			for _, n := range names {
-				members = append(members, bodyMember{n, v.Fields[n]})
+				members = append(members, bodyMember{name: n, value: v.Fields[n]})
 			}
 		}
 		return writeJSONObject(b, members)
@@ -700,10 +713,10 @@ func writeBodyJSON(b *bytes.Buffer, v Value) error {
 		if v.Ok {
 			tag, name = "Ok", "value"
 		}
-		return writeJSONObject(b, []bodyMember{{"variant", Str(tag)}, {name, v.Value}})
+		return writeJSONObject(b, []bodyMember{{name: "variant", value: Str(tag)}, {name: name, value: v.Value}})
 	case BatchResult:
 		return writeJSONArray(b, len(v.Items), func(i int) error {
-			return writeJSONObject(b, []bodyMember{{"key", v.Items[i].Key}, {"outcome", v.Items[i].Outcome}})
+			return writeJSONObject(b, []bodyMember{{name: "key", value: v.Items[i].Key}, {name: "outcome", value: v.Items[i].Outcome}})
 		})
 	case Secret:
 		return fmt.Errorf("%s can't be encoded as JSON", v)
@@ -714,9 +727,11 @@ func writeBodyJSON(b *bytes.Buffer, v Value) error {
 }
 
 // bodyMember is one member of an object the body encoder writes.
+// base64url is a field's `from json base64url` (ADR 0078 §6).
 type bodyMember struct {
-	name  string
-	value Value
+	name      string
+	value     Value
+	base64url bool
 }
 
 // writeEnumJSON writes v as ADR 0072 sends it: `"US"` for an enum with no
@@ -747,16 +762,18 @@ func writeEnumJSON(b *bytes.Buffer, v EnumValue) error {
 		return nil
 	}
 	variant, _ := v.Decl.Variant(v.Variant)
-	members := []bodyMember{{"variant", Str(variant.Text())}}
+	members := []bodyMember{{name: "variant", value: Str(variant.Text())}}
 	for i, f := range variant.Fields {
 		if i < len(v.Fields) {
-			members = append(members, bodyMember{f.JSONName(), v.Fields[i]})
+			members = append(members, bodyMember{f.JSONName(), v.Fields[i], f.Base64URL})
 		}
 	}
 	return writeJSONObject(b, members)
 }
 
-func writeJSONMap(b *bytes.Buffer, m Map) error {
+// writeJSONMap writes m, its values by base64url (writeJSONValue's); a key
+// is never a field's own bytes, so it takes the standard form.
+func writeJSONMap(b *bytes.Buffer, m Map, base64url bool) error {
 	stringKeys := true
 	m.Each(func(k, _ Value) bool {
 		_, stringKeys = k.(Str)
@@ -765,7 +782,7 @@ func writeJSONMap(b *bytes.Buffer, m Map) error {
 	if stringKeys {
 		var members []bodyMember
 		m.Each(func(k, val Value) bool {
-			members = append(members, bodyMember{string(k.(Str)), val})
+			members = append(members, bodyMember{name: string(k.(Str)), value: val, base64url: base64url})
 			return true
 		})
 		return writeJSONObject(b, members)
@@ -776,7 +793,7 @@ func writeJSONMap(b *bytes.Buffer, m Map) error {
 		return true
 	})
 	return writeJSONArray(b, len(pairs), func(i int) error {
-		return writeJSONArray(b, 2, func(j int) error { return writeBodyJSON(b, pairs[i][j]) })
+		return writeJSONArray(b, 2, func(j int) error { return writeJSONValue(b, pairs[i][j], base64url && j == 1) })
 	})
 }
 
@@ -788,7 +805,7 @@ func writeJSONObject(b *bytes.Buffer, members []bodyMember) error {
 		}
 		writeJSONString(b, m.name)
 		b.WriteByte(':')
-		if err := writeBodyJSON(b, m.value); err != nil {
+		if err := writeJSONValue(b, m.value, m.base64url); err != nil {
 			return err
 		}
 	}

@@ -300,3 +300,17 @@ Rejected.
 - `examples/event-inbox` gained `document.attached`
   (`models/document_attached.fiig`); `inbox-sender`'s `InboxEvent`
   mirrors the new variant.
+
+## Implementation notes for §6 (2026-11-21)
+
+- `compiler/syntax`: `Field.Base64URL` (and `FlatField`'s, carried
+  through embedding by `compiler/types`); `compiler/parser`'s
+  `parseFieldJSON` reads the clause, and `compiler/format` prints it
+  after the member name.
+- `compiler/checker/json.go`: J4 in `checkJsonNames`, beside J2 and W3.
+- `compiler/runtime/json.go`: `writeJSONValue` carries a member's
+  base64url through `| None`, `List`, and a `Map`'s values, and writes
+  `base64.RawURLEncoding`. `decodeJSONBase64` is unchanged: §2 already
+  read both alphabets.
+- `compiler/adapter/openapi.go`: `fieldSchema` rewrites the field's
+  `format: byte` to `base64url`.

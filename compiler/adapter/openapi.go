@@ -567,7 +567,7 @@ func schemaFor(t types.Type, r resolver) map[string]any {
 				if !ok {
 					continue
 				}
-				props[f.JSONName()] = schemaFor(ft, r)
+				props[f.JSONName()] = fieldSchema(f, ft, r)
 				if !runtime.IsOptional(ft) {
 					required = append(required, f.JSONName())
 				}
@@ -589,6 +589,48 @@ func schemaFor(t types.Type, r resolver) map[string]any {
 		}
 	default:
 		return map[string]any{}
+	}
+}
+
+// fieldSchema is schemaFor for a model or payload field: a field written
+// `from json base64url` (ADR 0078 §6) describes its bytes with the OpenAPI
+// format registry's "base64url" instead of "byte". OpenAPI 3.0's schema
+// has no contentEncoding (3.1's JSON Schema form of the same thing), so
+// the format is the 3.0 way to say it.
+func fieldSchema(f syntax.Field, ft types.Type, r resolver) map[string]any {
+	s := schemaFor(ft, r)
+	if f.Base64URL {
+		useBase64URL(s)
+	}
+	return s
+}
+
+// useBase64URL rewrites the bytes in s, a schema of a type J4 lets choose
+// base64url (bytes through `| None`, List, and a Map's values), to
+// base64url. A pair-encoded Map's key keeps the standard form, as
+// writeJSONMap writes it.
+func useBase64URL(s map[string]any) {
+	if s["format"] == "byte" {
+		s["format"] = "base64url"
+	}
+	for _, k := range []string{"items", "additionalProperties"} {
+		if sub, ok := s[k].(map[string]any); ok {
+			useBase64URL(sub)
+		}
+	}
+	for _, k := range []string{"oneOf", "anyOf"} {
+		if subs, ok := s[k].([]any); ok {
+			for _, sub := range subs {
+				if sub, ok := sub.(map[string]any); ok {
+					useBase64URL(sub)
+				}
+			}
+		}
+	}
+	if pair, ok := s["prefixItems"].([]any); ok && len(pair) == 2 {
+		if value, ok := pair[1].(map[string]any); ok {
+			useBase64URL(value)
+		}
 	}
 }
 
@@ -621,7 +663,7 @@ func enumSchema(d *syntax.EnumDecl, r resolver) map[string]any {
 			if !ok {
 				continue
 			}
-			props[f.JSONName()] = schemaFor(ft, r)
+			props[f.JSONName()] = fieldSchema(f, ft, r)
 			if !runtime.IsOptional(ft) {
 				required = append(required, f.JSONName())
 			}

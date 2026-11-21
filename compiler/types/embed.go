@@ -153,7 +153,7 @@ func buildFlat(m *syntax.ModelDecl, u *Universe, stack []*syntax.ModelDecl, errs
 		}
 		for _, sf := range buildFlat(em, u, append(stack, em), nil) {
 			via := append([]string{f.Name}, sf.Via...)
-			cands[sf.Name] = append(cands[sf.Name], promoted{field: syntax.FlatField{Span: sf.Span, Name: sf.Name, Type: sf.Type, Via: via, JSON: sf.JSON}, depth: len(via)})
+			cands[sf.Name] = append(cands[sf.Name], promoted{field: syntax.FlatField{Span: sf.Span, Name: sf.Name, Type: sf.Type, Via: via, JSON: sf.JSON, Base64URL: sf.Base64URL}, depth: len(via)})
 			if _, ok := embedAt[sf.Name]; !ok {
 				embedAt[sf.Name] = i
 			}
@@ -190,7 +190,7 @@ func buildFlat(m *syntax.ModelDecl, u *Universe, stack []*syntax.ModelDecl, errs
 	emitted := map[string]bool{}
 	for i, f := range m.Fields {
 		if !f.Embedded {
-			out = append(out, syntax.FlatField{Span: f.Span, Name: f.Name, Type: f.Type, JSON: f.JSON})
+			out = append(out, syntax.FlatField{Span: f.Span, Name: f.Name, Type: f.Type, JSON: f.JSON, Base64URL: f.Base64URL})
 			emitted[f.Name] = true
 			continue
 		}

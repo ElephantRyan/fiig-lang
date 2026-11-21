@@ -210,7 +210,7 @@ Attested forms across the corpus:
 ```ebnf
 model-decl ::= 'model' identifier '{' { model-field } '}'
 model-field ::= field | type-name          // a bare type name embeds that model (ADR 0045)
-field      ::= field-name ':' type [ 'from' 'json' string-literal ]   // ADR 0073 §7b; `from`, `json` contextual
+field      ::= field-name ':' type [ 'from' 'json' ( string-literal [ 'base64url' ] | 'base64url' ) ]   // ADR 0073 §7b, ADR 0078 §6; `from`, `json`, `base64url` contextual
 field-name ::= identifier | keyword                                  // ADR 0073 §7a
 
 enum-decl    ::= 'enum' identifier [ enum-header ] '{' { enum-variant } '}'

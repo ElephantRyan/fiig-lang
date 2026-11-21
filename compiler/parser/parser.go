@@ -426,8 +426,8 @@ func (p *Parser) parseDecl() syntax.Decl {
 }
 
 // parseField parses a model, payload, or record field. jsonName allows a
-// `from json "name"` clause after the type (ADR 0073 §7b), which model and
-// payload fields may have.
+// `from json` clause after the type (ADR 0073 §7b, ADR 0078 §6), which
+// model and payload fields may have.
 func (p *Parser) parseField(jsonName bool) syntax.Field {
 	start := p.cur().Start
 	name := p.expectFieldName()
@@ -435,10 +435,31 @@ func (p *Parser) parseField(jsonName bool) syntax.Field {
 	typ := p.parseType()
 	f := syntax.Field{Name: name.Text, Type: typ}
 	if jsonName {
-		f.JSON = p.parseJSONName("a JSON member name")
+		p.parseFieldJSON(&f)
 	}
 	f.Span = syntax.Span{Start: start, End: p.cur().Start}
 	return f
+}
+
+// parseFieldJSON parses a field's optional `from json` clause: a member
+// name (ADR 0073 §7b), the contextual word `base64url` (ADR 0078 §6), or
+// both in that order, as `raw: bytes from json "raw_data" base64url`.
+func (p *Parser) parseFieldJSON(f *syntax.Field) {
+	if !p.atContextual("from") || p.peek(1).Kind != lexer.Ident || p.peek(1).Text != "json" {
+		return
+	}
+	p.advance()
+	p.advance()
+	named := p.at(lexer.StringStart)
+	if named {
+		f.JSON = p.jsonText("a JSON member name")
+	}
+	if p.atContextual("base64url") {
+		p.advance()
+		f.Base64URL = true
+	} else if !named {
+		p.errorf(p.cur().Start, "expected a JSON member name or `base64url` after `from json`, got %s", p.cur().Kind)
+	}
 }
 
 // parseModelField is parseField, plus ADR 0045's embedded form: a bare type
@@ -623,6 +644,12 @@ func (p *Parser) parseJSONName(what string) string {
 	}
 	p.advance()
 	p.advance()
+	return p.jsonText(what)
+}
+
+// jsonText parses the string literal of a `from json "text"` clause, which
+// can be neither interpolated nor empty. what names it in errors.
+func (p *Parser) jsonText(what string) string {
 	lit := p.parseStringLit()
 	if hasInterp(lit) {
 		p.errorf(lit.Start, "interpolation is not allowed in %s", what)

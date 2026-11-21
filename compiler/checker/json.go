@@ -245,14 +245,18 @@ func (c *checker) declFieldType(decl syntax.Decl, t syntax.Type) types.Type {
 	return resolved
 }
 
-// checkJsonNames is J2 and W3 for one model or variant: no two fields read
-// the same JSON member, and no payload field's member is `variant`, which
-// names the variant (ADR 0072 §3, ADR 0073 §7b).
+// checkJsonNames is J2, J4, and W3 for one model or variant: no two fields
+// read the same JSON member, `from json base64url` only on a field holding
+// `bytes`, and no payload field's member is `variant`, which names the
+// variant (ADR 0072 §3, ADR 0073 §7b, ADR 0078 §6).
 func (c *checker) checkJsonNames(owner string, fields []syntax.Field, payload bool) {
 	seen := map[string]syntax.Field{}
 	for _, f := range fields {
 		if f.Embedded {
 			continue
+		}
+		if f.Base64URL {
+			c.checkBase64URLField(owner, f)
 		}
 		name := f.JSONName()
 		if payload && name == "variant" {
@@ -268,6 +272,49 @@ func (c *checker) checkJsonNames(owner string, fields []syntax.Field, payload bo
 		}
 		seen[name] = f
 	}
+}
+
+// checkBase64URLField is J4 (ADR 0078 §6): `from json base64url` says how
+// the field's own `bytes` are written, so its type must be bytes all the
+// way down: `bytes`, or `| None`, a `List`, or a `Map`'s values around
+// bytes. Anywhere else the clause would say nothing, or would reach into a
+// model or enum whose fields say for themselves. A type that doesn't
+// resolve is reported where it's resolved.
+func (c *checker) checkBase64URLField(owner string, f syntax.Field) {
+	t, ok := types.ResolveWithImports(f.Type, c.universe, universesOf(c.imports))
+	if !ok || t == nil || holdsOnlyBytes(t) {
+		return
+	}
+	c.report(f.Start, "J4", "%s.%s is written `from json base64url`, but its type %s isn't bytes: only a field of `bytes`, `bytes | None`, or a List or Map of them can choose base64url (ADR 0078 §6)", owner, f.Name, t)
+}
+
+// holdsOnlyBytes is J4's shape: t is `bytes`, or wraps nothing but bytes
+// in `| None`, `List`, or a `Map`'s values.
+func holdsOnlyBytes(t types.Type) bool {
+	switch t := t.(type) {
+	case types.Primitive:
+		return t.Name == "bytes"
+	case types.Union:
+		some := false
+		for _, m := range t.Members {
+			if _, ok := m.(types.NoneType); ok {
+				continue
+			}
+			if !holdsOnlyBytes(m) {
+				return false
+			}
+			some = true
+		}
+		return some
+	case types.Generic:
+		switch {
+		case t.Name == "List" && len(t.Args) == 1:
+			return holdsOnlyBytes(t.Args[0])
+		case t.Name == "Map" && len(t.Args) == 2:
+			return holdsOnlyBytes(t.Args[1])
+		}
+	}
+	return false
 }
 
 // checkVariantSpellings is J2 for an enum: no two variants with one text

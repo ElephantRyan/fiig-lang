@@ -392,10 +392,18 @@ func printField(f syntax.Field) string {
 	if f.Embedded {
 		return printType(f.Type)
 	}
-	if f.JSON != "" {
-		return fmt.Sprintf("%s: %s from json %s", f.Name, printType(f.Type), strconv.Quote(f.JSON))
+	s := fmt.Sprintf("%s: %s", f.Name, printType(f.Type))
+	if f.JSON == "" && !f.Base64URL {
+		return s
 	}
-	return fmt.Sprintf("%s: %s", f.Name, printType(f.Type))
+	s += " from json"
+	if f.JSON != "" {
+		s += " " + strconv.Quote(f.JSON)
+	}
+	if f.Base64URL {
+		s += " base64url" // ADR 0078 §6
+	}
+	return s
 }
 
 func printEnumHeader(header []syntax.EnumField) string {
