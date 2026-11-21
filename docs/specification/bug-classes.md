@@ -195,6 +195,7 @@ A `Secret` is a config value that must never be shown.
 |---|---|---|
 | S1 | A `Secret` shown: interpolated into a string, or able to cross the adapter boundary in a workflow's parameters or result, or a response body. (`==` on one is M1, since it would leak the secret through timing; `.matches()` compares in constant time) | Attested — `config_error.fiig` (`describeKey`); `TestSecretIsNeverShown` |
 | S2 | `.reveal()` outside a gateway, the kind that hands values to the outside world. Anywhere else a `Secret` is passed on, matched, or given to an operation that takes one, so no rule can turn it into a `string` and return it | Attested — `config_error.fiig` (`keyText`); `TestSecretIsNeverShown` |
+| S3 | `.toSecret(name)` outside a gateway. A value is marked secret where it comes in from outside (ADR 0126); anywhere else it would already have been a plain `string` | `TestToSecretIsLegalOnlyInAGateway` |
 
 ## J. JSON errors (ADR 0073)
 

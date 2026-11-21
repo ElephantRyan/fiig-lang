@@ -290,6 +290,9 @@ interpolated (S1), compared with `==` (M1), or reach a workflow's
 signature or a response body (S1). It prints as `Secret(NAME)`, naming its
 variable. `.matches(candidate: string) -> bool` compares in constant time,
 anywhere; `.reveal() -> string` gives the text, only in a gateway (S2).
+A gateway can also make one: `text.toSecret(name)` marks a value it read from
+outside, such as a stored token, and prints as `Secret(name)` (S3 elsewhere,
+ADR 0126).
 
 `formulas-decl` is ADR 0049's: a group of pure formulas, which §3.9 counts as
 its file's one declaration. Every kind may call a formula, a rule included,

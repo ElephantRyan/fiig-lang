@@ -100,6 +100,9 @@ var primitiveMethods = map[string]map[string]Method{
 		"replaceAll":         {[]Param{p("old", stringType), p("new", stringType)}, stringType},
 		"toIntOrNone":        {nil, Union{Members: []Type{intType, NoneType{}}}},
 		"toFloatOrNone":      {nil, Union{Members: []Type{Primitive{Name: "float"}, NoneType{}}}},
+		// ADR 0126: a value a gateway reads from outside, such as a stored
+		// token, marked as a Secret from there on; legal only in a gateway (S3).
+		"toSecret": {[]Param{p("name", stringType)}, SecretType},
 	},
 }
 

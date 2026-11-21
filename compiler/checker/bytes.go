@@ -48,6 +48,9 @@ func (c *checker) inferMethodCall(recv types.Type, fa *syntax.FieldAccess, args 
 			if kind == "Secret" && fa.Field == "reveal" && c.callerKind != kindGateway {
 				c.report(start, "S2", "only a gateway may call .reveal(), where the value leaves for the outside world; pass the Secret on instead (ADR 0071 §4)")
 			}
+			if kind == "string" && fa.Field == "toSecret" && c.callerKind != kindGateway {
+				c.report(start, "S3", "only a gateway may call .toSecret(), where a value comes in from the outside world; a Secret read anywhere else would already have been a plain string (ADR 0126)")
+			}
 			return c.checkMethodArgs(kind, fa.Field, m, args, start, env)
 		}
 		if ok {

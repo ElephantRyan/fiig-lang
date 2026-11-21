@@ -94,6 +94,23 @@ func TestSecretIsNeverShown(t *testing.T) {
 	wantDiag(t, checkSrc(t, cases[5].src, "conversion c(creds: Creds) -> HttpResponse<Creds> {\n    return HttpResponse(status: 200, body: creds)\n}"), "S1", "a response body holds a Secret")
 }
 
+// ADR 0126: a gateway marks a value it reads from outside as a Secret, so the
+// S1 and S2 protections hold from there on; anywhere else it is S3.
+func TestToSecretIsLegalOnlyInAGateway(t *testing.T) {
+	gateway := "gateway storedToken(saved: string) -> Secret\n    requires Database\n{\n    return saved.toSecret(\"abs.serviceToken\")\n}"
+	if diags := checkSrc(t, gateway); len(diags) != 0 {
+		t.Fatalf("toSecret in a gateway: %v", diags)
+	}
+	for _, src := range []string{
+		"activity a(saved: string) -> Secret {\n    return saved.toSecret(\"abs.serviceToken\")\n}",
+		"rule r(saved: string) -> Secret {\n    return saved.toSecret(\"abs.serviceToken\")\n}",
+	} {
+		wantDiag(t, checkSrc(t, src), "S3", "only a gateway may call .toSecret()")
+	}
+	// The result is as protected as one from config.
+	wantDiag(t, checkSrc(t, "activity a(token: Secret) -> string {\n    return \"key=${token}\"\n}"), "S1", "a Secret can't be put in a string")
+}
+
 func TestSecretIsAPreludeName(t *testing.T) {
 	wantDiag(t, checkSrc(t, "model Secret {\n    a: int\n}"), "K2", "")
 }

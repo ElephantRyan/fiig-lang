@@ -77,6 +77,24 @@ func TestSecretIsShownByNameAndMatches(t *testing.T) {
 	}
 }
 
+// ADR 0126: toSecret gives a Secret that prints as its name and matches like
+// one from config.
+func TestToSecretPrintsByNameAndMatches(t *testing.T) {
+	got, f := evalBuiltinMethod(Str("hunter2"), "toSecret", []Value{Str("abs.serviceToken")})
+	if f != nil {
+		t.Fatal(f)
+	}
+	if got.String() != "Secret(abs.serviceToken)" || EncodeJSON(got) != "Secret(abs.serviceToken)" {
+		t.Fatalf("printed as %v / %v", got, EncodeJSON(got))
+	}
+	if m, _ := evalBuiltinMethod(got, "matches", []Value{Str("hunter2")}); m != Bool(true) {
+		t.Errorf("matches = %v", m)
+	}
+	if v, _ := evalBuiltinMethod(got, "reveal", nil); v != Str("hunter2") {
+		t.Errorf("reveal = %v", v)
+	}
+}
+
 func TestEveryConfigProblemIsReportedAtOnce(t *testing.T) {
 	_, problems := configInterp(t, map[string]string{
 		"MAX_AGE": "86400s", "RATIO": "NaN", "RATE": "1,5", "VERBOSE": "yes", "LEVEL": "verbose",

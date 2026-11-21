@@ -101,6 +101,10 @@ var builtinMethods = map[string]map[string]builtinFunc{
 			}
 			return Str(strings.ReplaceAll(string(recv.(Str)), old, string(args[1].(Str)))), nil
 		},
+		// ADR 0126: the text as a Secret that prints as Secret(name).
+		"toSecret": func(recv Value, args []Value) (Value, *Fault) {
+			return NewSecret(string(args[0].(Str)), string(recv.(Str))), nil
+		},
 		// §7: an optional sign and digits; None when out of range.
 		"toIntOrNone": func(recv Value, _ []Value) (Value, *Fault) {
 			s := string(recv.(Str))
