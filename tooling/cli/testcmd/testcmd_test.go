@@ -35,21 +35,32 @@ func runJSON(t *testing.T, root string) (int, map[string]Result) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Read while the run writes, so a package with many tests doesn't
+	// fill the pipe and block it.
+	lines := make(chan []string, 1)
+	go func() {
+		var read []string
+		scanner := bufio.NewScanner(r)
+		scanner.Buffer(nil, 1<<20)
+		for scanner.Scan() {
+			read = append(read, scanner.Text())
+		}
+		io.Copy(io.Discard, r)
+		lines <- read
+	}()
 	stdout := os.Stdout
 	os.Stdout = w
 	code := run(root, "", "", "", 5*time.Second, false, true, nil, nil)
 	os.Stdout = stdout
 	w.Close()
 	results := map[string]Result{}
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
+	for _, line := range <-lines {
 		var res Result
-		if err := json.Unmarshal(scanner.Bytes(), &res); err != nil {
-			t.Fatalf("not a result line: %q", scanner.Text())
+		if err := json.Unmarshal([]byte(line), &res); err != nil {
+			t.Fatalf("not a result line: %q", line)
 		}
 		results[res.Name] = res
 	}
-	io.Copy(io.Discard, r)
 	return code, results
 }
 
