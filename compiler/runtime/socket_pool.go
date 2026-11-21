@@ -74,8 +74,10 @@ func NewSocketPool(limits IdleLimits) *SocketPool {
 // callingPackage is the package whose code is running: the root of its
 // file scopes (ADR 0054), so every file of a package shares one key.
 func callingPackage(ctx context.Context) *types.Universe {
-	s, _ := ctx.Value(scopeKey{}).(scope)
-	u := s.universe
+	var u *types.Universe
+	if c, ok := ctx.Value(callKey{}).(*callInfo); ok {
+		u = c.sc.universe
+	}
 	for u != nil && u.Parent != nil {
 		u = u.Parent
 	}

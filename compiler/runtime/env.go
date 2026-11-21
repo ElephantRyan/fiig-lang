@@ -50,6 +50,16 @@ func (e *Env) Child() *Env {
 	return c
 }
 
+// reset empties e's own bindings, so a loop's next iteration reuses the
+// scope its body ran in rather than allocating another (ADR 0115 §3).
+// Nothing outlives the block a scope is for: fiig has no closures, and a
+// concurrent expression waits for every body before it returns.
+func (e *Env) reset() {
+	clear(e.vars)
+	e.vars = e.vars[:0]
+	e.index = nil
+}
+
 // find is name's position in e's own bindings, or -1.
 func (e *Env) find(name string) int {
 	if e.index != nil {

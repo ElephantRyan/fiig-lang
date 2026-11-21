@@ -19,8 +19,10 @@ func (in *Interp) evalSorted(ctx context.Context, e *syntax.SortedExpr, env *Env
 	}
 	elems := list.(List).Elems
 	keys := make([][]Value, len(elems))
+	// One scope for the keys, emptied for each element (ADR 0115 §3).
+	keyEnv := env.Child()
 	for i, elem := range elems {
-		keyEnv := env.Child()
+		keyEnv.reset()
 		keyEnv.Bind(e.Var, elem)
 		keys[i] = make([]Value, len(e.Keys))
 		for j, k := range e.Keys {

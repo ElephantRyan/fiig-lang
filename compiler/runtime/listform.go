@@ -37,8 +37,10 @@ func (in *Interp) evalListForm(ctx context.Context, e *syntax.ListForm, env *Env
 		}
 	}
 	plus := &syntax.BinaryExpr{Span: e.Span, Op: syntax.OpAdd}
+	// One scope for the body, emptied for each element (ADR 0115 §3).
+	bodyEnv := env.Child()
 	for _, elem := range elems {
-		bodyEnv := env.Child()
+		bodyEnv.reset()
 		bodyEnv.Bind(e.Var, elem)
 		b, earlyReturn, fault := in.evalExpr(ctx, e.Body, bodyEnv)
 		if fault != nil || earlyReturn {
