@@ -3,6 +3,8 @@ package parser
 import (
 	"strings"
 	"testing"
+
+	"fiig-lang/compiler/syntax"
 )
 
 // abs-recommendations GAPS G9 and G10: a literal in a pattern, and a
@@ -96,12 +98,18 @@ func indent(s string) string {
 
 // GAPS G20: `is` inside an expression is one error.
 func TestIsInAnExpressionIsOneError(t *testing.T) {
-	_, errs := Parse(`rule r(users: List<User>) -> int {
+	f, errs := Parse(`rule r(users: List<User>) -> int {
     return count(u in users): u.email is not None
 }
 `)
 	if len(errs) != 1 || !strings.Contains(errs[0].Msg, "`is` takes a pattern only in `expect x is Pattern`") {
 		t.Fatalf("want one error, got %v", errs)
+	}
+	// The checker gets a placeholder, not `u.email`, so it adds no second
+	// error (`a count body must be bool`).
+	body := f.Decls[0].(*syntax.RuleDecl).Body.Stmts[0].(*syntax.ReturnStmt).Value.(*syntax.ListForm).Body
+	if id, ok := body.(*syntax.Ident); !ok || id.Name != syntax.ErrorName {
+		t.Errorf("count body = %#v, want the error placeholder", body)
 	}
 }
 
@@ -111,7 +119,8 @@ func TestKeywordAsANameIsOneError(t *testing.T) {
 	if len(errs) == 0 || !strings.Contains(errs[0].Msg, "`limit` is a keyword") {
 		t.Fatalf("want a keyword error first, got %v", errs)
 	}
-	if len(errs) > 2 {
-		t.Errorf("want at most the declaration's and the use's errors, got %v", errs)
+	// The use reads as the name it was given: the keyword is reported once.
+	if len(errs) != 1 {
+		t.Errorf("want only the declaration's error, got %v", errs)
 	}
 }

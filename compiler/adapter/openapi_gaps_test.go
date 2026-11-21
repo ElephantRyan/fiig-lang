@@ -115,3 +115,38 @@ func keys(m map[string]any) []string {
 	}
 	return out
 }
+
+// Hearsay G57: an arm's conversion that hands a variant's carried error to
+// another conversion (`RatingError.Session(c) -> identityErrorResponse(c)`)
+// answers with that conversion's statuses too.
+func TestAResponseFromANestedConversionKeepsItsStatus(t *testing.T) {
+	u, files := universeOf(t,
+		"enum IdentityError {\n    NotSignedIn\n}",
+		"enum RatingError {\n    Session(cause: IdentityError)\n    NoRating\n}",
+		"workflow deleteMine(token: string) -> Result<string, RatingError> {\n    return Err(RatingError.NoRating)\n}",
+		"conversion identityErrorResponse(error: IdentityError) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"sign in first\")\n}",
+		`conversion ratingErrorResponse(error: RatingError) -> HttpResponse<string> {
+    match error {
+        RatingError.Session(cause) -> identityErrorResponse(cause)
+        RatingError.NoRating -> HttpResponse(status: 404, body: "no rating")
+    }
+}`,
+		`adapter http api {
+    GET "/mine/{token}" -> deleteMine(token: string)
+        produces "application/json"
+    {
+        Ok(who) -> 200 who
+        Err(error) -> ratingErrorResponse(error)
+    }
+}`)
+	doc, err := GenerateOpenAPI(findAdapter(t, files, "api"), u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	responses := doc["paths"].(map[string]any)["/mine/{token}"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)
+	for _, code := range []string{"200", "401", "404"} {
+		if _, ok := responses[code]; !ok {
+			t.Errorf("responses = %v, want %s", keys(responses), code)
+		}
+	}
+}

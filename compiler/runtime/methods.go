@@ -3,6 +3,7 @@ package runtime
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -103,6 +104,22 @@ var builtinMethods = map[string]map[string]builtinFunc{
 		},
 		"padLeft":  pad(true),
 		"padRight": pad(false),
+		// ADR 0129 §1a: the text count times; a negative count faults, as take
+		// and drop do, and so does a result too long for a string to hold.
+		"repeat": func(recv Value, args []Value) (Value, *Fault) {
+			s := string(recv.(Str))
+			count, ok := args[0].(Int)
+			if !ok {
+				return nil, Faultf("repeat's count must be an int (got %s)", args[0])
+			}
+			if count < 0 {
+				return nil, Faultf("repeat(%d): the count can't be negative", count)
+			}
+			if len(s) > 0 && int64(count) > int64(math.MaxInt)/int64(len(s)) {
+				return nil, Faultf("repeat(%d) of a %d-byte string is too long for a string", count, len(s))
+			}
+			return Str(strings.Repeat(s, int(count))), nil
+		},
 		// ADR 0126: the text as a Secret that prints as Secret(name).
 		"toSecret": func(recv Value, args []Value) (Value, *Fault) {
 			return NewSecret(string(args[0].(Str)), string(recv.(Str))), nil

@@ -446,6 +446,7 @@ where = best.indexOfOrNone(10)     // int | None (ADR 0129)
 page = best.drop(20).take(10)      // clamped to the length; reverse() and distinct() too
 all = best.concat(others)          // a new list: best's elements, then others' (ADR 0129 §2a)
 label = "${n}".padLeft(5, "0")     // "00007": width in grapheme clusters (ADR 0129)
+rule = "-".repeat(40)              // 40 dashes; a negative count faults (ADR 0129 §1a)
 levels = Level.values()            // an enum's variants in order, when none carries data
 // Sorting records needs a key: evaluated once per element, stable, and
 // limited to calls with no effect (ADR 0100). Ties keep their order.

@@ -33,6 +33,18 @@ position. The fill repeats and its last copy is cut to fit; an empty fill
 faults, as `split("")` does. A string already `width` wide or more is returned
 as it is.
 
+### 1a. `repeat(count)` (added 2026-11-21)
+
+`"ab".repeat(3)` is `"ababab"`. A count of 0, or an empty string, gives `""`.
+A negative count faults, as `take` and `drop` do. So does a result too long
+for a string to hold, where Go's own `strings.Repeat` would panic. Hearsay
+wanted it for a boundary test (a 281-character note, GAPS G2) and built the
+string from nested interpolations instead.
+
+Neither `repeat` nor `padLeft`/`padRight` has a cap on the size of what it
+builds, below what memory allows. Whether string builders should have one
+is a separate question.
+
 ### 2. Lists
 
 | Method | Result |
