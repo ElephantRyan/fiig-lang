@@ -1,7 +1,8 @@
 # ADR 0119: Savepoints and Read-Only Transactions
 
 Status: Accepted (2026-11-21; the owner chose a separate `savepoint` word
-over nesting `transaction` blocks, and `readOnly`)
+over nesting `transaction` blocks, and `readOnly`). Not implemented yet:
+the build was paused 2026-11-21, partly done.
 Date: 2026-11-21
 Answers: ADR 0088 open questions 1 (savepoints) and 2 (read-only
 transactions).

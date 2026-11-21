@@ -1,7 +1,8 @@
 # ADR 0118: Stream Routes Bind Keys and Headers
 
 Status: Accepted (2026-11-21; the owner chose route binding over a
-metadata parameter). Implemented 2026-11-21.
+metadata parameter). Not implemented yet: the build was paused
+2026-11-21, partly done.
 Date: 2026-11-21
 Amends: ADR 0111 §1 (a delivery carries its key and headers) and §3 (a
 route binds them).
