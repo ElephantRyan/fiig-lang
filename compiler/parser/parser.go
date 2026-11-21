@@ -694,7 +694,7 @@ func (p *Parser) parseGateway(inFake bool) *syntax.GatewayDecl {
 	body := p.parseBlock()
 	return &syntax.GatewayDecl{
 		Span: syntax.Span{Start: start, End: body.End}, Name: name.Text, Params: params,
-		ReturnType: ret, Requires: capability.Text, Idempotent: idempotent, Body: body,
+		ReturnType: ret, Requires: capability.Text, RequiresStart: capability.Start, Idempotent: idempotent, Body: body,
 	}
 }
 
@@ -1922,7 +1922,7 @@ func (p *Parser) parsePostfix() syntax.Expr {
 		case p.at(lexer.Dot):
 			p.advance()
 			field := p.expectFieldName()
-			left = &syntax.FieldAccess{Span: syntax.Span{Start: start, End: p.cur().Start}, Target: left, Field: field.Text}
+			left = &syntax.FieldAccess{Span: syntax.Span{Start: start, End: p.cur().Start}, Target: left, Field: field.Text, FieldStart: field.Start}
 		case p.at(lexer.LParen):
 			args := p.parseArguments()
 			left = &syntax.CallExpr{Span: syntax.Span{Start: start, End: p.cur().Start}, Callee: left, Args: args}

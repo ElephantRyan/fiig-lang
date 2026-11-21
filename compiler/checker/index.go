@@ -57,6 +57,10 @@ func (c *checker) refAfter(start lexer.Pos, prefix, text string, decl syntax.Dec
 
 // refField records the field of a FieldAccess, which ends the access.
 func (c *checker) refField(e *syntax.FieldAccess, decl syntax.Decl, member string) {
+	if e.FieldStart.Line > 0 {
+		c.ref(e.FieldStart, e.Field, decl, member)
+		return
+	}
 	_, end := e.Bounds()
 	start := end
 	start.Column -= utf8.RuneCountInString(e.Field)

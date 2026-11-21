@@ -29,6 +29,9 @@ func (c *checker) checkAdapterRoutes(d *syntax.AdapterDecl) {
 			}
 			continue
 		}
+		// The workflow's name is a reference like any other, so Go to
+		// Declaration and Find Usages reach it from the route.
+		c.ref(route.Workflow.Start, route.Workflow.Name, decl, "")
 		wd, ok := decl.(*syntax.WorkflowDecl)
 		if !ok {
 			c.report(route.Workflow.Start, "B6", "adapter route must call an exported workflow; %q is not one", route.Workflow.Name)

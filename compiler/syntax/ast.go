@@ -278,8 +278,11 @@ type GatewayDecl struct {
 	Params     []Param
 	ReturnType Type
 	Requires   string
-	Idempotent bool // ADR 0014
-	Body       *Block
+	// RequiresStart is where the capability's name is written, for Go to
+	// Declaration on a `requires` clause.
+	RequiresStart lexer.Pos
+	Idempotent    bool // ADR 0014
+	Body          *Block
 }
 
 // ActivityDecl is `activity` (ADR 0030, widened by ADR 0044) — the reusable
@@ -993,6 +996,10 @@ type FieldAccess struct {
 	ConstSlot // `math.pi`, a constant member of the prelude math group (ADR 0049 §2.7)
 	Target    Expr
 	Field     string
+	// FieldStart is where the field's name is written. The span ends at the
+	// next token, which is on a later line when the field ends its line, so
+	// the editor's references can't be worked out from it.
+	FieldStart lexer.Pos
 }
 
 type Arg struct {

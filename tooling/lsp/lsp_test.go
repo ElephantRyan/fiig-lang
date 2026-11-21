@@ -23,7 +23,7 @@ model Money {
     currency: string
 }
 `,
-	"app/fiig.pkg.json": `{"path": "t.app", "kind": "library", "version": "1.0.0", "dependencies": {"t.kernel": "1.0.0"}}`,
+	"app/fiig.pkg.json": `{"path": "t.app", "kind": "library", "version": "1.0.0", "dependencies": {"t.kernel": "1.0.0"}, "capabilities": ["Database"], "nativeCapabilities": ["Database"]}`,
 	"app/src/Total.fiig": `use t.kernel
 
 // Adds two amounts.
@@ -44,6 +44,55 @@ private {
     shout(s: string) -> string {
         return "${s}!"
     }
+}
+`,
+	// Another package's enum in a pattern, and a config read.
+	"kernel/src/Level.fiig": `enum Level {
+    Low
+    High
+}
+`,
+	"app/src/Describe.fiig": `use t.kernel
+
+conversion describe(level: kernel.Level) -> string {
+    match level {
+        kernel.Level.Low -> "low"
+        kernel.Level.High -> "high"
+    }
+}
+`,
+	"app/src/Limits.fiig": `config Limits {
+    max: int from env "LIMIT_MAX" = 10
+}
+`,
+	"app/src/Cap.fiig": `activity cap() -> int {
+    first = Limits.max
+    return first
+}
+`,
+	// A gateway requires a capability group.
+	"app/src/Ledger.fiig": `capability Ledger {
+    gateway record(entry: string) -> int
+        requires Database
+    {
+        return Database.execute("INSERT INTO ledger (entry) VALUES (?)", entry)
+    }
+}
+`,
+	"app/src/Audit.fiig": `gateway audit(entry: string) -> int
+    requires Ledger
+{
+    return Ledger.record(entry)
+}
+`,
+	// A route names a workflow, which Go to Declaration reaches.
+	"app/src/Hello.fiig": `workflow hello() -> string {
+    return "hi"
+}
+`,
+	"app/src/Api.fiig": `adapter http Api {
+    GET "/hello" -> hello()
+        produces "application/json"
 }
 `,
 	"app/src/Rated.fiig": `use t.app.ratings
@@ -330,6 +379,75 @@ func TestSemanticTokensGiveEachCallItsKind(t *testing.T) {
 
 // ADR 0105: a folder under src/ is a package. Definition goes from the
 // top-level package into it, and its test file is checked with it.
+// abs-recommendations: Ctrl+click on the workflow a route calls went nowhere,
+// since the route's name was never recorded as a reference.
+func TestARoutesWorkflowNavigates(t *testing.T) {
+	c, _ := startClient(t, nil)
+	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	// `    GET "/hello" -> hello()`: line 1, and hello starts at character 20.
+	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Api.fiig", 1, 22)))
+	if len(locs) != 1 || locs[0].URI != c.uri("app/src/Hello.fiig") || locs[0].Range.Start.Line != 0 {
+		t.Fatalf("definition of the route's workflow = %+v, want app/src/Hello.fiig", locs)
+	}
+	// And usages find the route from the workflow.
+	refs := decode[[]location](t, c.request("textDocument/references", c.at("app/src/Hello.fiig", 0, 11)))
+	found := false
+	for _, r := range refs {
+		found = found || r.URI == c.uri("app/src/Api.fiig")
+	}
+	if !found {
+		t.Errorf("references of hello = %+v, want the route in Api.fiig", refs)
+	}
+}
+
+// abs-recommendations: a variant of another package's enum in a pattern
+// (`accounts.SignInError.WrongMethod ->`), and a config read (`Oidc.issuer`),
+// had no definition.
+func TestPatternVariantsAndConfigReadsNavigate(t *testing.T) {
+	c, _ := startClient(t, nil)
+	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	// `        kernel.Level.Low -> "low"`: Level at character 15, Low at 21.
+	for _, tc := range []struct {
+		name      string
+		line, col int
+		file      string
+		wantLine  int
+	}{
+		{"the enum in a pattern", 4, 16, "kernel/src/Level.fiig", 0},
+		{"the variant in a pattern", 4, 22, "kernel/src/Level.fiig", 1},
+	} {
+		locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Describe.fiig", tc.line, tc.col)))
+		if len(locs) != 1 || locs[0].URI != c.uri(tc.file) || locs[0].Range.Start.Line != tc.wantLine {
+			t.Errorf("%s: definition = %+v, want %s line %d", tc.name, locs, tc.file, tc.wantLine)
+		}
+	}
+	// `    first = Limits.max`, with an indented line after it: Limits at
+	// character 12, max at 19. A field ending its line was recorded at the next
+	// token's position, a few characters on.
+	for _, tc := range []struct {
+		name     string
+		col      int
+		wantLine int
+	}{{"the config", 13, 0}, {"the config's field", 19, 1}, {"the config's field, last character", 21, 1}} {
+		locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Cap.fiig", 1, tc.col)))
+		if len(locs) != 1 || locs[0].URI != c.uri("app/src/Limits.fiig") || locs[0].Range.Start.Line != tc.wantLine {
+			t.Errorf("%s: definition = %+v, want Limits.fiig line %d", tc.name, locs, tc.wantLine)
+		}
+	}
+}
+
+// A `requires` clause names a capability group, which Go to Declaration
+// reaches (abs-recommendations: `requires AuthentikSignIn`).
+func TestARequiresClauseNavigates(t *testing.T) {
+	c, _ := startClient(t, nil)
+	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	// `    requires Ledger`: line 1, Ledger at character 13.
+	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Audit.fiig", 1, 14)))
+	if len(locs) != 1 || locs[0].URI != c.uri("app/src/Ledger.fiig") || locs[0].Range.Start.Line != 0 {
+		t.Fatalf("definition of the required group = %+v, want app/src/Ledger.fiig", locs)
+	}
+}
+
 func TestFolderPackagesNavigate(t *testing.T) {
 	c, _ := startClient(t, nil)
 	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })

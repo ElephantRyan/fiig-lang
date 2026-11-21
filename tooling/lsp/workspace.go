@@ -492,6 +492,14 @@ func memberSpan(src string, decl syntax.Decl, member string) (lexer.Pos, lexer.P
 			s, e := nameAt(src, g.Start, member)
 			return s, e, true
 		}
+	case *syntax.ConfigDecl:
+		// A config's field, `Limits.max`.
+		for _, f := range d.Fields {
+			if f.Name == member {
+				s, e := nameAt(src, f.Start, member)
+				return s, e, true
+			}
+		}
 	case *syntax.FormulasDecl:
 		if f := d.Member(member); f != nil {
 			s, e := nameAt(src, f.Start, member)

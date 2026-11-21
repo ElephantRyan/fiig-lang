@@ -227,6 +227,12 @@ func (c *checker) checkRequires(g *syntax.GatewayDecl) {
 		return
 	}
 	if ref, ok := c.groups[name]; ok {
+		switch {
+		case ref.Decl != nil:
+			c.ref(g.RequiresStart, name, ref.Decl, "")
+		case ref.Formulas != nil:
+			c.ref(g.RequiresStart, name, ref.Formulas, "")
+		}
 		if ref.Formulas != nil {
 			c.report(g.Start, "", "gateway %q requires %q, which is a formulas group, not a capability; call its formulas directly", g.Name, name)
 		}
@@ -239,6 +245,7 @@ func (c *checker) checkRequires(g *syntax.GatewayDecl) {
 		return // a package not loaded in this run; its workflows are unchecked here
 	}
 	if d, found := c.lookup(name); found {
+		c.ref(g.RequiresStart, name, d, "")
 		if _, ok := d.(*syntax.CapabilityDecl); !ok {
 			c.report(g.Start, "", "gateway %q requires %s %q, which is not a capability", g.Name, syntax.DeclKindName(d), name)
 		}

@@ -247,6 +247,9 @@ func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.T
 				return types.Unknown{}
 			}
 			if cd, ok := c.configRef(targetIdent.Name); ok {
+				// Go to Declaration reaches the config and its field.
+				c.ref(targetIdent.Start, targetIdent.Name, cd, "")
+				c.refField(e, cd, e.Field)
 				return c.readConfig(cd, e)
 			}
 			if decl, found := c.universe.Lookup(targetIdent.Name); found {
@@ -924,6 +927,20 @@ func (c *checker) bindPattern(p syntax.Pattern, subject types.Type, env map[stri
 			env[p.Path[0]] = subject
 			c.checkLocalName(p.Path[0], subject, p.Start)
 		}
+		// A zero-field variant is a bare path: `Level.Low`, or another
+		// package's, `alias.Level.Low`.
+		if len(p.Path) == 2 {
+			if decl, found := c.lookup(p.Path[0]); found {
+				if enumDecl, ok := decl.(*syntax.EnumDecl); ok {
+					c.ref(p.Start, p.Path[0], enumDecl, "")
+					c.refAfter(p.Start, p.Path[0], p.Path[1], enumDecl, p.Path[1])
+				}
+			}
+		} else if len(p.Path) == 3 {
+			if _, enumDecl, ok := c.importedEnumNamed(p.Path[0], p.Path[1], env); ok {
+				c.refImportedVariant(p.Start, p.Path, enumDecl)
+			}
+		}
 	case *syntax.ConstructorPattern:
 		c.bindConstructorPattern(p, subject, env)
 	case *syntax.LiteralPattern:
@@ -1013,6 +1030,13 @@ func (c *checker) variantType(enumDecl *syntax.EnumDecl, field string, args []sy
 	return types.Unknown{}
 }
 
+// refImportedVariant records the enum and the variant of a pattern written
+// `alias.Enum.Variant`, so Go to Declaration reaches each.
+func (c *checker) refImportedVariant(start lexer.Pos, path []string, enumDecl *syntax.EnumDecl) {
+	c.refAfter(start, path[0], path[1], enumDecl, "")
+	c.refAfter(start, path[0]+"."+path[1], path[2], enumDecl, path[2])
+}
+
 func (c *checker) bindConstructorPattern(p *syntax.ConstructorPattern, subject types.Type, env map[string]types.Type) {
 	if len(p.Path) == 1 && (p.Path[0] == "Ok" || p.Path[0] == "Err") {
 		if g, ok := subject.(types.Generic); ok && g.Name == "Result" && len(g.Args) == 2 {
@@ -1046,6 +1070,7 @@ func (c *checker) bindConstructorPattern(p *syntax.ConstructorPattern, subject t
 	}
 	if len(p.Path) == 3 {
 		if pkg, enumDecl, ok := c.importedEnumNamed(p.Path[0], p.Path[1], env); ok {
+			c.refImportedVariant(p.Start, p.Path, enumDecl)
 			for _, v := range enumDecl.Variants {
 				if v.Name != p.Path[2] {
 					continue
