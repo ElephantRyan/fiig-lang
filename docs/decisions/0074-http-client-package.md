@@ -326,6 +326,41 @@ amount=1250&currency=usd
   reply with a `Content-Encoding` anyway is returned with its header and
   its encoded bytes, as Go does when the caller set the header itself.
 
+### 7a. A limit on a reply's size
+
+*(Amended 2026-11-21: closes open question 2.)* A reply may be at most
+`HTTP_CLIENT_MAX_REPLY_BYTES`, a `config HttpClientSettings` field in
+`fiig.http` read from the environment (ADR 0071), 16 MiB (16 777 216)
+when unset. Every byte read counts: interim `1xx` replies, the status
+line, headers, chunk framing, and the body. Past it, `send` stops
+reading, closes the connection (the rest of the reply is unread, so it
+can't carry another request), and answers
+`Err(HttpError.ReplyTooLarge(limit: n))`, a new variant. It doesn't wait
+for the bytes when the reply says how many are coming: a `Content-Length`,
+or a chunk's size, that would end past the limit is refused as soon as it
+is read. A value of 0 or less is `InvalidRequest` on every `send`.
+
+- **A process-wide setting, not a `maxReplyBytes` field on `Request`**,
+  which open question 2 had suggested. The limit protects the process's
+  memory, which the operator sizes, not the caller; and a field would let
+  each call site pick its own number with no one place to read the
+  program's worst case. A per-request field can still be added later,
+  narrowing the setting, without breaking callers.
+- **16 MiB** is far above the JSON and form replies APIs send (a list
+  page of 100 records is typically tens or hundreds of KiB), so ordinary
+  callers never meet it, while one runaway server can hold no more than 16 MiB
+  per request in flight. A body is held whole in memory (§9), so the
+  limit is the memory a reply can take. A program reading big bodies, such
+  as large `fiig.s3` objects (ADR 0121), raises it. Go, Java, reqwest,
+  and Python's requests have no default limit; Envoy's per-connection
+  buffer and nginx's `client_max_body_size` default to 1 MiB, but those
+  bound what a proxy holds for many connections at once, and a client's
+  downloads outgrow them.
+- **`readReply` takes the limit as an argument** and answers a new
+  `ReplyRead.TooLarge`; it stays a pure conversion, since conversions
+  don't read config (ADR 0071 §2). The 1 MiB cap on headers stays, so a
+  limit above 1 MiB doesn't allow longer headers.
+
 ### 8. One connection per request, for now
 
 > **Superseded by ADR 0109 §6 (2026-11-20):** `send` keeps a connection
@@ -407,7 +442,8 @@ never time out. A deadline bounds the whole exchange with one number.
    §5 relaxed: a pool that owns connections beyond one call, keyed by
    scheme, host, and port, closing idle ones. Worth designing when a
    service's latency shows the cost.
-2. **A reply size limit.** A server can send an endless body; the deadline
+2. **A reply size limit.** *(Closed by §7a, 2026-11-21:
+   `HTTP_CLIENT_MAX_REPLY_BYTES`, 16 MiB by default.)* A server can send an endless body; the deadline
    stops it in time but not in memory. Go and Java have no default limit;
    a `maxReplyBytes` field could be added without breaking callers.
 3. **Following redirects on request**, with which headers survive a change

@@ -106,6 +106,13 @@ func httpInterp(t *testing.T, script *runtime.ScriptedSocket) *runtime.Interp {
 // (ADR 0109).
 func httpInterpWith(t *testing.T, socket runtime.SocketProvider) *runtime.Interp {
 	t.Helper()
+	return httpInterpEnv(t, socket, nil)
+}
+
+// httpInterpEnv is httpInterpWith with env as the environment config is
+// read from (HTTP_CLIENT_MAX_REPLY_BYTES, ADR 0074 §7a).
+func httpInterpEnv(t *testing.T, socket runtime.SocketProvider, env map[string]string) *runtime.Interp {
+	t.Helper()
 	root := t.TempDir()
 	for name, src := range fixture.Module(httpProgram) {
 		os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
@@ -134,6 +141,13 @@ func httpInterpWith(t *testing.T, socket runtime.SocketProvider) *runtime.Interp
 	in := runtime.New(u, caps)
 	in.Imports = BuildImports(files, loaded.Packages)
 	in.Groups = BuildGroups(files, loaded.Packages)
+	in.Packages = loaded.Packages
+	lookup := func(name string) (string, bool) { v, ok := env[name]; return v, ok }
+	program := Program{Universe: u, Imports: in.Imports, Groups: in.Groups}
+	entries := []Entry{{Name: "get"}, {Name: "head"}, {Name: "postForm"}, {Name: "withHeader"}}
+	if problems := in.LoadConfig(ReachableConfigFrom(program, entries), lookup); len(problems) > 0 {
+		t.Fatal(problems)
+	}
 	return in
 }
 
@@ -291,6 +305,59 @@ func TestFiigHttpTimesOut(t *testing.T) {
 	}
 	if got := describeReply(v); got != "Socket SocketError.TimedOut" {
 		t.Errorf("got %q, want Socket(TimedOut)", got)
+	}
+}
+
+// §7a: a reply past HTTP_CLIENT_MAX_REPLY_BYTES, here 100, stops the
+// reading as ReplyTooLarge, and the connection is closed, not kept. A
+// Content-Length or a chunk's size that says it will be past the limit is
+// refused before its bytes arrive: each script ends where the client must
+// stop, so a client that read on would fail script.Done.
+func TestFiigHttpReplySizeLimit(t *testing.T) {
+	const req = "GET / HTTP/1.1\r\nHost: big.example.com\r\nUser-Agent: fiig-http/1\r\n\r\n"
+	x := func(n int) string { return strings.Repeat("x", n) }
+	cases := []struct {
+		name, limit string
+		steps       []runtime.SocketStep
+		want        string
+	}{
+		{"within the limit", "100", []runtime.SocketStep{expect(req),
+			send("HTTP/1.1 200 OK\r\nContent-Length: 61\r\n\r\n" + x(61))}, "200 " + x(61) + " Content-Length=61"},
+		{"a Content-Length past the limit", "100", []runtime.SocketStep{expect(req),
+			send("HTTP/1.1 200 OK\r\nContent-Length: 62\r\n\r\n")}, "ReplyTooLarge 100"},
+		{"a chunk past the limit", "100", []runtime.SocketStep{expect(req),
+			send("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n20\r\n" + x(32) + "\r\n"),
+			send("20\r\n")}, "ReplyTooLarge 100"},
+		{"a body until close past the limit", "100", []runtime.SocketStep{expect(req),
+			send("HTTP/1.0 200 OK\r\n\r\n" + x(60)), send(x(60))}, "ReplyTooLarge 100"},
+		{"headers past the limit", "100", []runtime.SocketStep{expect(req),
+			send("HTTP/1.1 200 OK\r\nX-Long: " + x(100))}, "ReplyTooLarge 100"},
+		{"a limit of 0 is refused", "0", nil, "InvalidRequest HTTP_CLIENT_MAX_REPLY_BYTES is 0; it must be more than 0"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var peers []*runtime.SocketPeer
+			if c.steps != nil {
+				peers = []*runtime.SocketPeer{peer("big.example.com", 80, c.steps...)}
+			}
+			script := &runtime.ScriptedSocket{Peers: peers}
+			socket := runtime.SocketProvider{Backend: script, Pool: runtime.NewSocketPool(runtime.DefaultIdleLimits)}
+			defer socket.Close()
+			in := httpInterpEnv(t, socket, map[string]string{"HTTP_CLIENT_MAX_REPLY_BYTES": c.limit})
+			v, fault := in.Call(context.Background(), "get", map[string]runtime.Value{"url": str("http://big.example.com")})
+			if fault != nil {
+				t.Fatal(fault)
+			}
+			if got := describeReply(v); got != c.want {
+				t.Errorf("got  %q\nwant %q", got, c.want)
+			}
+			if err := script.Done(); err != nil {
+				t.Error(err)
+			}
+			if strings.HasPrefix(c.want, "ReplyTooLarge") && (socket.Pool.Idle() != 0 || !peers[0].Closed()) {
+				t.Errorf("pool holds %d, peer closed = %v; want the connection closed", socket.Pool.Idle(), peers[0].Closed())
+			}
+		})
 	}
 }
 

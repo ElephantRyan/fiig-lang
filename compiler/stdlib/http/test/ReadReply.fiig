@@ -1,0 +1,49 @@
+// ADR 0074 §7a: the reply size limit, counted over the head and the body.
+test aReplyWithinTheLimitIsRead {
+    reply = wire("HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello")
+    expect readReply(reply, Method.Get, false, reply.length()) is ReplyRead.Done(got, keep)
+    expect got.body == wire("hello")
+}
+
+test aContentLengthPastTheLimitIsRefusedBeforeTheBody {
+    // Only the head has arrived; the length alone is enough to refuse.
+    expect readReply(wire("HTTP/1.1 200 OK\r\nContent-Length: 62\r\n\r\n"), Method.Get, false, 100) is ReplyRead.TooLarge
+    expect readReply(wire("HTTP/1.1 200 OK\r\nContent-Length: 61\r\n\r\n"), Method.Get, false, 100) is ReplyRead.NeedMore
+}
+
+test aHeadReplyIgnoresItsContentLength {
+    expect readReply(wire("HTTP/1.1 200 OK\r\nContent-Length: 5000\r\n\r\n"), Method.Head, false, 100) is ReplyRead.Done(got, keep)
+}
+
+test aChunkPastTheLimitIsRefusedBeforeItsData {
+    head = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"
+    expect readReply(wire("${head}3\r\nabc\r\nffff\r\n"), Method.Get, false, 100) is ReplyRead.TooLarge
+    expect readReply(wire("${head}3\r\nabc\r\n0\r\n\r\n"), Method.Get, false, 100) is ReplyRead.Done(got, keep)
+    expect got.body == wire("abc")
+}
+
+test aBodyUntilCloseStopsAtTheLimit {
+    head = "HTTP/1.0 200 OK\r\n\r\n"
+    expect readReply(wire("${head}${repeated("x", 81)}"), Method.Get, false, 100) is ReplyRead.NeedMore
+    expect readReply(wire("${head}${repeated("x", 82)}"), Method.Get, false, 100) is ReplyRead.TooLarge
+}
+
+test headersPastTheLimitAreTooLarge {
+    expect readReply(wire("HTTP/1.1 200 OK\r\nX-Long: ${repeated("y", 100)}"), Method.Get, false, 100) is ReplyRead.TooLarge
+}
+
+private {
+    wire(text: string) -> bytes {
+        return text.utf8()
+    }
+
+    repeated(piece: string, times: int) -> string {
+        out: string = ""
+        n: int = 0
+        while n < times {
+            out = "${out}${piece}"
+            n = n + 1
+        }
+        return out
+    }
+}

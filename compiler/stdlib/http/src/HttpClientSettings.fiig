@@ -1,0 +1,9 @@
+// ADR 0074 §7a: the most a reply may be, its headers and body as read,
+// before send stops reading, closes the connection, and answers
+// ReplyTooLarge. 16 MiB holds any JSON or form reply an API sends, a page
+// of a list endpoint many times over, while one runaway server can hold
+// no more than that of a process's memory per request. A program that
+// reads larger bodies, such as big fiig.s3 objects, raises it.
+config HttpClientSettings {
+    maxReplyBytes: int from env "HTTP_CLIENT_MAX_REPLY_BYTES" = 16777216
+}

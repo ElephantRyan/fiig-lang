@@ -2,12 +2,19 @@
 // kept by an earlier request to the same host is used first, and kept
 // again when the reply allows (ADR 0109 §6); redirects come back as
 // replies (§4); the timeout bounds the whole exchange, from connecting to
-// the last byte (§5).
+// the last byte (§5), and HTTP_CLIENT_MAX_REPLY_BYTES bounds how much of
+// it is read (§7a).
 capability HttpClient {
     gateway send(request: Request) -> Result<Reply, HttpError>
         requires Socket
     {
         outgoing = outgoingRequest(request)?
+        maxBytes = HttpClientSettings.maxReplyBytes
+        if maxBytes <= 0 {
+            return Err(
+                HttpError.InvalidRequest(reason: "HTTP_CLIENT_MAX_REPLY_BYTES is ${maxBytes}; it must be more than 0"),
+            )
+        }
         until: int = Clock.now() + outgoing.timeoutMillis
         reused: Connection | None = Socket.reuse(
             outgoing.host,
@@ -53,7 +60,7 @@ capability HttpClient {
             buffer: bytes = <<>>
             closed: bool = false
             while not stale {
-                match readReply(buffer, request.method, closed) {
+                match readReply(buffer, request.method, closed, maxBytes) {
                     ReplyRead.Done(reply, keep) -> {
                         if keep {
                             Socket.keep(connection, session: "")
@@ -65,6 +72,12 @@ capability HttpClient {
                     ReplyRead.Malformed(reason) -> {
                         Socket.close(connection)
                         return Err(HttpError.MalformedReply(reason: reason))
+                    }
+                    // The rest of the reply is unread, so the connection
+                    // can't carry another request.
+                    ReplyRead.TooLarge -> {
+                        Socket.close(connection)
+                        return Err(HttpError.ReplyTooLarge(limit: maxBytes))
                     }
                     ReplyRead.NeedMore -> {
                         match Socket.read(connection, deadline: until) {

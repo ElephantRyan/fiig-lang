@@ -1,8 +1,11 @@
 // What readReply makes of the bytes read so far. keep says the connection
 // can carry another request (ADR 0109 §6): the reply's end was known and
-// nothing followed it, and the server didn't ask to close.
+// nothing followed it, and the server didn't ask to close. TooLarge says
+// the reply is, or has said it will be, more bytes than readReply's limit
+// (ADR 0074 §7a).
 enum ReplyRead {
     NeedMore
     Done(reply: Reply, keep: bool)
     Malformed(reason: string)
+    TooLarge
 }
