@@ -109,11 +109,13 @@ func compileDeclCall(e *syntax.CallExpr, name string, args []cexpr, fallback cex
 // value. A target that isn't a local, or holds a capability group, goes to
 // evalCall, which reads a capability, a group, or a prelude group by name.
 func compileMethodCall(e *syntax.CallExpr, target, method string, args []cexpr, fallback cexpr) cexpr {
+	at := new(slot)
 	return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
-		t, isLocal := env.Get(target)
-		if !isLocal {
+		b := env.lookup(target, at)
+		if b == nil {
 			return fallback(in, ctx, env)
 		}
+		t := b.value()
 		if _, isProvider := t.(Provider); isProvider {
 			return fallback(in, ctx, env)
 		}

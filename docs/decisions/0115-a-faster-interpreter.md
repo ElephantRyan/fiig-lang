@@ -309,3 +309,49 @@ which this step reproduces so it changes no behaviour: a `?` that fails
 inside an `if` or `while` condition, or inside a call's arguments,
 returns no value, so the declaration returns `None`, not the `Err`. They
 are fixed separately.
+
+### Step 6: slots
+
+§3's slots, built so compiled code still shares the tree walk's `Env`:
+- **Remembered positions.** Each compiled name keeps a slot: how many
+  scopes up it was found and its position there. The next lookup checks
+  that position, and searches only when the name isn't there. A block
+  binds its names in the same order each run, and only a loop variable or
+  a pattern can hide an outer name, each in a scope of its own, so a slot
+  almost always holds: the bytes loop misses five times in total, all on
+  its first run. A slot is one atomic word, so concurrent bodies may share
+  compiled code.
+- **Unboxed ints.** A binding can hold an `int64` in place of a `Value`.
+  Arithmetic assigned to a local, and a `for` over bytes, store ints this
+  way, and arithmetic reads them back without boxing. The tree walk boxes
+  one when it reads it, so it still sees every binding.
+- **Interned names.** The lexer keeps one string per identifier, so a
+  slot's name check is a pointer comparison.
+- **Loop variables in place.** A `for` loop's variable keeps its place in
+  the loop's scope, and each iteration only sets its value.
+- **Direct operands.** Arithmetic whose right operand, or both operands,
+  are a local or a constant reads them directly rather than through a
+  closure each.
+
+`TestCompiledBodiesMatchTheTreeWalk` now runs each program twice on one
+interpreter, so the second run reads the slots the first set, and adds
+cases for names found at different places by different callers, match
+arms binding different names, unboxed ints used as values, scopes past
+16 names, and faults from each arithmetic fast path.
+
+Fastest of eight runs:
+
+| Workload | Time | vs baseline | Allocations |
+|---|---|---|---|
+| bytes | 25.2 ms (42 MB/s, 24 ns a byte) | 8.8x | 5 |
+| build | 2.30 ms | 1.8x | 50,109 |
+| records | 4.73 ms | 1.7x | 59,750 |
+| murmur2 | 139 ms | 2.6x | 1,598,049 |
+| calls | 39.6 ms | 4.7x | 368,939 |
+| parse | 22.7 ms (20 MB/s) | 2.1x | 260,003 |
+
+Bytes is within 20% of §6's 20 ns. What's left is a closure call and a
+slot check for each operand and statement; closing it would mean fusing
+statements into larger closures, which isn't worth the code for this
+benchmark alone. The next step is the tree walk's remaining hot paths in
+protocol code: bytes literals and binary patterns.

@@ -35,9 +35,14 @@ type cblock struct {
 
 // run is evalBlock.
 func (b *cblock) run(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
+	done := ctx.Done()
 	for _, s := range b.stmts {
-		if f := checkCancelled(ctx); f != nil {
-			return nil, false, f
+		if done != nil {
+			select {
+			case <-done:
+				return nil, false, Faultf("cancelled: %v", ctx.Err())
+			default:
+			}
 		}
 		val, returned, fault := s(in, ctx, env)
 		if fault != nil {
@@ -86,24 +91,7 @@ func compileBlock(b *syntax.Block, producing bool) *cblock {
 func compileStmt(s syntax.Stmt, producingHere bool) cstmt {
 	switch s := s.(type) {
 	case *syntax.Binding:
-		value := compileExpr(s.Value)
-		name, typed := s.Name, s.Type != nil
-		return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
-			val, earlyReturn, fault := value(in, ctx, env)
-			if fault != nil {
-				return nil, false, fault
-			}
-			if earlyReturn {
-				return val, true, nil
-			}
-			switch {
-			case typed:
-				env.BindReassignable(name, val)
-			case !env.Reassign(name, val):
-				env.Bind(name, val)
-			}
-			return nil, false, nil
-		}
+		return compileBinding(s)
 	case *syntax.ExprStmt:
 		value := compileExpr(s.Value)
 		return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
@@ -146,6 +134,75 @@ func compileStmt(s syntax.Stmt, producingHere bool) cstmt {
 	return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
 		return in.evalStmt(ctx, s, env, producingHere)
 	}
+}
+
+// compileBinding is a binding statement: a declaration binds in env's own
+// scope, and any other binding reassigns the reassignable local it names
+// or else binds, as evalStmt does. An int from arithmetic is stored
+// unboxed.
+func compileBinding(s *syntax.Binding) cstmt {
+	name, typed := s.Name, s.Type != nil
+	at := new(slot)
+	store := func(env *Env, b binding) {
+		if !typed {
+			if old := env.lookup(name, at); old != nil && old.reassignable {
+				old.v, old.n, old.isInt = b.v, b.n, b.isInt
+				return
+			}
+		}
+		b.name, b.reassignable = name, typed
+		env.put(b)
+	}
+	if isArithmetic(s.Value) {
+		value := compileInt(s.Value)
+		return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
+			n, v, earlyReturn, fault := value(in, ctx, env)
+			if fault != nil {
+				return nil, false, fault
+			}
+			if earlyReturn {
+				return v, true, nil
+			}
+			if v != nil {
+				store(env, binding{v: v})
+			} else {
+				store(env, binding{n: n, isInt: true})
+			}
+			return nil, false, nil
+		}
+	}
+	value := compileExpr(s.Value)
+	return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
+		val, earlyReturn, fault := value(in, ctx, env)
+		if fault != nil {
+			return nil, false, fault
+		}
+		if earlyReturn {
+			return val, true, nil
+		}
+		store(env, binding{v: val})
+		return nil, false, nil
+	}
+}
+
+// isArithmetic is whether e is arithmetic, so usually an int.
+func isArithmetic(e syntax.Expr) bool {
+	for {
+		paren, ok := e.(*syntax.ParenExpr)
+		if !ok {
+			break
+		}
+		e = paren.Inner
+	}
+	b, ok := e.(*syntax.BinaryExpr)
+	if !ok {
+		return false
+	}
+	switch b.Op {
+	case syntax.OpAdd, syntax.OpSub, syntax.OpMul, syntax.OpDiv, syntax.OpMod:
+		return true
+	}
+	return false
 }
 
 // compileCond is evalCond: whether the condition holds, or the value of
@@ -252,16 +309,18 @@ func compileFor(s *syntax.ForStmt) cstmt {
 			return nil, false, Faultf("for ... in iterable is not a List or bytes (got %s)", iterVal)
 		}
 		// The loop variable needs a scope even when the body binds nothing.
+		// It stays first in that scope, and each iteration sets its value.
 		bodyEnv := env.Child()
+		bodyEnv.bindFresh(name, nil)
 		for i := range count {
 			if f := checkCancelled(ctx); f != nil {
 				return nil, false, f
 			}
-			bodyEnv.reset()
-			if list != nil {
-				bodyEnv.bindFresh(name, list[i])
+			bodyEnv.resetTo(1)
+			if v := &bodyEnv.vars[0]; list != nil {
+				v.v = list[i]
 			} else {
-				bodyEnv.bindFresh(name, Int(data[i]))
+				v.n, v.isInt = int64(data[i]), true
 			}
 			val, jumped, fault := body.run(in, ctx, bodyEnv)
 			if exit, out, outJumped, outFault := loopExit(val, jumped, fault, label); exit {
@@ -341,10 +400,10 @@ func compileExpr(e syntax.Expr) cexpr {
 		case "true", "false":
 			return constExpr(Bool(e.Name == "true"))
 		}
-		name := e.Name
+		name, at := e.Name, new(slot)
 		return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
-			if v, ok := env.Get(name); ok {
-				return v, false, nil
+			if b := env.lookup(name, at); b != nil {
+				return b.value(), false, nil
 			}
 			// A group used as a value, or an undefined name.
 			return in.evalExpr(ctx, e, env)
@@ -455,10 +514,10 @@ func compileFieldAccess(e *syntax.FieldAccess) cexpr {
 			return in.evalFieldAccess(ctx, e, env)
 		}
 	}
-	name, field := target.Name, e.Field
+	name, field, at := target.Name, e.Field, new(slot)
 	return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
-		if v, ok := env.Get(name); ok {
-			if rec, ok := v.(Record); ok {
+		if b := env.lookup(name, at); b != nil {
+			if rec, ok := b.v.(Record); ok {
 				if f, ok := rec.Fields[field]; ok {
 					return f, false, nil
 				}
@@ -549,6 +608,65 @@ func compileBinary(e *syntax.BinaryExpr) cexpr {
 	}
 }
 
+// intBinary is e's arithmetic on operands already evaluated, in int64
+// when both are ints (v nil), with applyBinary's overflow and division
+// faults, and by applyBinary otherwise.
+func (in *Interp) intBinary(e *syntax.BinaryExpr, ln int64, lv Value, rn int64, rv Value) (int64, Value, bool, *Fault) {
+	if lv == nil && rv == nil {
+		if (e.Op == syntax.OpDiv || e.Op == syntax.OpMod) && rn == 0 {
+			return 0, nil, false, Faultf("division by zero")
+		}
+		n, ok := intArith(e.Op, ln, rn)
+		if !ok {
+			return 0, nil, false, Faultf("integer overflow at %s: %d %s %d does not fit in int", e.Start, ln, e.Op, rn)
+		}
+		return n, nil, false, nil
+	}
+	v, _, fault := in.applyBinary(e, boxed(ln, lv), boxed(rn, rv))
+	if fault != nil {
+		return 0, nil, false, fault
+	}
+	if n, ok := v.(Int); ok {
+		return int64(n), nil, false, nil
+	}
+	return 0, v, false, nil
+}
+
+// An intLeaf is an operand that is a local or an int constant.
+type intLeaf struct {
+	name    string
+	at      *slot
+	c       int64
+	isConst bool
+}
+
+func intLeafOf(e syntax.Expr) (intLeaf, bool) {
+	if v, ok := constValue(e); ok {
+		n, isInt := v.(Int)
+		return intLeaf{c: int64(n), isConst: true}, isInt
+	}
+	if id, ok := e.(*syntax.Ident); ok && id.Name != "None" && id.Name != "true" && id.Name != "false" {
+		return intLeaf{name: id.Name, at: new(slot)}, true
+	}
+	return intLeaf{}, false
+}
+
+// read is the leaf's int, or false when it isn't a bound int.
+func (l *intLeaf) read(env *Env) (int64, bool) {
+	if l.isConst {
+		return l.c, true
+	}
+	b := env.lookup(l.name, l.at)
+	if b == nil {
+		return 0, false
+	}
+	if b.isInt {
+		return b.n, true
+	}
+	n, ok := b.v.(Int)
+	return int64(n), ok
+}
+
 // boxed is a cint's result as a Value.
 func boxed(n int64, v Value) Value {
 	if v != nil {
@@ -593,14 +711,32 @@ func compileInt(e syntax.Expr) cint {
 		return func(*Interp, context.Context, *Env) (int64, Value, bool, *Fault) { return 0, v, false, nil }
 	}
 	switch e := e.(type) {
+	case *syntax.Ident:
+		if e.Name == "None" || e.Name == "true" || e.Name == "false" {
+			break
+		}
+		name, at := e.Name, new(slot)
+		return func(in *Interp, ctx context.Context, env *Env) (int64, Value, bool, *Fault) {
+			b := env.lookup(name, at)
+			if b == nil {
+				v, earlyReturn, fault := in.evalExpr(ctx, e, env)
+				return 0, v, earlyReturn, fault
+			}
+			if b.isInt {
+				return b.n, nil, false, nil
+			}
+			if n, ok := b.v.(Int); ok {
+				return int64(n), nil, false, nil
+			}
+			return 0, b.v, false, nil
+		}
 	case *syntax.ParenExpr:
 		return compileInt(e.Inner)
 	case *syntax.BinaryExpr:
 		switch e.Op {
 		case syntax.OpAdd, syntax.OpSub, syntax.OpMul, syntax.OpDiv, syntax.OpMod:
 			left, right := compileInt(e.Left), compileInt(e.Right)
-			op := e.Op
-			return func(in *Interp, ctx context.Context, env *Env) (int64, Value, bool, *Fault) {
+			general := func(in *Interp, ctx context.Context, env *Env) (int64, Value, bool, *Fault) {
 				ln, lv, earlyReturn, fault := left(in, ctx, env)
 				if fault != nil || earlyReturn {
 					return 0, lv, earlyReturn, fault
@@ -609,24 +745,52 @@ func compileInt(e syntax.Expr) cint {
 				if fault != nil || earlyReturn {
 					return 0, rv, earlyReturn, fault
 				}
-				if lv == nil && rv == nil {
-					if (op == syntax.OpDiv || op == syntax.OpMod) && rn == 0 {
-						return 0, nil, false, Faultf("division by zero")
+				return in.intBinary(e, ln, lv, rn, rv)
+			}
+			divides := e.Op == syntax.OpDiv || e.Op == syntax.OpMod
+			l, lok := intLeafOf(e.Left)
+			r, rok := intLeafOf(e.Right)
+			if !rok {
+				return general
+			}
+			if !lok {
+				// `(a + b) % m`: the right operand read here, the left
+				// through its closure, which runs once whatever happens.
+				return func(in *Interp, ctx context.Context, env *Env) (int64, Value, bool, *Fault) {
+					ln, lv, earlyReturn, fault := left(in, ctx, env)
+					if fault != nil || earlyReturn {
+						return 0, lv, earlyReturn, fault
 					}
-					n, ok := intArith(op, ln, rn)
-					if !ok {
-						return 0, nil, false, Faultf("integer overflow at %s: %d %s %d does not fit in int", e.Start, ln, op, rn)
+					if rn, rok := r.read(env); lv == nil && rok {
+						if rn != 0 || !divides {
+							if n, ok := intArith(e.Op, ln, rn); ok {
+								return n, nil, false, nil
+							}
+						}
+						return in.intBinary(e, ln, nil, rn, nil)
 					}
-					return n, nil, false, nil
+					rn, rv, earlyReturn, fault := right(in, ctx, env)
+					if fault != nil || earlyReturn {
+						return 0, rv, earlyReturn, fault
+					}
+					return in.intBinary(e, ln, lv, rn, rv)
 				}
-				v, _, fault := in.applyBinary(e, boxed(ln, lv), boxed(rn, rv))
-				if fault != nil {
-					return 0, nil, false, fault
+			}
+			// Both operands are a local or a constant, read here rather
+			// than through a closure each; general handles anything that
+			// isn't an int.
+			return func(in *Interp, ctx context.Context, env *Env) (int64, Value, bool, *Fault) {
+				ln, lok := l.read(env)
+				rn, rok := r.read(env)
+				if lok && rok {
+					if rn != 0 || !divides {
+						if n, ok := intArith(e.Op, ln, rn); ok {
+							return n, nil, false, nil
+						}
+					}
+					return in.intBinary(e, ln, nil, rn, nil)
 				}
-				if n, ok := v.(Int); ok {
-					return int64(n), nil, false, nil
-				}
-				return 0, v, false, nil
+				return general(in, ctx, env)
 			}
 		}
 	}

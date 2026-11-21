@@ -122,6 +122,90 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
     p = P(x: n, y: n + 1)
     return p.x * p.y
 }`}, "f", map[string]Value{"n": Int(6)}},
+		// Slots (ADR 0115 §3): a name found at a different place on a
+		// later run, and ints held unboxed then read as values.
+		{"slots across callers", []string{`conversion f(a: int) -> int {
+    total: int = 0
+    for x in [1, 2, 3] {
+        total = total + g(b: x, a: a) + g(a, x)
+    }
+    return total
+}`, `rule g(a: int, b: int) -> int {
+    c = a * 10
+    return c + b
+}`}, "f", map[string]Value{"a": Int(7)}},
+		{"slots across match arms", []string{`rule f(rs: List<Result<int, string>>) -> string {
+    out: string = ""
+    n: int = 0
+    for r in rs {
+        match r {
+            Ok(v) -> {
+                n = n + v
+                out = "${out}${v},"
+            }
+            Err(reason) -> {
+                out = "${out}${reason}:${n},"
+            }
+        }
+    }
+    return out
+}`}, "f", map[string]Value{"rs": List{Elems: []Value{
+			Result{Ok: true, Value: Int(1)}, Result{Ok: false, Value: Str("a")},
+			Result{Ok: true, Value: Int(70000)}, Result{Ok: false, Value: Str("b")}}}}},
+		{"unboxed ints as values", []string{`rule f(data: bytes) -> List<int> {
+    sum: int = 0
+    seen: List<int> = []
+    for b in data {
+        sum = sum * 31 + b
+        seen = append(seen, sum)
+        seen = append(seen, b)
+    }
+    if [sum, 1] == seen {
+        return seen
+    }
+    return [sum, sum % 7]
+}`}, "f", map[string]Value{"data": Bytes{B: []byte{200, 3, 255, 0, 17}}}},
+		{"arithmetic on locals and constants", []string{`rule f(a: int, x: float) -> List<string> {
+    big = a * 1000000000
+    return ["${(a + 1) % 7}", "${(a * 3) / 2}", "${(x + 1.5) * 2.0}", "${a % 5 + a / 3}"]
+}`}, "f", map[string]Value{"a": Int(40), "x": Float(0.25)}},
+		{"a left operand that faults", []string{`rule f(a: int) -> int {
+    return (a * a) % 9
+}`}, "f", map[string]Value{"a": Int(1 << 40)}},
+		{"division by a zero local", []string{`rule f(a: int, z: int) -> int {
+    return (a + 1) / z
+}`}, "f", map[string]Value{"a": Int(4), "z": Int(0)}},
+		{"overflow on locals", []string{`rule f(a: int) -> int {
+    b = a
+    return a * b
+}`}, "f", map[string]Value{"a": Int(1 << 40)}},
+		{"many locals", []string{`rule f(n: int) -> int {
+    a1 = n + 1
+    a2 = a1 + 1
+    a3 = a2 + 1
+    a4 = a3 + 1
+    a5 = a4 + 1
+    a6 = a5 + 1
+    a7 = a6 + 1
+    a8 = a7 + 1
+    a9 = a8 + 1
+    a10 = a9 + 1
+    a11 = a10 + 1
+    a12 = a11 + 1
+    a13 = a12 + 1
+    a14 = a13 + 1
+    a15 = a14 + 1
+    a16 = a15 + 1
+    a17 = a16 + 1
+    a18 = a17 + 1
+    t: int = 0
+    i: int = 0
+    while i < 3 {
+        t = t + a1 + a18 + i
+        i = i + 1
+    }
+    return t
+}`}, "f", map[string]Value{"n": Int(5)}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -140,7 +224,13 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
 			run := func(walk bool) (Value, *Fault) {
 				in := newTestInterp(universe, nil)
 				in.walkOnly = walk
-				return in.Call(context.Background(), c.call, c.args)
+				// Twice, so the second run reads the slots the first set.
+				first, firstFault := in.Call(context.Background(), c.call, c.args)
+				v, f := in.Call(context.Background(), c.call, c.args)
+				if (firstFault == nil) != (f == nil) || (f == nil && !Equal(first, v)) {
+					t.Fatalf("a second run gave %v / %v, the first %v / %v", v, f, first, firstFault)
+				}
+				return v, f
 			}
 			walked, walkFault := run(true)
 			compiled, compiledFault := run(false)
