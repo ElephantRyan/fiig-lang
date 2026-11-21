@@ -45,6 +45,7 @@ Full rules are in language.md §3; this is the index a reader should recognize b
 8. **One declaration per file, explicit imports** — no wildcard imports; aliases are local spellings over canonical registry identities.
 9. **Registry-first reuse** — every export carries a compact contract; search happens before new code is written.
 10. **Strict about what the program says and reads, lenient about what it receives and ignores** — a program declares exactly what it reads and produces, and the checker holds it to that; extra input from the outside world (an unread header, a `3.0` for an int) is accepted rather than refused. Being opinionated inside the program is what lets a reader, human or LLM, have all the context it needs (ADR 0062 §2, ADR 0070 §2).
+11. **Fail at the earliest point that has the information** — a program refuses what it can before it does any work, and later layers don't re-check what an earlier one settled. Config is checked at startup (ADR 0071, 0122, 0124); a request is limited before the program runs (ADR 0076) and its principal (who is calling) is to be settled before its body is read (ADR 0137, proposed); input is decoded into its type at the boundary (ADR 0073); a workflow runs its pure checks before any step does I/O (`docs/layers.md`); a defect is a fault that cancels, not an error that travels (principle 5).
 
 ## Not object-oriented
 

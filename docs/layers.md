@@ -64,6 +64,79 @@ adapter http api {
 }
 ```
 
+## The order of checks
+
+A request is refused at the first point that has the information (charter
+principle 11):
+
+1. **Who is asking.** Today that is a workflow's first line. Once ADR 0137
+   (proposed) is built, the adapter settles it before it reads the body, and
+   a workflow that needs a person takes one as a parameter, as below.
+2. **The workflow** runs its pure checks next: rules over the input, with no
+   I/O.
+3. **Then the steps.** Checks that need the outside world (does the book
+   exist?) come first among them, and the writes come last.
+
+A rule that both checks the input and builds what is stored often needs the
+time or an id, which a workflow can't read (B10), and then the whole rule
+ends up in the activity, after the I/O. Split it: a rule that checks the
+input alone, called first in the workflow, and the building in the step.
+
+```fiig
+// Slow: a score of 12 costs an ABS round trip before it is refused, because
+// the check is inside storeRating.
+workflow putRating(me: Identity, itemId: string, input: RatingInput) -> Result<Rating, RatingError> {
+    book = mapErr(e in latestBook(itemId)): RatingError.NoSuchBook?
+    return storeRating(me, book, input)
+}
+
+// Fast: the pure check first; the step takes what it returned.
+workflow putRating(me: Identity, itemId: string, input: RatingInput) -> Result<Rating, RatingError> {
+    valid = validRating(input)?
+    book = mapErr(e in latestBook(itemId)): RatingError.NoSuchBook?
+    return storeRating(me, book, valid)
+}
+```
+
+The step taking `ValidRating` rather than `RatingInput` makes the right order
+the obvious one: the raw input can't be handed to it.
+
+## A step that reads two steps
+
+Each step's error is in its own domain's terms, so an activity that reads
+two steps with different errors has no single error type to pass up. Most of
+the time that is a sign the two calls belong in the workflow, where each
+error gets its meaning for the feature:
+
+```fiig
+workflow showMyListening(me: Identity) -> Result<Listening, ListeningError> {
+    progress = mapErr(e in loadProgress(me.userId)): ListeningError.AbsDown?
+    books = mapErr(e in cachedBooks(progress.ids)): ListeningError.BooksUnavailable?
+    return Ok(Listening(progress, books))
+}
+```
+
+When the activity really is one step, for example because both calls happen
+in one transaction, give it an error enum whose variants carry each step's
+error. `mapErr` wraps each one inline, with no conversion file:
+
+```fiig
+enum ListeningError {
+    Progress(why: AbsFault)
+    Books(why: BookError)
+}
+
+activity loadMyListening(userId: string) -> Result<Listening, ListeningError> {
+    progress = mapErr(e in loadProgress(userId)): ListeningError.Progress(e)?
+    books = mapErr(e in cachedBooks(progress.ids)): ListeningError.Books(e)?
+    return Ok(Listening(progress, books))
+}
+```
+
+Fiig has no union error types (`Result<T, AbsFault | BookError>`). `?` never
+converts an error (ADR 0006, F2), and the named variants say more about what
+failed (Hearsay GAPS G60).
+
 ## Why a workflow doesn't call a gateway
 
 A workflow that calls `findBook` directly depends on how the book is
