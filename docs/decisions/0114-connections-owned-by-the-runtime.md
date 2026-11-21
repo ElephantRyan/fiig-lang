@@ -1,6 +1,7 @@
 # ADR 0114: Connections the Runtime Owns, Driven by Protocols Written as State Machines
 
-Status: Proposed (2026-11-20), design only
+Status: Accepted (2026-11-20; the owner approved it in review, with `bytes`
+state, §4). Design only: nothing is built yet.
 Date: 2026-11-20
 Answers: ADR 0109 open question 2 (a connection owned by something that
 outlives every call).
@@ -155,6 +156,13 @@ question 1:
   gateways by name (ADR 0084 §1), with a new bug class for a package
   whose operations disagree on it;
 - generics, if fiig ever gets them.
+
+**Decided (2026-11-20, the owner): accept `bytes`.** No protocol package
+exists yet, so nothing needs migrating if this changes. Revisit when a
+measurement of `fiig.http2` or the Kafka consumer shows the encode and
+decode per step costing more than the protocol's own work, or when a
+package's operations disagree on the state's layout in a way only a
+test caught.
 
 ### 5. How this unblocks the three cases
 
