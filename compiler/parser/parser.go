@@ -41,6 +41,9 @@ type Parser struct {
 	toks   []lexer.Token
 	pos    int
 	errors []Error
+	// keywordNames is each keyword this file named something with, which
+	// expectName already reported; a later use reads as that name.
+	keywordNames map[string]bool
 }
 
 func New(toks []lexer.Token) *Parser {
@@ -169,6 +172,10 @@ func (p *Parser) expectName() lexer.Token {
 		// the name, so the rest of the line parses.
 		tok := p.cur()
 		p.errorf(tok.Start, "`%s` is a keyword, so it can't name a parameter or a local; choose another name (a field may use it, ADR 0073 §7a)", tok.Text)
+		if p.keywordNames == nil {
+			p.keywordNames = map[string]bool{}
+		}
+		p.keywordNames[tok.Text] = true
 		return p.advance()
 	}
 	p.errorf(p.cur().Start, "expected a name, got %s", p.cur().Kind)
@@ -1952,6 +1959,10 @@ func (p *Parser) parseExpression() syntax.Expr {
 			p.advance()
 		}
 		p.parsePattern()
+		// The whole test stands for nothing the checker should judge, so no
+		// second error follows the first (`a count body must be bool`).
+		start, _ := exprBounds(e)
+		return &syntax.Ident{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: syntax.ErrorName}
 	}
 	return e
 }
@@ -2190,6 +2201,12 @@ func (p *Parser) parsePrimary() syntax.Expr {
 		}
 		return &syntax.Ident{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: syntax.ErrorName}
 	default:
+		if tok := p.cur(); p.keywordNames[tok.Text] && lexer.IsKeyword(tok.Kind) {
+			// A keyword this file already used as a name, already reported
+			// there (GAPS G33): its uses read as that name, so it's said once.
+			p.advance()
+			return &syntax.Ident{Span: syntax.Span{Start: tok.Start, End: tok.End}, Name: tok.Text}
+		}
 		p.errorf(start, "expected an expression, got %s", p.cur().Kind)
 		p.advance()
 		return &syntax.Ident{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: syntax.ErrorName}
