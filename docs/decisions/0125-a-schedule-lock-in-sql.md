@@ -64,6 +64,27 @@ or handed to another call. A row has no such coupling.
   and a lapsed one is overwritten only if its key comes round again. A
   schedule that fires every minute adds 1,440 rows a day; pruning is open
   question 1.
+
+  *(Amended 2026-11-21: expired rows are deleted. Each `claim` first runs
+  `DELETE FROM fiig_locks WHERE expires_at <= now`, as its own statement
+  before the insert, so the table holds only live rows: a claim per job
+  until it lapses and a `:done` row per deploy for its seven days. Deleting
+  an expired row changes no answer, because every gateway already reads one
+  as absent: `claim` takes over a row whose `expires_at <= now`, and
+  `completed` asks only for `expires_at > now`. `<=` is that same boundary.
+  So the delete needs no transaction with the insert, and a race between
+  two replicas' deletes and inserts lands where it would without the delete:
+  one insert wins, the other conflicts with a live row and loses. Done rows
+  are deleted only once their retention ends, which is when `fiig.redis`'s
+  `PX` forgets them too (ADR 0124 §6), so a `once` route's completion lasts
+  as long as before. One cross-replica effect is new: a replica whose clock
+  runs early deletes a done row a few seconds before a late replica would
+  stop counting it, the same skew §Decision already accepts for claims, and
+  only at the end of seven days. `claim` is the one gateway that prunes, as
+  it is the one a schedule calls on every firing; `complete` and
+  `completed` don't, so a `once` check stays a read. The delete scans the
+  table, which pruning keeps small, so there is no index on `expires_at`.
+  It is plain SQL that Postgres and SQLite both read.)*
 - **The first deploy races:** on Postgres, two replicas that run
   `CREATE TABLE IF NOT EXISTS` for the first time at the same moment can both
   try to create it, and one gets a duplicate-key error. That replica refuses
@@ -72,8 +93,9 @@ or handed to another call. A row has no such coupling.
 
 ## Open questions
 
-1. **Pruning** expired rows, perhaps `DELETE ... WHERE expires_at < now` on
-   each claim.
+1. ~~**Pruning** expired rows, perhaps `DELETE ... WHERE expires_at < now` on
+   each claim.~~ Done 2026-11-21: each `claim` deletes the rows at or past
+   `expires_at` (§Consequences' amendment).
 2. **MySQL** has no `ON CONFLICT`; it needs `ON DUPLICATE KEY UPDATE`, and
    no fiig driver for it exists yet.
 
@@ -88,3 +110,11 @@ or handed to another call. A row has no such coupling.
   ran a `once` seed and wrote the two rows, and a second replica of the same
   code logged "another replica has run it for this deploy" and started
   without running it.
+- *(Amended 2026-11-21: pruning.)* `TestSqlScheduleLockClaimPrunesExpiredRows`
+  (SQLite) seeds an expired claim and an expired done row beside a live
+  claim and a live done row; a claim leaves only the live two and its own,
+  and `completed` still answers true for the live done row. Making the
+  delete's bound 0 failed it. On the Postgres 17 container the `DELETE` was
+  run as a prepared statement with a `bigint` parameter over a temporary
+  `fiig_locks` and deleted only the expired row; the lock itself was not
+  re-run on Postgres, as there is no Postgres harness for it.

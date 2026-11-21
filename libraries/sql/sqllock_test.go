@@ -162,3 +162,45 @@ func TestSqlScheduleLockClaimExpires(t *testing.T) {
 		t.Error("a lapsed claim should be taken over")
 	}
 }
+
+// A claim deletes the rows that have expired, claims and done rows alike, and
+// keeps the live ones, so a done row still answers completed until its
+// retention ends.
+func TestSqlScheduleLockClaimPrunesExpiredRows(t *testing.T) {
+	db := openTestDB(t)
+	lock := sqlLockRunner(t, db, "replica-a", 31).Lock()
+	ctx := context.Background()
+	if _, failure, f := lock.Claim(ctx, "first", 31, "a", 60_000); failure != nil || f != nil {
+		t.Fatalf("claim: %v %v", failure, f)
+	}
+	if failure, f := lock.Complete(ctx, "kept", 31, "a", 60_000); failure != nil || f != nil {
+		t.Fatalf("complete: %v %v", failure, f)
+	}
+	past := time.Now().UnixMilli() - 1_000
+	for _, key := range []string{"fiig:schedule:old:1", "fiig:schedule:gone:31:done"} {
+		if _, err := db.Exec(`INSERT INTO fiig_locks (lock_key, holder, expires_at) VALUES (?, 'z', ?)`, key, past); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if won, failure, f := lock.Claim(ctx, "next", 31, "a", 60_000); !won || failure != nil || f != nil {
+		t.Fatalf("claim: %v %v %v", won, failure, f)
+	}
+	rows, err := db.Query(`SELECT lock_key FROM fiig_locks ORDER BY lock_key`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var keys []string
+	for rows.Next() {
+		var k string
+		rows.Scan(&k)
+		keys = append(keys, k)
+	}
+	want := "fiig:schedule:first:31 fiig:schedule:kept:31:done fiig:schedule:next:31"
+	if got := strings.Join(keys, " "); got != want {
+		t.Errorf("rows after a claim = %q, want %q", got, want)
+	}
+	if done, failure, f := lock.Completed(ctx, "kept", 31); !done || failure != nil || f != nil {
+		t.Errorf("an unexpired done row should still be completed: %v %v %v", done, failure, f)
+	}
+}
