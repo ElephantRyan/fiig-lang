@@ -130,7 +130,6 @@ func TestParseOrigins(t *testing.T) {
 		"app.example.com":             "isn't an origin",
 		"ftp://app.example.com":       "isn't an origin",
 		"https://u@app.example.com":   "isn't an origin",
-		"https://*.example.com":       "wildcard",
 		"https://app.example.com:443": "default port",
 		"http://localhost:80":         "default port",
 	}
@@ -141,6 +140,98 @@ func TestParseOrigins(t *testing.T) {
 	}
 	if _, err := ParseOrigins([]string{"*", "https://a.example"}); err == nil || !strings.Contains(err.Error(), "only one") {
 		t.Errorf("* with another origin: got %v", err)
+	}
+}
+
+// §9 as amended 2026-11-21: `*` may be the whole first label of a host,
+// and nowhere else.
+func TestParseSubdomainPatterns(t *testing.T) {
+	good := []string{"https://*.example.com", "http://*.localhost.test:5173", "HTTPS://*.Tenants.Example.COM", "https://*.my-app.example.co"}
+	c, err := ParseOrigins(append(good, "https://example.com"))
+	if err != nil {
+		t.Fatalf("%v: %v", good, err)
+	}
+	if got := strings.Join(c.Origins(), " "); got != "http://*.localhost.test:5173 https://*.example.com https://*.my-app.example.co https://*.tenants.example.com https://example.com" {
+		t.Errorf("Origins() = %q", got)
+	}
+	bad := map[string]string{
+		"https://*":                 "wildcard where none is allowed",
+		"https://*.":                "isn't an origin pattern",
+		"*.example.com":             "wildcard where none is allowed",
+		"https://a.*.example.com":   "wildcard where none is allowed",
+		"https://*example.com":      "wildcard where none is allowed",
+		"https://**.example.com":    "wildcard where none is allowed",
+		"https://*.*.example.com":   "wildcard where none is allowed",
+		"https://app.example.*":     "wildcard where none is allowed",
+		"https://example.com:*":     "wildcard where none is allowed",
+		"*://*.example.com":         "wildcard where none is allowed",
+		"ftp://*.example.com":       "wildcard where none is allowed",
+		"https://*.com":             "at least two labels",
+		"http://*.localhost:3000":   "at least two labels",
+		"https://*.example.com/":    "isn't an origin pattern",
+		"https://*.example.com/x":   "isn't an origin pattern",
+		"https://*.exa_mple.com":    "isn't an origin pattern",
+		"https://*.-example.com":    "isn't an origin pattern",
+		"https://*.example..com":    "isn't an origin pattern",
+		"https://*.example.com:443": "default port",
+		"http://*.example.com:80":   "default port",
+		"https://*.example.com:":    "port that isn't a number",
+		"https://*.example.com:x1":  "port that isn't a number",
+		"https://*.example.com:080": "port that isn't a number",
+		"https://*.10.0.0.1":        "IP address",
+	}
+	for origin, want := range bad {
+		if _, err := ParseOrigins([]string{origin}); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: got %v, want an error containing %q", origin, err, want)
+		}
+	}
+}
+
+// A pattern matches any subdomain depth with the same scheme and port, and
+// never the apex, a look-alike suffix, or another scheme or port; a match
+// echoes the origin as sent, with credentials and Vary: Origin, as an exact
+// entry does.
+func TestSubdomainPatternsMatch(t *testing.T) {
+	h := mustCORS(t, "https://*.example.com", "http://*.dev.example.com:5173")
+	allowed := []string{
+		"https://acme.example.com",
+		"https://ACME.Example.com",
+		"https://eu.acme.example.com",
+		"https://a-1.b.c.example.com",
+		"http://acme.dev.example.com:5173",
+	}
+	for _, origin := range allowed {
+		code, hdr, _ := serve(h, preflight("/items/7", origin, "PUT", ""))
+		if code != 204 || hdr.Get("Access-Control-Allow-Origin") != origin || hdr.Get("Access-Control-Allow-Credentials") != "true" || !strings.Contains(strings.Join(hdr.Values("Vary"), ", "), "Origin") {
+			t.Errorf("preflight from %q: %d %v", origin, code, hdr)
+		}
+		r := httptest.NewRequest(http.MethodGet, "/items/7", nil)
+		r.Header.Set("Origin", origin)
+		code, hdr, _ = serve(h, r)
+		if code != 200 || hdr.Get("Access-Control-Allow-Origin") != origin || hdr.Get("Vary") != "Origin" {
+			t.Errorf("GET from %q: %d %v", origin, code, hdr)
+		}
+	}
+	refused := []string{
+		"https://example.com",                    // the apex
+		"https://evilexample.com",                // a suffix, not a subdomain
+		"https://acme.example.com.evil.net",      // the domain inside another
+		"http://acme.example.com",                // another scheme
+		"https://acme.example.com:8443",          // another port
+		"http://acme.dev.example.com",            // the pattern's port missing
+		"http://acme.dev.example.com:5174",       // another port
+		"https://.example.com",                   // an empty label
+		"https://a..example.com",                 // an empty label
+		"https://a_b.example.com",                // not a host label
+		"https://user@acme.example.com",          // not an origin
+		"https://acme.example.com/x.example.com", // a path
+		"null",
+	}
+	for _, origin := range refused {
+		code, hdr, _ := serve(h, preflight("/items/7", origin, "PUT", ""))
+		if code != 403 || hdr.Get("Access-Control-Allow-Origin") != "" {
+			t.Errorf("preflight from %q: got %d %v, want a bare 403", origin, code, hdr)
+		}
 	}
 }
 

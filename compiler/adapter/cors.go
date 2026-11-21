@@ -14,17 +14,72 @@ import (
 // CORS is the origins a deployment lets call an http adapter from a
 // browser on another origin (ADR 0070 §1). A nil *CORS is CORS off.
 type CORS struct {
-	any     bool            // `*`: every origin, never credentials (§3)
-	origins map[string]bool // exact, lowercased `scheme://host[:port]`
+	any      bool                  // `*`: every origin, never credentials (§3)
+	origins  map[string]bool       // exact, lowercased `scheme://host[:port]`
+	patterns map[string]subdomains // `scheme://*.domain[:port]`, lowercased (§9)
 }
 
-// Origins lists the allowed origins, sorted, or `*`.
+// subdomains is a wildcard entry, `https://*.example.com` (§9, amended
+// 2026-11-21): any origin with this scheme and port whose host is one or
+// more labels, then `.` and the domain. The domain itself (the apex) is
+// not matched; list it exactly beside the pattern if it serves a front end.
+type subdomains struct {
+	scheme string // "http" or "https"
+	domain string // "example.com": at least two labels
+	port   string // "" for the scheme's default
+}
+
+// matches reports whether origin, already lowercased, is a subdomain of
+// p's domain with p's scheme and port. Each label before the domain must be
+// letters, digits and hyphens, so nothing but a host can match.
+func (p subdomains) matches(origin string) bool {
+	rest, ok := strings.CutPrefix(origin, p.scheme+"://")
+	if !ok {
+		return false
+	}
+	host := rest
+	if p.port != "" {
+		if host, ok = strings.CutSuffix(rest, ":"+p.port); !ok {
+			return false
+		}
+	}
+	sub, ok := strings.CutSuffix(host, "."+p.domain)
+	if !ok || sub == "" {
+		return false
+	}
+	for _, label := range strings.Split(sub, ".") {
+		if !isHostLabel(label) {
+			return false
+		}
+	}
+	return true
+}
+
+// isHostLabel reports whether label is one DNS label as an origin spells
+// it: lowercase letters, digits and inner hyphens, 1 to 63 bytes.
+func isHostLabel(label string) bool {
+	if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+		return false
+	}
+	for i := 0; i < len(label); i++ {
+		b := label[i]
+		if !(b >= 'a' && b <= 'z' || b >= '0' && b <= '9' || b == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+// Origins lists the allowed origins and subdomain patterns, sorted, or `*`.
 func (c *CORS) Origins() []string {
 	if c.any {
 		return []string{"*"}
 	}
 	var list []string
 	for o := range c.origins {
+		list = append(list, o)
+	}
+	for o := range c.patterns {
 		list = append(list, o)
 	}
 	sort.Strings(list)
@@ -45,8 +100,9 @@ var safelistedResponseHeaders = map[string]bool{
 
 // ParseOrigins reads the -allow-origin values (§1). It returns nil, CORS
 // off, when there are none. Each must be exactly the form a browser sends
-// in Origin; `null` and pattern matching are refused, and `*` must stand
-// alone.
+// in Origin, or that form with `*` as the whole first label of the host
+// (`https://*.example.com`, §9 as amended 2026-11-21); `null` and any other
+// pattern are refused, and `*` must stand alone.
 func ParseOrigins(values []string) (*CORS, error) {
 	var list []string
 	for _, v := range values {
@@ -57,7 +113,7 @@ func ParseOrigins(values []string) (*CORS, error) {
 	if len(list) == 0 {
 		return nil, nil
 	}
-	c := &CORS{origins: map[string]bool{}}
+	c := &CORS{origins: map[string]bool{}, patterns: map[string]subdomains{}}
 	for _, o := range list {
 		switch {
 		case o == "*":
@@ -69,7 +125,12 @@ func ParseOrigins(values []string) (*CORS, error) {
 		case strings.EqualFold(o, "null"):
 			return nil, fmt.Errorf("allowed origin %q is refused: sandboxed iframes and file: pages send it, so it would trust anything", o)
 		case strings.Contains(o, "*"):
-			return nil, fmt.Errorf("allowed origin %q has a wildcard; list each origin exactly", o)
+			p, err := parseSubdomains(o)
+			if err != nil {
+				return nil, err
+			}
+			c.patterns[strings.ToLower(o)] = p
+			continue
 		}
 		u, err := url.Parse(o)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
@@ -82,6 +143,52 @@ func ParseOrigins(values []string) (*CORS, error) {
 		c.origins[strings.ToLower(o)] = true
 	}
 	return c, nil
+}
+
+// parseSubdomains reads a wildcard entry (§9): `scheme://*.domain` or
+// `scheme://*.domain:port`, the `*` standing for one or more whole labels.
+// A `*` anywhere else, `https://*` alone, and a domain of one label
+// (`https://*.com`) are refused, since each would trust hosts nobody
+// writing it means to.
+func parseSubdomains(o string) (subdomains, error) {
+	shape := fmt.Errorf("allowed origin %q has a wildcard where none is allowed; the only pattern is * as the whole first label of the host, as https://*.example.com or http://*.example.com:8080", o)
+	lower := strings.ToLower(o)
+	var p subdomains
+	var rest string
+	switch {
+	case strings.HasPrefix(lower, "https://*."):
+		p.scheme, rest = "https", lower[len("https://*."):]
+	case strings.HasPrefix(lower, "http://*."):
+		p.scheme, rest = "http", lower[len("http://*."):]
+	default:
+		return p, shape
+	}
+	if strings.Contains(rest, "*") {
+		return p, shape
+	}
+	if host, port, found := strings.Cut(rest, ":"); found {
+		if port == "" || len(port) > 5 || strings.Trim(port, "0123456789") != "" || port[0] == '0' {
+			return p, fmt.Errorf("allowed origin %q has a port that isn't a number from 1 to 65535", o)
+		}
+		if (p.scheme == "http" && port == "80") || (p.scheme == "https" && port == "443") {
+			return p, fmt.Errorf("allowed origin %q names its scheme's default port, which browsers leave out of Origin; write %s://*.%s", o, p.scheme, host)
+		}
+		rest, p.port = host, port
+	}
+	labels := strings.Split(rest, ".")
+	for _, label := range labels {
+		if !isHostLabel(label) {
+			return p, fmt.Errorf("allowed origin %q isn't an origin pattern: after *. comes a domain name, dot-separated labels of letters, digits and hyphens, then an optional :port, with no path or trailing slash", o)
+		}
+	}
+	if len(labels) < 2 {
+		return p, fmt.Errorf("allowed origin %q would allow every host under %q; a pattern's domain has at least two labels, as https://*.example.com", o, rest)
+	}
+	if strings.Trim(labels[len(labels)-1], "0123456789") == "" {
+		return p, fmt.Errorf("allowed origin %q ends in a number, like an IP address, which has no subdomains; list the origin exactly", o)
+	}
+	p.domain = rest
+	return p, nil
 }
 
 // WithCORS wraps the handler HTTPHandler built for d with c's policy, or
@@ -138,6 +245,12 @@ func (c *CORS) allowed(origin string) string {
 		return "*"
 	case c.origins[strings.ToLower(origin)]:
 		return origin
+	}
+	lower := strings.ToLower(origin)
+	for _, p := range c.patterns {
+		if p.matches(lower) {
+			return origin
+		}
 	}
 	return ""
 }

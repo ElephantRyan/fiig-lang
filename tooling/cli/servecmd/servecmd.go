@@ -75,7 +75,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	var workspaces stringList
 	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable")
 	var origins stringList
-	fs.Var(&origins, "allow-origin", "an origin a browser front end may call from, as scheme://host[:port], or * for any (ADR 0070); repeatable; default $ALLOW_ORIGINS, comma-separated; none means CORS off")
+	fs.Var(&origins, "allow-origin", "an origin a browser front end may call from, as scheme://host[:port], scheme://*.domain[:port] for its subdomains, or * for any (ADR 0070); repeatable; default $ALLOW_ORIGINS, comma-separated; none means CORS off")
 	maxBody := fs.Int64("max-body", 0, "the most bytes a request body may have, else 413 (ADR 0076 §1); default $MAX_BODY_BYTES, else 2097152")
 	maxRequests := fs.Int("max-requests", 0, "how many requests may run at once, with as many waiting up to 5 s, else 503 (ADR 0076 §2); default $MAX_REQUESTS, else 256")
 	migrateFlag := fs.String("migrate", "apply", "apply pending migrations before serving, or check: refuse to start while any are pending (ADR 0096 §2)")
