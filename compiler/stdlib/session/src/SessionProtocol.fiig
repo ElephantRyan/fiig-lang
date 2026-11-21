@@ -1,0 +1,14 @@
+// ADR 0114 §1, ADR 0117 §2: a protocol over one connection the runtime
+// owns, as a state machine. Each operation takes the connection's state and
+// returns a Step: the next state and what to do. The runtime calls them one
+// at a time per connection, and they require nothing, so they reach no
+// other system. A package's manifest names the group that fulfils it:
+// "provides": {"fiig.session.SessionProtocol": "KafkaSession"}, and
+// Session.call from that package's gateways runs it.
+interface SessionProtocol {
+    opened(settings: Map<string, string>, now: int) -> Step
+    received(state: bytes, data: bytes, now: int) -> Step
+    asked(state: bytes, message: bytes, now: int) -> Step
+    tick(state: bytes, now: int) -> Step
+    closing(state: bytes, now: int) -> Step
+}

@@ -1,0 +1,12 @@
+// What a protocol's operation decided (ADR 0114 §1): the connection's next
+// state, the bytes to send, the key an ask's reply will carry (None when
+// the connection can take no more asks now), replies to earlier asks, when
+// to tick next, and whether the connection is done.
+model Step {
+    state: bytes
+    write: bytes
+    accepted: int | None
+    replies: List<SessionReply>
+    nextTickAt: int | None
+    close: SessionClose | None
+}

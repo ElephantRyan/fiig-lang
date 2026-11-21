@@ -1,0 +1,9 @@
+// Why a connection ends (ADR 0117 §2). Done and Failed close it, and the
+// asks still waiting get SessionError.Broken; the next call opens another.
+// MoveTo opens one to host and port instead and asks it every message
+// still waiting, so the callers never see the move.
+enum SessionClose {
+    Done(reason: string)
+    Failed(reason: string)
+    MoveTo(host: string, port: int)
+}

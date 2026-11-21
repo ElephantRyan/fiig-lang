@@ -1,0 +1,7 @@
+// One part of the reply to an ask (ADR 0114 §1), by the key asked returned.
+// The call that asked gets every part up to the one that is last.
+model SessionReply {
+    key: int
+    message: bytes
+    last: bool
+}
