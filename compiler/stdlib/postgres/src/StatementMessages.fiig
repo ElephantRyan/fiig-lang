@@ -1,9 +1,10 @@
 use fiig.sql as db
 
-// ADR 0085 §3, §8: Parse, Bind, Describe, Execute and Sync for one
-// statement, written at once. Parameters are text, except bytes, which
+// ADR 0085 §3, §8: Bind, Describe, Execute and Sync for one statement,
+// the one named name ("" the unnamed one), written at once after its
+// Parse, if it needs one (§3b). Parameters are text, except bytes, which
 // are binary; every result column is text.
-conversion statementMessages(sql: string, values: List<db.SqlValue>) -> bytes {
+conversion statementMessages(name: string, values: List<db.SqlValue>) -> bytes {
     formats: bytes = <<>>
     params: bytes = <<>>
     for value in values {
@@ -35,13 +36,12 @@ conversion statementMessages(sql: string, values: List<db.SqlValue>) -> bytes {
         }
     }
     count = values.length()
-    parse = pgMessage(80, <<cString(""): bytes, cString(sql): bytes, 0: i16be>>)
     bind = pgMessage(
         66,
-        <<cString(""): bytes, cString(""): bytes, count: i16be, formats: bytes, count: i16be, params: bytes, 0: i16be>>,
+        <<cString(""): bytes, cString(name): bytes, count: i16be, formats: bytes, count: i16be, params: bytes, 0: i16be>>,
     )
     describe = pgMessage(68, <<80: u8, 0: u8>>)
     execute = pgMessage(69, <<0: u8, 0: i32be>>)
     sync = pgMessage(83, <<>>)
-    return <<parse: bytes, bind: bytes, describe: bytes, execute: bytes, sync: bytes>>
+    return <<bind: bytes, describe: bytes, execute: bytes, sync: bytes>>
 }

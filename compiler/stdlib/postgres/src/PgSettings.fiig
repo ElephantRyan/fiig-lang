@@ -1,5 +1,7 @@
 // ADR 0085 §2: the driver's settings, from the capabilities file. secure
 // is sslmode verify-full, the default; false is sslmode disable.
+// statementCacheSize is how many prepared statements each connection
+// keeps (§3b).
 model PgSettings {
     host: string
     port: int
@@ -8,4 +10,5 @@ model PgSettings {
     database: string
     secure: bool
     applicationName: string | None
+    statementCacheSize: int
 }

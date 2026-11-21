@@ -61,6 +61,7 @@ depends on it and binds `Database` to it:
 | `database` | the user's name | as Postgres defaults it |
 | `sslmode` | `verify-full` | `verify-full` or `disable` (§5) |
 | `applicationName` | none | shown in `pg_stat_activity` |
+| `statementCacheSize` | `100` | prepared statements kept per connection; `0` keeps none (§3b, amended 2026-11-21) |
 
 Each is a separate string. A `postgres://` URL is left out: it needs
 percent-decoding to carry a password with `@` or `/`, and adds nothing the
@@ -84,7 +85,8 @@ for later (open question 1).
 
 *(Amended 2026-11-21: `fiig.postgres` now provides ADR 0084 §1a's
 `SqlConnectionDriver`, so `run` is `execute` and `connect` is `open`,
-which keeps BackendKeyData's body as the connection's `cancelKey`.)*
+which keeps BackendKeyData's body as the connection's `cancelKey` (§3a), and
+named statements are cached, §3b.)*
 
 ### 3a. A statement past its deadline is cancelled
 
@@ -98,8 +100,8 @@ connection, as libpq waits. The server reads a CancelRequest after an
 SSLRequest as it reads a startup message, and libpq 17's encrypted
 cancellation (`PQcancelCreate`) negotiates the connection's own
 `sslmode` the same way, so under `verify-full` a cancel never goes in the
-clear. (Only the TLS path's negotiation is shared with `open`; the
-dogfood server below ran without TLS.) The key is kept as bytes, not two
+clear. (The dogfood below ran without TLS; that path repeats `open`'s.)
+The key is kept as bytes, not two
 integers, since protocol 3.2 lets it be longer than 8. A server that sent
 no BackendKeyData gets no cancel.
 
@@ -111,6 +113,68 @@ for its 10 seconds. The same inside a `transaction Database` block. Tests:
 `tooling/runprogram`'s fake server checks the key and that the connection
 is replaced; `postgres_live_test.go` runs both cases against a real server
 when `PGHOST` names one.
+
+### 3b. Prepared statements are cached per connection
+
+*(Amended 2026-11-21: closes open question 1.)* Each connection keeps up
+to `statementCacheSize` prepared statements (default 100), in its
+`SqlConnection` (ADR 0084 §1a): SQL text, the name the driver gave it
+(`fiig_s0`, `fiig_s1`, ... from a per-connection count, so a name is
+never reused), and whether the server still has it as prepared. Least
+recently used first. `execute`:
+
+- **A statement it has**: Bind (by name), Describe, Execute, Sync. No
+  Parse, so the server neither parses nor plans the text again.
+- **A new one**: if the cache is full, Close the least recently used, then
+  Parse it by its new name, then Bind ... Sync, all in the one write, so a
+  new statement still costs one round trip. It joins the cache only if
+  ParseComplete came back; a Parse that failed (a syntax error, a failed
+  transaction) left nothing on the server to remember.
+- **One the server no longer has as cached**: `26000` (no statement by
+  that name: the program ran `DEALLOCATE ALL` or `DISCARD ALL`) or `0A000`
+  "cached plan must not change result type" (a schema change altered its
+  result columns; the message is what pgx and PgJDBC match too). The entry
+  is marked, and the statement is closed and parsed again under its name
+  and run once more, in the same call. Both errors come at Bind, before
+  anything executes, so running again repeats nothing. Only when
+  ReadyForQuery said idle: inside a transaction the server refuses all
+  but ROLLBACK after an error, so the error is the call's, as pgx leaves
+  it, and the statement is parsed again on its next use.
+- **`statementCacheSize` 0** is §3 as first written: every statement is
+  the unnamed one, parsed each time.
+
+Where the cache lives was open question 1's choice: in the driver keyed
+by connection, or in the pool. Neither as asked: the driver decides what
+to cache and speaks the messages, but it has no mutable state to key, so
+the cache is a value the pool keeps per connection and hands back to each
+`execute` (ADR 0084 §1a). It is per connection because a prepared
+statement is (two connections are two backends), and it dies with its
+connection: a discarded or expired connection takes its value with it,
+and the server forgets the statements with the backend. A setting in the
+capabilities file, not a `config` declaration read from the environment
+as `fiig.http`'s limits are: it belongs to one `Database` binding (two
+pools may want different sizes), and a driver's gateways run outside the
+program's call graph, which is what decides the `config` a program reads
+before it starts. An operator who wants it from the environment writes
+`"statementCacheSize": "${PG_STATEMENT_CACHE_SIZE}"`.
+
+Dogfooded on Postgres 17 through a proxy that records the frontend's
+messages (`tooling/runprogram/postgres_live_cache_test.go`): 5 runs of one
+query parse it once, and `pg_prepared_statements` shows the cached ones; a
+`SELECT *` survives `ALTER TABLE ... ADD COLUMN` (prepared again, the new
+column returned) outside a transaction, faults with the server's `0A000`
+inside one and is prepared again after it, and survives `DEALLOCATE ALL`,
+for 4 Parses of the `SELECT` across 7 runs, all on one connection. The fake
+server's tests cover eviction order, an unparsable statement left out of
+the cache, and size 0. `relay-notes`' transactional batch, through `fiig
+run`, binds its one cached `INSERT` three times.
+
+- **Found by it, fixed:** `copy(...)` of another package's model resolved
+  the overridden field's type in the caller's package, so fiig.postgres's
+  `copy(on, statements: ...)` of `fiig.sql`'s `SqlConnection` reported
+  `unresolved type "List<SqlStatement>"`, at a position in the other
+  package's file. It now resolves as reading the field already did
+  (`compiler/checker`'s `TestCopyOfAnotherPackagesModelResolvesItsFieldThere`).
 
 ### 4. `?` is rewritten to `$n`
 
@@ -218,8 +282,10 @@ statement through the driver's `cancel` first, §3a.)*
 
 ## Open questions
 
-1. **Cached prepared statements** (§3), and the cache's place: in the
-   driver, keyed by connection, or in the runtime's pool.
+1. ~~**Cached prepared statements** (§3), and the cache's place: in the
+   driver, keyed by connection, or in the runtime's pool.~~ Done
+   2026-11-21 (§3b): the driver decides, the pool keeps the value (ADR 0084
+   §1a).
 2. **Custom certificate authorities** (ADR 0060 open question 2).
    *Answered by ADR 0086, on `Socket`, for every TLS connection.*
    Managed databases often sign with their own CA (Amazon RDS's isn't in

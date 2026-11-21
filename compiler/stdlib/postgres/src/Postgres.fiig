@@ -55,7 +55,7 @@ capability Postgres provides db.SqlConnectionDriver {
                     }
                     if state.ready {
                         return Ok(
-                            db.SqlConnection(connection: connection, cancelKey: state.cancelKey),
+                            db.SqlConnection(connection: connection, cancelKey: state.cancelKey, statements: [], named: 0, cacheSize: pg.statementCacheSize),
                         )
                     }
                     if state.send.length() > 0 {
@@ -68,65 +68,81 @@ capability Postgres provides db.SqlConnectionDriver {
 
     // §3: one statement, one round trip of the extended protocol, read
     // until ReadyForQuery so the connection is ready for the next (§9).
+    // A statement prepared on the connection before is only bound (§3b);
+    // one the server stopped knowing is prepared again and sent once
+    // more, when no transaction would refuse it.
     gateway execute(on: db.SqlConnection, sql: string, values: List<db.SqlValue>) -> db.SqlRun
         requires Socket
     {
-        match Socket.write(on.connection, statementMessages(numberPlaceholders(sql), values)) {
-            Ok(_) -> None
-            Err(failure) -> {
-                return db.SqlRun(
-                    connection: on,
-                    result: Err(db.DatabaseError.Broken(failure: failure)),
-                )
-            }
-        }
-        state: Reply = Reply(
-            columns: [],
-            types: [],
-            row: None,
-            affected: 0,
-            failed: None,
-            ready: false,
-        )
-        rows: List<List<db.SqlValue>> = []
-        buffer: bytes = <<>>
+        current: db.SqlConnection = on
+        again: bool = true
         while true {
-            match nextFrame(buffer) {
-                None -> {
-                    match Socket.read(on.connection) {
-                        Ok(chunk) -> {
-                            buffer = <<buffer: bytes, chunk: bytes>>
+            plan = planStatement(current, sql, values)
+            current = plan.connection
+            match Socket.write(on.connection, plan.write) {
+                Ok(_) -> None
+                Err(failure) -> {
+                    return db.SqlRun(
+                        connection: current,
+                        result: Err(db.DatabaseError.Broken(failure: failure)),
+                    )
+                }
+            }
+            state: Reply = Reply(
+                columns: [],
+                types: [],
+                row: None,
+                affected: 0,
+                failed: None,
+                ready: false,
+                parsed: false,
+                status: 0,
+            )
+            rows: List<List<db.SqlValue>> = []
+            buffer: bytes = <<>>
+            while not state.ready {
+                match nextFrame(buffer) {
+                    None -> {
+                        match Socket.read(on.connection) {
+                            Ok(chunk) -> {
+                                buffer = <<buffer: bytes, chunk: bytes>>
+                            }
+                            Err(failure) -> {
+                                return db.SqlRun(
+                                    connection: current,
+                                    result: Err(db.DatabaseError.Broken(failure: failure)),
+                                )
+                            }
                         }
-                        Err(failure) -> {
-                            return db.SqlRun(
-                                connection: on,
-                                result: Err(db.DatabaseError.Broken(failure: failure)),
-                            )
+                    }
+                    frame -> {
+                        buffer = frame.rest
+                        state = replyStep(state, frame.kind, frame.body)
+                        match state.row {
+                            None -> None
+                            row -> {
+                                rows = append(rows, row)
+                            }
                         }
                     }
                 }
-                frame -> {
-                    buffer = frame.rest
-                    state = replyStep(state, frame.kind, frame.body)
-                    match state.row {
-                        None -> None
-                        row -> {
-                            rows = append(rows, row)
-                        }
-                    }
-                    if state.ready {
-                        match state.failed {
-                            None -> {
-                                return db.SqlRun(
-                                    connection: on,
-                                    result: Ok(db.SqlResult(columns: state.columns, rows: rows, affected: state.affected)),
-                                )
-                            }
-                            failure -> {
-                                return db.SqlRun(connection: on, result: Err(failure))
-                            }
-                        }
-                    }
+            }
+            current = settleStatement(plan, state)
+            // 73 is idle: outside a transaction, the statement can run
+            // again; inside one, the server refuses all until ROLLBACK.
+            if again and not plan.parsing and state.status == 73 and staleStatement(state.failed) {
+                again = false
+                continue
+            }
+            match state.failed {
+                None -> {
+                    return db.SqlRun(
+                        connection: current,
+                        result: Ok(db.SqlResult(columns: state.columns, rows: rows, affected: state.affected)),
+                    )
+                }
+                failure -> {
+                    return db.SqlRun(connection: current, result: Err(failure))
                 }
             }
         }

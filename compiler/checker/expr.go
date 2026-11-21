@@ -769,7 +769,8 @@ func (c *checker) checkCopy(call *syntax.CallExpr, env map[string]types.Type) ty
 		found := false
 		for _, f := range modelDecl.AllFields() {
 			if f.Name == a.Name {
-				fieldType = c.resolve(f.Type)
+				// In the model's own package, as reading the field is.
+				fieldType = c.resolveDeclType(modelDecl, f.Type)
 				found = true
 				break
 			}

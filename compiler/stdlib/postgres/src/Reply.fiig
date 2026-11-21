@@ -1,8 +1,11 @@
 use fiig.sql as db
 
-// Where run is in reading a statement's reply (§3, §9). row is the row the
-// last message carried, which run appends to its own list; failed is the
-// statement's error, kept until ReadyForQuery ends the reply.
+// Where execute is in reading a statement's reply (§3, §9). row is the row
+// the last message carried, which execute appends to its own list; failed
+// is the statement's error, kept until ReadyForQuery ends the reply.
+// parsed says a ParseComplete came, so a named statement now exists
+// (§3b); status is ReadyForQuery's: 73 (I) idle, 84 (T) in a transaction,
+// 69 (E) in a failed one.
 model Reply {
     columns: List<string>
     types: List<int>
@@ -10,4 +13,6 @@ model Reply {
     affected: int
     failed: db.DatabaseError | None
     ready: bool
+    parsed: bool
+    status: int
 }

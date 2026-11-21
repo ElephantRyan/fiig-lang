@@ -116,7 +116,9 @@ interface SqlConnectionDriver {
 model SqlConnection {
     connection: Connection
     cancelKey: bytes
-    // and the statement cache's fields, ADR 0085 §3b
+    statements: List<SqlStatement>   // the statement cache (ADR 0085 §3b):
+    named: int                       //   SqlStatement(sql, name, prepared),
+    cacheSize: int                   //   least recently used first
 }
 
 model SqlRun {

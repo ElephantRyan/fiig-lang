@@ -235,6 +235,13 @@ type fakePostgres struct {
 	// cancels gets each CancelRequest's process ID and secret key, the
 	// ones BackendKeyData sent (1234 and 5678).
 	cancels chan []byte
+	// bound, when set, may answer a statement run without a Parse
+	// differently, as the server does after a schema change (§3b).
+	bound func(sql string) *pgReply
+	// parses names each statement parsed ("" the unnamed one); closes
+	// counts Close messages.
+	parses []string
+	closes int
 }
 
 func (s *fakePostgres) listen(t *testing.T) string {
@@ -403,9 +410,15 @@ func (s *fakePostgres) authenticate(c net.Conn) bool {
 	return true
 }
 
+// queryLoop keeps the connection's prepared statements by name, as the
+// server does (ADR 0085 §3b): Parse adds one, Close removes one, and Bind
+// runs one, refusing a name it doesn't know with 26000.
 func (s *fakePostgres) queryLoop(c net.Conn) {
-	var sql string
+	statements := map[string]string{}
+	var sql, name string
 	var params []pgParam
+	parsed, known := false, true
+	status := byte('I') // ReadyForQuery's: idle, in a transaction (T), failed (E)
 	for {
 		kind, body, err := readMsg(c)
 		if err != nil || kind == 'X' {
@@ -413,15 +426,43 @@ func (s *fakePostgres) queryLoop(c net.Conn) {
 		}
 		switch kind {
 		case 'P':
+			name = string(body[:bytes.IndexByte(body, 0)])
 			rest := body[bytes.IndexByte(body, 0)+1:]
-			sql = string(rest[:bytes.IndexByte(rest, 0)])
+			statements[name] = string(rest[:bytes.IndexByte(rest, 0)])
+			parsed = true
+			s.mu.Lock()
+			s.parses = append(s.parses, name)
+			s.mu.Unlock()
+		case 'C':
+			delete(statements, string(body[1:bytes.IndexByte(body, 0)]))
+			s.mu.Lock()
+			s.closes++
+			s.mu.Unlock()
 		case 'B':
+			portalEnd := bytes.IndexByte(body, 0)
+			name = string(body[portalEnd+1 : portalEnd+1+bytes.IndexByte(body[portalEnd+1:], 0)])
+			sql, known = statements[name]
 			params = parseBind(body)
 		case 'S':
 			s.mu.Lock()
 			s.queries = append(s.queries, sql)
 			s.mu.Unlock()
-			c.Write(s.respond(sql, params))
+			if !known {
+				if status == 'T' {
+					status = 'E'
+				}
+				c.Write(append(errorResponse("26000", `prepared statement "`+name+`" does not exist`), msg('Z', []byte{status})...))
+			} else {
+				out := s.respond(sql, params, parsed, &status)
+				if parsed && bytes.Contains(out, []byte("C42601")) {
+					delete(statements, name) // a syntax error fails Parse itself
+				}
+				if sql == "DEALLOCATE ALL" {
+					statements = map[string]string{}
+				}
+				c.Write(out)
+			}
+			parsed, known = false, true
 		}
 	}
 }
@@ -451,14 +492,24 @@ func parseBind(body []byte) []pgParam {
 	return params
 }
 
-func (s *fakePostgres) respond(sql string, params []pgParam) []byte {
+func (s *fakePostgres) respond(sql string, params []pgParam, parsed bool, status *byte) []byte {
 	reply := s.handle(sql, params)
+	if !parsed && s.bound != nil {
+		if r := s.bound(sql); r != nil {
+			reply = *r
+		}
+	}
 	var out []byte
-	out = append(out, msg('1', nil)...)
+	if parsed && reply.errCode != "42601" {
+		out = append(out, msg('1', nil)...)
+	}
 	out = append(out, msg('N', append(append([]byte{'S'}, cstr("NOTICE")...), 0))...)
 	if reply.errCode != "" {
 		out = append(out, errorResponseNamed(reply.errCode, reply.errMsg, reply.errConstraint)...)
-		return append(out, msg('Z', []byte{'I'})...)
+		if *status == 'T' {
+			*status = 'E'
+		}
+		return append(out, msg('Z', []byte{*status})...)
 	}
 	out = append(out, msg('2', nil)...)
 	if reply.columns == nil {
@@ -486,7 +537,13 @@ func (s *fakePostgres) respond(sql string, params []pgParam) []byte {
 		}
 	}
 	out = append(out, msg('C', cstr(reply.tag))...)
-	return append(out, msg('Z', []byte{'I'})...)
+	switch sql {
+	case "BEGIN":
+		*status = 'T'
+	case "COMMIT", "ROLLBACK":
+		*status = 'I'
+	}
+	return append(out, msg('Z', []byte{*status})...)
 }
 
 func text(s string) *string { return &s }
@@ -510,7 +567,7 @@ func pets(sql string, params []pgParam) pgReply {
 		return pgReply{tag: "INSERT 0 " + strconv.Itoa(len(params)/2)}
 	case strings.HasPrefix(sql, "BAD"):
 		return pgReply{errCode: "42601", errMsg: `syntax error at or near "BAD"`}
-	case sql == "BEGIN" || sql == "COMMIT" || sql == "ROLLBACK":
+	case sql == "BEGIN" || sql == "COMMIT" || sql == "ROLLBACK" || sql == "DEALLOCATE ALL":
 		return pgReply{tag: sql}
 	}
 	return pgReply{errCode: "42P01", errMsg: "unexpected query " + sql}

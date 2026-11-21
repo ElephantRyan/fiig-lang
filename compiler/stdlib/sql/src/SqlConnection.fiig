@@ -3,8 +3,14 @@
 // so a driver keeps state without fiig having mutable state: a connection
 // carries one statement at a time, and each call returns the value the
 // next one gets. cancelKey is what a second connection needs to stop this
-// one's statement (§3a); empty when the server gave none.
+// one's statement (§3a); empty when the server gave none. statements are
+// the ones the server has prepared on this connection, least recently used
+// first, at most cacheSize of them (0 keeps none), and named counts the
+// names the driver has given, so none repeats.
 model SqlConnection {
     connection: Connection
     cancelKey: bytes
+    statements: List<SqlStatement>
+    named: int
+    cacheSize: int
 }

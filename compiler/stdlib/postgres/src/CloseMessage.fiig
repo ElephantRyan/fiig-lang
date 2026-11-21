@@ -1,0 +1,5 @@
+// ADR 0085 §3b: Close, forgetting the prepared statement named name. It
+// isn't an error when the server has none by that name.
+conversion closeMessage(name: string) -> bytes {
+    return pgMessage(67, <<83: u8, cString(name): bytes>>)
+}

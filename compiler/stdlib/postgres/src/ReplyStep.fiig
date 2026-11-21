@@ -2,8 +2,9 @@ use fiig.sql as db
 
 // One backend message of a statement's reply (§3, §9). An error is kept
 // until ReadyForQuery, which ends the reply either way; a message the
-// driver can't read ends it at once. Notices, ParameterStatus and the
-// Complete messages are skipped.
+// driver can't read ends it at once. ParseComplete is noted (§3b), and
+// ReadyForQuery's transaction status kept. Notices, ParameterStatus and
+// the other Complete messages are skipped.
 conversion replyStep(state: Reply, kind: int, body: bytes) -> Reply {
     if kind == 84 {
         match rowDescription(body) {
@@ -50,8 +51,15 @@ conversion replyStep(state: Reply, kind: int, body: bytes) -> Reply {
     if kind == 69 {
         return copy(state, row: None, failed: serverError(body))
     }
+    if kind == 49 {
+        return copy(state, row: None, parsed: true)
+    }
     if kind == 90 {
-        return copy(state, row: None, ready: true)
+        status: int = 0
+        if body.length() > 0 {
+            status = body.at(0)
+        }
+        return copy(state, row: None, ready: true, status: status)
     }
     return copy(state, row: None)
 }

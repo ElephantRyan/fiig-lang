@@ -1,0 +1,9 @@
+// ADR 0084 §1a: one statement a driver prepared on a connection, by its
+// SQL text and the name the driver gave it. prepared is false once the
+// server stopped knowing it as it was, after a schema change or a
+// DEALLOCATE, so the driver prepares it again before using it.
+model SqlStatement {
+    sql: string
+    name: string
+    prepared: bool
+}
