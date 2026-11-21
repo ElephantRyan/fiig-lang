@@ -95,6 +95,57 @@ A driver package declares a `capability` group whose three gateways
 `"provides": {"fiig.sql.SqlDriver": "Postgres"}`. `Connection` is
 Socket's opaque handle (ADR 0060 §2); a driver keeps whatever per-
 connection state it needs by reading from the server, not in fiig values.
+*(Amended 2026-11-21: or in a value the pool keeps for it, §1a.)*
+
+### 1a. A driver may keep a value per connection
+
+*(Amended 2026-11-21.)* Two things a driver needs live as long as one
+connection and no longer: the key a CancelRequest names (§3a, ADR 0085
+§3a) and the statements the server has prepared on it (ADR 0085 §3b).
+Neither can be read back from the server cheaply, so `fiig.sql` gains a
+second contract, which a driver provides instead of `SqlDriver`:
+
+```fiig
+interface SqlConnectionDriver {
+    open(settings: Map<string, string>) -> Result<SqlConnection, DatabaseError>
+    execute(on: SqlConnection, sql: string, values: List<SqlValue>) -> SqlRun
+    cancel(settings: Map<string, string>, key: bytes) -> None
+    close(connection: Connection) -> None
+}
+
+model SqlConnection {
+    connection: Connection
+    cancelKey: bytes
+    // and the statement cache's fields, ADR 0085 §3b
+}
+
+model SqlRun {
+    connection: SqlConnection   // the value after the statement, failed or not
+    result: Result<SqlResult, DatabaseError>
+}
+```
+
+The pool keeps the `SqlConnection` that `open` returned beside the
+connection, passes it to `execute`, and keeps the one `execute` returns
+for the next call. That is all the state is: a value threaded through
+calls, never shared, since a connection carries one statement at a time
+(§3, §5). It dies with its pooled connection, closed or discarded, so it
+is per connection by construction, and nothing in the language becomes
+mutable. When a manifest provides both contracts the pool takes this one;
+`SqlDriver` stays for a driver with nothing to keep (`examples/sql-relay`).
+
+- **Typed fields in `fiig.sql`, not `state: bytes`** as ADR 0114's
+  `SessionProtocol` threads. `bytes` is the generic-free choice there
+  because a session protocol's state is anything. A SQL driver's is not:
+  a cancel key and a set of prepared statements are what pgx, PgJDBC,
+  and MySQL's drivers keep (MySQL's `KILL QUERY` also needs a second
+  connection and the first one's ID), and a typed list is read without
+  decoding it on every call.
+- **Not `execute` returning `Result<SqlRun, ...>`.** The value must come
+  back when the statement fails too: a `Parse` that succeeded before an
+  `Execute` that failed left a prepared statement on the server, and a
+  driver that forgot it would prepare it again under a new name, leaking
+  one per failure.
 
 ### 2. Programs still call `Database`; the runtime calls the driver
 
@@ -140,6 +191,36 @@ program starts (`fiig serve`, `fiig run`) and closes when it stops:
   and none is kept past 30 minutes (`maxLifetime`), so failovers and
   server restarts are picked up. Both are settings beside
   `maxConnections`.
+
+### 3a. A statement past its deadline is cancelled
+
+*(Amended 2026-11-21.)* A call whose deadline passes while the driver runs
+a statement stops at once: `Socket` reads end at the deadline (ADR 0060
+§4), the call faults, and the connection is discarded (§3). Before, the
+server went on running the statement to its end. Now, for a driver that
+provides `SqlConnectionDriver`, the pool calls its `cancel` with the
+driver's settings and the connection's `cancelKey`, then closes the
+connection.
+
+- **The pool decides, the driver sends.** Only the pool knows the
+  deadline passed mid-statement and that the connection is going; only
+  the driver knows the wire format. And a driver couldn't send it from
+  inside `execute`: every `Socket` call there fails once the call's
+  deadline has passed. `cancel` runs under a deadline of its own, 5
+  seconds, on a connection of its own that it closes.
+- **Discarded, not drained to ReadyForQuery.** The bytes `execute` had
+  read and not yet framed were in its local buffer, gone when it
+  returned, so where the connection stands in the protocol is unknown.
+  A connection is cheaper to replace than that is to recover; pgx closes
+  a connection whose context was cancelled too.
+- **The call doesn't wait for it.** The cancel runs in the background, so
+  a server that can't be reached doesn't add a second wait to the call
+  that already timed out. The pool's slot stays taken until the cancel
+  is sent, so `maxConnections` still bounds the backends the pool keeps
+  busy on the server.
+- **In a transaction too:** the block's pinned connection (§5) is
+  cancelled and discarded when the block ends, and the server rolls the
+  transaction back as the connection closes.
 
 ### 4. A connection opened for the pool belongs to the pool
 

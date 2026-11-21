@@ -15,12 +15,17 @@ import (
 // ADR 0084: a Database bound to a driver written in fiig. The runtime owns
 // the pool (§3) and the transaction's connection (§5); the driver's
 // capability group answers connect, run, and close (§1) on connections the
-// pool owns (§4).
+// pool owns (§4). A driver that provides SqlConnectionDriver instead (§1a)
+// answers open, execute, cancel, and close, and the pool keeps the
+// SqlConnection value each call returns for the next one.
 
 const (
 	// SqlDriverInterface is the interface a driver package provides.
 	SqlDriverInterface = "fiig.sql.SqlDriver"
-	sqlPackage         = "fiig.sql"
+	// SqlConnectionDriverInterface is the interface a driver that keeps
+	// state about each connection provides (§1a); the pool prefers it.
+	SqlConnectionDriverInterface = "fiig.sql.SqlConnectionDriver"
+	sqlPackage                   = "fiig.sql"
 
 	defaultMaxConnections = 10
 	defaultIdleTimeout    = 5 * time.Minute
@@ -28,6 +33,9 @@ const (
 	// closeTimeout bounds a driver's close when no call is waiting on it
 	// (eviction, shutdown).
 	closeTimeout = 5 * time.Second
+	// cancelTimeout bounds a driver's cancel, sent on a new connection
+	// after a call's deadline passed mid-statement (§3a).
+	cancelTimeout = 5 * time.Second
 )
 
 // DriverFactory is the "driver" capability type (§2):
@@ -126,6 +134,8 @@ type DriverProvider struct {
 	group       *syntax.CapabilityDecl
 	sc          scope
 	sqlValue    *syntax.EnumDecl
+	// stateful is a driver providing SqlConnectionDriver (§1a).
+	stateful bool
 
 	// slots holds one token per connection checked out or being opened,
 	// so at most max exist at once.
@@ -138,12 +148,17 @@ type DriverProvider struct {
 }
 
 // pooledConn is one connection the pool owns. owner closes its sockets
-// when the pool discards it, however the driver left them (§4).
+// when the pool discards it, however the driver left them (§4). state is
+// a stateful driver's SqlConnection, conn its connection (§1a);
+// interrupted says a call's deadline passed while the driver ran a
+// statement on it, so the server may still be running it (§3a).
 type pooledConn struct {
-	conn     Value
-	owner    *resourceOwner
-	created  time.Time
-	lastUsed time.Time
+	conn        Value
+	state       Value
+	owner       *resourceOwner
+	created     time.Time
+	lastUsed    time.Time
+	interrupted bool
 }
 
 func (p *DriverProvider) bindInterp(in *Interp) { p.in = in }
@@ -161,11 +176,15 @@ func (p *DriverProvider) resolve() *Fault {
 			p.resolveErr = Faultf("Database: driver package %s isn't part of this program; add it to the application manifest's dependencies (ADR 0084 §2)", p.path)
 			return
 		}
-		name := pkg.Provides[SqlDriverInterface]
+		name := pkg.Provides[SqlConnectionDriverInterface]
+		p.stateful = name != ""
+		if !p.stateful {
+			name = pkg.Provides[SqlDriverInterface]
+		}
 		d, found := pkg.Universe.Lookup(name)
 		group, isGroup := d.(*syntax.CapabilityDecl)
 		if name == "" || !found || !isGroup {
-			p.resolveErr = Faultf("Database: package %s doesn't provide %s; its manifest names no capability group for it (ADR 0084 §1)", p.path, SqlDriverInterface)
+			p.resolveErr = Faultf("Database: package %s provides neither %s nor %s; its manifest names no capability group for them (ADR 0084 §1, §1a)", p.path, SqlConnectionDriverInterface, SqlDriverInterface)
 			return
 		}
 		sqlPkg := pkg.Dependencies[sqlPackage]
@@ -244,14 +263,36 @@ func (p *DriverProvider) statement(ctx context.Context, pc *pooledConn, method s
 	return v, true, f
 }
 
-// run calls the driver's run and turns a DatabaseError into a fault (§6).
+// run calls the driver's run, or a stateful driver's execute, and turns a
+// DatabaseError into a fault (§6).
 func (p *DriverProvider) run(ctx context.Context, pc *pooledConn, what, sql string, values []Value) (Record, bool, *Fault) {
-	out, f := p.gateway(ctx, pc.owner, "run", pc.conn, Str(sql), List{Elems: values})
+	var out Value
+	var f *Fault
+	if p.stateful {
+		out, f = p.gateway(ctx, pc.owner, "execute", pc.state, Str(sql), List{Elems: values})
+	} else {
+		out, f = p.gateway(ctx, pc.owner, "run", pc.conn, Str(sql), List{Elems: values})
+	}
+	if ctx.Err() != nil {
+		// The statement may still be running on the server (§3a).
+		pc.interrupted = true
+		if f == nil {
+			f = Faultf("%s: cancelled", what)
+		}
+		return Record{}, false, f
+	}
 	if f != nil {
 		return Record{}, false, f
 	}
-	if ctx.Err() != nil {
-		return Record{}, false, Faultf("%s: cancelled", what)
+	if p.stateful {
+		run, ok := out.(Record)
+		if !ok {
+			return Record{}, false, Faultf("%s: driver %s's execute returned %s, not a SqlRun", what, p.path, out)
+		}
+		// The connection's value after the statement, kept even when it
+		// failed: a driver records what the server now holds (§1a).
+		pc.state = run.Fields["connection"]
+		out = run.Fields["result"]
 	}
 	r, ok := out.(Result)
 	if !ok {
@@ -435,8 +476,9 @@ func (p *DriverProvider) expired(pc *pooledConn, now time.Time) bool {
 	return now.Sub(pc.lastUsed) >= p.idle || now.Sub(pc.created) >= p.life
 }
 
-// open runs the driver's connect for a new pooled connection.
-func (p *DriverProvider) open(ctx context.Context) (*pooledConn, *Fault) {
+// settingsValue is the driver's settings as the fiig Map its connect,
+// open, and cancel take.
+func (p *DriverProvider) settingsValue() Map {
 	keys := make([]string, 0, len(p.settings))
 	for k := range p.settings {
 		keys = append(keys, k)
@@ -446,20 +488,39 @@ func (p *DriverProvider) open(ctx context.Context) (*pooledConn, *Fault) {
 	for _, k := range keys {
 		settings = settings.Put(Str(k), Str(p.settings[k]))
 	}
+	return settings
+}
+
+// open runs the driver's connect, or a stateful driver's open, for a new
+// pooled connection.
+func (p *DriverProvider) open(ctx context.Context) (*pooledConn, *Fault) {
+	name := "connect"
+	if p.stateful {
+		name = "open"
+	}
 	owner := &resourceOwner{driver: true}
-	out, f := p.gateway(ctx, owner, "connect", settings)
+	out, f := p.gateway(ctx, owner, name, p.settingsValue())
 	if f == nil {
+		var conn, state Value
 		if r, ok := out.(Result); !ok {
-			f = Faultf("Database: driver %s's connect returned %s, not a Result", p.path, out)
+			f = Faultf("Database: driver %s's %s returned %s, not a Result", p.path, name, out)
 		} else if !r.Ok {
 			_, msg := describeDatabaseError(r.Value)
 			f = Faultf("Database: connecting with driver %s: %s", p.path, msg)
-		} else if _, ok := r.Value.(Connection); !ok {
-			f = Faultf("Database: driver %s's connect returned %s, not a Connection", p.path, r.Value)
+		} else if p.stateful {
+			if rec, ok := r.Value.(Record); ok {
+				conn, state = rec.Fields["connection"], rec
+			}
 		} else {
+			conn = r.Value
+		}
+		if _, ok := conn.(Connection); f == nil && !ok {
+			f = Faultf("Database: driver %s's %s returned %s, not a connection", p.path, name, out)
+		}
+		if f == nil {
 			now := time.Now()
 			p.startJanitor()
-			return &pooledConn{conn: r.Value, owner: owner, created: now, lastUsed: now}, nil
+			return &pooledConn{conn: conn, state: state, owner: owner, created: now, lastUsed: now}, nil
 		}
 	}
 	owner.end()
@@ -479,10 +540,37 @@ func (p *DriverProvider) finish(ctx context.Context, pc *pooledConn, keep bool) 
 		}
 		p.mu.Unlock()
 		p.closeConn(pc)
+	} else if pc.interrupted && p.stateful {
+		// The server may still be running the statement: cancel it on a
+		// new connection, then close this one, whose place in the protocol
+		// went with the driver's read buffer. The call returns at once;
+		// the slot stays taken until the cancel is sent, so the pool never
+		// leaves more than max backends busy on the server (§3a).
+		go func() {
+			p.cancel(pc)
+			pc.owner.end()
+			<-p.slots
+		}()
+		return
 	} else {
 		pc.owner.end()
 	}
 	<-p.slots
+}
+
+// cancel asks a stateful driver to stop the statement pc's server is
+// running, on a connection of its own that ends with the cancel (§3a).
+func (p *DriverProvider) cancel(pc *pooledConn) {
+	rec, _ := pc.state.(Record)
+	key, ok := rec.Fields["cancelKey"].(Bytes)
+	if !ok || len(key.B) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), cancelTimeout)
+	defer cancel()
+	owner := &resourceOwner{driver: true}
+	p.gateway(ctx, owner, "cancel", p.settingsValue(), key)
+	owner.end()
 }
 
 // closeConn asks the driver to close pc politely, then closes whatever

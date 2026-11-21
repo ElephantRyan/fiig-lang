@@ -1,0 +1,10 @@
+// ADR 0084 §1a: a pooled connection and what its driver keeps about it.
+// The pool holds this value between calls and hands it to the next one,
+// so a driver keeps state without fiig having mutable state: a connection
+// carries one statement at a time, and each call returns the value the
+// next one gets. cancelKey is what a second connection needs to stop this
+// one's statement (§3a); empty when the server gave none.
+model SqlConnection {
+    connection: Connection
+    cancelKey: bytes
+}

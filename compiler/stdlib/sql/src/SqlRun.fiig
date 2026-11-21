@@ -1,0 +1,6 @@
+// ADR 0084 §1a: what one statement on a SqlConnection returned, and the
+// connection's value afterwards, kept whether the statement failed or not.
+model SqlRun {
+    connection: SqlConnection
+    result: Result<SqlResult, DatabaseError>
+}

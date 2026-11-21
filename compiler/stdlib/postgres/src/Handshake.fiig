@@ -3,7 +3,8 @@ use fiig.sql as db
 // Where connect is in startup and authentication (§6). send is what to
 // write before reading on; expectSignature is the server's SCRAM
 // signature, once the client's proof is sent, and verified says the
-// server proved it.
+// server proved it. cancelKey is BackendKeyData's body, the process ID
+// and secret key a CancelRequest names (ADR 0084 §3a).
 model Handshake {
     settings: PgSettings
     clientNonce: string
@@ -13,4 +14,5 @@ model Handshake {
     send: bytes
     failed: db.DatabaseError | None
     ready: bool
+    cancelKey: bytes
 }

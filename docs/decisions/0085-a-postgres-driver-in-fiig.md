@@ -82,6 +82,36 @@ a parse per call, but a cache must be per connection, invalidated when the
 schema changes, and is state the runtime's pool would have to keep. Left
 for later (open question 1).
 
+*(Amended 2026-11-21: `fiig.postgres` now provides ADR 0084 §1a's
+`SqlConnectionDriver`, so `run` is `execute` and `connect` is `open`,
+which keeps BackendKeyData's body as the connection's `cancelKey`.)*
+
+### 3a. A statement past its deadline is cancelled
+
+*(Amended 2026-11-21: closes open question 3.)* When the pool cancels a
+connection's statement (ADR 0084 §3a), `cancel` connects to the same host
+and port, negotiates as `open` does (with `verify-full`, SSLRequest and
+`Socket.startTls`; refused, it sends nothing), writes CancelRequest
+(`Int32 16`, `Int32 80877102`, then the key: the backend's process ID and
+secret), and reads once, which returns when the server closes the
+connection, as libpq waits. The server reads a CancelRequest after an
+SSLRequest as it reads a startup message, and libpq 17's encrypted
+cancellation (`PQcancelCreate`) negotiates the connection's own
+`sslmode` the same way, so under `verify-full` a cancel never goes in the
+clear. (Only the TLS path's negotiation is shared with `open`; the
+dogfood server below ran without TLS.) The key is kept as bytes, not two
+integers, since protocol 3.2 lets it be longer than 8. A server that sent
+no BackendKeyData gets no cancel.
+
+Cancelling is best effort, as everywhere: the statement may finish first,
+and the server answers no CancelRequest. Dogfooded on Postgres 17:
+`SELECT pg_sleep(10)` under a 500 ms deadline faults at 500 ms and is gone
+from `pg_stat_activity` within 100 ms; without the cancel it stays active
+for its 10 seconds. The same inside a `transaction Database` block. Tests:
+`tooling/runprogram`'s fake server checks the key and that the connection
+is replaced; `postgres_live_test.go` runs both cases against a real server
+when `PGHOST` names one.
+
 ### 4. `?` is rewritten to `$n`
 
 Programs keep writing `?`, so the same SQL runs on SQLite and on Postgres,
@@ -172,7 +202,8 @@ socket is `Broken`; a message the driver can't read is `Protocol`.
 
 Deadlines need nothing in the driver: a `Socket` read or write stops when
 the program call's deadline passes (ADR 0060 §4), and the pool discards
-the connection (ADR 0084 §3).
+the connection (ADR 0084 §3). *(Amended 2026-11-21: and cancels the
+statement through the driver's `cancel` first, §3a.)*
 
 ## Consequences
 
@@ -194,9 +225,10 @@ the connection (ADR 0084 §3).
    Managed databases often sign with their own CA (Amazon RDS's isn't in
    the system roots), so `verify-full` against one needs a CA bundle, set
    in the capabilities file, not in fiig source.
-3. **Cancelling a running query.** When the deadline passes, the socket
+3. ~~**Cancelling a running query.** When the deadline passes, the socket
    closes but the server finishes the query; Postgres's CancelRequest needs
-   a second connection with the backend key.
+   a second connection with the backend key.~~ Done 2026-11-21 (§3a, ADR
+   0084 §1a, §3a).
 4. **SASLprep** of passwords (§6) and SCRAM channel binding.
 5. **`COPY`, `LISTEN`/`NOTIFY`, and binary-format results.**
 

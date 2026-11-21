@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"fiig-lang/compiler/loader"
 	"fiig-lang/compiler/runtime"
@@ -231,6 +232,9 @@ type fakePostgres struct {
 	accepted int
 	startup  map[string]string
 	queries  []string
+	// cancels gets each CancelRequest's process ID and secret key, the
+	// ones BackendKeyData sent (1234 and 5678).
+	cancels chan []byte
 }
 
 func (s *fakePostgres) listen(t *testing.T) string {
@@ -307,6 +311,12 @@ func (s *fakePostgres) serve(c net.Conn) {
 	if _, err := io.ReadFull(c, body); err != nil {
 		return
 	}
+	if binary.BigEndian.Uint32(body) == 80877102 {
+		if s.cancels != nil {
+			s.cancels <- body[4:]
+		}
+		return
+	}
 	if binary.BigEndian.Uint32(body) == 80877103 {
 		c.Write([]byte{'N'}) // no TLS here
 		return
@@ -327,7 +337,7 @@ func (s *fakePostgres) serve(c net.Conn) {
 		return
 	}
 	c.Write(msg('S', append(cstr("server_version"), cstr("16.0")...)))
-	c.Write(msg('K', make([]byte, 8)))
+	c.Write(msg('K', binary.BigEndian.AppendUint32(binary.BigEndian.AppendUint32(nil, 1234), 5678)))
 	c.Write(msg('Z', []byte{'I'}))
 	s.queryLoop(c)
 }
@@ -640,5 +650,52 @@ func TestPostgresReportsTheConstraint(t *testing.T) {
 	}
 	if pool.Idle() != 1 {
 		t.Errorf("idle = %d; a conflict leaves the connection usable", pool.Idle())
+	}
+}
+
+// ADR 0084 §3a: a call whose deadline passes mid-statement returns at
+// once; the pool sends a CancelRequest with the connection's
+// BackendKeyData on a new connection and discards the old one.
+func TestPostgresCancelsAStatementPastItsDeadline(t *testing.T) {
+	server := &fakePostgres{t: t, auth: authTrust, cancels: make(chan []byte, 1)}
+	cancelled := make(chan []byte, 1)
+	server.handle = func(sql string, params []pgParam) pgReply {
+		if sql == "SELECT pg_sleep(10)" {
+			select {
+			case key := <-server.cancels:
+				cancelled <- key
+			case <-time.After(5 * time.Second):
+			}
+			return pgReply{errCode: "57014", errMsg: "canceling statement due to user request"}
+		}
+		return pets(sql, params)
+	}
+	in, pool := pgInterp(t, pgSettings(server.listen(t), ""))
+	p, _ := in.Capabilities.Lookup("Database")
+	ctx, stop := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer stop()
+	start := time.Now()
+	_, f := p.Call(ctx, "execute", []runtime.Value{runtime.Str("SELECT pg_sleep(10)")})
+	if f == nil {
+		t.Fatal("execute past its deadline succeeded")
+	}
+	if took := time.Since(start); took > 2*time.Second {
+		t.Errorf("execute took %v past a 300 ms deadline", took)
+	}
+	select {
+	case key := <-cancelled:
+		if want := []byte{0, 0, 4, 210, 0, 0, 22, 46}; !bytes.Equal(key, want) {
+			t.Errorf("CancelRequest key = %v, want %v", key, want)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no CancelRequest reached the server")
+	}
+	if _, f := p.Call(context.Background(), "execute", []runtime.Value{runtime.Str("INSERT INTO t VALUES (?, ?)"), runtime.Int(1), runtime.Int(2)}); f != nil {
+		t.Fatal(f)
+	}
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	if server.accepted != 3 || pool.Idle() != 1 {
+		t.Errorf("accepted %d, idle %d; want the cancelled connection discarded, one for the cancel, one new", server.accepted, pool.Idle())
 	}
 }

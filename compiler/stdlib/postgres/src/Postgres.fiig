@@ -1,14 +1,15 @@
 use fiig.sql as db
 
 // ADR 0085: a Postgres driver written in fiig, the frontend side of
-// protocol 3.0 over Socket. The runtime pools its connections and sends
-// BEGIN, COMMIT and ROLLBACK through run (ADR 0084); a program only calls
-// Database. Each step of the protocol is a conversion, so these gateways
-// only move bytes.
-capability Postgres provides db.SqlDriver {
+// protocol 3.0 over Socket. The runtime pools its connections, keeps each
+// one's SqlConnection between calls, and sends BEGIN, COMMIT and ROLLBACK
+// through execute (ADR 0084 §1a); a program only calls Database. Each
+// step of the protocol is a conversion, so these gateways only move bytes.
+capability Postgres provides db.SqlConnectionDriver {
     // §2, §5, §6: connect, ask for TLS in-band, send the startup message,
-    // and authenticate until the server is ready for a query.
-    gateway connect(settings: Map<string, string>) -> Result<Connection, db.DatabaseError>
+    // and authenticate until the server is ready for a query. The server's
+    // BackendKeyData becomes the connection's cancelKey (ADR 0084 §3a).
+    gateway open(settings: Map<string, string>) -> Result<db.SqlConnection, db.DatabaseError>
         requires Socket
     {
         pg = readSettings(settings)?
@@ -34,6 +35,7 @@ capability Postgres provides db.SqlDriver {
             send: <<>>,
             failed: None,
             ready: false,
+            cancelKey: <<>>,
         )
         buffer: bytes = <<>>
         while true {
@@ -52,7 +54,9 @@ capability Postgres provides db.SqlDriver {
                         }
                     }
                     if state.ready {
-                        return Ok(connection)
+                        return Ok(
+                            db.SqlConnection(connection: connection, cancelKey: state.cancelKey),
+                        )
                     }
                     if state.send.length() > 0 {
                         writtenOr(Socket.write(connection, state.send))?
@@ -64,10 +68,18 @@ capability Postgres provides db.SqlDriver {
 
     // §3: one statement, one round trip of the extended protocol, read
     // until ReadyForQuery so the connection is ready for the next (§9).
-    gateway run(connection: Connection, sql: string, values: List<db.SqlValue>) -> Result<db.SqlResult, db.DatabaseError>
+    gateway execute(on: db.SqlConnection, sql: string, values: List<db.SqlValue>) -> db.SqlRun
         requires Socket
     {
-        writtenOr(Socket.write(connection, statementMessages(numberPlaceholders(sql), values)))?
+        match Socket.write(on.connection, statementMessages(numberPlaceholders(sql), values)) {
+            Ok(_) -> None
+            Err(failure) -> {
+                return db.SqlRun(
+                    connection: on,
+                    result: Err(db.DatabaseError.Broken(failure: failure)),
+                )
+            }
+        }
         state: Reply = Reply(
             columns: [],
             types: [],
@@ -81,8 +93,17 @@ capability Postgres provides db.SqlDriver {
         while true {
             match nextFrame(buffer) {
                 None -> {
-                    chunk = bytesOr(Socket.read(connection))?
-                    buffer = <<buffer: bytes, chunk: bytes>>
+                    match Socket.read(on.connection) {
+                        Ok(chunk) -> {
+                            buffer = <<buffer: bytes, chunk: bytes>>
+                        }
+                        Err(failure) -> {
+                            return db.SqlRun(
+                                connection: on,
+                                result: Err(db.DatabaseError.Broken(failure: failure)),
+                            )
+                        }
+                    }
                 }
                 frame -> {
                     buffer = frame.rest
@@ -96,18 +117,81 @@ capability Postgres provides db.SqlDriver {
                     if state.ready {
                         match state.failed {
                             None -> {
-                                return Ok(
-                                    db.SqlResult(columns: state.columns, rows: rows, affected: state.affected),
+                                return db.SqlRun(
+                                    connection: on,
+                                    result: Ok(db.SqlResult(columns: state.columns, rows: rows, affected: state.affected)),
                                 )
                             }
                             failure -> {
-                                return Err(failure)
+                                return db.SqlRun(connection: on, result: Err(failure))
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    // ADR 0084 §3a: a CancelRequest, on a new connection negotiated as
+    // open negotiates one (libpq does the same), so a cancel never goes in
+    // the clear when the connection it stops is encrypted. The server
+    // closes the connection once it has read the request, so the one read
+    // waits for that, as libpq's does. A cancel that can't be sent changes
+    // nothing: the pool discards the connection either way.
+    gateway cancel(settings: Map<string, string>, key: bytes) -> None
+        requires Socket
+    {
+        if key.length() == 0 {
+            return None
+        }
+        match readSettings(settings) {
+            Err(_) -> None
+            Ok(pg) -> {
+                match Socket.connect(pg.host, pg.port) {
+                    Err(_) -> None
+                    Ok(opened) -> {
+                        connection: Connection = opened
+                        ready: bool = true
+                        if pg.secure {
+                            ready = false
+                            match Socket.write(connection, <<8: i32be, 80877103: i32be>>) {
+                                Err(_) -> None
+                                Ok(_) -> {
+                                    match Socket.read(connection) {
+                                        Err(_) -> None
+                                        Ok(answer) -> {
+                                            if answer.length() == 1 and answer.at(0) == 83 {
+                                                match Socket.startTls(connection, pg.host) {
+                                                    Err(_) -> None
+                                                    Ok(upgraded) -> {
+                                                        connection = upgraded
+                                                        ready = true
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if ready {
+                            length = key.length() + 8
+                            match Socket.write(connection, <<length: i32be, 80877102: i32be, key: bytes>>) {
+                                Err(_) -> None
+                                Ok(_) -> {
+                                    match Socket.read(connection) {
+                                        Ok(_) -> None
+                                        Err(_) -> None
+                                    }
+                                }
+                            }
+                        }
+                        Socket.close(connection)
+                    }
+                }
+            }
+        }
+        return None
     }
 
     // Terminate, then close. A failed write changes nothing: the socket
