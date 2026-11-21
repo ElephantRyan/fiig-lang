@@ -265,9 +265,9 @@ func (c *checker) mathMember(e *syntax.FieldAccess) {
 }
 
 // mathNameTaken reports a local name or import alias that would hide a
-// prelude group (ADR 0049 §2.5: `math`, `json` (ADR 0073 §1), and `crypto`
-// (ADR 0075 §1) are
-// visible without a `use`, so they are reserved everywhere).
+// prelude group (ADR 0049 §2.5: `math`, `json` (ADR 0073 §1), `crypto`
+// (ADR 0075 §1), and `compress` (ADR 0116 §1) are visible without a
+// `use`, so they are reserved everywhere).
 func (c *checker) mathNameTaken(name string, at lexer.Pos, what, fix string) {
 	if types.IsPreludeGroup(name) {
 		c.report(at, "G4", "%s %q would hide the prelude %s group, which every file can call without a `use`; a bare name must mean one thing, so %s (ADR 0049 §2.5)", what, name, name, fix)

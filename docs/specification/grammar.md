@@ -345,6 +345,17 @@ only an activity or a gateway may call it (B10). Attested:
 `accounts/gateways/` (`add_account.fiig`, `find_account_by_key.fiig`) and
 `accounts/conversions/token_hash.fiig`.
 
+The prelude `compress` group (ADR 0116) is listed in
+`compiler/types/compress.go`: Kafka's four codecs in Go, each a pair.
+`gzip(data)`, `snappy(data)` (one raw block), `lz4(data)` (an LZ4 frame,
+as Kafka writes it) and `zstd(data)` return `bytes`. `gunzip`, `unsnappy`,
+`unlz4` and `unzstd(data, maxSize)` return `Result<bytes,
+DecompressError>`: `Err(TooLarge(maxSize))` for more than `maxSize`
+bytes, found without producing the rest, and `Err(Corrupt(reason))` for
+data that isn't the format; a negative `maxSize` faults. Every member is
+pure. Attested: `compiler/stdlib/kafka` (`RecordBatch.fiig`,
+`UnpackedRecords.fiig`).
+
 `interface-decl` and `capability-decl` are ADR 0043's. An interface lists the
 operations a capability group must have to fulfill it; its name is a type,
 and a value of it is a group chosen at runtime. A capability group is named

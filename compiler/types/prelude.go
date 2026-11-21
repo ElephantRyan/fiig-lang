@@ -70,6 +70,10 @@ var preludeSources = []string{`enum SocketError {
     Lax
     AnySite
 }
+`, `enum DecompressError {
+    Corrupt(reason: string)
+    TooLarge(maxSize: int)
+}
 `, `enum JsonValue {
     Null
     Bool(value: bool)
@@ -243,7 +247,7 @@ func holds(t Type, leaf func(Type) bool, resolveField func(*syntax.ModelDecl, sy
 
 // PreludeName reports what the prelude binds name to in every file, if
 // anything: a primitive type, a prelude type, a Result constructor, or the
-// math, json, or crypto group. A declaration of one of these names is K2 (ADR 0049), since
+// math, json, crypto, or compress group. A declaration of one of these names is K2 (ADR 0049), since
 // resolution and calls reach the prelude's meaning first and the
 // declaration would be silently unreachable or would silently replace it.
 func PreludeName(name string) (string, bool) {
@@ -260,6 +264,8 @@ func PreludeName(name string) (string, bool) {
 		return "the prelude json group", true
 	case CryptoGroup:
 		return "the prelude crypto group", true
+	case CompressGroup:
+		return "the prelude compress group", true
 	}
 	if preludeGenerics[name] {
 		return "a prelude type", true
