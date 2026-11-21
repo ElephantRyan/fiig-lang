@@ -2,7 +2,8 @@ use fiig.session
 
 // ADR 0117 §3: bytes the broker sent. Each whole response answers the
 // oldest request still waiting: a call's Request gets it back, and the
-// group's own are read here. Then whatever became due is written, and held
+// group's own, and a broker session's ApiVersions and Layouts (ADR 0113
+// §4, as amended 2026-11-21), are read here. Then whatever became due is written, and held
 // polls are answered.
 conversion sessionReceived(state: bytes, data: bytes, now: int) -> session.Step {
     decoded: Result<KafkaSessionState, JsonError> = json.decode(state)
@@ -72,7 +73,13 @@ private {
                     return copy(next, replies: append(next.replies, reply))
                 }
                 if head.kind == "versions" {
-                    return copy(next, state: copy(next.state, fatal: consumerVersions(frame)))
+                    if s.role == "group" {
+                        return copy(next, state: copy(next.state, fatal: consumerVersions(frame)))
+                    }
+                    return versionsAnswered(next, frame, head.correlation)
+                }
+                if head.kind == "metadata" {
+                    return layoutAnswered(next, head, frame, now)
                 }
                 if head.kind == "coordinator" {
                     return coordinatorAnswered(next, frame, now)
@@ -90,6 +97,40 @@ private {
                 return failed(turn, "a response is shorter than its correlation id")
             }
         }
+    }
+
+    // A broker session is open once ApiVersions answers; one that can't
+    // take the producer's versions answers every Layout with why.
+    versionsAnswered(turn: SessionTurn, frame: bytes, correlation: int) -> SessionTurn {
+        s = copy(turn.state, phase: "broker")
+        match checkApiVersions(frame, correlation) {
+            Ok(_) -> {
+                return copy(turn, state: s)
+            }
+            Err(refusal) -> {
+                return copy(turn, state: copy(s, refused: refusal))
+            }
+        }
+    }
+
+    // A Layout's Metadata: the layout is kept, in place of what was, and
+    // given to the ask; an error drops what was kept and is given instead.
+    layoutAnswered(turn: SessionTurn, head: Inflight, frame: bytes, now: int) -> SessionTurn {
+        s = turn.state
+        kept = filter(c in s.layouts): c.topic != head.topic
+        reply: LayoutReply = LayoutReply(layout: None, error: None)
+        layouts: List<CachedLayout> = kept
+        match readMetadataV12(frame, head.correlation, head.topic) {
+            Err(failure) -> {
+                reply = LayoutReply(layout: None, error: failure)
+            }
+            Ok(layout) -> {
+                reply = LayoutReply(layout: layout, error: None)
+                layouts = append(kept, CachedLayout(topic: head.topic, layout: layout, at: now))
+            }
+        }
+        answer = session.SessionReply(key: head.key, message: json.encode(reply), last: true)
+        return copy(turn, state: copy(s, layouts: layouts), replies: append(turn.replies, answer))
     }
 
     failed(turn: SessionTurn, reason: string) -> SessionTurn {

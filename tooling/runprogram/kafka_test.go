@@ -242,7 +242,9 @@ gateway publish(topic: string) -> Result<List<kafka.Sent>, kafka.KafkaError>
 }`,
 }
 
-func kafkaPublish(t *testing.T, bootstrap, topic string, times int) []string {
+// kafkaPublisher is one process that sends to topics with env as its
+// environment; each call to the function it returns is one publish.
+func kafkaPublisher(t *testing.T, env map[string]string) func(topic string) string {
 	t.Helper()
 	root := t.TempDir()
 	for name, src := range fixture.Module(kafkaProgram) {
@@ -271,19 +273,27 @@ func kafkaPublish(t *testing.T, bootstrap, topic string, times int) []string {
 	in.Groups = BuildGroups(files, loaded.Packages)
 	in.Packages = loaded.Packages
 	pkg := loaded.Packages["kafkatest.app.orders"]
-	env := map[string]string{"KAFKA_BOOTSTRAP": bootstrap}
 	lookup := func(name string) (string, bool) { v, ok := env[name]; return v, ok }
 	program := Program{Universe: u, Imports: in.Imports, Groups: in.Groups}
 	if problems := in.LoadConfig(ReachableConfigFrom(program, []Entry{{Package: pkg, Name: "publish"}}), lookup); len(problems) > 0 {
 		t.Fatal(problems)
 	}
-	var out []string
-	for range times {
+	return func(topic string) string {
+		t.Helper()
 		v, fault := in.Call(in.EnterPackage(context.Background(), pkg), "publish", map[string]runtime.Value{"topic": runtime.Str(topic)})
 		if fault != nil {
 			t.Fatal(fault)
 		}
-		out = append(out, v.String())
+		return v.String()
+	}
+}
+
+func kafkaPublish(t *testing.T, bootstrap, topic string, times int) []string {
+	t.Helper()
+	publish := kafkaPublisher(t, map[string]string{"KAFKA_BOOTSTRAP": bootstrap})
+	var out []string
+	for range times {
+		out = append(out, publish(topic))
 	}
 	return out
 }
@@ -305,11 +315,53 @@ func TestKafkaProducerAgainstABrokerInMemory(t *testing.T) {
 	if len(k.bad) > 0 {
 		t.Errorf("the broker found: %s", strings.Join(k.bad, "; "))
 	}
-	// ADR 0109: metadata and produce, twice, over one kept connection.
+	// Metadata and produce, twice, over one session's connection: the
+	// bootstrap server is the leader, so its broker session is the same
+	// one (ADR 0113 §4, as amended 2026-11-21) ...
 	if n := k.accepted.Load(); n != 1 {
 		t.Errorf("the broker saw %d connections, want 1", n)
 	}
+	// ... and the second send used the layout the first read.
+	if k.metadatas != 1 {
+		t.Errorf("the broker answered %d Metadata requests, want 1", k.metadatas)
+	}
 	if got := kafkaPublish(t, k.ln.Addr().String(), "missing", 1); !strings.Contains(got[0], "UnknownTopic(missing)") {
 		t.Errorf("an unknown topic: %s", got[0])
+	}
+}
+
+// ADR 0113 §4, as amended 2026-11-21: a produce answered
+// NOT_LEADER_OR_FOLLOWER returns the error and drops the kept layout, so
+// the next send reads it again; a max age of 0 reads it every send.
+func TestKafkaProducerReadsTheLayoutAgainWhenTheLeadersMove(t *testing.T) {
+	k := startFakeKafka(t)
+	publish := kafkaPublisher(t, map[string]string{"KAFKA_BOOTSTRAP": k.ln.Addr().String()})
+	if got := publish("orders"); !strings.HasPrefix(got, "Ok(") {
+		t.Fatalf("first send: %s", got)
+	}
+	k.mu.Lock()
+	k.refuse = 6
+	k.mu.Unlock()
+	if got := publish("orders"); !strings.Contains(got, "NOT_LEADER_OR_FOLLOWER") {
+		t.Fatalf("a refused send: %s", got)
+	}
+	if k.metadatas != 1 {
+		t.Fatalf("the refused send read the layout again; %d Metadata requests", k.metadatas)
+	}
+	if got := publish("orders"); !strings.HasPrefix(got, "Ok(") {
+		t.Fatalf("the send after: %s", got)
+	}
+	if k.metadatas != 2 {
+		t.Errorf("the send after a refusal used the old layout; %d Metadata requests, want 2", k.metadatas)
+	}
+
+	uncached := kafkaPublisher(t, map[string]string{"KAFKA_BOOTSTRAP": k.ln.Addr().String(), "KAFKA_METADATA_MAX_AGE_MS": "0"})
+	uncached("orders")
+	uncached("orders")
+	if k.metadatas != 4 {
+		t.Errorf("with a max age of 0, %d Metadata requests in all, want 4", k.metadatas)
+	}
+	if len(k.bad) > 0 {
+		t.Errorf("the broker found: %s", strings.Join(k.bad, "; "))
 	}
 }

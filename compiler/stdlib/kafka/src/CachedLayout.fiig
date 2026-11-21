@@ -1,0 +1,8 @@
+// ADR 0113 §4, as amended 2026-11-21: a topic's layout as a broker
+// session keeps it, and when it was read, so a Layout ask younger than
+// its max age is answered without asking the broker.
+model CachedLayout {
+    topic: string
+    layout: TopicLayout
+    at: int
+}

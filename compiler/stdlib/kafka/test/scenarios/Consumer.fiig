@@ -23,21 +23,27 @@ test compactStringsReadBack {
 
 test aBrokerSessionPassesRequestsThrough {
     settings: Map<string, string> = ["role": "broker", "host": "b", "port": "9092", "clientId": "fiig"]
+    // ApiVersions goes first, and asks wait for its answer (ADR 0113 §4,
+    // as amended 2026-11-21).
     opened = sessionOpened(settings, 1000)
-    expect opened.write == <<>>
+    expect opened.write == apiVersionsRequest("fiig", 1)
     expect opened.nextTickAt == None
     request = metadataRequest("fiig", 77, "orders")
-    asked = sessionAsked(opened.state, requestAsk(request), 1000)
-    expect asked.accepted == 1
+    held = sessionAsked(opened.state, requestAsk(request), 1000)
+    expect held.accepted == None
+    expect held.write == <<>>
+    ready = sessionReceived(held.state, versionsOf(1), 1000)
+    asked = sessionAsked(ready.state, requestAsk(request), 1000)
+    expect asked.accepted == 2
     // It goes out with the session's correlation id ...
-    expect asked.write == <<request.slice(0, 8): bytes, 1: i32be, request.slice(12, request.length()): bytes>>
+    expect asked.write == <<request.slice(0, 8): bytes, 2: i32be, request.slice(12, request.length()): bytes>>
     // ... and its response, arriving in two pieces, back with the caller's.
-    response = <<1: i32be, "body".utf8(): bytes>>
+    response = <<2: i32be, "body".utf8(): bytes>>
     framed = <<response.length(): i32be, response: bytes>>
     partial = sessionReceived(asked.state, framed.slice(0, 5), 1001)
     expect partial.replies.length() == 0
     whole = sessionReceived(partial.state, framed.slice(5, framed.length()), 1002)
-    expect whole.replies == [session.SessionReply(key: 1, message: <<77: i32be, "body".utf8(): bytes>>, last: true)]
+    expect whole.replies == [session.SessionReply(key: 2, message: <<77: i32be, "body".utf8(): bytes>>, last: true)]
 }
 
 test aGroupSessionMovesToItsCoordinator {

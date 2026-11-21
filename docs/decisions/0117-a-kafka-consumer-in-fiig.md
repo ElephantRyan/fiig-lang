@@ -124,6 +124,14 @@ stays open.
   `heartbeatIntervalMs` the broker names, OffsetFetch for each newly
   assigned partition, and OffsetCommit for what was handled.
 
+*(Amended 2026-11-21: the producer runs over `broker` sessions too (ADR
+0113 §4, as amended). A broker session now asks ApiVersions as it opens
+and holds every ask, returning no `accepted`, until the answer comes;
+the consumer's Fetch and ListOffsets wait that one round trip on a new
+connection. It also answers two asks of the producer's,
+`KafkaAsk.Layout(topic, maxAgeMillis)` and `KafkaAsk.Forget(topic)`,
+from the layouts it keeps in its state.)*
+
 The state of a group session is the member's epoch, its partitions, and
 for each the next offset to fetch, the offset to commit, and a retried
 offset's attempts and the time it may be fetched again.

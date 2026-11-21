@@ -4,10 +4,16 @@
 // waits for partitions to fetch, Advance records how far a fetch got (-1:
 // start the partition again where the route's `from` says), and Ack and
 // Retry settle one record, Retry seeking its partition back until resumeAt.
+// Layout and Forget are a broker session's, for the producer (ADR 0113
+// §4, as amended 2026-11-21): Layout answers with the topic's layout, kept
+// for maxAgeMillis, and Forget drops it, after a produce that says the
+// leaders moved.
 enum KafkaAsk {
     Request(data: bytes)
     Poll(waitMillis: int)
     Advance(partition: int, next: int)
     Ack(partition: int, offset: int)
     Retry(partition: int, offset: int, resumeAt: int)
+    Layout(topic: string, maxAgeMillis: int)
+    Forget(topic: string)
 }

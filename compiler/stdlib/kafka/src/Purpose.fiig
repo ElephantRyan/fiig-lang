@@ -1,6 +1,0 @@
-// What an exchange's reply is read as: the topic's layout, or where one
-// produce request's records went.
-enum Purpose {
-    Metadata
-    Produce(call: ProduceCall)
-}

@@ -1,9 +1,11 @@
 // ADR 0113 §1: why a send failed. Broker carries Kafka's error code and
 // name, and whether the protocol marks it retriable; send never retries,
-// so the caller decides (§1). Decompress is a fetched batch that doesn't
-// decompress (ADR 0116 §4).
+// so the caller decides (§1). Session is a broker that couldn't be reached
+// or didn't answer in time, over the sessions send uses (§4, as amended
+// 2026-11-21; it was Socket before). Decompress is a fetched batch that
+// doesn't decompress (ADR 0116 §4).
 enum KafkaError {
-    Socket(failure: SocketError)
+    Session(failure: SessionError)
     Broker(code: int, name: string, retriable: bool, message: string)
     UnknownTopic(topic: string)
     Unsupported(reason: string)

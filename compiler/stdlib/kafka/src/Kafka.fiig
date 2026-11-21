@@ -1,19 +1,20 @@
-// ADR 0113: a Kafka producer written in fiig over Socket, at least once:
-// acks=all, no idempotence, no transactions, no retries (§1). A send asks
-// a bootstrap broker for the topic's layout, then sends each partition's
-// leader its records, each exchange over a connection kept by an earlier
-// one when there is one (ADR 0109). A new connection is checked with
-// ApiVersions first, pipelined with the request, since both are safe to
-// send before knowing the answer (§4).
+// ADR 0113: a Kafka producer written in fiig, at least once: acks=all, no
+// idempotence, no transactions, no retries (§1). A send asks the bootstrap
+// session for the topic's layout, which it keeps for
+// KAFKA_METADATA_MAX_AGE_MS, then sends each partition's leader its
+// records over that leader's broker session (§4, as amended 2026-11-21:
+// over sessions, ADR 0117 §3, where it was Socket with kept connections,
+// ADR 0109). A produce that says the leaders moved drops the kept layout,
+// so the next send reads it again.
 capability Kafka {
     gateway send(topic: string, records: List<KafkaRecord>) -> Result<List<Sent>, KafkaError>
-        requires Socket
+        requires Session
     {
         if records.length() == 0 {
             return Ok([])
         }
-        servers = bootstrapOf(KafkaServer.bootstrap)?
         clientId = KafkaServer.clientId
+        bootstrap = bootstrapSettings(KafkaServer.bootstrap, KafkaServer.tls, clientId)?
         compression: Compression = Compression.None
         match KafkaServer.compression {
             None -> None
@@ -22,116 +23,45 @@ capability Kafka {
             }
         }
         now = Clock.now()
-        until: int = now + KafkaServer.timeoutMillis
-        pending: List<Exchange> = [
-            Exchange(broker: servers.first(), request: metadataV12Request(clientId, 2, topic), purpose: Purpose.Metadata),
-        ]
-        // The next bootstrap server to ask when one can't be reached.
-        nextServer: int = 1
+        until = now + KafkaServer.timeoutMillis
+        ask = KafkaAsk.Layout(topic: topic, maxAgeMillis: KafkaServer.metadataMaxAgeMillis)
+        described = mapErr(e in Session.call(bootstrap, json.encode(ask), deadline: until)): KafkaError.Session(failure: e)?
+        layout = layoutOf(described)?
         sent: List<SentAt> = []
-        i: int = 0
-        while i < pending.length() {
-            exchange = pending.at(i)
-            i = i + 1
-            host = exchange.broker.host
-            port = exchange.broker.port
-            reused: Connection | None = Socket.reuse(host, port, tls: KafkaServer.tls, session: "")
-            data: bytes = exchange.request
-            replies: int = 1
-            opened: Result<Connection, SocketError> = Err(SocketError.Closed)
-            match reused {
-                None -> {
-                    data = <<apiVersionsRequest(clientId, 1): bytes, data: bytes>>
-                    replies = 2
-                    if KafkaServer.tls {
-                        opened = Socket.connectTls(host, port, deadline: until)
-                    } else {
-                        opened = Socket.connect(host, port, deadline: until)
-                    }
+        for call in producePlan(layout, records, now, compression)? {
+            request = produceV9Request(clientId, 1, topic, KafkaServer.timeoutMillis, call.batches)
+            leader = brokerSettings(call.broker, KafkaServer.tls, clientId)
+            failure: KafkaError | None = None
+            match Session.call(leader, requestAsk(request), deadline: until) {
+                Err(e) -> {
+                    failure = KafkaError.Session(failure: e)
                 }
-                kept -> {
-                    opened = Ok(kept)
-                }
-            }
-            frames: List<bytes> = []
-            failed: SocketError | None = None
-            match opened {
-                Err(failure) -> {
-                    failed = failure
-                }
-                Ok(connection) -> {
-                    match Socket.write(connection, data, deadline: until) {
-                        Err(failure) -> {
-                            failed = failure
+                Ok(parts) -> {
+                    match readProduceV9(parts.first(), 1, call) {
+                        Err(e) -> {
+                            failure = e
                         }
-                        Ok(_) -> None
-                    }
-                    buffer: bytes = <<>>
-                    while failed == None and frames.length() < replies {
-                        match nextFrame(buffer) {
-                            FrameRead.Done(frame, rest) -> {
-                                frames = append(frames, frame)
-                                buffer = rest
-                            }
-                            FrameRead.Malformed(reason) -> {
-                                Socket.close(connection)
-                                return Err(KafkaError.MalformedReply(reason: reason))
-                            }
-                            FrameRead.NeedMore -> {
-                                match Socket.read(connection, deadline: until) {
-                                    Ok(chunk) -> {
-                                        buffer = <<buffer: bytes, chunk: bytes>>
-                                    }
-                                    Err(failure) -> {
-                                        failed = failure
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if failed == None and buffer.length() == 0 {
-                        Socket.keep(connection, session: "")
-                    } else {
-                        Socket.close(connection)
-                    }
-                }
-            }
-            match failed {
-                None -> {
-                    if replies == 2 {
-                        checkApiVersions(frames.first(), 1)?
-                    }
-                    reply = frames.last()
-                    match exchange.purpose {
-                        Purpose.Metadata -> {
-                            layout = readMetadataV12(reply, 2, topic)?
-                            for call in producePlan(layout, records, now, compression)? {
-                                pending = append(
-                                    pending,
-                                    Exchange(broker: call.broker, request: produceV9Request(clientId, 2, topic, KafkaServer.timeoutMillis, call.batches), purpose: Purpose.Produce(call: call)),
-                                )
-                            }
-                        }
-                        Purpose.Produce(call) -> {
-                            for s in readProduceV9(reply, 2, call)? {
+                        Ok(placed) -> {
+                            for s in placed {
                                 sent = append(sent, s)
                             }
                         }
                     }
                 }
-                failure -> {
-                    // A bootstrap server that can't be reached gives way to
-                    // the next, since asking for metadata changes nothing.
-                    // A produce that fails is the caller's to send again.
-                    retryElsewhere = exchange.purpose == Purpose.Metadata and nextServer < servers.length()
-                    if not retryElsewhere {
-                        return Err(KafkaError.Socket(failure: failure))
+            }
+            match failure {
+                None -> None
+                found -> {
+                    // A produce that fails is the caller's to send again
+                    // (§1); a stale layout isn't kept for that send.
+                    if layoutMoved(found) {
+                        forget = KafkaAsk.Forget(topic: topic)
+                        match Session.call(bootstrap, json.encode(forget), deadline: until) {
+                            Ok(_) -> None
+                            Err(_) -> None
+                        }
                     }
-                    pending = append(
-                        pending,
-                        Exchange(broker: servers.at(nextServer), request: exchange.request, purpose: Purpose.Metadata),
-                    )
-                    nextServer = nextServer + 1
+                    return Err(found)
                 }
             }
         }

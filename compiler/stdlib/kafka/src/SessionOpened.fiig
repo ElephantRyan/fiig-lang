@@ -1,7 +1,9 @@
 use fiig.session
 
 // ADR 0117 §3: a new connection of a fiig.kafka session. A broker session
-// is ready at once. A group session asks ApiVersions first, so a broker
+// asks ApiVersions first and holds every ask until it answers, so the
+// producer is told by name when a broker can't take its versions (ADR 0113
+// §4, as amended 2026-11-21). A group session asks ApiVersions first, so a broker
 // older than KIP-848 is refused by name (§1), and FindCoordinator, so it
 // can move to the broker that coordinates its group. Its member id is the
 // session's id, which stays the same across reconnects, so the broker
@@ -29,11 +31,17 @@ conversion sessionOpened(settings: Map<string, string>, now: int) -> session.Ste
         commitAt: 0,
         partitions: [],
         polls: [],
+        layouts: [],
+        refused: None,
     )
-    if s.role != "group" {
-        return sessionStep(SessionTurn(state: s, write: <<>>, replies: [], close: None), None)
-    }
     versions = apiVersionsRequest(s.clientId, 1)
+    if s.role != "group" {
+        opening = copy(tracked(s, "versions"), phase: "opening")
+        return sessionStep(
+            SessionTurn(state: opening, write: versions, replies: [], close: None),
+            None,
+        )
+    }
     coordinator = findCoordinatorRequest(s.clientId, 2, s.group)
     finding = copy(tracked(tracked(s, "versions"), "coordinator"), phase: "finding")
     return sessionStep(

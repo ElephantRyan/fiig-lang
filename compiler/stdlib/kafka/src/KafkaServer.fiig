@@ -1,11 +1,14 @@
 // ADR 0113 §6: where the cluster is, as Kafka's bootstrap.servers writes
 // it (host:port, comma-separated), and how long one send may take. ADR
 // 0116 §4: how batches are compressed, in Kafka's compression.type
-// spelling; unset sends them uncompressed.
+// spelling; unset sends them uncompressed. ADR 0113 §4, as amended
+// 2026-11-21: how long a topic's layout is kept, as Java's
+// metadata.max.age.ms; 0 reads it on every send.
 config KafkaServer {
     bootstrap: string from env "KAFKA_BOOTSTRAP"
     tls: bool from env "KAFKA_TLS" = false
     clientId: string from env "KAFKA_CLIENT_ID" = "fiig"
     timeoutMillis: int from env "KAFKA_TIMEOUT_MS" = 30000
     compression: Compression | None from env "KAFKA_COMPRESSION"
+    metadataMaxAgeMillis: int from env "KAFKA_METADATA_MAX_AGE_MS" = 300000
 }

@@ -2,10 +2,12 @@
 // written, which is the order a broker answers in. A Request's response
 // goes back to key with callerCorrelation in place of correlation; the
 // group's own (kind "versions", "coordinator", "heartbeat", "offsets",
-// "commit") the session reads itself.
+// "commit") the session reads itself, as it does a Layout's "metadata",
+// for topic.
 model Inflight {
     correlation: int
     key: int
     callerCorrelation: int
     kind: string
+    topic: string
 }

@@ -1,0 +1,18 @@
+// ADR 0113 §4, as amended 2026-11-21: whether a produce's failure says
+// the layout it was planned from is stale, so the bootstrap session drops
+// it: UNKNOWN_TOPIC_OR_PARTITION, LEADER_NOT_AVAILABLE, or
+// NOT_LEADER_OR_FOLLOWER, as the Java client reads them, or a leader that
+// couldn't be reached.
+conversion layoutMoved(failure: KafkaError) -> bool {
+    match failure {
+        KafkaError.Broker(code, _, _, _) -> {
+            return code == 3 or code == 5 or code == 6
+        }
+        KafkaError.Session(_) -> {
+            return true
+        }
+        _ -> {
+            return false
+        }
+    }
+}

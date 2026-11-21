@@ -1,7 +1,11 @@
 // A fiig.kafka session's state (ADR 0117 §3), kept by the runtime as JSON
 // between operations (ADR 0114 §4). role is "broker" or "group"; a group
-// session's phase is "finding" its coordinator, then "member". buffer is
-// what has arrived of a response not yet whole.
+// session's phase is "finding" its coordinator, then "member", and a
+// broker session's "opening" until ApiVersions answers, then "broker".
+// buffer is what has arrived of a response not yet whole. layouts are the
+// topics' layouts a broker session keeps for the producer, and refused
+// why it can't send the producer's versions (ADR 0113 §4, as amended
+// 2026-11-21).
 model KafkaSessionState {
     role: string
     host: string
@@ -24,4 +28,6 @@ model KafkaSessionState {
     commitAt: int
     partitions: List<OwnedPartition>
     polls: List<WaitingPoll>
+    layouts: List<CachedLayout>
+    refused: KafkaError | None
 }

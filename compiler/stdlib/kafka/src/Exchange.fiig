@@ -1,6 +1,0 @@
-// One request a send makes, to one broker, and how its reply is read.
-model Exchange {
-    broker: BrokerNode
-    request: bytes
-    purpose: Purpose
-}

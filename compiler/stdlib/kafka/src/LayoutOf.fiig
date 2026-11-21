@@ -1,0 +1,34 @@
+// A broker session's answer to Layout, read back as the topic's layout.
+conversion layoutOf(parts: List<bytes>) -> Result<TopicLayout, KafkaError> {
+    if parts.length() != 1 {
+        return Err(
+            KafkaError.MalformedReply(reason: "a Layout ask was answered in ${parts.length()} parts"),
+        )
+    }
+    decoded: Result<LayoutReply, JsonError> = json.decode(parts.first())
+    match decoded {
+        Err(_) -> {
+            return Err(
+                KafkaError.MalformedReply(reason: "a Layout ask's answer isn't a LayoutReply"),
+            )
+        }
+        Ok(reply) -> {
+            match reply.error {
+                None -> None
+                failure -> {
+                    return Err(failure)
+                }
+            }
+            match reply.layout {
+                None -> {
+                    return Err(
+                        KafkaError.MalformedReply(reason: "a Layout ask's answer has no layout and no error"),
+                    )
+                }
+                layout -> {
+                    return Ok(layout)
+                }
+            }
+        }
+    }
+}

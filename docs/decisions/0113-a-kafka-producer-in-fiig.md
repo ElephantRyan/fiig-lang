@@ -121,6 +121,47 @@ consumer's own Metadata and dead-letter Produce still send (ADR 0117
 §3); moving those is the consumer's change to make, in
 `KafkaSource.fiig`.)*
 
+*(Amended 2026-11-21: **the producer keeps each topic's layout, for
+`KAFKA_METADATA_MAX_AGE_MS`** (300000 by default, Java's
+`metadata.max.age.ms`; 0 reads it on every send). State that outlives a
+call has one home in fiig, a session (ADR 0114, built by ADR 0117), so
+`send` moved onto them: it now `requires Session`, not `Socket`. It asks
+its **bootstrap session**, a `"broker"` session to the first bootstrap
+server with the rest as `"alternates"` (ADR 0117 §2, as amended), for
+`KafkaAsk.Layout(topic, maxAgeMillis)`. The session answers from the
+layout it keeps when that is younger than the max age, and otherwise
+sends Metadata v12, keeps what comes back, and answers with it. Each
+produce goes to its leader's broker session as a `KafkaAsk.Request`,
+the same sessions the consumer fetches over. A produce answered
+UNKNOWN_TOPIC_OR_PARTITION, LEADER_NOT_AVAILABLE, or
+NOT_LEADER_OR_FOLLOWER, or a leader that can't be reached, sends
+`KafkaAsk.Forget(topic)` to the bootstrap session, so the next send
+reads the layout again; the send still returns the error and doesn't
+retry (§1).*
+
+*The other way was to keep `Socket` and hold the layout somewhere else:
+a process-wide cache in the runtime, which is Go doing a fiig package's
+job (ADR 0042), or a new store, which ADR 0109's open question 2 already
+answered with sessions. Sessions also gave the producer things it lacked:
+the bootstrap list fails over by the runtime's alternates instead of its
+own loop, connections stay open by the session instead of
+`Socket.reuse`/`keep`, and SASL (open question 2) has one place to live
+for the producer and the consumer alike. An application that depends on
+`fiig.kafka` already lists `Session` (ADR 0117's Consequences), so
+nothing changes for it but `KafkaError.Socket(failure: SocketError)`,
+which is now `KafkaError.Session(failure: SessionError)`. With one
+bootstrap server, the bootstrap session's settings are that broker's
+own, so a one-broker cluster is one connection, as before. A session
+that reconnects starts with no layouts, and the cache is one session's,
+so two processes each keep their own, as two Java producers do. A broker
+session now asks ApiVersions as it opens and holds every ask until the
+answer comes (one round trip per connection, as the Java client spends);
+one that can't take Metadata v12 and Produce v9 answers each Layout with
+`Unsupported`. `bootstrapSettings`, `layoutOf`, `layoutMoved`, and the
+Layout and Forget arms of `SessionAsked.fiig` and `SessionReceived.fiig`;
+tested by `test/scenarios/Producer.fiig` and
+`TestKafkaProducerReadsTheLayoutAgainWhenTheLeadersMove`.)*
+
 ### 5. Record batches carry their compression bits
 
 A batch is Kafka's v2 format (magic 2). Its attributes field holds the
@@ -179,7 +220,8 @@ old versions will need.
 1. **Idempotence** and a metadata cache, after ADR 0109's open question 2.
    *(2026-11-21: that question is answered: sessions, ADR 0114 as built by
    ADR 0117, can hold a producer id, sequence numbers, and metadata.
-   Neither is built yet.)*
+   Neither is built yet.)* ~~The metadata cache.~~ Done 2026-11-21 (§4,
+   as amended). Idempotence stays open.
 2. **SASL**, which most hosted Kafka needs: SCRAM can reuse
    `crypto.pbkdf2Sha256` (ADR 0085), PLAIN is a handshake.
 3. ~~**Flexible versions**, before a broker that drops the non-flexible

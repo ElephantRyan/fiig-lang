@@ -6,7 +6,7 @@ use fiig.stream
 // halts the route; a reply this package can't read is Protocol.
 conversion consumerError(failure: KafkaError) -> stream.SourceError {
     match failure {
-        KafkaError.Socket(cause) -> stream.SourceError.Unavailable(reason: "${cause}")
+        KafkaError.Session(cause) -> stream.SourceError.Unavailable(reason: "${cause}")
         KafkaError.Broker(_, name, retriable, message) -> {
             if retriable {
                 return stream.SourceError.Unavailable(reason: message)

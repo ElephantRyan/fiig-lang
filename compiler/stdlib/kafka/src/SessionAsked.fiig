@@ -3,7 +3,10 @@ use fiig.session
 // ADR 0117 §3-§5: a call's ask. A Request is written with the session's
 // own correlation id, and answered when its response comes; the group's
 // asks change its state and are answered at once, but for Poll, which is
-// held until there is something to fetch.
+// held until there is something to fetch. A broker session holds every
+// ask until ApiVersions has answered, and answers a Layout from what it
+// keeps when that is young enough, else from Metadata (ADR 0113 §4, as
+// amended 2026-11-21).
 conversion sessionAsked(state: bytes, message: bytes, now: int) -> session.Step {
     decodedState: Result<KafkaSessionState, JsonError> = json.decode(state)
     decodedAsk: Result<KafkaAsk, JsonError> = json.decode(message)
@@ -28,6 +31,10 @@ conversion sessionAsked(state: bytes, message: bytes, now: int) -> session.Step 
 
 private {
     askedOf(s: KafkaSessionState, ask: KafkaAsk, now: int) -> session.Step {
+        if s.phase == "opening" {
+            // Not accepted: the runtime asks again after the next step.
+            return sessionStep(SessionTurn(state: s, write: <<>>, replies: [], close: None), None)
+        }
         key = s.nextCorrelation
         taken = copy(s, nextCorrelation: key + 1)
         turn = SessionTurn(state: taken, write: <<>>, replies: [], close: None)
@@ -40,6 +47,7 @@ private {
                             key: key,
                             callerCorrelation: caller,
                             kind: "request",
+                            topic: "",
                         )
                         sent = <<
                             size: i32be,
@@ -125,7 +133,41 @@ private {
                 }
                 return done(copy(turn, state: copy(taken, partitions: retried)), key)
             }
+            KafkaAsk.Layout(topic, maxAgeMillis) -> {
+                match taken.refused {
+                    None -> None
+                    refusal -> {
+                        return replied(turn, key, LayoutReply(layout: None, error: refusal))
+                    }
+                }
+                for cached in taken.layouts {
+                    if cached.topic == topic and now - cached.at < maxAgeMillis {
+                        return replied(turn, key, LayoutReply(layout: cached.layout, error: None))
+                    }
+                }
+                entry = Inflight(
+                    correlation: key,
+                    key: key,
+                    callerCorrelation: 0,
+                    kind: "metadata",
+                    topic: topic,
+                )
+                return sessionStep(
+                    copy(turn, state: copy(taken, inflight: append(taken.inflight, entry)), write: metadataV12Request(taken.clientId, key, topic)),
+                    key,
+                )
+            }
+            KafkaAsk.Forget(topic) -> {
+                kept = filter(c in taken.layouts): c.topic != topic
+                return done(copy(turn, state: copy(taken, layouts: kept)), key)
+            }
         }
+    }
+
+    // The ask answered at once, with a broker session's LayoutReply.
+    replied(turn: SessionTurn, key: int, reply: LayoutReply) -> session.Step {
+        answer = session.SessionReply(key: key, message: json.encode(reply), last: true)
+        return sessionStep(copy(turn, replies: append(turn.replies, answer)), key)
     }
 
     // The ask answered at once, with nothing.
