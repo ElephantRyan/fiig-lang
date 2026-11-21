@@ -35,7 +35,7 @@ func TestReplayOfAKafkaRecord(t *testing.T) {
 		}
 	}
 	redis := startFakeRedis(t, "pw")
-	p := startConsumer(t, root, bootstrap, redis)
+	p := startConsumer(t, root, bootstrap, redis, nil)
 	defer p.caps.Close()
 	p.publish(t, topic,
 		`{"orderId":"o1","quantity":3}`, `{"orderId":"o2","quantity":500}`, `{"orderId":"o3","quantity":0}`)

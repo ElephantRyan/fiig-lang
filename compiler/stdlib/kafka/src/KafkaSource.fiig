@@ -162,11 +162,11 @@ capability KafkaSource provides stream.StreamSource {
         requires Session
     {
         at = deliveryAt(id)?
-        servers = mapErr(e in bootstrapOf(KafkaServer.bootstrap)): consumerError(e)?
         clientId = KafkaServer.clientId
         topic = subscription.source
         until = Clock.now() + KafkaServer.timeoutMillis
-        bootstrap = brokerSettings(servers.first(), KafkaServer.tls, clientId)
+        // The bootstrap session, with the other servers as its alternates.
+        bootstrap = mapErr(e in bootstrapSettings(KafkaServer.bootstrap, KafkaServer.tls, clientId)): consumerError(e)?
         described = mapErr(e in Session.call(bootstrap, requestAsk(metadataRequest(clientId, 1, topic)), deadline: until)): unavailable(e)?
         layout = mapErr(e in readMetadata(described.first(), 1, topic)): consumerError(e)?
         leader = mapErr(e in leaderAt(layout, at.partition)): consumerError(e)?
