@@ -263,8 +263,8 @@ effect, and renaming the group starts a new one.
 KIP-848's group protocol only, so the cluster must run **Kafka 4.0 or
 later**; an older one halts the route at its first read, saying so. It
 reads `KAFKA_BOOTSTRAP` and the rest of the producer's settings (below),
-and an application that depends on `fiig.kafka` lists `Session` among its
-manifest's capabilities, beside `Socket`.
+and an application that depends on `fiig.kafka`, a producer-only one
+too, lists `Session` among its manifest's capabilities.
 
 - Each partition is handled in order. A `retry` seeks the partition back
   to the record and pauses it for `KAFKA_RETRY_AFTER_MS` (1000), so
@@ -438,13 +438,24 @@ is from the environment (ADR 0113):
   `KAFKA_TIMEOUT_MS` (30000), the most one send takes.
 - `KAFKA_COMPRESSION`: `none`, `gzip`, `snappy`, `lz4` or `zstd`, as
   `compression.type` (ADR 0116). Unset sends batches uncompressed.
+- `KAFKA_METADATA_MAX_AGE_MS` (300000), how long a topic's partitions and
+  leaders are kept between sends, as `metadata.max.age.ms`; `0` reads them
+  on every send. A send whose leader moved fails, and the next one reads
+  them again.
+- `KAFKA_SASL_MECHANISM`: `PLAIN`, `SCRAM-SHA-256` or `SCRAM-SHA-512`, as
+  `sasl.mechanism`; unset means no SASL. With it, `KAFKA_SASL_USERNAME`
+  and `KAFKA_SASL_PASSWORD` (a secret) are the login every producer and
+  consumer connection uses. Over TLS set `KAFKA_TLS=true` too (SASL_SSL).
+  A refused login fails a send with `Authentication` and halts a
+  consumer's route, saying why.
 
 A send is **at least once**: every leader acknowledges with `acks=all`,
 but there is no idempotence, so if a reply is lost after the broker
 wrote the records, sending again writes them twice. A keyed record goes
 to the partition a Java producer would choose. The topic must exist:
-`fiig.kafka` never creates one. There is no SASL yet, so a cluster that
-requires it can't be reached.
+`fiig.kafka` never creates one. The broker must take
+Metadata v12 and Produce v9 (Kafka 2.4 or later); an older one is refused
+by name.
 
 ## Mail
 

@@ -15,9 +15,12 @@ doesn't have to discover them.
   IDLE`.
 - **Kafka is at least once** (`fiig.kafka`, ADR 0113): `acks=all`, but
   no idempotence or transactions, so a send that is retried after a lost
-  reply writes its records twice. No SASL, no compression levels (ADR
-  0116), and every send reads the topic's metadata first, one round trip
-  more than a client that caches it.
+  reply writes its records twice. SASL is PLAIN, SCRAM-SHA-256 and
+  SCRAM-SHA-512 only (no OAUTHBEARER or GSSAPI, and no KIP-368
+  re-authentication: a broker that expires a login closes the connection,
+  and the session logs in again). A topic's layout is cached per process
+  for `KAFKA_METADATA_MAX_AGE_MS` and dropped when a produce says the
+  leaders moved. No compression levels (ADR 0116).
 - **The Kafka consumer is KIP-848 only** (ADR 0117): Kafka 4.0 or later.
   A retried record's attempts count again from 1 after a
   restart or a rebalance; a route sees a record's value, not its key or
