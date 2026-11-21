@@ -104,6 +104,7 @@ var primitiveMethods = map[string]map[string]Method{
 		// repeats and its last copy is cut to fit.
 		"padLeft":  {[]Param{p("width", intType), p("fill", stringType)}, stringType},
 		"padRight": {[]Param{p("width", intType), p("fill", stringType)}, stringType},
+		"repeat":   {[]Param{p("count", intType)}, stringType}, // ADR 0129 §1a
 		// ADR 0126: a value a gateway reads from outside, such as a stored
 		// token, marked as a Secret from there on; legal only in a gateway (S3).
 		"toSecret": {[]Param{p("name", stringType)}, SecretType},

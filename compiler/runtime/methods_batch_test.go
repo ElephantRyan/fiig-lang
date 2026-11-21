@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"math"
+	"strings"
 	"testing"
 )
 
@@ -126,5 +128,32 @@ func TestListConcatIsANewList(t *testing.T) {
 	}
 	if got, _ := evalBuiltinMethod(ints(), "concat", []Value{ints()}); !Equal(got, ints()) {
 		t.Errorf("concat of empties = %v", got)
+	}
+}
+
+// ADR 0129 §1a (Hearsay G2): repeat is the text count times; a negative
+// count, or a result too long for a string, faults.
+func TestStringRepeat(t *testing.T) {
+	cases := []struct {
+		s     string
+		count int64
+		want  string
+	}{
+		{"ab", 3, "ababab"},
+		{"ab", 0, ""},
+		{"", 5, ""},
+		{"é", 2, "éé"},
+	}
+	for _, c := range cases {
+		got, f := evalBuiltinMethod(Str(c.s), "repeat", []Value{Int(c.count)})
+		if f != nil || got != Value(Str(c.want)) {
+			t.Errorf("%q.repeat(%d) = %v %v, want %q", c.s, c.count, got, f, c.want)
+		}
+	}
+	if _, f := evalBuiltinMethod(Str("x"), "repeat", []Value{Int(-1)}); f == nil || !strings.Contains(f.Message, "can't be negative") {
+		t.Errorf("repeat(-1) fault = %v", f)
+	}
+	if _, f := evalBuiltinMethod(Str("xy"), "repeat", []Value{Int(math.MaxInt64)}); f == nil || !strings.Contains(f.Message, "too long for a string") {
+		t.Errorf("repeat(MaxInt64) fault = %v", f)
 	}
 }

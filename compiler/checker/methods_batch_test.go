@@ -20,6 +20,7 @@ func TestTheMethodBatchTypeChecks(t *testing.T) {
     short = words.distinct().reverse().take(3).drop(1)
     where = words.indexOfOrNone("a")
     both = words.concat(["x", "y"]).distinct()
+    line = "-".repeat(n)
     return "${n}".padLeft(width: 5, fill: "0").padRight(7, "-")
 }`
 	if diags := checkSrc(t, src); len(diags) != 0 {
