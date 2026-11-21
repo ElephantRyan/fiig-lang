@@ -35,6 +35,12 @@ func (c *checker) callPrimitive(name, op string, args []syntax.Arg, start lexer.
 // other kind (ADR 0068 §4). Any other primitive is touched only by a
 // gateway that requires it (ADR 0010).
 func (c *checker) checkPrimitiveCaller(name, op string, start lexer.Pos) {
+	// ADR 0091 §5: Clock.sleep moves a test's clock forward. Program code
+	// has no sleep, since it would hold a request or a worker for nothing.
+	if name == "Clock" && op == "sleep" && c.callerKind != kindTest {
+		c.report(start, "T2", "Clock.sleep is for tests, where it moves the test clock forward (ADR 0091 §5); program code doesn't sleep. To wait before trying again, use retry (ADR 0014); to run later, use a schedule adapter (ADR 0112)")
+		return
+	}
 	if capability.IsLocalEffect(name) {
 		switch c.callerKind {
 		case kindActivity, kindGateway, kindTest:

@@ -1,11 +1,12 @@
 // Package fmtcmd is fmt-cli, and `fiig fmt`: is the Milestone 1 prototype of the canonical formatter's
-// CLI. By default it prints the formatted source to stdout; -w rewrites the
-// file in place (a no-op if it's already canonical, since the formatter is
-// idempotent).
+// CLI. By default it prints the formatted source to stdout; -w rewrites each
+// file whose formatting differs, and -l lists those files, changes nothing,
+// and exits 1 when there are any (Hearsay: fmt had no way to see what it
+// would change without writing).
 //
 // Usage:
 //
-//	fmt-cli [-w] [-json] <file.fiig>...
+//	fmt-cli [-w | -l] [-json] <file.fiig or directory>...
 package fmtcmd
 
 import (
@@ -32,7 +33,8 @@ type fileErrors struct {
 
 func Main(name string, args []string) {
 	fs := flag.NewFlagSet(name, flag.ExitOnError)
-	write := fs.Bool("w", false, "write the formatted result back to each file instead of printing it")
+	write := fs.Bool("w", false, "write the formatted result back to each file whose formatting differs, instead of printing it")
+	list := fs.Bool("l", false, "list the files whose formatting differs and change nothing; exit 1 if there are any")
 	asJSON := fs.Bool("json", false, "print format errors as a JSON array instead of one line each")
 	relayoutFlag := fs.Bool("layout", false, "move the module in the one directory given to src/ and test/, with files named after their declarations (ADRs 0102, 0104, 0105)")
 	dryRun := fs.Bool("n", false, "with -layout, print what would move and change nothing")
@@ -45,7 +47,7 @@ func Main(name string, args []string) {
 	}
 
 	if fs.NArg() == 0 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-w] [-json] <file.fiig or directory>...")
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-w | -l] [-json] <file.fiig or directory>...")
 		os.Exit(2)
 	}
 
@@ -75,7 +77,20 @@ func Main(name string, args []string) {
 			}
 			continue
 		}
+		// A file that is already canonical but for CRLF line endings (a Windows
+		// checkout) counts as formatted, and -w leaves it alone.
+		same := strings.ReplaceAll(string(src), "\r\n", "\n") == out
+		if *list {
+			if !same {
+				fmt.Println(path)
+				exit = 1
+			}
+			continue
+		}
 		if *write {
+			if same {
+				continue
+			}
 			if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
 				fmt.Fprintln(os.Stderr, "error:", err)
 				exit = 1

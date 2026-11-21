@@ -142,3 +142,9 @@ func TestTestBugClasses(t *testing.T) {
 		})
 	}
 }
+
+// ADR 0091 §5: only a test sleeps; program code would hold a request.
+func TestClockSleepIsForTests(t *testing.T) {
+	diags := checkSrc(t, "activity wait() -> int {\n    Clock.sleep(1000)\n    return Clock.now()\n}")
+	wantDiag(t, diags, "T2", "Clock.sleep is for tests")
+}

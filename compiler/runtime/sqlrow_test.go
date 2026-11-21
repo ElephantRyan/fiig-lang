@@ -156,3 +156,17 @@ func TestReadRowMatchesIgnoringCaseAndUnderscores(t *testing.T) {
 		t.Errorf("err = %v, want the spellings looked for", err)
 	}
 }
+
+// Hearsay: an optional field with no column says how to give it one.
+func TestAMissingOptionalColumnSaysSelectNull(t *testing.T) {
+	u := universeFromSource(t, `model Row {
+    id: string
+    via: string | None
+}`)
+	d, _ := u.Lookup("Row")
+	row := Record{Fields: map[string]Value{"id": Str("r1")}}
+	_, err := readRow(row, types.Named{Name: "Row", Decl: d}, universeFields(u))
+	if err == nil || !strings.Contains(err.Error(), "select NULL AS via") {
+		t.Fatalf("err = %v, want the NULL AS hint", err)
+	}
+}

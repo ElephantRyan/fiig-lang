@@ -122,13 +122,19 @@ func readModelRow(row Record, decl *syntax.ModelDecl, u fieldTypes) (Value, erro
 	}
 	fields := make(map[string]Value, len(all))
 	for _, f := range all {
-		col, present := columnOf[f.Name]
-		if !present {
-			return nil, fmt.Errorf("%s.%s has no column (looked for %s); the query returns %s", decl.Name, f.Name, lookedFor(f.Name), columnList(row))
-		}
 		ft, ok := u(decl, f.Type)
 		if !ok {
 			return nil, fmt.Errorf("%s.%s has a type that doesn't resolve", decl.Name, f.Name)
+		}
+		col, present := columnOf[f.Name]
+		if !present {
+			hint := ""
+			if IsOptional(ft) {
+				// Hearsay: an optional field still needs its column (ADR
+				// 0094), which a reader adding one is likely to miss.
+				hint = fmt.Sprintf("; a field that may be None still needs a column, so for a query with nothing for it, select NULL AS %s", f.Name)
+			}
+			return nil, fmt.Errorf("%s.%s has no column (looked for %s); the query returns %s%s", decl.Name, f.Name, lookedFor(f.Name), columnList(row), hint)
 		}
 		read, err := readColumn(col, row.Fields[col], ft, decl.Name+"."+f.Name)
 		if err != nil {

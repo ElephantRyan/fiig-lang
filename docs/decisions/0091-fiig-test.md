@@ -378,3 +378,12 @@ fakes both providers, as §4 requires.
 6. ~~**Literal patterns.**~~ Done (ADR 0130): `is` and `match` take an int, a
    string or a bool, so `expect r is Err(RatingError.Invalid("score", _))` is
    one line and `404 -> ...` replaces an `if` chain.
+
+## Implementation note (2026-11-21): `Clock.sleep`
+
+§5's `Clock.sleep(ms)` wasn't built until Hearsay tried it and got `K1 Clock
+has no operation "sleep"`. It now works as §5 says: it moves a test's clock
+forward and returns at once. Only a test may call it (T2). Program code has
+no sleep, since a sleeping request or worker holds its slot for nothing.
+Waiting before another attempt is `retry` (ADR 0014), and running later is a
+schedule adapter (ADR 0112).

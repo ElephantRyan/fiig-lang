@@ -290,3 +290,20 @@ private {
 		t.Fatalf("want 2 passing tests and exit 0, got %d: %+v", code, results)
 	}
 }
+
+// ADR 0091 §5 (Hearsay): Clock.sleep in a test moves the test clock forward
+// at once, and code under test sees the later time.
+func TestClockSleepMovesTheTestClock(t *testing.T) {
+	root := writePackage(t, withTests(map[string]string{
+		"tests/sleep.fiig": `test aDayLater {
+    expect Clock.now() == 1767225600000
+    Clock.sleep(24 * 60 * 60 * 1000)
+    expect Clock.now() == 1767312000000
+}
+`,
+	}))
+	code, results := runJSON(t, root)
+	if code != 0 || len(results) != 1 {
+		t.Fatalf("want 1 passing test and exit 0, got %d: %+v", code, results)
+	}
+}

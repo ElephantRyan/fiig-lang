@@ -93,6 +93,10 @@ prints **measurements and listings**. It does not say a program is wrong.
    (an ABS round trip, then `createRating` inside `storeRating`) is the
    attested case. It is a fact and not a check: some validation needs the
    outside world first.
+9. **Rebuilt values.** A model construction whose every field but one or two
+   is `base.field` of the same value, listed with the `copy(base, field:
+   value)` it could be (ADR 0023). Hearsay restated all 13 fields of a row to
+   change its username, not knowing `copy` exists.
 
 ### 2.3 Output
 

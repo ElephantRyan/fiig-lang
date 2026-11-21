@@ -236,7 +236,7 @@ attests them (T2 also by any program file).
 | # | Bug class | Status |
 |---|---|---|
 | T1 | A file outside `tests/` names a declaration inside it (§2): a test helper leaking into the program | Attested — `TestTestBugClasses` |
-| T2 | A `test`, `fake`, or `expect` outside `tests/` (§2) | Attested — `TestTestBugClasses` |
+| T2 | A `test`, `fake`, or `expect` outside `tests/` (§2); and `Clock.sleep` anywhere but a test, where it moves the test clock (§5), since program code doesn't sleep | Attested — `TestTestBugClasses`, `TestClockSleepIsForTests` |
 | T3 | `expect` on a value that isn't `bool`, or `expect x is P` where no value of x's type can match P: `Ok`/`Err` on a non-Result, a variant of another enum or one that doesn't exist, `None` on a type without it (§3). A `match` arm gets this from A9; an `is` has no other arms | Attested — `TestTestBugClasses` |
 | T4 | A fake operation whose name, parameters, or result differ from the real one's (§4), as P1/P2 check a provider | Attested — `TestTestBugClasses` |
 | T5 | A fake the test never reaches (§4), such as one left behind by a refactor | Attested — `TestTestBugClasses` |

@@ -934,7 +934,7 @@ func (p *printer) printMultilineList(lit *syntax.ListLit) {
 	p.indent++
 	for _, e := range lit.Elems {
 		p.writeIndent()
-		p.out.WriteString(printExpr(e))
+		p.printWrappedValue("", e)
 		p.out.WriteString(",\n")
 	}
 	p.indent--
@@ -948,12 +948,48 @@ func (p *printer) printMultilineCall(call *syntax.CallExpr) {
 	p.indent++
 	for _, a := range call.Args {
 		p.writeIndent()
-		p.out.WriteString(printArg(a))
+		p.printWrappedValue(printArgName(a), a.Value)
 		p.out.WriteString(",\n")
 	}
 	p.indent--
 	p.writeIndent()
 	p.out.WriteString(")")
+}
+
+// printWrappedValue writes prefix and e, at the current indent, as one
+// argument or element of a call or list being wrapped. When that line
+// would be too long and e is itself a call (or `call?`) or a list, e wraps
+// the same way, one level further in, so no nested call runs past
+// maxLineWidth (Hearsay: a 12-field model inside `Ok(...)` printed as one
+// 575-character line).
+func (p *printer) printWrappedValue(prefix string, e syntax.Expr) {
+	flat := prefix + printExpr(e)
+	if 4*p.indent+len(flat)+1 <= maxLineWidth {
+		p.out.WriteString(flat)
+		return
+	}
+	switch e := e.(type) {
+	case *syntax.CallExpr:
+		if len(e.Args) > 0 {
+			p.out.WriteString(prefix)
+			p.printMultilineCall(e)
+			return
+		}
+	case *syntax.TryExpr:
+		if call, ok := e.Operand.(*syntax.CallExpr); ok && len(call.Args) > 0 {
+			p.out.WriteString(prefix)
+			p.printMultilineCall(call)
+			p.out.WriteString("?")
+			return
+		}
+	case *syntax.ListLit:
+		if len(e.Elems) > 0 {
+			p.out.WriteString(prefix)
+			p.printMultilineList(e)
+			return
+		}
+	}
+	p.out.WriteString(flat)
 }
 
 // deepestLine returns the deepest source line reachable by following only
@@ -1251,10 +1287,15 @@ func printArgs(args []syntax.Arg) string {
 }
 
 func printArg(a syntax.Arg) string {
+	return printArgName(a) + printExpr(a.Value)
+}
+
+// printArgName is "name: " for a named argument, "" for a positional one.
+func printArgName(a syntax.Arg) string {
 	if a.Name == "" {
-		return printExpr(a.Value)
+		return ""
 	}
-	return a.Name + ": " + printExpr(a.Value)
+	return a.Name + ": "
 }
 
 // printStringLit re-escapes a string literal's decoded text/interpolation

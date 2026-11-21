@@ -138,6 +138,9 @@ var primitiveOps = map[string]map[string]Method{
 	// can't be added to a string or returned as one.
 	"Clock": {
 		"now": {nil, intType},
+		// ADR 0091 §5: in a test, moves the test clock forward and returns at
+		// once. Only a test may call it (T2): program code has no sleep.
+		"sleep": {[]Param{p("ms", intType)}, NoneType{}},
 	},
 	"Random": { // ADR 0068 §2
 		"bytes": {[]Param{p("count", intType)}, bytesType},
