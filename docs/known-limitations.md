@@ -9,8 +9,10 @@ doesn't have to discover them.
 - **SQLite and Postgres are the databases built in.** SQLite through
   `libraries/sql` (Go), Postgres through `fiig.postgres`, written in fiig
   (ADR 0085). No MySQL. Redis is `fiig.redis` (ADR 0110): one command
-  per call, no pipelining, pub/sub, Sentinel, or Cluster. Its stream
-  source needs Redis 6.2 or later, for `XPENDING ... IDLE`.
+  per call, or a pipeline with `Redis.sendAll` (not a transaction:
+  `MULTI`/`EXEC` are the caller's to send), and no pub/sub, Sentinel, or
+  Cluster. Its stream source needs Redis 6.2 or later, for `XPENDING ...
+  IDLE`.
 - **Kafka is at least once** (`fiig.kafka`, ADR 0113): `acks=all`, but
   no idempotence or transactions, so a send that is retried after a lost
   reply writes its records twice. No SASL, no compression levels (ADR
@@ -157,8 +159,9 @@ doesn't have to discover them.
   An error type is changed with `mapErr(e in result): newError` (ADR
   0095), which needs neither.
 - **Stream adapters read Redis Streams and Kafka** (ADRs 0111, 0117): no
-  NATS, no replay of one element by id, and one element at a time per
-  route. The batch and the wait are set for the whole process
+  NATS, and one element at a time per route. `fiig run -replay` runs one
+  element again by its id but settles nothing, and a Kafka record replays
+  as attempt 1, since only a group member counts its retries. The batch and the wait are set for the whole process
   (`STREAM_BATCH_SIZE`, `STREAM_WAIT_MS`), not per route.
 - **Schedules are UTC only** (ADR 0112 open question 1), with no catching
   up on firings missed while nothing ran; cron has no names (`MON`), `L`,

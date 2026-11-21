@@ -273,6 +273,22 @@ manifest's capabilities, beside `Socket`.
 - List several servers in `KAFKA_BOOTSTRAP`: the consumer tries them in
   order when the first can't be reached.
 
+To investigate one element, such as the one a route halted on, replay it
+by its id: the Redis entry id, or `partition/offset` for Kafka:
+
+```
+fiig run -caps caps.json -replay 1763704800000-0 . OrderIntake
+```
+
+`fiig run` fetches the element from the route's source, runs the route's
+workflow on it with the program as it now is, and prints what the mapping
+chose: `ack`, `retry` with the attempt, `deadLetter` and its target, or
+`halt` and why. Add `-source <name>` when the adapter reads more than one
+source, `-trace` for the call tree, and `-json` for an object. **Replay
+settles nothing**: the element stays where it was. The workflow's own
+effects do happen, so replaying an element that writes writes again. A
+Kafka replay joins no consumer group, so it moves no partitions.
+
 ## Schedule adapters
 
 An `adapter schedule` is served the same way too. Its jobs fire in UTC,
