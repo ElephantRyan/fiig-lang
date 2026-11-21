@@ -122,6 +122,23 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// ADR 0124 §2: the startup checks run first, all at once, and nothing
+	// listens, claims, or reads until none of them refuses.
+	var background []loop
+	for _, l := range loops {
+		if !l.startup {
+			background = append(background, l)
+			continue
+		}
+		l.setLog(log.Printf)
+		log.Printf("fiig: %s", l.describe)
+		if err := l.run(ctx); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			caps.Close()
+			os.Exit(1)
+		}
+	}
+	loops = background
 	// ADR 0111 §4-§5, ADR 0112 §2: each stream and schedule route runs
 	// until shutdown; one that halts stops the whole process, so the halt
 	// is seen (and a stream's element is delivered again to whatever runs
@@ -185,9 +202,11 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 		return nil, nil, nil, nil, err
 	}
 	files, packages, universe, served := p.files, p.packages, p.universe, p.served
-	var streamed, scheduled, httpServed []adapter.Served
+	var streamed, scheduled, startups, httpServed []adapter.Served
 	for _, s := range served {
 		switch s.Decl.Kind {
+		case syntax.AdapterStartup:
+			startups = append(startups, s)
 		case syntax.AdapterStream:
 			streamed = append(streamed, s)
 		case syntax.AdapterSchedule:
@@ -229,7 +248,23 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	}
 	// A source or lock reads its own config (ADR 0111 §2, ADR 0112 §4),
 	// which no workflow reaches, so its gateways are entries too.
+	checks, err := adapter.StartupRunners(startups, universe, in)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
 	var loops []loop
+	if len(checks) > 0 {
+		loops = append(loops, loop{
+			startup: true,
+			run:     func(ctx context.Context) error { return adapter.RunStartup(ctx, checks) },
+			setLog: func(f func(string, ...any)) {
+				for _, r := range checks {
+					r.Logf = f
+				}
+			},
+			describe: fmt.Sprintf("checking %d startup route(s) before serving", len(checks)),
+		})
+	}
 	for _, r := range streams {
 		pkg, group, _ := r.Source().Resolve()
 		entries = append(entries, runprogram.Entry{Package: pkg, Name: group})
@@ -266,6 +301,9 @@ type loop struct {
 	run      func(context.Context) error
 	setLog   func(func(string, ...any))
 	describe string
+	// startup marks the one loop that checks the program before anything
+	// else starts, and ends when it has (ADR 0124 §2).
+	startup bool
 }
 
 // checked is a program loaded and checked, with the adapters it was asked

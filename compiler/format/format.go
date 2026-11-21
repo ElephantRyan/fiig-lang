@@ -557,6 +557,10 @@ func (p *printer) printRoute(r *syntax.Route) {
 		args[i] = printRouteArg(a)
 	}
 	head := fmt.Sprintf("%s %s -> %s", r.Verb, strconv.Quote(r.Path), r.Workflow.Name)
+	if r.Verb == "run" {
+		// A startup route has no path (ADR 0124 §1).
+		head = "run -> " + r.Workflow.Name
+	}
 	if r.Verb == "source" {
 		head = r.Verb + " " + strconv.Quote(r.Path)
 		if r.Group != "" {

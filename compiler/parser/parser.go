@@ -907,7 +907,8 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 		p.advance()
 		kind = syntax.AdapterCLI
 	default:
-		// `stream` and `schedule` are contextual (ADR 0111 §3, ADR 0112 §1).
+		// `stream`, `schedule`, and `startup` are contextual (ADR 0111 §3,
+		// ADR 0112 §1, ADR 0124 §1).
 		switch {
 		case p.atContextual("stream"):
 			p.advance()
@@ -915,8 +916,11 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 		case p.atContextual("schedule"):
 			p.advance()
 			kind = syntax.AdapterSchedule
+		case p.atContextual("startup"):
+			p.advance()
+			kind = syntax.AdapterStartup
 		default:
-			p.errorf(p.cur().Start, "expected 'http', 'cli', 'stream', or 'schedule', got %s", p.cur().Kind)
+			p.errorf(p.cur().Start, "expected 'http', 'cli', 'stream', 'schedule', or 'startup', got %s", p.cur().Kind)
 		}
 	}
 	name := p.expectName()
@@ -937,6 +941,9 @@ func (p *Parser) parseRoute(kind syntax.AdapterKind) *syntax.Route {
 	}
 	if kind == syntax.AdapterSchedule {
 		return p.parseScheduleRoute(start)
+	}
+	if kind == syntax.AdapterStartup {
+		return p.parseStartupRoute(start)
 	}
 	if kind == syntax.AdapterCLI {
 		p.expect(lexer.KwCommand)
@@ -1073,6 +1080,45 @@ func (p *Parser) parseScheduleRoute(start lexer.Pos) *syntax.Route {
 					d.Kind = p.advance().Text
 				} else {
 					p.errorf(p.cur().Start, "expected 'done' or 'halt' in a schedule route's mapping, got %s", p.cur().Kind)
+					p.advance()
+				}
+				d.Span = syntax.Span{Start: dStart, End: p.cur().Start}
+				route.Mapping = append(route.Mapping, syntax.ResponseArm{Span: syntax.Span{Start: armStart, End: p.cur().Start}, Pattern: pat, Value: d})
+			})
+		}
+		p.expect(lexer.RBrace)
+	}
+	route.Span = syntax.Span{Start: start, End: p.cur().Start}
+	return route
+}
+
+// parseStartupRoute parses `run -> workflow() { pattern -> proceed | halt
+// ... }` (ADR 0124 §1). `run` and `proceed` are contextual.
+func (p *Parser) parseStartupRoute(start lexer.Pos) *syntax.Route {
+	if !p.atContextual("run") {
+		p.errorf(p.cur().Start, "expected 'run' to start a startup route, got %s", p.cur().Kind)
+	} else {
+		p.advance()
+	}
+	route := &syntax.Route{Verb: "run"}
+	p.expect(lexer.Arrow)
+	nameTok := p.expectName()
+	route.Workflow = &syntax.Ident{Span: syntax.Span{Start: nameTok.Start, End: nameTok.End}, Name: nameTok.Text}
+	route.Args = p.parseRouteArgs()
+	if p.at(lexer.LBrace) {
+		p.expect(lexer.LBrace)
+		route.Mapping = []syntax.ResponseArm{}
+		for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
+			p.guardProgress(func() {
+				armStart := p.cur().Start
+				pat := p.parsePattern()
+				p.expect(lexer.Arrow)
+				dStart := p.cur().Start
+				d := &syntax.DispositionResponse{}
+				if p.atContextual("proceed") || p.atContextual("halt") {
+					d.Kind = p.advance().Text
+				} else {
+					p.errorf(p.cur().Start, "expected 'proceed' or 'halt' in a startup route's mapping, got %s", p.cur().Kind)
 					p.advance()
 				}
 				d.Span = syntax.Span{Start: dStart, End: p.cur().Start}
