@@ -604,14 +604,13 @@ func (p *Parser) parseConfigField() syntax.ConfigField {
 	name := p.expectName()
 	p.expect(lexer.Colon)
 	f := syntax.ConfigField{Name: name.Text, Type: p.parseType()}
-	if p.atContextual("from") && p.peek(1).Kind == lexer.Ident && p.peek(1).Text == "env" {
+	isSource := func(at int) bool {
+		t := p.peek(at)
+		return t.Kind == lexer.Ident && (t.Text == "env" || t.Text == "setting")
+	}
+	if p.atContextual("from") && isSource(1) {
 		p.advance()
-		p.advance()
-		lit := p.parseStringLit()
-		f.Env = plainText(lit)
-		if hasInterp(lit) {
-			p.errorf(lit.Start, "interpolation is not allowed in an environment variable's name")
-		}
+		p.parseConfigSources(&f)
 	} else if p.atContextual("from") && p.peek(1).Kind == lexer.Ident && p.peek(1).Text == "startup" {
 		p.advance()
 		p.advance()
@@ -621,7 +620,7 @@ func (p *Parser) parseConfigField() syntax.ConfigField {
 			p.errorf(lit.Start, "interpolation is not allowed in a startup route's name")
 		}
 	} else {
-		p.errorf(p.cur().Start, "expected `from env \"NAME\"` or `from startup \"Adapter.workflow\"` after config field %q's type (ADR 0071 §1, ADR 0127), got %s", name.Text, p.cur().Kind)
+		p.errorf(p.cur().Start, "expected `from env \"NAME\"`, `from setting \"name\"` or `from startup \"Adapter.workflow\"` after config field %q's type (ADR 0071 §1, ADR 0140, ADR 0127), got %s", name.Text, p.cur().Kind)
 	}
 	if p.at(lexer.Equals) {
 		p.advance()
@@ -629,6 +628,45 @@ func (p *Parser) parseConfigField() syntax.ConfigField {
 	}
 	f.Span = syntax.Span{Start: start, End: p.cur().Start}
 	return f
+}
+
+// parseConfigSources parses `env "X" [or setting "x" [on restart]]`, in
+// either order (ADR 0140 §1). `setting`, `on` and `restart` are contextual
+// here only.
+func (p *Parser) parseConfigSources(f *syntax.ConfigField) {
+	for i := 0; ; i++ {
+		kind := p.advance() // env | setting
+		lit := p.parseStringLit()
+		switch kind.Text {
+		case "env":
+			if f.Env != "" {
+				p.errorf(kind.Start, "config field %q reads env twice; a field has at most one env and one setting source", f.Name)
+			}
+			f.Env = plainText(lit)
+			if hasInterp(lit) {
+				p.errorf(lit.Start, "interpolation is not allowed in an environment variable's name")
+			}
+		case "setting":
+			if f.Setting != "" {
+				p.errorf(kind.Start, "config field %q reads setting twice; a field has at most one env and one setting source", f.Name)
+			}
+			f.Setting = plainText(lit)
+			f.SettingFirst = i == 0
+			if hasInterp(lit) {
+				p.errorf(lit.Start, "interpolation is not allowed in a setting's name")
+			}
+			if p.atContextual("on") && p.peek(1).Kind == lexer.Ident && p.peek(1).Text == "restart" {
+				p.advance()
+				p.advance()
+				f.OnRestart = true
+			}
+		}
+		next := p.peek(1)
+		if !p.at(lexer.KwOr) || next.Kind != lexer.Ident || (next.Text != "env" && next.Text != "setting") {
+			return
+		}
+		p.advance() // or
+	}
 }
 
 func (p *Parser) parseEnumDecl() *syntax.EnumDecl {

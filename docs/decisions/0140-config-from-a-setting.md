@@ -1,8 +1,9 @@
 # ADR 0140: Config From a Setting
 
-Status: Proposed. The owner chose in review (2026-11-21) that settings can be
-live, and that fiig supports both soft settings (live) and hard ones (applied
-on restart); §1a records it.
+Status: Accepted (2026-11-21; the owner approved it, choosing in review that
+settings can be live and that fiig supports both soft settings (live) and hard
+ones (applied on restart), §1a). Implemented 2026-11-21; see Implementation
+notes.
 Date: 2026-11-21
 Related: ADR 0071 (config from the environment; §8 leaves reloading out),
 ADR 0122 (`config ... when`), ADR 0124 (startup checks), ADR 0126 (a gateway
@@ -84,7 +85,7 @@ source        ::= 'env' string-literal | 'setting' string-literal [ 'on' 'restar
 ```
 
 - Sources are tried in the order written, and the first one present wins.
-  The idiom, and what `fiig fmt`'s docs show, is **env first**
+  The idiom, and what `docs/deploying.md` shows, is **env first**
   (Discourse, GitLab): when an operator sets the variable, the screen
   can't override it, and `fiig config` reports the setting as "set by the
   deployment". Writing `setting` first is legal, for an app that wants the
@@ -149,8 +150,11 @@ something at start.
 The runtime keeps them in its own table, `fiig_settings (package, name,
 value, updated_at, updated_by)`, in the application's `Database`, next to
 `fiig_migrations` (ADR 0096). It is keyed by package path, so ADR 0138's
-`renamedFrom` moves settings along with the migration history. A program
-with no `Database` that declares a `setting` source is a check error (V1).
+`formerly` moves settings, the module's and its folders', along with the
+migration history. Which `Database` a program has is the deployment's
+choice (the capabilities file), so a program that reads a setting with none
+bound is a **startup problem**, reported with the others, not a check
+error.
 
 ### 3. Reading: one snapshot per run
 
@@ -265,3 +269,47 @@ and a run never sees two versions.
    principal reaches gateways, it could be filled in automatically.
 3. **A request-body `Secret`** (ADR 0126's write-path gap) is still
    separate.
+4. **A declaration named `Settings`.** `Settings` is a primitive, and a
+   call `Settings.op(...)` reaches it before a declaration of that name, as
+   `Session` does today (Hearsay and `examples/accounts` declare `model
+   Session`). A config or model named `Settings` still reads its fields.
+   Refusing every primitive's name (K2) would break those programs, so it is
+   left for its own decision.
+
+## Implementation notes (2026-11-21)
+
+- Syntax and parser: `ConfigField.Setting`, `SettingFirst`, `OnRestart`
+  and `SoftSetting()` (`compiler/syntax`); `parseConfigSources` reads
+  either order, with `setting`, `on` and `restart` contextual
+  (`compiler/parser`). The formatter writes the sources as they were
+  written.
+- Types: the prelude's `SettingError` and `SettingSource`, `Settings`'s
+  operation table, and `Settings` added to the closed primitive set
+  (`compiler/capability`), which amends ADR 0042's list: only the runtime
+  can save a setting it reads back as config. An application lists
+  `Settings` in its manifest's `capabilities` (ADR 0035), as it does
+  `Session`.
+- Checker (`compiler/checker/config.go`): V1 for the field and for a
+  `Settings` call's name, V2 for a `when` reading a soft setting.
+- Runtime (`compiler/runtime/settings.go`): `SettingsStore`,
+  `MemorySettings` (each `fiig test` test has its own, so a test can save
+  and read back), the snapshot a run takes at its first read (installed by
+  `Interp.Call`, so every adapter's run has one), the version check, and
+  `SettingsProvider`. A hard setting is resolved in `LoadConfig` and never
+  again.
+- Store: `runprogram.DatabaseSettings` over the bound `Database`, with
+  `migrate.SettingsTables`; a save or clear and the version bump are one
+  transaction. `fiig serve`, `fiig serve -replay` and `fiig run` set it up
+  before `LoadConfig`. ADR 0138's `moveHistory` moves the settings.
+- `fiig config` and the registry card show each field's setting and
+  whether it waits for a restart.
+- Tests: `TestSettingFieldsCheck`, `TestASettingsCallNamesADeclaredSetting`,
+  `TestAWhenReadsOnlyHardSettings`, `TestSettingSourcesFormatAsWritten`
+  (checker); `TestSoftSettingsAreLiveAndHardOnesWaitForARestart`,
+  `TestARunReadsOneSnapshot`, `TestTheOrderOfSourcesDecidesWhoWins`
+  (runtime); `TestSettingsLiveInTheDatabaseAndMoveWithARename` (SQLite).
+- Dogfooded: a scratch app served twice on one SQLite file. A save through
+  one process was read by the other on its next request; a hard setting
+  saved as 8 stayed 4 until a restart, then read 8; `eight` was refused as
+  not an int; with `ABS_URL` set, the variable won and a save was refused.
+  Under `fiig test`, a test saved a setting and read it back.

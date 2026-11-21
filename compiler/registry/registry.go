@@ -180,6 +180,11 @@ type EnvVar struct {
 	Type    string `json:"type"`
 	Default string `json:"default,omitempty"` // as written; "" when required or optional
 	Secret  bool   `json:"secret,omitempty"`
+	// Setting is the setting saved in the app that the field also reads
+	// (ADR 0140), and OnRestart whether a save applies only on the next
+	// start. Name is "" when the field reads only the setting.
+	Setting   string `json:"setting,omitempty"`
+	OnRestart bool   `json:"onRestart,omitempty"`
 }
 
 // Operation is one operation on an interface or capability card.
@@ -292,7 +297,7 @@ func BuildCard(decl syntax.Decl, source string) *Card {
 			if f.Startup != "" {
 				continue
 			}
-			v := EnvVar{Name: f.Env, Field: f.Name, Type: typeString(f.Type), Secret: holdsSecretName(f.Type)}
+			v := EnvVar{Name: f.Env, Field: f.Name, Type: typeString(f.Type), Secret: holdsSecretName(f.Type), Setting: f.Setting, OnRestart: f.OnRestart}
 			if f.Default != nil {
 				v.Default = format.Expr(f.Default)
 			}

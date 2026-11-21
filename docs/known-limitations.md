@@ -153,9 +153,15 @@ doesn't have to discover them.
 
 ## Configuration
 
-- **The environment is the only source** (ADR 0071 §8): no YAML, TOML, or
-  properties files, no remote secret stores (inject them into the
-  environment), and no reloading while running.
+- **The environment and saved settings are the only sources** (ADR 0071
+  §8, ADR 0140): no YAML, TOML, or properties files, and no remote secret
+  stores (inject them into the environment). Only a setting saved in the
+  app changes while the process runs.
+- **A saved setting's write path is a `string`** (ADR 0126): the text a
+  setup form sends reaches the gateway that saves it unprotected, and only
+  what is read back is a `Secret`.
+- **A pending hard setting needs a restart from outside.** `fiig serve`
+  can't restart itself (ADR 0140 open question 1).
 - **No lists in config.** Read a `string` and split it in a rule.
 - **One account per provider.** A package's config has one value per
   program, so two Stripe accounts in one program need ADR 0043's

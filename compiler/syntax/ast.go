@@ -410,8 +410,19 @@ type ConfigField struct {
 	// Startup, instead of Env, names a startup route as `Adapter.workflow`:
 	// the field is true when that route ended degraded (ADR 0127).
 	Startup string
-	Default Expr
+	// Setting names a setting saved in the app (ADR 0140): `from env "X" or
+	// setting "x"`. Env may be "" when the field reads only the setting.
+	// SettingFirst is the order written, `setting "x" or env "X"`, and
+	// OnRestart makes it a hard setting, read once at start (§1a).
+	Setting      string
+	SettingFirst bool
+	OnRestart    bool
+	Default      Expr
 }
+
+// SoftSetting reports whether the field reads a setting live (ADR 0140
+// §1a): one without `on restart`.
+func (f ConfigField) SoftSetting() bool { return f.Setting != "" && !f.OnRestart }
 
 // Field returns the field named name, if the config has one.
 func (d *ConfigDecl) Field(name string) (ConfigField, bool) {

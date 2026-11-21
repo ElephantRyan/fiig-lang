@@ -10,6 +10,7 @@ import (
 	"fiig-lang/compiler/runtime"
 	fiigsql "fiig-lang/libraries/sql"
 	"fiig-lang/tooling/migrate"
+	"fiig-lang/tooling/runprogram"
 )
 
 // ADR 0096 on a real SQLite database: apply once, record, refuse an edit,
@@ -114,5 +115,55 @@ func TestARenamedPackageKeepsItsMigrationHistory(t *testing.T) {
 	}
 	if _, problems := migrate.RunOn(ctx, db, renamed, migrate.Apply); len(problems) != 1 || !strings.Contains(problems[0], "recorded both under hearsay and under abs.recommendations") {
 		t.Fatalf("both: problems %v", problems)
+	}
+}
+
+// ADR 0140 §2-§3 on a real SQLite database: a save bumps the version, a
+// clear removes the row, and a rename (ADR 0138) moves the settings of the
+// module and its folders, and no other package's.
+func TestSettingsLiveInTheDatabaseAndMoveWithARename(t *testing.T) {
+	db, err := fiigsql.Factory(map[string]any{"type": "sql", "driver": "sqlite", "dsn": fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	store, f := runprogram.NewDatabaseSettings(ctx, db)
+	if f != nil {
+		t.Fatal(f)
+	}
+	if _, f := runprogram.NewDatabaseSettings(ctx, db); f != nil {
+		t.Fatalf("making the tables twice: %v", f)
+	}
+	v0, _ := store.Version(ctx)
+	for _, s := range [][2]string{{"abs.recommendations.settings", "abs.url"}, {"abs.recommendations", "server.name"}, {"abs.recommendationsx", "other"}} {
+		if f := store.Save(ctx, s[0], s[1], "v1", "admin"); f != nil {
+			t.Fatal(f)
+		}
+	}
+	if f := store.Save(ctx, "abs.recommendations.settings", "abs.url", "v2", "admin"); f != nil {
+		t.Fatalf("saving again: %v", f)
+	}
+	values, v1, f := store.Load(ctx)
+	if f != nil || v1 != v0+4 || values["abs.recommendations.settings"]["abs.url"] != "v2" {
+		t.Fatalf("after saves: %v, version %d (from %d), %v", values, v1, v0, f)
+	}
+	if f := store.Clear(ctx, "abs.recommendationsx", "other", "admin"); f != nil {
+		t.Fatal(f)
+	}
+	if f := store.Save(ctx, "abs.recommendationsx", "other", "kept", "admin"); f != nil {
+		t.Fatal(f)
+	}
+
+	create := migration.File{Number: 1, Name: "0001_create", SQL: "CREATE TABLE rating (id TEXT PRIMARY KEY)"}
+	if _, problems := migrate.RunOn(ctx, db, []migrate.Package{{Path: "abs.recommendations", Files: []migration.File{create}}}, migrate.Apply); len(problems) > 0 {
+		t.Fatal(problems)
+	}
+	renamed := []migrate.Package{{Path: "hearsay", Files: []migration.File{create}, Formerly: []string{"abs.recommendations"}}}
+	if _, problems := migrate.RunOn(ctx, db, renamed, migrate.Apply); len(problems) > 0 {
+		t.Fatal(problems)
+	}
+	values, _, _ = store.Load(ctx)
+	if values["hearsay.settings"]["abs.url"] != "v2" || values["hearsay"]["server.name"] != "v1" || values["abs.recommendationsx"]["other"] != "kept" || len(values) != 3 {
+		t.Fatalf("after the rename: %v", values)
 	}
 }

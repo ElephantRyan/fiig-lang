@@ -203,6 +203,9 @@ func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose
 		lookup = env.Lookup
 	}
 	config := map[*syntax.ConfigDecl]runtime.Record{}
+	// ADR 0140: the interpreters that loaded config, whose setting fields
+	// each test's interpreter shares.
+	var configInterps []*runtime.Interp
 	for _, u := range units {
 		u.universe, _ = types.BuildUniverse(u.files)
 		u.imports = runprogram.BuildImports(u.files, u.packages)
@@ -225,6 +228,7 @@ func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose
 		for k, v := range configs.Config {
 			config[k] = v
 		}
+		configInterps = append(configInterps, configs)
 	}
 	top := units[0]
 
@@ -259,6 +263,11 @@ func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose
 		}
 		in := runtime.New(t.u.universe, caps)
 		in.Imports, in.Groups, in.Packages, in.Config = t.u.imports, t.u.groups, t.u.packages, config
+		// ADR 0140: each test saves settings to its own store.
+		in.UseSettings(runtime.NewMemorySettings())
+		for _, from := range configInterps {
+			in.ShareSettingFields(from)
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		start := time.Now()

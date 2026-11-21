@@ -21,7 +21,11 @@ var primitives = map[string]bool{
 	"Session":    true,
 	"Clock":      true,
 	"FileSystem": true,
-	"Random":     true,
+	// ADR 0140 §4: saving a setting the runtime reads back as config. Only
+	// the runtime can do it, since it owns the snapshot and parses the text
+	// as the field's type.
+	"Settings": true,
+	"Random":   true,
 }
 
 // IsPrimitive reports whether name is one of the closed primitive set.

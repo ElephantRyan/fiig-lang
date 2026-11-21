@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"fiig-lang/compiler/format"
@@ -458,6 +459,20 @@ func Variables(sources []runtime.ConfigSource, capsPath string) ([]Variable, err
 				continue
 			}
 			v := Variable{Name: src.EnvName(f), Type: types.SyntaxString(f.Type), Requirement: "required", Where: src.Where(f)}
+			// ADR 0140: a setting is saved in the app, so it is never
+			// required; the report says which one, and whether it waits for
+			// a restart.
+			if f.Setting != "" {
+				saved := "or setting " + strconv.Quote(f.Setting) + " saved in the app"
+				if f.OnRestart {
+					saved += ", applied on restart"
+				}
+				if f.Env == "" {
+					v.Name = "(setting) " + f.Setting
+					saved = strings.TrimPrefix(saved, "or ")
+				}
+				v.Where += "; " + saved
+			}
 			if f.Default != nil {
 				v.Requirement = "= " + format.Expr(f.Default)
 			} else if _, ok := f.Type.(*syntax.UnionType); ok {

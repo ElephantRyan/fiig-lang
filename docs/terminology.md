@@ -83,7 +83,7 @@ gateways; only applications define workflows and adapters.
   `BatchResult`, `Connection`, `Cookie`, `DatabaseConflict`,
   `DecompressError`, `HttpResponse`, `JsonError`, `JsonValue`, `List`, `Map`,
   `None`, `Result`, `Rounding`, `SameSite`, `Secret`, `SessionError`,
-  `SocketError`.
+  `SettingError`, `SettingSource`, `SocketError`.
   <!-- /prelude-types -->
 
 ## Concurrency

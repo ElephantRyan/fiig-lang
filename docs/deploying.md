@@ -52,6 +52,39 @@ package doesn't read:
 "environment": {"acme.stripe": {"STRIPE_API_KEY": "CLIENTVERTICAL_STRIPE_API_KEY"}}
 ```
 
+**Settings saved in the app** (ADR 0140). A field can also read a setting
+an admin saves from the app's own screen, so a first-run setup needs no env
+file:
+
+```fiig
+config Abs {
+    url: string | None from env "ABS_URL" or setting "abs.url"
+    token: Secret | None from env "ABS_SERVICE_TOKEN" or setting "abs.serviceToken"
+    workers: int from env "INDEX_WORKERS" or setting "abs.indexWorkers" on restart = 4
+}
+```
+
+- Sources are tried in the order written. With env first, a variable the
+  deployment sets wins, and the screen can't change it: `Settings.save`
+  answers `SettingError.SetByDeployment`, and `Settings.source` answers
+  `Deployment`.
+- A **soft** setting (the default) applies from the next request. Each
+  request, stream element or scheduled firing reads one snapshot, so it
+  never mixes an old value and a new one, and every replica sees a save on
+  its next run.
+- A **hard** setting (`on restart`) is read once at start. A save is stored
+  and shows as `SettingSource.Pending` until the next start.
+- A setting field is `| None` or has a default, since nothing is saved on a
+  first run. A gateway that `requires Settings` saves one with
+  `Settings.save("abs.url", text, by: who)`, which parses the text as the
+  field's type before storing it. List `Settings` in the manifest's
+  `capabilities`.
+- Settings live in the application's `Database`, in `fiig_settings`, so a
+  program that reads one needs a `Database` bound, and starting without one
+  is a startup problem. ADR 0138's `formerly` moves them with a rename.
+- `fiig config` shows each setting next to its variable, with
+  `(setting) name` for a field with no variable.
+
 **One application per vertical.** A deployment that must not contain a
 provider, for a legal reason say, is its own small application package
 over shared ones, depending only on what it may use: it can't import the

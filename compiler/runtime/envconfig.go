@@ -99,6 +99,15 @@ func (in *Interp) MarkDegraded(pkg, route string) {
 
 func (in *Interp) loadConfig(sources []ConfigSource, lookup Lookup, partial bool) []string {
 	in.startupFields = nil
+	// ADR 0140: what is saved at start, for hard settings and Pending.
+	in.settingRefs, in.softFields, in.startSettings = map[*types.Universe]map[string]*settingRef{}, map[*syntax.ConfigDecl]map[string]*settingRef{}, nil
+	if in.Settings != nil {
+		snap, f := in.currentSettings(context.Background())
+		if f != nil {
+			return []string{f.Message}
+		}
+		in.startSettings = snap
+	}
 	var problems []string
 	values := map[*syntax.ConfigDecl]Record{}
 	absent := map[*syntax.ConfigDecl]string{}
@@ -169,6 +178,10 @@ func (in *Interp) readSource(src ConfigSource, lookup Lookup, partial bool, valu
 			continue
 		}
 		t, _ := types.ResolveWithImports(f.Type, src.Universe, src.Imports)
+		if f.Setting != "" {
+			problems = append(problems, in.readSetting(src, f, t, lookup, rec)...)
+			continue
+		}
 		name := src.EnvName(f)
 		text, set := lookup(name)
 		if set && text == "" {
@@ -202,6 +215,55 @@ func (in *Interp) readSource(src ConfigSource, lookup Lookup, partial bool, valu
 	}
 	values[src.Decl] = rec
 	return problems
+}
+
+// readSetting reads a field that names a setting (ADR 0140): its env source
+// and default now, and, for a hard setting, the value it keeps for the life
+// of the process. A soft setting is resolved per run (softValue).
+func (in *Interp) readSetting(src ConfigSource, f syntax.ConfigField, t types.Type, lookup Lookup, rec Record) []string {
+	ref := &settingRef{src: src, field: f, t: t}
+	if f.Env != "" {
+		name := src.EnvName(f)
+		if text, set := lookup(name); set && text != "" {
+			v, problem := in.readConfigValue(src, text, name, t)
+			if problem != "" {
+				shown := strconv.Quote(text)
+				if types.HoldsSecret(t, nil) {
+					shown = "(hidden)"
+				}
+				return []string{fmt.Sprintf("%s=%s isn't %s; %s", name, shown, problem, src.Where(f))}
+			}
+			ref.env = v
+		}
+	}
+	if f.Default != nil {
+		v, fault := in.configDefault(src, f, t)
+		if fault != nil {
+			return []string{fmt.Sprintf("%s's default: %s", src.Where(f), fault.Message)}
+		}
+		ref.def = v
+	}
+	u := src.Universe
+	for u != nil && u.Parent != nil {
+		u = u.Parent
+	}
+	if in.settingRefs[u] == nil {
+		in.settingRefs[u] = map[string]*settingRef{}
+	}
+	in.settingRefs[u][f.Setting] = ref
+	if f.SoftSetting() {
+		if in.softFields[src.Decl] == nil {
+			in.softFields[src.Decl] = map[string]*settingRef{}
+		}
+		in.softFields[src.Decl][f.Name] = ref
+		return nil
+	}
+	v, fault := in.settingValue(ref, in.startSettings)
+	if fault != nil {
+		return []string{fault.Message}
+	}
+	rec.Fields[f.Name] = v
+	return nil
 }
 
 // readConfigValue reads one variable's text as t, or says what it isn't.
@@ -338,6 +400,9 @@ func article(t types.Type) string {
 func (in *Interp) readConfig(ctx context.Context, d *syntax.ConfigDecl, field string) (Value, *Fault) {
 	if v, fault, inTest := in.testConfigValue(ctx, d, field); inTest {
 		return v, fault
+	}
+	if ref, soft := in.softField(d, field); soft {
+		return in.softValue(ctx, ref)
 	}
 	return in.configValue(d, field)
 }

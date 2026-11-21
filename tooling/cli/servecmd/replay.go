@@ -79,7 +79,9 @@ func Replay(ctx context.Context, o ReplayOptions) (*Replayed, error) {
 	pkg, group, _ := runner.Source().Resolve()
 	program := runprogram.Program{Universe: p.universe, Imports: in.Imports, Groups: in.Groups, Renames: runprogram.Renames(o.Root)}
 	entries := []runprogram.Entry{{Package: served.Package, Name: served.Decl.Name}, {Package: pkg, Name: group}}
-	problems = append(problems, in.LoadConfig(runprogram.ReachableConfigFrom(program, entries), o.Env.Lookup)...)
+	sources := runprogram.ReachableConfigFrom(program, entries)
+	problems = append(problems, runprogram.UseDatabaseSettings(ctx, in, caps, sources)...)
+	problems = append(problems, in.LoadConfig(sources, o.Env.Lookup)...)
 	if err := runprogram.ConfigReport(problems); err != nil {
 		return nil, err
 	}

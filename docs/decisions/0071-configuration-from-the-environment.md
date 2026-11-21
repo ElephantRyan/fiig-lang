@@ -340,7 +340,8 @@ deployment says.
 - **Not in this ADR:**
   - config files other than §3a's (YAML, TOML, properties): the
     environment is the one source, and `-env-file` only feeds it;
-  - reloading values while running;
+  - reloading values while running (amended by ADR 0140: a setting saved
+    in the app is read live, one snapshot per run; env stays fixed);
   - profiles in the source (Spring's `application-prod.yml`): the
     deployment *is* the profile;
   - remote stores (Vault, AWS Secrets Manager), which inject into the

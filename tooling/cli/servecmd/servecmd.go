@@ -340,7 +340,9 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 		}
 		loops = append(loops, loop{run: r.Run, setLog: func(f func(string, ...any)) { r.Logf = f }, describe: fmt.Sprintf("running %s, claimed with %s", r.Name(), r.Lock().Describe())})
 	}
-	problems = append(problems, in.LoadConfig(runprogram.ReachableConfigFrom(program, entries), env.Lookup)...)
+	sources := runprogram.ReachableConfigFrom(program, entries)
+	problems = append(problems, runprogram.UseDatabaseSettings(context.Background(), in, caps, sources)...)
+	problems = append(problems, in.LoadConfig(sources, env.Lookup)...)
 	if err := runprogram.ConfigReport(problems); err != nil {
 		return nil, nil, nil, nil, err
 	}

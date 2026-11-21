@@ -209,7 +209,7 @@ func (p *printer) printDecl(d syntax.Decl) {
 		}
 		p.printFieldedDecl(header, spanned, startLine(d), func(i int) string {
 			f := d.Fields[i]
-			line := fmt.Sprintf("%s: %s from env %s", f.Name, printType(f.Type), strconv.Quote(f.Env))
+			line := fmt.Sprintf("%s: %s from %s", f.Name, printType(f.Type), configSources(f))
 			if f.Startup != "" {
 				line = fmt.Sprintf("%s: %s from startup %s", f.Name, printType(f.Type), strconv.Quote(f.Startup))
 			}
@@ -219,6 +219,25 @@ func (p *printer) printDecl(d syntax.Decl) {
 			return line
 		})
 	}
+}
+
+// configSources is a field's sources in the order written (ADR 0140 §1).
+func configSources(f syntax.ConfigField) string {
+	env := "env " + strconv.Quote(f.Env)
+	if f.Setting == "" {
+		return env
+	}
+	setting := "setting " + strconv.Quote(f.Setting)
+	if f.OnRestart {
+		setting += " on restart"
+	}
+	switch {
+	case f.Env == "":
+		return setting
+	case f.SettingFirst:
+		return setting + " or " + env
+	}
+	return env + " or " + setting
 }
 
 func membersToSpanned(members []syntax.InterfaceMember) []syntax.Spanned {

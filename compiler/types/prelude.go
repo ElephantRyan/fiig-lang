@@ -91,6 +91,17 @@ var preludeSources = []string{`enum SocketError {
     Syntax(offset: int, reason: string)
     Mismatch(path: string, reason: string)
 }
+`, `enum SettingError {
+    Invalid(reason: string)
+    SetByDeployment
+}
+`, `enum SettingSource {
+    Deployment
+    Saved
+    Pending
+    Default
+    Unset
+}
 `, `enum DatabaseConflict {
     Unique(constraint: string)
     ForeignKey(constraint: string)
@@ -135,6 +146,24 @@ var SessionErrorDecl = preludeDecls["SessionError"].(*syntax.EnumDecl)
 
 // SessionErrorType is `SessionError` as a type.
 var SessionErrorType = Named{Name: "SessionError", Decl: SessionErrorDecl}
+
+// SettingErrorDecl is the prelude's `SettingError` enum (ADR 0140 §4): a
+// save that doesn't parse as the field's type, or one the deployment's env
+// already fixes.
+var SettingErrorDecl = preludeDecls["SettingError"].(*syntax.EnumDecl)
+
+// SettingErrorType is `SettingError` as a type.
+var SettingErrorType = Named{Name: "SettingError", Decl: SettingErrorDecl}
+
+// SettingSourceDecl is the prelude's `SettingSource` enum (ADR 0140 §4):
+// where a setting's value comes from, for an admin screen.
+var SettingSourceDecl = preludeDecls["SettingSource"].(*syntax.EnumDecl)
+
+// SettingSourceType is `SettingSource` as a type.
+var SettingSourceType = Named{Name: "SettingSource", Decl: SettingSourceDecl}
+
+// SettingsName is the capability that saves settings (ADR 0140 §4).
+const SettingsName = "Settings"
 
 // RoundingType is the prelude's `Rounding` enum (ADR 0064 §4), whose
 // variants are in compiler/decimal's Rounding order.

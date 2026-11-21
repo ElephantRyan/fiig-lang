@@ -356,6 +356,11 @@ func (in *Interp) testConfigValue(ctx context.Context, d *syntax.ConfigDecl, fie
 	if v, ok := run.config[d][field]; ok {
 		return v, nil, true
 	}
+	// ADR 0140: what the test saved, then -env-file, then the default.
+	if ref, soft := in.softField(d, field); soft {
+		v, fault := in.softValue(ctx, ref)
+		return v, fault, true
+	}
 	if v, ok := in.Config[d].Fields[field]; ok {
 		return v, nil, true
 	}

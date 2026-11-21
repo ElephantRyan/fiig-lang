@@ -309,10 +309,46 @@ func moveHistory(ctx context.Context, db runtime.CapabilityProvider, from, to st
 		}
 		return f
 	}
+	// ADR 0140 §2: the settings saved under the module and its folders move
+	// with it.
+	if f := moveSettings(ctx, exec, from, to); f != nil {
+		if tx != nil {
+			tx.Rollback()
+		}
+		return f
+	}
 	if tx != nil {
 		return tx.Commit()
 	}
 	return nil
+}
+
+// SettingsTables makes the tables ADR 0140's settings live in, beside
+// fiig_migrations: each setting by package path and name, and a version
+// every save bumps.
+var SettingsTables = []string{
+	"CREATE TABLE IF NOT EXISTS fiig_settings (package TEXT NOT NULL, name TEXT NOT NULL, value TEXT NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT NOT NULL, PRIMARY KEY (package, name))",
+	"CREATE TABLE IF NOT EXISTS fiig_settings_version (id INTEGER PRIMARY KEY, version INTEGER NOT NULL)",
+	"INSERT INTO fiig_settings_version (id, version) VALUES (1, 0) ON CONFLICT (id) DO NOTHING",
+}
+
+// moveSettings renames from, and every folder package under it, to to in
+// fiig_settings (ADR 0138, ADR 0140 §2).
+func moveSettings(ctx context.Context, exec runtime.CapabilityProvider, from, to string) *runtime.Fault {
+	for _, stmt := range SettingsTables {
+		if _, f := exec.Call(ctx, "execute", []runtime.Value{runtime.Str(stmt)}); f != nil {
+			return f
+		}
+	}
+	rest := runtime.Int(len(from) + 1)
+	if _, f := exec.Call(ctx, "execute", []runtime.Value{
+		runtime.Str("UPDATE fiig_settings SET package = ? || substr(package, ?) WHERE package = ? OR substr(package, 1, ?) = ?"),
+		runtime.Str(to), rest, runtime.Str(from), runtime.Int(len(from) + 1), runtime.Str(from + "."),
+	}); f != nil {
+		return f
+	}
+	_, f := exec.Call(ctx, "execute", []runtime.Value{runtime.Str("UPDATE fiig_settings_version SET version = version + 1 WHERE id = 1")})
+	return f
 }
 
 // readApplied is what fiig_migrations records, by package and number.

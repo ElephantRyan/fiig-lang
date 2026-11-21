@@ -233,7 +233,9 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	// A driver package the root never imports still runs (ADR 0084 §2).
 	in.Packages = packages
 	program := runprogram.Program{Universe: universe, Imports: in.Imports, Groups: in.Groups, Renames: runprogram.Renames(root)}
-	problems = append(problems, in.LoadConfig(runprogram.ReachableConfig(program, []string{name}), env.Lookup)...)
+	sources := runprogram.ReachableConfig(program, []string{name})
+	problems = append(problems, runprogram.UseDatabaseSettings(context.Background(), in, caps, sources)...)
+	problems = append(problems, in.LoadConfig(sources, env.Lookup)...)
 	if err := runprogram.ConfigReport(problems); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)

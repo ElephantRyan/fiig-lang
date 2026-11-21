@@ -27,6 +27,9 @@ func (c *checker) callPrimitive(name, op string, args []syntax.Arg, start lexer.
 		}
 		return types.Unknown{}
 	}
+	if name == types.SettingsName && len(args) > 0 {
+		c.checkSettingName(op, args[0].Value)
+	}
 	return c.checkMethodArgs(name, op, m, args, start, env)
 }
 

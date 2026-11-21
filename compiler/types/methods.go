@@ -143,6 +143,13 @@ var primitiveOps = map[string]map[string]Method{
 		// once. Only a test may call it (T2): program code has no sleep.
 		"sleep": {[]Param{p("ms", intType)}, NoneType{}},
 	},
+	// ADR 0140 §4: name is a string literal naming one of the calling
+	// package's `setting` sources (V1).
+	"Settings": {
+		"save":   {[]Param{p("name", stringType), p("text", stringType), p("by", stringType)}, Generic{Name: "Result", Args: []Type{NoneType{}, SettingErrorType}}},
+		"clear":  {[]Param{p("name", stringType), p("by", stringType)}, Generic{Name: "Result", Args: []Type{NoneType{}, SettingErrorType}}},
+		"source": {[]Param{p("name", stringType)}, SettingSourceType},
+	},
 	"Random": { // ADR 0068 §2
 		"bytes": {[]Param{p("count", intType)}, bytesType},
 		"int":   {[]Param{p("min", intType), p("max", intType)}, intType},

@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"sort"
 	"strings"
 
 	"fiig-lang/compiler/lexer"
@@ -39,7 +40,10 @@ func (c *checker) checkConfigDecl(d *syntax.ConfigDecl) {
 			c.checkStartupField(d, f)
 			continue
 		}
-		if !validEnvName(f.Env) {
+		if f.Setting != "" {
+			c.checkSettingField(d, f)
+		}
+		if f.Env != "" && !validEnvName(f.Env) {
 			c.report(f.Start, "V1", "config field %s.%s reads %q, which isn't an environment variable name: letters, digits, and _, not starting with a digit", d.Name, f.Name, f.Env)
 		}
 		t := c.resolve(f.Type)
@@ -88,6 +92,92 @@ func (c *checker) checkStartupField(d *syntax.ConfigDecl, f syntax.ConfigField) 
 		}
 	}
 	c.report(f.Start, "V1", "config field %s.%s reads startup %q, but this package has no startup adapter %s with a route to %s (ADR 0127)", d.Name, f.Name, f.Startup, adapterName, workflow)
+}
+
+// checkSettingField is V1 for `from setting "x"` (ADR 0140 §1): a name made
+// of letters, digits, `.`, `_` and `-`; optional or defaulted, since on a
+// first run nothing is saved and the process must still start; and named by
+// one field only in its package.
+func (c *checker) checkSettingField(d *syntax.ConfigDecl, f syntax.ConfigField) {
+	if !validSettingName(f.Setting) {
+		c.report(f.Start, "V1", "config field %s.%s reads setting %q; a setting's name is letters, digits, `.`, `_` and `-`, starting with a letter (ADR 0140 §1)", d.Name, f.Name, f.Setting)
+	}
+	if _, optional := f.Type.(*syntax.UnionType); !optional && f.Default == nil {
+		c.report(f.Start, "V1", "config field %s.%s reads setting %q, so it is `| None` or has a default: on a first run nothing is saved yet, and the program must still start (ADR 0140 §1)", d.Name, f.Name, f.Setting)
+	}
+	for _, other := range c.settingFields(f.Setting) {
+		if other.decl != d || other.field.Name != f.Name {
+			c.report(f.Start, "V1", "setting %q is read by both %s.%s and %s.%s; one field reads a setting, so a save has one type to parse as (ADR 0140 §1)", f.Setting, d.Name, f.Name, other.decl.Name, other.field.Name)
+			break
+		}
+	}
+}
+
+func validSettingName(s string) bool {
+	if s == "" || !(s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') {
+		return false
+	}
+	for _, r := range s {
+		if !(r == '.' || r == '_' || r == '-' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+			return false
+		}
+	}
+	return true
+}
+
+type settingField struct {
+	decl  *syntax.ConfigDecl
+	field syntax.ConfigField
+}
+
+// settingFields is every field of this package's config declarations that
+// reads setting name.
+func (c *checker) settingFields(name string) []settingField {
+	u := c.universe
+	for u != nil && u.Parent != nil {
+		u = u.Parent
+	}
+	if u == nil {
+		return nil
+	}
+	var out []settingField
+	for _, decl := range u.Decls {
+		cd, ok := decl.(*syntax.ConfigDecl)
+		if !ok {
+			continue
+		}
+		for _, f := range cd.Fields {
+			if f.Setting == name {
+				out = append(out, settingField{cd, f})
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].field.Start.Offset < out[j].field.Start.Offset })
+	return out
+}
+
+// checkSettingName is V1 for a Settings call's first argument (ADR 0140
+// §4): a string literal naming a setting this package's config reads, so a
+// typo is an error here and a save always has a type to parse as.
+func (c *checker) checkSettingName(op string, arg syntax.Expr) {
+	start, _ := arg.(syntax.Spanned).Bounds()
+	lit, ok := arg.(*syntax.StringLit)
+	if !ok || hasInterpolation(lit) {
+		c.report(start, "V1", "Settings.%s names its setting with a string literal, so the checker can find the config field it saves to (ADR 0140 §4)", op)
+		return
+	}
+	name := plainLiteral(lit)
+	if len(c.settingFields(name)) == 0 {
+		c.report(start, "V1", "Settings.%s names setting %q, which no config field of this package reads; declare one, such as `x: string | None from setting %q` (ADR 0140 §4)", op, name, name)
+	}
+}
+
+func plainLiteral(lit *syntax.StringLit) string {
+	var b strings.Builder
+	for _, part := range lit.Parts {
+		b.WriteString(part.Text)
+	}
+	return b.String()
 }
 
 func validEnvName(s string) bool {
@@ -258,9 +348,15 @@ func (c *checker) whenShape(d *syntax.ConfigDecl, e syntax.Expr) bool {
 			case cd.When != nil:
 				return bad(cd.Name + ", which has a `when` of its own")
 			}
-			if _, has := cd.Field(e.Field); !has {
+			f, has := cd.Field(e.Field)
+			if !has {
 				c.report(start, "", "config %s has no field %q", cd.Name, e.Field)
 				return false
+			}
+			// ADR 0140 §5: a soft setting changes while the process runs, and
+			// which config is present is decided at start.
+			if f.SoftSetting() {
+				return bad(cd.Name + "." + e.Field + ", a setting that changes while the process runs (ADR 0140 §5; a setting read `on restart` may be used)")
 			}
 			return true
 		}

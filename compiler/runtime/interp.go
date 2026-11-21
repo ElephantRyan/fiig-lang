@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
@@ -48,6 +49,16 @@ type Interp struct {
 	// startupFields are the config fields read from a startup route (ADR
 	// 0127): false when loaded, set by MarkDegraded once the route has run.
 	startupFields []startupField
+	// Settings is where saved settings live (ADR 0140 §2), nil when the
+	// program has none to save to. settingRefs are the fields that read a
+	// setting, by their package's universe and the setting's name;
+	// softFields the live ones, by declaration and field; startSettings
+	// what was saved at start, for hard settings and Pending.
+	Settings      SettingsStore
+	settingsCache atomic.Pointer[settingsSnapshot]
+	settingRefs   map[*types.Universe]map[string]*settingRef
+	softFields    map[*syntax.ConfigDecl]map[string]*settingRef
+	startSettings *settingsSnapshot
 
 	Capabilities *CapabilityRegistry
 	Clock        Clock
@@ -125,6 +136,8 @@ func (in *Interp) Call(ctx context.Context, name string, args map[string]Value) 
 	if f := checkCancelled(ctx); f != nil {
 		return nil, f
 	}
+	// ADR 0140 §3: a run reads one snapshot of the settings.
+	ctx = in.withRun(ctx)
 	// ADR 0060 §5: this call owns every connection opened beneath it, and
 	// closes whichever are still open when it returns, faults or is
 	// cancelled.

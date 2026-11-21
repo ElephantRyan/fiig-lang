@@ -6,7 +6,7 @@ import (
 )
 
 func TestPrimitiveSetIsClosedAndExact(t *testing.T) {
-	want := []string{"Clock", "FileSystem", "Random", "Session", "Socket"}
+	want := []string{"Clock", "FileSystem", "Random", "Session", "Settings", "Socket"}
 	if got := Primitives(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("Primitives() = %v, want %v", got, want)
 	}
