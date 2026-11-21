@@ -225,6 +225,12 @@ effect, and renaming the group starts a new one.
   unsettled. Your orchestrator restarts the process, and the element is
   delivered again, so the halt keeps showing until someone deals with it.
 - Shutdown finishes the element in hand and settles it before stopping.
+- A route receives up to `STREAM_BATCH_SIZE` elements at a time (1 to
+  1000, default 16), waiting up to `STREAM_WAIT_MS` for the first (1 to
+  60000, default 2000). Both apply to every stream route in the process,
+  and a value out of range stops `fiig serve` from starting. A source may
+  still take fewer, so each is handled before it would redeliver it (ADR
+  0111 §5a).
 
 `fiig.kafka` reads a Kafka topic as a consumer group (ADR 0117), with
 `{"StreamSource": {"type": "source", "source": "fiig.kafka"}}`. The route's
@@ -248,6 +254,8 @@ manifest's capabilities, beside `Socket`.
   (`from earliest`) or after its last (`from latest`).
 - Shutdown leaves the group, so its partitions move to the other
   replicas at once. `KAFKA_FETCH_MAX_BYTES` (1 MiB) bounds one fetch.
+- List several servers in `KAFKA_BOOTSTRAP`: the consumer tries them in
+  order when the first can't be reached.
 
 ## Schedule adapters
 
@@ -278,6 +286,11 @@ refuses to start the adapter.
 - A failed run that the mapping sends to `done` is logged, and so is a
   run that faults; the next firing runs as usual. One the mapping sends to
   `halt` stops `fiig serve` with an error.
+- `SCHEDULE_JITTER_MS` (0 to 300000, default 0) spreads out services that
+  all fire at the same moment: each firing waits a random time up to it,
+  never as long as the time to the next firing, before it is claimed and
+  run. `firedAt` is still the scheduled time, and replicas still run each
+  firing once.
 
 To run a job now, by hand, run the route's workflow with `fiig run`,
 passing the firing time the route would pass, in Unix milliseconds (ADR

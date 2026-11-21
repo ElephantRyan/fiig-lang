@@ -17,9 +17,7 @@ doesn't have to discover them.
   0116), and every send reads the topic's metadata first, one round trip
   more than a client that caches it.
 - **The Kafka consumer is KIP-848 only** (ADR 0117): Kafka 4.0 or later.
-  Its group session reaches the cluster through the first
-  `KAFKA_BOOTSTRAP` server only, so that server must be up for a route
-  to start; a retried record's attempts count again from 1 after a
+  A retried record's attempts count again from 1 after a
   restart or a rebalance; a route sees a record's value, not its key or
   headers; and each receive reads the topic's metadata and fetches from
   its leaders one after another, with no fetch sessions (KIP-227).
@@ -141,10 +139,12 @@ doesn't have to discover them.
   0095), which needs neither.
 - **Stream adapters read Redis Streams and Kafka** (ADRs 0111, 0117): no
   NATS, no replay of one element by id, and one element at a time per
-  route, with a fixed batch of 16 and a 2 s wait.
-- **Schedules are UTC only** (ADR 0112 open question 1), with no jitter
-  and no catching up on firings missed while nothing ran; cron has no
-  names (`MON`), `L`, `W`, `#`, or seconds.
+  route. The batch and the wait are set for the whole process
+  (`STREAM_BATCH_SIZE`, `STREAM_WAIT_MS`), not per route.
+- **Schedules are UTC only** (ADR 0112 open question 1), with no catching
+  up on firings missed while nothing ran; cron has no names (`MON`), `L`,
+  `W`, `#`, or seconds. Jitter (`SCHEDULE_JITTER_MS`) is set for the whole
+  process, not per route.
 - See `docs/specification/grammar.md`'s "Known gaps" for open syntax
   questions.
 

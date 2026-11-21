@@ -347,6 +347,7 @@ would be inconsistent.
    gRPC, subscriptions, and stream sources (ADR 0047) all need a connection
    that one long-running reader owns and many calls use. This should be
    designed with ADR 0047's adapter, not as a second kind of pool.
+   *(Answered 2026-11-21: sessions, ADR 0114, built by ADR 0117.)*
 3. **Should a package see why `keep` declined?** Right now it can't tell a
    kept connection from one closed for unread bytes, which is the case most
    likely to be a bug in the protocol. A counter in runtime metrics

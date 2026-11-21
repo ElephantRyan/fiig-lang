@@ -358,7 +358,8 @@ said so; this is where it happens.
    parallel by key is still open. `adapter.StreamSettings` and
    `ParseStreamSettings` in `compiler/adapter/stream.go`.)*
 5. **Kafka and NATS**: both keep group or subscription state on a
-   connection, so they wait on ADR 0109's open question 2.
+   connection, so they wait on ADR 0109's open question 2. *(Kafka done
+   2026-11-21, ADR 0117, over sessions; NATS can follow the same way.)*
 
 ## Implementation notes (2026-11-20)
 

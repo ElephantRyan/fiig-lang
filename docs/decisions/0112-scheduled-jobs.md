@@ -196,8 +196,9 @@ I becomes "Stream and schedule adapter errors":
 1. **Time zones** (`cron "0 3 * * *" in "Europe/Paris"`), which need a
    time zone database in the toolchain and a rule for the hour that
    happens twice.
-2. **Running a job now**, by hand: a `fiig run` of the route's workflow
-   already does it, with `firedAt` passed in `-args`.
+2. ~~**Running a job now**, by hand: a `fiig run` of the route's workflow
+   already does it, with `firedAt` passed in `-args`.~~ Done 2026-11-21:
+   documented in docs/deploying.md, with no new mechanism.
 3. **Jitter**, for many services all firing at :00 against one database.
 
    *(Amended 2026-11-21: `fiig serve` reads `SCHEDULE_JITTER_MS`, 0 to
