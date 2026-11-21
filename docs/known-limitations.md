@@ -14,7 +14,7 @@ doesn't have to discover them.
 - **Kafka is a producer only, and at least once** (`fiig.kafka`, ADR
   0113): `acks=all`, but no idempotence or transactions, so a send that
   is retried after a lost reply writes its records twice. No consumer, no
-  compression yet, no SASL, and every send reads the topic's metadata
+  SASL, no compression levels (ADR 0116), and every send reads the topic's metadata
   first, one round trip more than a client that caches it.
 - **No certificate revocation checks** (CRL, OCSP), certificate pinning,
   keys in an HSM or cloud KMS, or encrypted private keys (ADR 0086 open
