@@ -246,6 +246,8 @@ the alternates and passes with them.)*
 1. **Record keys and headers.** A route binds the value only. A workflow
    that wants the key needs ADR 0111's element to grow fields, for Redis
    too.
+   *(Answered 2026-11-21 by ADR 0118: a route binds them, as `from key`
+   and `from header "name"`.)*
 2. **Many partitions per process.** One `receive` fetches from each
    leader in turn. A process consuming hundreds of partitions may want
    fetch sessions (KIP-227) and leaders fetched at once.

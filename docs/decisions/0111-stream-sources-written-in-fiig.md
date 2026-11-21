@@ -54,6 +54,9 @@ first.
 
 ### 1. `fiig.stream`: the contract a source provides
 
+*(Amended 2026-11-21 by ADR 0118 §5: `Delivery` also carries the
+element's `key: bytes | None` and `headers: List<StreamHeader>`.)*
+
 A built-in package, beside `fiig.sql`:
 
 ```fiig
@@ -115,6 +118,10 @@ its client. `fiig serve` refuses to start a stream adapter with no
 `StreamSource` bound, or whose source package isn't a dependency.
 
 ### 3. The route (amends ADR 0047 §4 and §5)
+
+*(Amended 2026-11-21 by ADR 0118: an argument may also come `from
+header "name"` or `from key`; the element is the one argument without
+`from`.)*
 
 ```fiig
 adapter stream OrderIntake {
