@@ -56,10 +56,10 @@ func (b *cblock) run(in *Interp, ctx context.Context, env *Env) (Value, bool, *F
 }
 
 // in runs b as a nested block of env's: in a child scope when it binds
-// names, as evalBlock(ctx, b, env.Child(), ...) does.
+// names, as evalBlock(ctx, b, env.Child(), ...) does, but reused.
 func (b *cblock) in(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
 	if b.scoped {
-		env = env.Child()
+		env = env.scratch()
 	}
 	return b.run(in, ctx, env)
 }
@@ -261,7 +261,7 @@ func compileWhile(s *syntax.WhileStmt) cstmt {
 		// One scope for the body, emptied each iteration (ADR 0115 §3).
 		bodyEnv := env
 		if body.scoped {
-			bodyEnv = env.Child()
+			bodyEnv = env.scratch()
 		}
 		for {
 			if f := checkCancelled(ctx); f != nil {
@@ -310,7 +310,7 @@ func compileFor(s *syntax.ForStmt) cstmt {
 		}
 		// The loop variable needs a scope even when the body binds nothing.
 		// It stays first in that scope, and each iteration sets its value.
-		bodyEnv := env.Child()
+		bodyEnv := env.scratch()
 		bodyEnv.bindFresh(name, nil)
 		for i := range count {
 			if f := checkCancelled(ctx); f != nil {
@@ -361,7 +361,7 @@ func compileMatch(s *syntax.MatchStmt, producingHere bool) cstmt {
 			return v, true, nil
 		}
 		// One scope for the arms, emptied before each is tried (ADR 0115 §3).
-		armEnv := env.Child()
+		armEnv := env.scratch()
 		for _, a := range arms {
 			armEnv.reset()
 			if !MatchPattern(a.pattern, v, armEnv) {
@@ -459,6 +459,8 @@ func compileExpr(e syntax.Expr) cexpr {
 		}
 	case *syntax.BinaryExpr:
 		return compileBinary(e)
+	case *syntax.BytesLit:
+		return compileBytesLit(e)
 	case *syntax.FieldAccess:
 		return compileFieldAccess(e)
 	case *syntax.CallExpr:
@@ -468,6 +470,91 @@ func compileExpr(e syntax.Expr) cexpr {
 	}
 	return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
 		return in.evalExpr(ctx, e, env)
+	}
+}
+
+// compileBytesLit is evalBytesLit, with each int segment's value computed
+// as an int64 and the buffer sized for the fixed-width segments up front.
+func compileBytesLit(e *syntax.BytesLit) cexpr {
+	segs := e.Segments
+	var head cexpr
+	if len(segs) > 0 && segs[0].Encoding.Kind == syntax.SegBytes {
+		head, segs = compileExpr(segs[0].Value), segs[1:]
+	}
+	type segment struct {
+		enc   syntax.Encoding
+		n     cint
+		value cexpr
+	}
+	compiled := make([]segment, len(segs))
+	fixed := 0
+	for i, seg := range segs {
+		compiled[i].enc = seg.Encoding
+		if seg.Encoding.Kind == syntax.SegInt {
+			compiled[i].n = compileInt(seg.Value)
+			fixed += seg.Encoding.Bits
+		} else {
+			compiled[i].value = compileExpr(seg.Value)
+		}
+	}
+	fixed = (fixed + 7) / 8
+	return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
+		var start Bytes
+		if head != nil {
+			v, earlyReturn, fault := head(in, ctx, env)
+			if fault != nil || earlyReturn {
+				return v, earlyReturn, fault
+			}
+			b, ok := v.(Bytes)
+			if !ok {
+				return nil, false, Faultf("bytes segment value is not bytes (got %s)", v)
+			}
+			start = b
+		}
+		w := bitWriter{buf: make([]byte, 0, fixed)}
+		for _, seg := range compiled {
+			switch seg.enc.Kind {
+			case syntax.SegInt:
+				n, v, earlyReturn, fault := seg.n(in, ctx, env)
+				if fault != nil || earlyReturn {
+					return v, earlyReturn, fault
+				}
+				if v != nil {
+					return nil, false, Faultf("%s segment value is not an int (got %s)", seg.enc.Name, v)
+				}
+				if !intFits(n, seg.enc) {
+					return nil, false, Faultf("%d does not fit in %s", n, seg.enc.Name)
+				}
+				w.writeInt(n, seg.enc)
+			case syntax.SegBytes:
+				v, earlyReturn, fault := seg.value(in, ctx, env)
+				if fault != nil || earlyReturn {
+					return v, earlyReturn, fault
+				}
+				b, ok := v.(Bytes)
+				if !ok {
+					return nil, false, Faultf("bytes segment value is not bytes (got %s)", v)
+				}
+				w.writeBytes(b.B)
+			case syntax.SegUTF8:
+				v, earlyReturn, fault := seg.value(in, ctx, env)
+				if fault != nil || earlyReturn {
+					return v, earlyReturn, fault
+				}
+				str, ok := v.(Str)
+				if !ok {
+					return nil, false, Faultf("utf8 segment value is not a string (got %s)", v)
+				}
+				w.writeBytes([]byte(str))
+			}
+		}
+		if w.nbits%8 != 0 {
+			return nil, false, Faultf("binary expression is %d bits, not whole bytes", w.nbits)
+		}
+		if head == nil {
+			return Bytes{B: w.buf}, false, nil
+		}
+		return growBytes(start, w.buf), false, nil
 	}
 }
 

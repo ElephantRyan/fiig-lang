@@ -355,3 +355,43 @@ slot check for each operand and statement; closing it would mean fusing
 statements into larger closures, which isn't worth the code for this
 benchmark alone. The next step is the tree walk's remaining hot paths in
 protocol code: bytes literals and binary patterns.
+
+### Step 7: binary expressions and patterns
+
+The hot paths of protocol code, which step 4 left to the tree walk:
+- **Whole bytes at once.** A field that is whole bytes on a byte
+  boundary, as nearly every protocol field is, is written and read a byte
+  at a time rather than a bit at a time. This speeds up the tree walk too.
+  `TestAlignedFieldsMatchTheBitPath` checks every width and byte order
+  against `encoding/binary` and against the bit path.
+- **Pattern bindings in order.** A binary pattern collects its names in a
+  short list rather than a map, and binds them in segment order, so a
+  match allocates no map and the slots of the names it binds hold.
+- **Compiled binary expressions.** An int segment's value is computed as
+  an `int64`, and the buffer is sized for the fixed-width segments up
+  front.
+- **Methods on any value.** A built-in method whose target is an
+  expression, such as `<<a: u32be>>.xor(...)` or `data.slice(0, 4)` used as
+  a match subject, is compiled. Calls without named arguments skip
+  `placeArgs`, which built a fault label for every call.
+- **Reused nested scopes.** A scope keeps one child for its nested blocks
+  (an `if` body, a loop's body, a `match`'s arms), since they run one at a
+  time and nothing outlives one.
+
+Fastest of eight runs:
+
+| Workload | Time | vs baseline | Allocations |
+|---|---|---|---|
+| bytes | 25.9 ms (24 ns a byte) | 8.6x | 5 |
+| build | 1.76 ms | 2.3x | 40,107 |
+| records | 4.79 ms | 1.7x | 59,750 |
+| murmur2 | 99.5 ms | 3.7x | 1,361,368 |
+| calls | 40.8 ms | 4.6x | 368,938 |
+| parse | 12.1 ms (38 MB/s) | 3.9x | 110,003 |
+
+Parse allocates 3.3 MB per run, down from 14.8 MB: what's left is one
+`Value` per matched `bytes` segment, which boxing a two-word struct costs.
+murmur2's `match` runs in a new call each time, so it can't reuse a
+scope; its cost is fiig spelling XOR as bytes. Dogfooded against
+Postgres 17 through `examples/relay-notes`: schema setup, a transactional
+batch with non-ASCII text, and typed reads.
