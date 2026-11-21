@@ -1,0 +1,13 @@
+// A number written in at least `width` digits, with zeros in front: the
+// two-digit hour and four-digit year every format here needs. A negative
+// number is written as it is.
+conversion zeroPad(n: int, width: int) -> string {
+    text: string = "${n}"
+    if n < 0 {
+        return text
+    }
+    while text.length() < width {
+        text = "0${text}"
+    }
+    return text
+}

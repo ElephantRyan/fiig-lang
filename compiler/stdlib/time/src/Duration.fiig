@@ -1,0 +1,21 @@
+// Spans are ints of milliseconds, as `timeoutMillis` and `holdMillis` are
+// (ADR 0123 §2). These name the unit at the call site, so `duration.days(7)`
+// reads as what it is where a bare 604800000 would not. They are formulas, so
+// a rule may use them.
+formulas duration {
+    formula seconds(n: int) -> int {
+        return n * 1000
+    }
+
+    formula minutes(n: int) -> int {
+        return n * 60000
+    }
+
+    formula hours(n: int) -> int {
+        return n * 3600000
+    }
+
+    formula days(n: int) -> int {
+        return n * 86400000
+    }
+}

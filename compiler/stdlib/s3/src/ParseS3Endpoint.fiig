@@ -21,7 +21,9 @@ conversion parseS3Endpoint(url: string) -> Result<S3Endpoint, S3Error> {
         return Err(invalid("it has a path, query, or fragment; give only the service's address"))
     }
     if authority.contains("@") {
-        return Err(invalid("it has user information; the keys are S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY"))
+        return Err(
+            invalid("it has user information; the keys are S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY"),
+        )
     }
     for b in authority.utf8() {
         if b <= 32 or b >= 127 {

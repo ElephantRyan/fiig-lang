@@ -51,8 +51,11 @@ doesn't have to discover them.
   `Random` do; `Clock` and `Random` need no capabilities-file entry (ADR
   0068 §4, §6).
 - **`Clock` is untyped:** `Clock.now()` is Unix milliseconds as an `int`,
-  and the checker doesn't type its calls (ADR 0068 §5). A time type is
-  open.
+  and the checker doesn't type its calls (ADR 0068 §5). A moment stays an
+  `int`; `fiig.time` (ADR 0123) formats and parses it and reads it as a
+  calendar date, in UTC only. There are no time zones, no date-only or
+  time-only types, no pattern strings, and a span is an `int` of
+  milliseconds, so the compiler can't tell a moment from a span.
 
 ## HTTP
 

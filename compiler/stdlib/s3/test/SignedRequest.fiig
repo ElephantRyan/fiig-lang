@@ -1,7 +1,13 @@
 use fiig.http
 
 test aSignedGetMatchesTheReference {
-    call = S3Call(method: "GET", bucket: "examplebucket", key: "test.txt", body: <<>>, contentType: "")
+    call = S3Call(
+        method: "GET",
+        bucket: "examplebucket",
+        key: "test.txt",
+        body: <<>>,
+        contentType: "",
+    )
     expect signedRequest(call, S3Account(endpoint: "https://s3.amazonaws.com", region: "us-east-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE", secret: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", token: "", pathStyle: false, timeoutMillis: 30000), 1369353600000) is Ok(request)
     expect request.url == "https://examplebucket.s3.amazonaws.com/test.txt"
     expect request.method == http.Method.Get
@@ -11,7 +17,13 @@ test aSignedGetMatchesTheReference {
 }
 
 test aSignedPutSignsItsBody {
-    call = S3Call(method: "PUT", bucket: "examplebucket", key: "test$file.text", body: "Welcome to Amazon S3.".utf8(), contentType: "text/plain")
+    call = S3Call(
+        method: "PUT",
+        bucket: "examplebucket",
+        key: "test$file.text",
+        body: "Welcome to Amazon S3.".utf8(),
+        contentType: "text/plain",
+    )
     expect signedRequest(call, S3Account(endpoint: "https://s3.amazonaws.com", region: "us-east-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE", secret: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", token: "", pathStyle: false, timeoutMillis: 30000), 1369353600000) is Ok(request)
     expect request.url == "https://examplebucket.s3.amazonaws.com/test%24file.text"
     expect request.method == http.Method.Put
@@ -29,7 +41,13 @@ test aSessionTokenIsSentAndSigned {
 }
 
 test aPathStyleKeyWithASpaceAndAnAccent {
-    call = S3Call(method: "PUT", bucket: "photos", key: "2026/cat é.png", body: "hello".utf8(), contentType: "image/png")
+    call = S3Call(
+        method: "PUT",
+        bucket: "photos",
+        key: "2026/cat é.png",
+        body: "hello".utf8(),
+        contentType: "image/png",
+    )
     expect signedRequest(call, S3Account(endpoint: "http://localhost:19000", region: "us-east-1", accessKeyId: "minioadmin", secret: "minioadmin", token: "", pathStyle: true, timeoutMillis: 30000), 1700000000000) is Ok(request)
     expect request.url == "http://localhost:19000/photos/2026/cat%20%C3%A9.png"
     expect header(request, "Authorization") == "AWS4-HMAC-SHA256 Credential=minioadmin/20231114/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=08eb42ff61e9d98f3007b08a18773ca6a6f4cf8d4acf6f4d1b4455c871c787dc"

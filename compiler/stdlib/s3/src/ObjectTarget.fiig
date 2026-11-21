@@ -9,7 +9,9 @@ use fiig.http
 // resolves them as "here" and "up one".
 conversion objectTarget(endpoint: S3Endpoint, bucket: string, key: string, pathStyle: bool) -> Result<S3Target, S3Error> {
     if not validBucket(bucket) {
-        return Err(S3Error.InvalidRequest(reason: "a bucket name is 3 to 63 lowercase letters, digits, hyphens and dots, starting and ending with a letter or digit"))
+        return Err(
+            S3Error.InvalidRequest(reason: "a bucket name is 3 to 63 lowercase letters, digits, hyphens and dots, starting and ending with a letter or digit"),
+        )
     }
     if key == "" {
         return Err(S3Error.InvalidRequest(reason: "a key can't be empty"))

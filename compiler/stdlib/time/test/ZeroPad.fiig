@@ -1,0 +1,13 @@
+test zeroPadFillsOnTheLeft {
+    expect zeroPad(5, 2) == "05"
+    expect zeroPad(5, 4) == "0005"
+    expect zeroPad(0, 3) == "000"
+}
+
+test zeroPadNeverTruncates {
+    expect zeroPad(12345, 2) == "12345"
+}
+
+test zeroPadWritesANegativeNumberAsItIs {
+    expect zeroPad(-5, 4) == "-5"
+}

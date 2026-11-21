@@ -105,10 +105,9 @@ function:
 `UNSIGNED-PAYLOAD`), so a body altered on the way fails the check. The cost
 is hashing the body, which is Go code in `crypto.sha256` and fast.
 
-**The timestamp is written by hand.** fiig has no time type, so `amzDate`
-turns `Clock.now()` into `20261120T135958Z` with the civil-from-days
-algorithm. `fiig.smtp` has the same code for its `Date` header (ADR 0120 open
-question 5).
+**The timestamp is `fiig.time`'s `formatBasic`** (ADR 0123), which turns
+`Clock.now()` into `20261120T135958Z`. It began as a hand-written `amzDate`
+here, beside the same code in `fiig.smtp`, and both moved to `fiig.time`.
 
 ### 4. Errors
 
@@ -182,8 +181,8 @@ operations, custom metadata, server-side encryption, and streaming bodies
 4. **Ranges** (`Range: bytes=0-99`), for reading part of an object.
 5. **Custom metadata and checksums** (`x-amz-meta-*`, `Content-MD5`,
    `x-amz-checksum-sha256`), and server-side encryption headers.
-6. **A time type**, to retire this package's `amzDate` and `fiig.smtp`'s
-   `rfc5322Date`.
+6. ~~**A time type**, to retire this package's `amzDate` and `fiig.smtp`'s
+   `rfc5322Date`.~~ Done by ADR 0123, as the library `fiig.time`.
 7. **A wrong region on AWS.** AWS answers a request signed for the wrong
    region with a 301 or 400 (`AuthorizationHeaderMalformed`) that names the
    right one. It comes back as `Refused` with that code, and the program can
@@ -234,5 +233,5 @@ quay.io): a PUT of a key
   `match` isn't an expression and a pattern can't hold a string literal, so
   mapping `"GET"` to `http.Method.Get` is a chain of `if`s. (3) A test's name
   must be unique across a package's files, not just its own file, which
-  makes `test getExample` in two files an error. (4) `amzDate` duplicates
-  `fiig.smtp`'s calendar code (§3).
+  makes `test getExample` in two files an error. (4) `amzDate` duplicated
+  `fiig.smtp`'s calendar code (§3); both moved to `fiig.time` (ADR 0123).
