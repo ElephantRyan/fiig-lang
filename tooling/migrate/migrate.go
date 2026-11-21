@@ -44,6 +44,9 @@ func ParseMode(s string) (Mode, error) {
 type Package struct {
 	Path  string // "" for a root package with no manifest
 	Files []migration.File
+	// Formerly is the manifest's earlier paths (ADR 0138): history
+	// recorded under one of them is this package's.
+	Formerly []string
 }
 
 // Collect is the root package's migrations and its dependencies', each
@@ -78,11 +81,11 @@ func Collect(root string, packages types.Packages) ([]Package, []error) {
 	}
 	visit(packages)
 	if len(rootFiles) > 0 {
-		path := ""
+		pkg := Package{Files: rootFiles}
 		if m, errs := manifest.Load(root); m != nil && len(errs) == 0 {
-			path = m.Path
+			pkg.Path, pkg.Formerly = m.Path, m.Formerly
 		}
-		out = append(out, Package{Path: path, Files: rootFiles})
+		out = append(out, pkg)
 	}
 	return out, nil
 }
@@ -138,6 +141,25 @@ func RunOn(ctx context.Context, db runtime.CapabilityProvider, pkgs []Package, m
 	done, f := readApplied(ctx, db)
 	if f != nil {
 		return nil, []string{"migrations: reading fiig_migrations: " + f.Message}
+	}
+	for _, p := range pkgs {
+		former, problem := formerHistory(p, done)
+		switch {
+		case problem != "":
+			problems = append(problems, problem)
+		case former == "":
+		case mode == Check:
+			problems = append(problems, fmt.Sprintf("%s: its migration history is recorded under %s, its former path; run fiig migrate, or start without -migrate=check, to move it (ADR 0138)", describe(p.Path), former))
+		default:
+			if f := moveHistory(ctx, db, former, p.Path); f != nil {
+				return applied, append(problems, fmt.Sprintf("%s: moving its migration history from %s failed: %s", describe(p.Path), former, f.Message))
+			}
+			applied = append(applied, fmt.Sprintf("%s (moved %d recorded under %s, its former path)", p.Path, len(done[former]), former))
+			done[p.Path], done[former] = done[former], nil
+		}
+	}
+	if len(problems) > 0 {
+		return applied, problems
 	}
 	var pending []pendingFile
 	for _, p := range pkgs {
@@ -245,6 +267,52 @@ func apply(ctx context.Context, db runtime.CapabilityProvider, pf pendingFile) (
 		}
 	}
 	return true, nil
+}
+
+// formerHistory is the former path whose history p adopts (ADR 0138): the
+// one of p.Formerly with recorded migrations, when p's own path has none.
+// History under both, or under two former paths, is a problem a person
+// has to settle, so nothing is moved.
+func formerHistory(p Package, done map[string]map[int]recorded) (former, problem string) {
+	var found []string
+	for _, f := range p.Formerly {
+		if len(done[f]) > 0 {
+			found = append(found, f)
+		}
+	}
+	switch {
+	case len(found) == 0:
+		return "", ""
+	case len(done[p.Path]) > 0:
+		return "", fmt.Sprintf("%s: migration history is recorded both under %s and under %s, its former path; delete the rows that don't belong to this database (ADR 0138)", describe(p.Path), p.Path, found[0])
+	case len(found) > 1:
+		return "", fmt.Sprintf("%s: migration history is recorded under more than one former path (%s); delete the rows that don't belong to this database (ADR 0138)", describe(p.Path), strings.Join(found, ", "))
+	}
+	return found[0], ""
+}
+
+// moveHistory records a former path's migrations as the package's own, in
+// one transaction. A second process doing the same at once moves nothing.
+func moveHistory(ctx context.Context, db runtime.CapabilityProvider, from, to string) *runtime.Fault {
+	exec := db
+	var tx runtime.Tx
+	if t, ok := db.(runtime.TransactionalProvider); ok {
+		var f *runtime.Fault
+		if tx, f = t.Begin(ctx, ""); f != nil {
+			return f
+		}
+		exec = tx
+	}
+	if _, f := exec.Call(ctx, "execute", []runtime.Value{runtime.Str("UPDATE fiig_migrations SET package = ? WHERE package = ?"), runtime.Str(to), runtime.Str(from)}); f != nil {
+		if tx != nil {
+			tx.Rollback()
+		}
+		return f
+	}
+	if tx != nil {
+		return tx.Commit()
+	}
+	return nil
 }
 
 // readApplied is what fiig_migrations records, by package and number.

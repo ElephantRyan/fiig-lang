@@ -12,6 +12,15 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)*$"
     },
+    "formerly": {
+      "description": "The paths this package had before a rename, newest last. Migration history recorded under one of them is moved to path the next time the program migrates (ADR 0138).",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)*$"
+      },
+      "uniqueItems": true
+    },
     "kind": {
       "description": "An application is a program that runs; a library is used by applications.",
       "enum": ["application", "library"]

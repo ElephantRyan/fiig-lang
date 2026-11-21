@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"fiig-lang/compiler/version"
 )
@@ -29,7 +30,7 @@ const Filename = "fiig.lock.json"
 type Entry struct {
 	Path    string `json:"path"`
 	Version string `json:"version"`
-	Hash    string `json:"hash"`
+	Hash    string `json:"hash,omitempty"` // none for a builtin (ADR 0138 §2)
 	Source  string `json:"source"`
 
 	// Capabilities is every capability name (a gateway's `requires`
@@ -85,8 +86,18 @@ func HashFiles(files map[string][]byte) string {
 // Write records lf at root's Filename, with this toolchain's version, sorting Dependencies by Path
 // first so the written file is deterministic regardless of the order
 // its caller resolved them in.
+//
+// A package the toolchain ships (Source "builtin:...") is written with no
+// Hash: the Toolchain field pins its bytes, as Go keeps the standard
+// library out of go.sum, so a newer toolchain changes the file only where
+// it changes a dependency (ADR 0138 §2, Hearsay GAPS G62).
 func Write(root string, lf *Lockfile) error {
 	sorted := append([]Entry(nil), lf.Dependencies...)
+	for i := range sorted {
+		if strings.HasPrefix(sorted[i].Source, "builtin:") {
+			sorted[i].Hash = ""
+		}
+	}
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Path < sorted[j].Path })
 	data, err := json.MarshalIndent(&Lockfile{Toolchain: version.Version, Dependencies: sorted}, "", "  ")
 	if err != nil {

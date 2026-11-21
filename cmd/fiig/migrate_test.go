@@ -80,3 +80,39 @@ func TestMigrationsOnSQLite(t *testing.T) {
 		t.Fatalf("after a failed migration: %v, %v; want neither the table nor its record", v, f)
 	}
 }
+
+// ADR 0138 (Hearsay GAPS G55): a package renamed with `formerly` adopts the
+// history recorded under its old path, instead of re-running its first
+// migration against tables that already exist.
+func TestARenamedPackageKeepsItsMigrationHistory(t *testing.T) {
+	db, err := fiigsql.Factory(map[string]any{"type": "sql", "driver": "sqlite", "dsn": fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	create := migration.File{Number: 1, Name: "0001_create", SQL: "CREATE TABLE rating (id TEXT PRIMARY KEY)"}
+	addNote := migration.File{Number: 2, Name: "0002_add_note", SQL: "ALTER TABLE rating ADD COLUMN note TEXT NOT NULL DEFAULT ''"}
+	if _, problems := migrate.RunOn(ctx, db, []migrate.Package{{Path: "abs.recommendations", Files: []migration.File{create}}}, migrate.Apply); len(problems) > 0 {
+		t.Fatal(problems)
+	}
+
+	renamed := []migrate.Package{{Path: "hearsay", Files: []migration.File{create, addNote}, Formerly: []string{"abs.recommendations"}}}
+	if _, problems := migrate.RunOn(ctx, db, renamed, migrate.Check); len(problems) != 1 || !strings.Contains(problems[0], "recorded under abs.recommendations, its former path") {
+		t.Fatalf("check mode: problems %v", problems)
+	}
+	applied, problems := migrate.RunOn(ctx, db, renamed, migrate.Apply)
+	if len(problems) > 0 || len(applied) != 2 || !strings.Contains(applied[0], "moved 1 recorded under abs.recommendations") || applied[1] != "hearsay 0002_add_note" {
+		t.Fatalf("rename: applied %v, problems %v", applied, problems)
+	}
+	if applied, problems := migrate.RunOn(ctx, db, renamed, migrate.Apply); len(applied) != 0 || len(problems) != 0 {
+		t.Fatalf("after the move: applied %v, problems %v; want nothing to do", applied, problems)
+	}
+
+	// History under both paths is for a person to settle; nothing moves.
+	if _, f := db.Call(ctx, "execute", []runtime.Value{runtime.Str("INSERT INTO fiig_migrations (package, number, name, sha256, applied_at) VALUES ('abs.recommendations', 1, '0001_create', 'x', 'now')")}); f != nil {
+		t.Fatal(f)
+	}
+	if _, problems := migrate.RunOn(ctx, db, renamed, migrate.Apply); len(problems) != 1 || !strings.Contains(problems[0], "recorded both under hearsay and under abs.recommendations") {
+		t.Fatalf("both: problems %v", problems)
+	}
+}

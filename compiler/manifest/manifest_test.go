@@ -208,3 +208,15 @@ func TestEnvironmentRenames(t *testing.T) {
 		}
 	}
 }
+
+// ADR 0138: formerly lists earlier paths, each valid, none twice, and
+// not the package's own.
+func TestValidateFormerly(t *testing.T) {
+	if _, errs := Parse([]byte(`{"path": "hearsay", "kind": "application", "version": "0.1.0", "formerly": ["abs.recommendations"]}`)); len(errs) != 0 {
+		t.Fatalf("valid: %v", errs)
+	}
+	_, errs := Parse([]byte(`{"path": "hearsay", "kind": "application", "version": "0.1.0", "formerly": ["2bad", "hearsay", "old.name", "old.name"]}`))
+	if len(errs) != 3 {
+		t.Fatalf("got %d errors, want 3: %v", len(errs), errs)
+	}
+}

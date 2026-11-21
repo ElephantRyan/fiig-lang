@@ -44,8 +44,14 @@ const (
 // build is resolved later, across every manifest pulled into that build,
 // not decided by any single manifest alone.
 type Manifest struct {
-	Path         string            `json:"path"`
-	Kind         Kind              `json:"kind"`
+	Path string `json:"path"`
+	Kind Kind   `json:"kind"`
+
+	// Formerly is the paths this package had before a rename, newest
+	// last. Migration history recorded under one of them is moved to Path
+	// the next time the program migrates (ADR 0138), so a rename doesn't
+	// orphan a database's history (Hearsay GAPS G55).
+	Formerly     []string          `json:"formerly,omitempty"`
 	Version      string            `json:"version"`
 	Dependencies map[string]string `json:"dependencies,omitempty"`
 
@@ -167,6 +173,18 @@ func (m *Manifest) Validate() []error {
 	var errs []error
 	if !packagePathPattern.MatchString(m.Path) {
 		errs = append(errs, fmt.Errorf("path %q is not a valid dotted package path", m.Path))
+	}
+	seenFormer := map[string]bool{}
+	for _, former := range m.Formerly {
+		switch {
+		case !packagePathPattern.MatchString(former):
+			errs = append(errs, fmt.Errorf("formerly %q is not a valid dotted package path", former))
+		case former == m.Path:
+			errs = append(errs, fmt.Errorf("formerly %q is this package's path; list only the paths it had before", former))
+		case seenFormer[former]:
+			errs = append(errs, fmt.Errorf("formerly lists %q twice", former))
+		}
+		seenFormer[former] = true
 	}
 	if m.Kind != Library && m.Kind != Application {
 		errs = append(errs, fmt.Errorf("kind %q must be %q or %q", m.Kind, Library, Application))

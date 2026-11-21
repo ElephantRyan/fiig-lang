@@ -66,3 +66,30 @@ func TestWriteRecordsToolchain(t *testing.T) {
 		t.Fatalf("toolchain = %q, want %q", lf.Toolchain, version.Version)
 	}
 }
+
+// ADR 0138 §2 (Hearsay GAPS G62): a builtin's bytes are pinned by the
+// toolchain, so its entry carries no hash and a newer toolchain build
+// doesn't rewrite the file; a package from a workspace keeps its hash.
+func TestWriteOmitsTheHashOfABuiltin(t *testing.T) {
+	dir := t.TempDir()
+	lf := &Lockfile{Dependencies: []Entry{
+		{Path: "fiig.http", Version: "1.0.0", Hash: "sha256:aaaa", Source: "builtin:http"},
+		{Path: "acme.client", Version: "2.0.0", Hash: "sha256:bbbb", Source: "../acme-client"},
+	}}
+	if err := Write(dir, lf); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h := got.Dependencies[1].Hash; h != "" {
+		t.Errorf("fiig.http hash = %q, want none", h)
+	}
+	if h := got.Dependencies[0].Hash; h != "sha256:bbbb" {
+		t.Errorf("acme.client hash = %q, want sha256:bbbb", h)
+	}
+	if lf.Dependencies[0].Hash != "sha256:aaaa" {
+		t.Error("Write changed its caller's entries")
+	}
+}
