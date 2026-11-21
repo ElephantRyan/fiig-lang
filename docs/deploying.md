@@ -249,6 +249,8 @@ is from the environment (ADR 0113):
 - `KAFKA_BOOTSTRAP`: `host:port[,host:port...]`, as `bootstrap.servers`.
 - `KAFKA_TLS` (`false`), `KAFKA_CLIENT_ID` (`fiig`), and
   `KAFKA_TIMEOUT_MS` (30000), the most one send takes.
+- `KAFKA_COMPRESSION`: `none`, `gzip`, `snappy`, `lz4` or `zstd`, as
+  `compression.type` (ADR 0116). Unset sends batches uncompressed.
 
 A send is **at least once**: every leader acknowledges with `acks=all`,
 but there is no idempotence, so if a reply is lost after the broker

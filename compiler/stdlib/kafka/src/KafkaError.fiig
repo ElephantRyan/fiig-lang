@@ -1,6 +1,7 @@
 // ADR 0113 §1: why a send failed. Broker carries Kafka's error code and
 // name, and whether the protocol marks it retriable; send never retries,
-// so the caller decides (§1).
+// so the caller decides (§1). Decompress is a fetched batch that doesn't
+// decompress (ADR 0116 §4).
 enum KafkaError {
     Socket(failure: SocketError)
     Broker(code: int, name: string, retriable: bool, message: string)
@@ -9,4 +10,5 @@ enum KafkaError {
     MalformedReply(reason: string)
     InvalidConfig(reason: string)
     InvalidRecord(reason: string)
+    Decompress(failure: DecompressError)
 }

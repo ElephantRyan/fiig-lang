@@ -1,0 +1,4 @@
+// ADR 0116 §4: the first eight bytes of xerial-framed snappy.
+conversion xerialMagic() -> bytes {
+    return <<130: u8, "SNAPPY".utf8(): bytes, 0: u8>>
+}

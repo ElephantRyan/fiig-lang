@@ -114,6 +114,9 @@ encoder takes a `Compression` value, so adding codecs changes one
 conversion. This version sends `None` only; snappy and lz4 are the next
 ADR, gzip and zstd after.
 
+Update (2026-11-20): ADR 0116 adds all four codecs, chosen by
+`KAFKA_COMPRESSION`.
+
 ### 6. Configuration
 
 ```fiig

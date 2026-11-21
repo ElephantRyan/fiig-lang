@@ -1,0 +1,117 @@
+test everyCodecWritesABatchThatUnpacks {
+    records = [
+        KafkaRecord(key: "order-1".utf8(), value: "hello hello hello hello".utf8(), headers: None),
+        KafkaRecord(key: None, value: "hello hello hello hello".utf8(), headers: [KafkaHeader(name: "h", value: "v".utf8())]),
+    ]
+    expect recordBatch(records, 1000, Compression.None) is Ok(plain)
+    body = sectionOf(plain)
+    for codec in [Compression.Gzip, Compression.Snappy, Compression.Lz4, Compression.Zstd] {
+        expect recordBatch(records, 1000, codec) is Ok(batch)
+        match batch {
+            <<_: i64be, length: i32be, _: i32be, _: u8, crc: u32be, rest: bytes>> -> {
+                expect length == rest.length() + 9
+                expect crc == crypto.crc32c(rest)
+            }
+            _ -> {
+                expect false
+            }
+        }
+        expect attributesOf(batch) == bitsOf(codec)
+        expect unpackedRecords(codec, sectionOf(batch), 1000) is Ok(unpacked)
+        expect unpacked == body
+    }
+}
+
+test snappyIsXerialFramedInChunks {
+    data = repeated("abcdefgh".utf8(), 10000)
+    framed = xerialFramed(data)
+    match framed {
+        <<magic: bytes(8), version: i32be, compatible: i32be, first: i32be, _: bytes>> -> {
+            expect magic == xerialMagic()
+            expect version == 1
+            expect compatible == 1
+            expect first > 0
+        }
+        _ -> {
+            expect false
+        }
+    }
+    // 80,000 bytes is three 32 KiB chunks.
+    expect unpackedRecords(Compression.Snappy, framed, 80000) is Ok(back)
+    expect back == data
+    expect unpackedRecords(Compression.Snappy, framed, 79999) is Err(KafkaError.Decompress(DecompressError.TooLarge(_)))
+}
+
+test rawSnappyIsReadToo {
+    data = "hello hello hello".utf8()
+    expect unpackedRecords(Compression.Snappy, compress.snappy(data), 100) is Ok(back)
+    expect back == data
+}
+
+// The record sections of two batches Java's Kafka producer wrote (Kafka
+// 4.0's console producer), read from the broker's log segment: two
+// records, each with the value "hello hello hello hello hello".
+test javaBatchesUnpack {
+    hello = "hello hello hello hello hello".utf8()
+    for written in [
+        "82534e415050590000000001000000010000001a482c46000000013a68656c6c6f205a0600100046002a027e2400",
+        "04224d186040821f000000cf46000000013a68656c6c6f200600045f004600200224000850656c6c6f0000000000",
+    ] {
+        codec: Compression = Compression.Lz4
+        if written.startsWith("82") {
+            codec = Compression.Snappy
+        }
+        match written.fromHex() {
+            None -> {
+                expect false
+            }
+            section -> {
+                expect unpackedRecords(codec, section, 1000) is Ok(records)
+                expect records.length() == 72
+                expect records.slice(6, 35) == hello
+                expect records.slice(42, 71) == hello
+            }
+        }
+    }
+}
+
+test aBrokenChunkIsCorrupt {
+    framed = xerialFramed("hello".utf8())
+    cut = framed.slice(0, framed.length() - 2)
+    expect unpackedRecords(Compression.Snappy, cut, 100) is Err(KafkaError.Decompress(DecompressError.Corrupt(reason)))
+    expect reason.contains("past the end")
+}
+
+private {
+    // A batch's records section: after its 61-byte header.
+    sectionOf(batch: bytes) -> bytes {
+        return batch.slice(61, batch.length())
+    }
+
+    attributesOf(batch: bytes) -> int {
+        match batch {
+            <<_: bytes(21), attributes: i16be, _: bytes>> -> attributes
+            _ -> 0 - 1
+        }
+    }
+
+    bitsOf(codec: Compression) -> int {
+        match codec {
+            Compression.None -> 0
+            Compression.Gzip -> 1
+            Compression.Snappy -> 2
+            Compression.Lz4 -> 3
+            Compression.Zstd -> 4
+        }
+    }
+
+    repeated(data: bytes, times: int) -> bytes {
+        out: bytes = <<>>
+        i: int = 0
+        while i < times {
+            out = <<out: bytes, data: bytes>>
+            i = i + 1
+        }
+        return out
+    }
+}
