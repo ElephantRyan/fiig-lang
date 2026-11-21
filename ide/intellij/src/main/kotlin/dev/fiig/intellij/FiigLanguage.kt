@@ -23,7 +23,7 @@ object FiigIcons {
      * program (purple hexagon), and tests (outlined check).
      */
     private val BY_KIND: Map<String, Icon> =
-        (FiigNaming.KINDS + "test").associateWith { IconLoader.getIcon("/icons/kinds/$it.svg", FiigIcons::class.java) }
+        (FiigNaming.KINDS + "test" + "application").associateWith { IconLoader.getIcon("/icons/kinds/$it.svg", FiigIcons::class.java) }
 
     fun forKind(kind: String): Icon = BY_KIND[kind] ?: FILE
 }

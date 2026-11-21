@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 
+	"fiig-lang/compiler/checker"
 	"fiig-lang/compiler/format"
 	"fiig-lang/compiler/layout"
 	"fiig-lang/compiler/manifest"
@@ -168,9 +169,14 @@ func Relayout(root string, absorb []Absorb, into string) (*Plan, error) {
 
 	// An application declares nothing at the top level (ADR 0108): its loose
 	// files go into one folder, which only the author can name.
+	// The application declaration stays: it is the one thing the top level
+	// holds (ADR 0132).
+	isLoose := func(s *source) bool {
+		return s.mod.folder == "" && path.Dir(s.rel) == layout.Src && !(s.file != nil && checker.DeclaresApplication(s.file))
+	}
 	loose := 0
 	for _, s := range sources {
-		if s.mod.folder == "" && path.Dir(s.rel) == layout.Src {
+		if isLoose(s) {
 			loose++
 		}
 	}
@@ -179,7 +185,7 @@ func Relayout(root string, absorb []Absorb, into string) (*Plan, error) {
 	}
 	if loose > 0 && into != "" {
 		for _, s := range sources {
-			if s.mod.folder == "" && path.Dir(s.rel) == layout.Src {
+			if isLoose(s) {
 				s.rel = path.Join(layout.Src, into, path.Base(s.rel))
 			}
 		}

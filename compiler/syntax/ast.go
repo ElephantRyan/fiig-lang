@@ -577,6 +577,34 @@ type ExprResponse struct {
 	Value Expr
 }
 
+// ApplicationDecl is `application Name { serve [role] { adapter... } }` (ADR
+// 0132): what a program runs, written once. Each serve block is one process,
+// the adapters it runs named as `alias.adapter` (a folder package imported with
+// `use`) or bare (an adapter of the same package); a block with no role is the
+// only one, and `fiig serve .` runs it.
+type ApplicationDecl struct {
+	Span
+	Name   string
+	Serves []*ServeBlock
+}
+
+// ServeBlock is one process of an application.
+type ServeBlock struct {
+	Span
+	Role     string // "" for the one unnamed block
+	RoleSpan Span
+	Adapters []*AdapterRef
+}
+
+// AdapterRef is an adapter named in a serve block: `sessions.sessionsApi`
+// is Path [sessions sessionsApi], `healthApi` is [healthApi].
+type AdapterRef struct {
+	Span
+	Path []string
+}
+
+func (*ApplicationDecl) declNode() {}
+
 func (*ModelDecl) declNode()      {}
 func (*EnumDecl) declNode()       {}
 func (*RuleDecl) declNode()       {}
@@ -624,6 +652,8 @@ func DeclName(d Decl) string {
 		return d.Name
 	case *ConfigDecl:
 		return d.Name
+	case *ApplicationDecl:
+		return d.Name
 	case *TestDecl:
 		return d.Name
 	default:
@@ -666,6 +696,8 @@ func DeclKindName(d Decl) string {
 		return "formula"
 	case *ConfigDecl:
 		return "config"
+	case *ApplicationDecl:
+		return "application"
 	case *TestDecl:
 		return "test"
 	default:

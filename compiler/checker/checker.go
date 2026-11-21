@@ -1065,6 +1065,8 @@ func (c *checker) checkDecl(d syntax.Decl) {
 		c.checkCallable(d.Params, d.ReturnType, d.Body)
 	case *syntax.AdapterDecl:
 		c.checkAdapterRoutes(d)
+	case *syntax.ApplicationDecl:
+		c.checkApplicationDecl(d)
 	case *syntax.InterfaceDecl:
 		c.checkInterfaceDecl(d)
 	case *syntax.CapabilityDecl:
@@ -1396,11 +1398,17 @@ func checkModuleRoot(root string, packages types.Packages) ([]Diagnostic, []stri
 	}
 	if m != nil && m.Kind == manifest.Application {
 		for _, rel := range top.Sources {
+			// ADR 0132: the application declaration is the one thing the
+			// top level may declare.
+			if declaresApplication(root, rel) {
+				continue
+			}
 			if problem := layout.TopLevelProblem(rel); problem != "" {
 				diags = append(diags, Diagnostic{File: rel, Rule: "H6", Msg: problem})
 			}
 		}
 	}
+	diags = append(diags, applicationPlacement(root, top.Sources, m != nil && m.Kind == manifest.Library)...)
 	// The top-level package imports the module's folders as ordinary
 	// dependencies; its tests also count them as siblings (ADR 0102 §3a).
 	siblings := types.Packages{}

@@ -199,6 +199,32 @@ its package path: `fiig serve . ordersApi shop.payments.paymentsApi`.
 They share the listener, the limits below, and the CORS policy, and two
 routes that would serve the same requests stop it at startup.
 
+**What a program serves** is declared in the program, in an `application` at
+the top of `src/` (ADR 0132), so launching it is `fiig serve .` and not a
+script:
+
+```fiig
+use abs.recommendations.sessions
+use abs.recommendations.sync
+
+application AbsRecommendations {
+    serve web {
+        sessions.sessionsApi
+    }
+    serve worker {
+        sync.syncSchedule
+    }
+}
+```
+
+Each `serve` block is one process. `fiig serve . worker` runs a role, and a
+program with one unnamed block, `serve { ... }`, is run by `fiig serve .`. With
+several roles, `fiig serve .` says which to name; a program with no
+`application` is refused, since it has said nothing about what it runs.
+Adapters named on the command line still win, to run one while developing.
+`fiig check` reports an adapter that no block names (O2). `fiig openapi .`
+describes the HTTP adapters of the same selection.
+
 `-addr` defaults to `$LISTEN_ADDR`, then `:8080`, `-allow-origin` to
 `$ALLOW_ORIGINS`, and the request limits to theirs (see below); all read
 the same lookup. SIGINT or SIGTERM stops

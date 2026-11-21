@@ -130,6 +130,57 @@ func TestEveryFailingPackageIsReportedInOneRun(t *testing.T) {
 
 // ADR 0108: an application declares nothing at the top level; a library's
 // top-level package is its public face.
+// ADR 0132: the application declaration is the one thing an application's top
+// level may hold, and the rules about where it goes.
+func TestTheApplicationDeclarationIsTheTopLevelsOnlyException(t *testing.T) {
+	check := func(kind string, extra map[string]string) []checker.Diagnostic {
+		files := appModule(map[string]string{
+			"app/src/Greeting.fiig":      "", // an application's top level holds only the application
+			"app/test/Greeting.fiig":     "",
+			"app/src/ratings/Api.fiig":   "adapter http api {\n    GET \"/hello\" -> hello()\n        produces \"application/json\"\n}\n",
+			"app/src/ratings/Hello.fiig": "workflow hello() -> string {\n    return \"hi\"\n}\n",
+			"app/src/MyApp.fiig":         "use t.app.ratings\n\napplication MyApp {\n    serve {\n        ratings.api\n    }\n}\n",
+		})
+		for k, v := range extra {
+			files[k] = v
+		}
+		files["app/fiig.pkg.json"] = `{"path": "t.app", "kind": "` + kind + `", "version": "1.0.0"}`
+		ws := writeTree(t, files)
+		root := filepath.Join(ws, "app")
+		loaded, errs := Load(root, nil)
+		if len(errs) > 0 {
+			t.Fatal(errs)
+		}
+		diags, _, _, err := checker.CheckDirFiles(root, loaded.Packages)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return diags
+	}
+	if diags := check("application", nil); len(diags) != 0 {
+		t.Errorf("an application's application declaration: %v", diags)
+	}
+	// Anything else at the top level is still H6.
+	diags := check("application", map[string]string{"app/src/Extra.fiig": "rule extra() -> int {\n    return 1\n}\n"})
+	if len(diags) != 1 || diags[0].Rule != "H6" || diags[0].File != "src/Extra.fiig" {
+		t.Errorf("a rule beside the application = %v, want one H6", diags)
+	}
+	// A library doesn't run.
+	diags = check("library", nil)
+	if len(diags) != 1 || diags[0].Rule != "O3" || !strings.Contains(diags[0].Msg, "a library doesn't run") {
+		t.Errorf("an application in a library = %v, want one O3", diags)
+	}
+	// One application to a module.
+	diags = check("application", map[string]string{"app/src/Second.fiig": "use t.app.ratings\n\napplication Second {\n    serve {\n        ratings.api\n    }\n}\n"})
+	found := false
+	for _, d := range diags {
+		found = found || d.Rule == "O3" && strings.Contains(d.Msg, "a module has one application")
+	}
+	if !found {
+		t.Errorf("two applications = %v, want an O3", diags)
+	}
+}
+
 func TestAnApplicationHasNoTopLevelDeclarations(t *testing.T) {
 	topLevel := func(kind string) []checker.Diagnostic {
 		files := appModule(nil)

@@ -80,6 +80,23 @@ func TestIntoPutsLooseFilesInAFolderAndTheirTestsBeside(t *testing.T) {
 	}
 }
 
+// ADR 0132: the application declaration stays at the top level, and doesn't
+// count as a loose file needing a folder.
+func TestTheApplicationDeclarationStaysAtTheTopLevel(t *testing.T) {
+	root := writeModule(t, "application")
+	if err := os.WriteFile(filepath.Join(root, "app.fiig"), []byte("application MyApp {\n    serve {\n        api\n    }\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := Relayout(root, nil, "math")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(destinations(plan), " ")
+	if !strings.Contains(got, "src/MyApp.fiig") || strings.Contains(got, "src/math/MyApp.fiig") || !strings.Contains(got, "src/math/Double.fiig") {
+		t.Errorf("destinations = %q, want the application at src/MyApp.fiig and the rules in src/math", got)
+	}
+}
+
 // A library's top-level package is its public face, so it keeps its files.
 func TestALibraryKeepsItsTopLevelFiles(t *testing.T) {
 	root := writeModule(t, "library")

@@ -185,6 +185,8 @@ func (p *printer) printDecl(d syntax.Decl) {
 		p.printGatewayDecl(d)
 	case *syntax.AdapterDecl:
 		p.printAdapterDecl(d)
+	case *syntax.ApplicationDecl:
+		p.printApplicationDecl(d)
 	case *syntax.InterfaceDecl:
 		p.printFieldedDecl("interface "+d.Name, membersToSpanned(d.Members), startLine(d), func(i int) string {
 			m := d.Members[i]
@@ -557,6 +559,35 @@ func (p *printer) printAdapterDecl(d *syntax.AdapterDecl) {
 	}
 	p.indent--
 	// See printFieldedDecl: no drain before "}" here either.
+	p.writeIndent()
+	p.out.WriteString("}\n")
+}
+
+// printApplicationDecl prints `application Name { serve [role] { adapter... } }`
+// (ADR 0132), one adapter to a line.
+func (p *printer) printApplicationDecl(d *syntax.ApplicationDecl) {
+	line := startLine(d)
+	p.emitLine("application "+d.Name+" {", line, line)
+	p.indent++
+	for _, b := range d.Serves {
+		bl := startLine(b)
+		p.emitLeading(bl)
+		head := "serve"
+		if b.Role != "" {
+			head += " " + b.Role
+		}
+		p.emitLine(head+" {", bl, bl)
+		p.indent++
+		for _, a := range b.Adapters {
+			al := startLine(a)
+			p.emitLeading(al)
+			p.emitLine(strings.Join(a.Path, "."), al, al)
+		}
+		p.indent--
+		p.writeIndent()
+		p.out.WriteString("}\n")
+	}
+	p.indent--
 	p.writeIndent()
 	p.out.WriteString("}\n")
 }

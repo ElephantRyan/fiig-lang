@@ -408,6 +408,11 @@ func (p *Parser) parseDecl() syntax.Decl {
 		if p.atContextual("test") && isNameToken(p.peek(1).Kind) {
 			return p.parseTestDecl()
 		}
+		// ADR 0132: `application` starts a declaration only here, before a
+		// name and a brace, so it stays an ordinary identifier everywhere else.
+		if p.atContextual("application") && isNameToken(p.peek(1).Kind) && p.peek(2).Kind == lexer.LBrace {
+			return p.parseApplicationDecl()
+		}
 		if p.cur().Kind == lexer.Ident && p.cur().Text == "value" {
 			// ADR 0055: `value Name: T` was removed, not renamed — say so
 			// rather than leaving a generic "expected a declaration".
@@ -423,6 +428,59 @@ func (p *Parser) parseDecl() syntax.Decl {
 		p.errorf(p.cur().Start, "expected a declaration (model/enum/rule/conversion/activity/gateway/workflow/adapter/interface/capability/formulas/config/test), got %s", p.cur().Kind)
 		return nil
 	}
+}
+
+// parseApplicationDecl parses `application Name { serve [role] { adapter... } }`
+// (ADR 0132). `application` and `serve` are contextual.
+func (p *Parser) parseApplicationDecl() *syntax.ApplicationDecl {
+	start := p.advance().Start // 'application'
+	name := p.expectName()
+	p.expect(lexer.LBrace)
+	d := &syntax.ApplicationDecl{Name: name.Text}
+	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
+		p.guardProgress(func() {
+			if !p.atContextual("serve") {
+				p.errorf(p.cur().Start, "expected `serve` in an application, got %s; an application says what each process serves: `serve { adapterName ... }` (ADR 0132)", p.cur().Kind)
+				p.advance()
+				return
+			}
+			d.Serves = append(d.Serves, p.parseServeBlock())
+		})
+	}
+	end := p.expect(lexer.RBrace).End
+	d.Span = syntax.Span{Start: start, End: end}
+	return d
+}
+
+// parseServeBlock parses `serve [role] { alias.adapter ... }`: a role is a name
+// before the brace, and the adapters follow one after another, separated by
+// whitespace or commas.
+func (p *Parser) parseServeBlock() *syntax.ServeBlock {
+	start := p.advance().Start // 'serve'
+	b := &syntax.ServeBlock{}
+	if p.atName() && p.peek(1).Kind == lexer.LBrace {
+		role := p.advance()
+		b.Role = role.Text
+		b.RoleSpan = syntax.Span{Start: role.Start, End: role.End}
+	}
+	p.expect(lexer.LBrace)
+	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
+		p.guardProgress(func() {
+			refStart := p.cur().Start
+			path := []string{p.expectPathSegment().Text}
+			for p.at(lexer.Dot) {
+				p.advance()
+				path = append(path, p.expectPathSegment().Text)
+			}
+			b.Adapters = append(b.Adapters, &syntax.AdapterRef{Span: syntax.Span{Start: refStart, End: p.cur().Start}, Path: path})
+			if p.at(lexer.Comma) {
+				p.advance()
+			}
+		})
+	}
+	end := p.expect(lexer.RBrace).End
+	b.Span = syntax.Span{Start: start, End: end}
+	return b
 }
 
 // parseField parses a model, payload, or record field. jsonName allows a

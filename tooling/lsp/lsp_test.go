@@ -85,6 +85,25 @@ conversion describe(level: kernel.Level) -> string {
     return Ledger.record(entry)
 }
 `,
+	// An application names adapters, which Go to Declaration reaches (ADR 0132).
+	"app/src/Runs.fiig": `use t.app.ratings
+
+application Runs {
+    serve web {
+        Api
+        ratings.clampApi
+    }
+}
+`,
+	"app/src/ratings/ClampApi.fiig": `adapter http clampApi {
+    GET "/clamp/{score}" -> clampRoute(score: int)
+        produces "application/json"
+}
+`,
+	"app/src/ratings/ClampRoute.fiig": `workflow clampRoute(score: int) -> int {
+    return score
+}
+`,
 	// A route names a workflow, which Go to Declaration reaches.
 	"app/src/Hello.fiig": `workflow hello() -> string {
     return "hi"
@@ -445,6 +464,31 @@ func TestARequiresClauseNavigates(t *testing.T) {
 	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Audit.fiig", 1, 14)))
 	if len(locs) != 1 || locs[0].URI != c.uri("app/src/Ledger.fiig") || locs[0].Range.Start.Line != 0 {
 		t.Fatalf("definition of the required group = %+v, want app/src/Ledger.fiig", locs)
+	}
+}
+
+// ADR 0132: Ctrl+click on an adapter named in an application goes to it.
+func TestAnApplicationsAdaptersNavigate(t *testing.T) {
+	c, _ := startClient(t, nil)
+	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	// `        Api`: line 4, character 8: an adapter of the same package.
+	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Runs.fiig", 4, 9)))
+	if len(locs) != 1 || locs[0].URI != c.uri("app/src/Api.fiig") || locs[0].Range.Start.Line != 0 {
+		t.Errorf("definition of Api = %+v, want app/src/Api.fiig", locs)
+	}
+	// `        ratings.clampApi`: line 5, the adapter after the alias at character 16.
+	locs = decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Runs.fiig", 5, 17)))
+	if len(locs) != 1 || locs[0].URI != c.uri("app/src/ratings/ClampApi.fiig") {
+		t.Errorf("definition of ratings.clampApi = %+v, want app/src/ratings/ClampApi.fiig", locs)
+	}
+	// And Find Usages on the adapter finds the application.
+	refs := decode[[]location](t, c.request("textDocument/references", c.at("app/src/ratings/ClampApi.fiig", 0, 14)))
+	found := false
+	for _, r := range refs {
+		found = found || r.URI == c.uri("app/src/Runs.fiig")
+	}
+	if !found {
+		t.Errorf("references of clampApi = %+v, want the application", refs)
 	}
 }
 

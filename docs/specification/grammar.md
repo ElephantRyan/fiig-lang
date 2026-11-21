@@ -399,6 +399,15 @@ domain of a modular monolith asks another to do something
 (`invalid-programs/retry_error.fiig` depends on that).
 
 ```ebnf
+application-decl ::= 'application' identifier '{' { serve-block } '}'   -- ADR 0132; `application` and `serve` contextual; O1-O4
+serve-block      ::= 'serve' [ identifier ] '{' { adapter-ref [ ',' ] } '}'   -- one process; the identifier is its role
+adapter-ref      ::= identifier [ '.' identifier ]   -- alias.adapter (a package imported with `use`), or an adapter of this package
+```
+
+An application is the one declaration an application's top level may hold
+(ADR 0108's H6); a library has none, and a module has one.
+
+```ebnf
 adapter-decl  ::= 'adapter' adapter-kind identifier '{' { route } '}'
 adapter-kind  ::= 'http' | 'cli' | 'stream' | 'schedule' | 'startup'                       -- stream: ADR 0111; schedule: ADR 0112; startup: ADR 0124
 route         ::= http-route | cli-route | stream-route | schedule-route | startup-route

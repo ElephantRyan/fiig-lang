@@ -32,7 +32,8 @@ object FiigDeclarations {
 
     /**
      * The kind a file's icon shows: its first declaration's kind, or `test`
-     * for a file of tests (`test` isn't a keyword, so [first] can't see it).
+     * for a file of tests, or `application` for the program's application
+     * (ADR 0132); neither is a keyword, so [first] can't see them.
      */
     fun iconKind(file: PsiFile): String? {
         val start = file.firstChild ?: return null
@@ -41,7 +42,7 @@ object FiigDeclarations {
             when (leaf.elementType) {
                 FiigTokens.LBRACE -> depth++
                 FiigTokens.RBRACE -> depth--
-                FiigTokens.IDENTIFIER -> if (depth == 0 && leaf.text == "test") return "test"
+                FiigTokens.IDENTIFIER -> if (depth == 0 && (leaf.text == "test" || leaf.text == "application")) return leaf.text
                 FiigTokens.KEYWORD -> if (depth == 0 && leaf.text in KINDS) return leaf.text
             }
         }

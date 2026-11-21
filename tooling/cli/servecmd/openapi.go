@@ -9,6 +9,7 @@ import (
 
 	"fiig-lang/compiler/adapter"
 	"fiig-lang/compiler/runtime"
+	"fiig-lang/compiler/syntax"
 	"fiig-lang/tooling/runprogram"
 )
 
@@ -26,8 +27,8 @@ func OpenAPIMain(name string, args []string) {
 	var workspaces stringList
 	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable")
 	fs.Parse(args)
-	if fs.NArg() < 2 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-workspace DIR]... <root> <adapterName>...")
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-workspace DIR]... <root> [<role> | <adapterName>...]")
 		os.Exit(2)
 	}
 	if err := writeOpenAPI(os.Stdout, fs.Arg(0), fs.Args()[1:], workspaces); err != nil {
@@ -49,7 +50,18 @@ func writeOpenAPI(w io.Writer, root string, names, workspaces []string) error {
 	in.Imports = runprogram.BuildImports(p.files, p.packages)
 	in.Groups = runprogram.BuildGroups(p.files, p.packages)
 	in.Packages = p.packages
-	doc, err := adapter.GenerateOpenAPIFor(p.served, p.universe, in)
+	served := p.served
+	if p.defaulted {
+		// What a role runs can include schedules and startup checks, which
+		// have no HTTP surface to describe.
+		served = nil
+		for _, s := range p.served {
+			if s.Decl.Kind == syntax.AdapterHTTP {
+				served = append(served, s)
+			}
+		}
+	}
+	doc, err := adapter.GenerateOpenAPIFor(served, p.universe, in)
 	if err != nil {
 		return err
 	}

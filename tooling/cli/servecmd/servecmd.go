@@ -83,8 +83,8 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	accessLog := fs.Bool("access-log", true, "log a line for each request: method, path, status, duration, and its id (ADR 0128); a fault is always logged under its request's id, and `-access-log=false` turns the line off")
 	checkOnly := fs.Bool("check", false, "run only the startup routes (ADR 0124), then exit 0 if the program could start and 1 if not; nothing listens, no migration is applied, and `once` is ignored")
 	fs.Parse(args)
-	if fs.NArg() < 2 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-max-body N] [-max-requests N] [-request-timeout D] [-workspace DIR]... <root> <adapterName>...")
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-max-body N] [-max-requests N] [-request-timeout D] [-workspace DIR]... <root> [<role> | <adapterName>...]")
 		os.Exit(2)
 	}
 	env, err := runprogram.NewEnvironment(*envFile)
@@ -379,6 +379,9 @@ type checked struct {
 	packages types.Packages
 	universe *types.Universe
 	served   []adapter.Served
+	// defaulted is true when the adapters came from the application
+	// declaration and not from the command line (ADR 0132).
+	defaulted bool
 }
 
 // check loads root with its dependencies, refuses it with checker
@@ -409,11 +412,15 @@ func check(root string, names, workspaces []string, verb string) (*checked, erro
 		return nil, fmt.Errorf("refusing to %s a program with checker diagnostics", verb)
 	}
 	universe, _ := types.BuildUniverse(files) // conflicts already reported by runprogram.Check above
+	names, defaulted, err := serveNames(names, files)
+	if err != nil {
+		return nil, err
+	}
 	served, err := findAdapters(names, files, packages, modulePath)
 	if err != nil {
 		return nil, err
 	}
-	return &checked{files: files, packages: packages, universe: universe, served: served}, nil
+	return &checked{files: files, packages: packages, universe: universe, served: served, defaulted: defaulted}, nil
 }
 
 // findAdapters resolves each name `fiig serve` was given (ADR 0079 §6): a

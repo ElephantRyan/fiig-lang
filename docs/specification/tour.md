@@ -587,6 +587,26 @@ adapter cli customerCli {
 }
 ```
 
+An **application** says what each process of the program serves (ADR 0132), at
+the top of `src/`, the one declaration an application's top level holds:
+
+```fiig
+use abs.recommendations.sessions
+use abs.recommendations.sync
+
+application AbsRecommendations {
+    serve web {
+        sessions.sessionsApi
+    }
+    serve worker {
+        sync.syncSchedule
+    }
+}
+```
+
+`fiig serve .` runs the only block, and `fiig serve . worker` one role. An
+adapter that no block names is an error (O2), so one can't be forgotten.
+
 ## 9. Modules and packages
 
 A module is a folder with a `fiig.pkg.json`; its code is in `src/` and its

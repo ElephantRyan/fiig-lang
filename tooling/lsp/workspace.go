@@ -330,7 +330,8 @@ func check(p pkgInfo, workspace string, open func(path string) (string, bool)) *
 				}
 			}
 			// ADR 0108: an application declares nothing at the top level.
-			if application {
+			// ADR 0132: but for the application declaration.
+			if application && !checker.DeclaresApplication(c.File) {
 				if problem := layout.TopLevelProblem(rel); problem != "" {
 					diags = append(diags, checker.Diagnostic{File: rel, Rule: "H6", Msg: problem})
 				}

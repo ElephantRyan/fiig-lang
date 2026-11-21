@@ -216,6 +216,15 @@ A `Secret` is a config value that must never be shown.
 
 | Q4 | A literal `Database` query that doesn't fit the schema the program's migrations make: a table or column the schema lacks, or an ambiguous column. Found by `fiig check -schema`, which applies the migrations to an in-memory SQLite database and prepares each query (ADR 0131). SQL that SQLite can't prepare is counted and not reported, since it may be Postgres's | `libraries/sql`'s `TestACheckFindsWhatTheSchemaLacks` |
 
+## O. Application errors (ADR 0132)
+
+| # | Bug class | Status |
+|---|---|---|
+| O1 | A name in a `serve` block that is no adapter: its package isn't imported, the package has no such adapter, it names a workflow or a model, or it is written with more than `alias.adapter`; or a serve block or an application that serves nothing | `compiler/checker`'s `TestApplicationMistakes` |
+| O2 | An adapter of the application's own packages that no `serve` block names, so nothing runs it | `TestApplicationMistakes` |
+| O3 | An application in a library, which doesn't run, or a second application in one module | `compiler/loader`'s `TestTheApplicationDeclarationIsTheTopLevelsOnlyException` |
+| O4 | A role declared twice, an adapter named twice in one block, or a block with no role beside others | `TestApplicationMistakes` |
+
 ## T. Test errors (ADR 0091)
 
 A test lives under its package's `tests/` directory, and its fakes are
