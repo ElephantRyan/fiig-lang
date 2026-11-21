@@ -122,8 +122,11 @@ doesn't have to discover them.
   practical until `fiig.http` can stream. Not yet tried against AWS.
 - **Only Kafka uses a session** (ADR 0114, built by ADR 0117): the
   runtime can own a connection past every call and run a protocol written
-  in fiig over it, but no Redis subscription, Postgres `LISTEN`, or HTTP/2
-  connection is built on one yet.
+  in fiig over it, but no HTTP/2 connection is built on one yet.
+- **No broadcasts** (ADR 0111 §8): Postgres `NOTIFY` and Redis pub/sub
+  aren't stream sources, since they deliver at most once to every
+  listener. A broadcast adapter kind, and a Postgres queue source (`FOR
+  UPDATE SKIP LOCKED`), are decided but not built.
 - **A reply is read whole into memory** (ADR 0074 §7a): `fiig.http` holds
   a reply's body in memory, up to `HTTP_CLIENT_MAX_REPLY_BYTES` (16 MiB by
   default); a larger reply is `HttpError.ReplyTooLarge`, and there is no

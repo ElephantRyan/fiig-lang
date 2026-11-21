@@ -293,6 +293,43 @@ connection handling is the client's. It needs Redis 6.2 or later, for
 delay, while the key's later elements are processed now. ADR 0047 §5
 said so; this is where it happens.
 
+### 8. Broadcasts are not streams (added 2026-11-21)
+
+*(The owner chose this, 2026-11-21, over making Postgres `LISTEN`/`NOTIFY`
+and Redis pub/sub stream sources that refuse `retry`.)*
+
+A stream route promises three things: each element goes to one consumer
+of its group, a disposition means what it says (`retry` brings the
+element back, `deadLetter` keeps it), and nothing is lost while no
+process runs. Postgres `NOTIFY` and Redis `PUBLISH` keep none of them: a
+message reaches every listening connection, at most once, and is gone
+for a process that was down. So neither becomes a `StreamSource`. A route
+that reads `adapter stream` keeps meaning exactly what this ADR says,
+whichever source a deployment binds.
+
+The two needs these features serve get their own answers, each built
+when a program needs it:
+
+- **Durable work kept in Postgres**, the usual reason to reach for
+  `LISTEN`, is a queue table claimed with `SELECT ... FOR UPDATE SKIP
+  LOCKED`, with `NOTIFY` only waking the consumer so it doesn't poll.
+  That is at least once, shares work in a group, and keeps what it
+  hasn't handled, so it is a `StreamSource` like Redis Streams and Kafka.
+- **Broadcasts**, such as cache invalidation and live updates to
+  browsers, where every replica must hear each message and missing one
+  is acceptable, are a different adapter kind with no dispositions,
+  whose name says the guarantee is at most once. It runs over a session
+  (ADR 0114), which is what holds the subscription.
+
+| | Delivery | Who receives | Kept while down |
+| --- | --- | --- | --- |
+| `adapter stream` (Redis Streams, Kafka, a Postgres queue) | at least once | one consumer per group | yes |
+| A broadcast (`NOTIFY`, `PUBLISH`, NATS core) | at most once | every listener | no |
+
+Spring keeps Redis pub/sub (`RedisMessageListenerContainer`) apart from
+its Kafka listeners, Elixir has Phoenix.PubSub beside Broadway, and pgx
+gives `WaitForNotification` its own API: the same split.
+
 ## What ADR 0047 decided that this changes
 
 - §4: a `bytes` element, which has no `key` (§3 above).
