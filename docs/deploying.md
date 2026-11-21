@@ -196,6 +196,22 @@ the same lookup. SIGINT or SIGTERM stops
 accepting connections and gives in-flight requests `-shutdown` (10s) to
 finish, then closes a driver's pooled connections.
 
+## Logs and request ids
+
+Every request has an id (ADR 0128). `fiig serve` uses the `X-Request-Id` the
+caller sent when it is a token of at most 64 letters, digits, `-`, `_` and `.`,
+so a trace through a proxy keeps its id, and makes one otherwise. The reply
+carries it back as `X-Request-Id`.
+
+- **A fault is a bare 500**, `{"error":"internal error","requestId":"..."}`.
+  What went wrong is in the server's log under that id, and never in the
+  reply, since a fault names declarations and can name data:
+  `fiig: request cc18879cb00d86b2 faulted: division by zero (in boom)`.
+- **An access line** for each request follows it:
+  `fiig: GET /boom 500 3ms id=cc18879cb00d86b2`. The path is logged and the
+  query isn't, since it can carry a token. `-access-log=false` turns the line
+  off; faults are always logged.
+
 ## Stream adapters
 
 An `adapter stream` is served the same way, beside any HTTP adapters:

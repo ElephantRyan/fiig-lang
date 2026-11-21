@@ -80,6 +80,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	maxRequests := fs.Int("max-requests", 0, "how many requests may run at once, with as many waiting up to 5 s, else 503 (ADR 0076 §2); default $MAX_REQUESTS, else 256")
 	migrateFlag := fs.String("migrate", "apply", "apply pending migrations before serving, or check: refuse to start while any are pending (ADR 0096 §2)")
 	requestTimeout := fs.Duration("request-timeout", 0, "how long a request may run, else 503 (ADR 0076 §3); default $REQUEST_TIMEOUT, else 30s")
+	accessLog := fs.Bool("access-log", true, "log a line for each request: method, path, status, duration, and its id (ADR 0128); a fault is always logged under its request's id, and `-access-log=false` turns the line off")
 	checkOnly := fs.Bool("check", false, "run only the startup routes (ADR 0124), then exit 0 if the program could start and 1 if not; nothing listens, no migration is applied, and `once` is ignored")
 	fs.Parse(args)
 	if fs.NArg() < 2 {
@@ -125,6 +126,8 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	}
 
 	readTimeout, writeTimeout := limits.ServerTimeouts()
+	// ADR 0128: every request has an id, and a fault stays in this log.
+	handler = adapter.Observer{Logf: log.Printf, Access: *accessLog}.Wrap(handler)
 	srv := &http.Server{
 		Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout: readTimeout, WriteTimeout: writeTimeout, MaxHeaderBytes: adapter.MaxHeaderBytes,

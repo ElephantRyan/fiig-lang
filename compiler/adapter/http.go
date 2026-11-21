@@ -173,7 +173,7 @@ func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in
 			return
 		}
 		if fault != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"fault": fault.String()})
+			writeFault(w, r, fault)
 			return
 		}
 		produces := "application/json"
@@ -181,7 +181,7 @@ func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in
 			produces = route.Produces.Text
 		}
 		if fault := writeResponse(w, resp, produces); fault != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"fault": fault.String()})
+			writeFault(w, r, fault)
 		}
 	}
 }

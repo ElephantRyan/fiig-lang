@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
@@ -266,8 +267,10 @@ func TestAWholeBytesBodyOnAJsonRouteIsSentRaw(t *testing.T) {
 	if !strings.HasPrefix(body, `{"title":"q3","digest":"`) || code != 200 {
 		t.Errorf("raw: got %d %s, want the report itself", code, body)
 	}
-	if code, _, body := serve(h, httptest.NewRequest("GET", "/broken", nil)); code != 500 || !strings.Contains(body, "the bytes body isn't JSON") {
-		t.Errorf("not JSON: got %d %s, want 500", code, body)
+	var logged []string
+	observed := Observer{Logf: func(format string, args ...any) { logged = append(logged, fmt.Sprintf(format, args...)) }}.Wrap(h)
+	if code, _, body := serve(observed, httptest.NewRequest("GET", "/broken", nil)); code != 500 || strings.Contains(body, "the bytes body isn't JSON") || !strings.Contains(strings.Join(logged, "\n"), "the bytes body isn't JSON") {
+		t.Errorf("not JSON: got %d %s, logged %q, want a bare 500 and the cause in the log", code, body, logged)
 	}
 	if code, _, body := serve(h, httptest.NewRequest("GET", "/nested/q3", nil)); code != 200 || strings.TrimSpace(body) != `{"title":"q3","digest":"aGk="}` {
 		t.Errorf("nested: got %d %s", code, body)

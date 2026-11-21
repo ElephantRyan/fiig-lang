@@ -1,7 +1,7 @@
 package adapter
 
 import (
-	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -91,12 +91,13 @@ func TestTheAdapterRefusesWhatHTTPCantCarry(t *testing.T) {
 		{`HttpResponse(status: 200, cookies: [Cookie(name: "sid", value: "a"), Cookie(name: "sid", value: "${user.name}")])`, `is set twice with one path and domain`},
 	}
 	for _, c := range cases {
-		h := handlerFor(t, wireProgram("conversion respond(user: User) -> HttpResponse<User> {\n    return "+c.build+"\n}")...)
+		// ADR 0128: the cause is in the server's log, not in the reply.
+		var logged []string
+		h := Observer{Logf: func(format string, args ...any) { logged = append(logged, fmt.Sprintf(format, args...)) }}.
+			Wrap(handlerFor(t, wireProgram("conversion respond(user: User) -> HttpResponse<User> {\n    return "+c.build+"\n}")...))
 		code, hdr, body := serve(h, httptest.NewRequest(http.MethodPost, "/login/ada", nil))
-		var decoded struct{ Fault string }
-		_ = json.Unmarshal([]byte(body), &decoded)
-		if code != 500 || !strings.Contains(decoded.Fault, c.fault) || len(hdr.Values("Set-Cookie")) != 0 {
-			t.Errorf("%s: got %d %q, want a 500 fault containing %q", c.build, code, body, c.fault)
+		if code != 500 || strings.Contains(body, c.fault) || !strings.Contains(strings.Join(logged, "\n"), c.fault) || len(hdr.Values("Set-Cookie")) != 0 {
+			t.Errorf("%s: got %d %q, logged %q, want a bare 500 and %q in the log", c.build, code, body, logged, c.fault)
 		}
 	}
 }

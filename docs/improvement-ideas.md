@@ -81,7 +81,10 @@ The last row is the most important finding, and was not among the questions.
 | A4 | **Metrics from the spans.** Counts and durations by declaration, kind and outcome, plus startup, schedule and stream state, as Prometheus text on a separate port. No program change, since the spans already carry it. | M | ADR |
 | A5 | **A status route** `fiig serve` adds: version, startup routes that passed or degraded, the loops that are running. | S | ADR (exposure, naming) |
 
-A1 first: it is a security problem, small, and decided in principle already.
+**Status (2026-11-21): A1 and A2 are done (ADR 0128, Proposed).** A3 is
+partly done: the log carries the fault's declaration stack, and the span tree
+waits on a tracer that can be scoped to one request (ADR 0128 open question
+1). A4 and A5 hang on the same `Observer`.
 
 ### B. The language
 

@@ -90,6 +90,9 @@ express, that's a concrete reason to revisit, not a guess made now.
 
 ## Known issue (2026-10-29)
 
+*Fixed 2026-11-21 by ADR 0128: a fault answers a bare 500 with a request id,
+and the cause is logged by the server under that id.*
+
 Found during ADR 0065's review. On a Fault, the HTTP adapter writes
 `{"fault": "<message> (in <declaration stack>)"}` to the client with a 500
 (`compiler/adapter/http.go`). This ADR never decided that body; it is an
