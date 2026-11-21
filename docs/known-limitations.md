@@ -11,11 +11,18 @@ doesn't have to discover them.
   (ADR 0085). No MySQL. Redis is `fiig.redis` (ADR 0110): one command
   per call, no pipelining, pub/sub, Sentinel, or Cluster. Its stream
   source needs Redis 6.2 or later, for `XPENDING ... IDLE`.
-- **Kafka is a producer only, and at least once** (`fiig.kafka`, ADR
-  0113): `acks=all`, but no idempotence or transactions, so a send that
-  is retried after a lost reply writes its records twice. No consumer, no
-  SASL, no compression levels (ADR 0116), and every send reads the topic's metadata
-  first, one round trip more than a client that caches it.
+- **Kafka is at least once** (`fiig.kafka`, ADR 0113): `acks=all`, but
+  no idempotence or transactions, so a send that is retried after a lost
+  reply writes its records twice. No SASL, no compression levels (ADR
+  0116), and every send reads the topic's metadata first, one round trip
+  more than a client that caches it.
+- **The Kafka consumer is KIP-848 only** (ADR 0117): Kafka 4.0 or later.
+  Its group session reaches the cluster through the first
+  `KAFKA_BOOTSTRAP` server only, so that server must be up for a route
+  to start; a retried record's attempts count again from 1 after a
+  restart or a rebalance; a route sees a record's value, not its key or
+  headers; and each receive reads the topic's metadata and fetches from
+  its leaders one after another, with no fetch sessions (KIP-227).
 - **No certificate revocation checks** (CRL, OCSP), certificate pinning,
   keys in an HSM or cloud KMS, or encrypted private keys (ADR 0086 open
   questions). Custom CAs and client certificates are configured on
@@ -125,10 +132,9 @@ doesn't have to discover them.
   and the rest (ADR 0093); a function can't be stored or passed.
   An error type is changed with `mapErr(e in result): newError` (ADR
   0095), which needs neither.
-- **Stream adapters read Redis Streams only** (ADR 0111): no Kafka or
-  NATS (they keep state on a connection, ADR 0109 open question 2), no
-  replay of one element by id, and one element at a time per route, with
-  a fixed batch of 16 and a 2 s wait.
+- **Stream adapters read Redis Streams and Kafka** (ADRs 0111, 0117): no
+  NATS, no replay of one element by id, and one element at a time per
+  route, with a fixed batch of 16 and a 2 s wait.
 - **Schedules are UTC only** (ADR 0112 open question 1), with no jitter
   and no catching up on firings missed while nothing ran; cron has no
   names (`MON`), `L`, `W`, `#`, or seconds.
