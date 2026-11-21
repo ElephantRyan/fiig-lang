@@ -45,6 +45,9 @@ type Interp struct {
 	// ConfigAbsent is each config declaration whose `when` is false in this
 	// deployment (ADR 0122), with why; reading one faults.
 	ConfigAbsent map[*syntax.ConfigDecl]string
+	// startupFields are the config fields read from a startup route (ADR
+	// 0127): false when loaded, set by MarkDegraded once the route has run.
+	startupFields []startupField
 
 	Capabilities *CapabilityRegistry
 	Clock        Clock

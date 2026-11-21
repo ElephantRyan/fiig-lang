@@ -526,8 +526,16 @@ func (p *Parser) parseConfigField() syntax.ConfigField {
 		if hasInterp(lit) {
 			p.errorf(lit.Start, "interpolation is not allowed in an environment variable's name")
 		}
+	} else if p.atContextual("from") && p.peek(1).Kind == lexer.Ident && p.peek(1).Text == "startup" {
+		p.advance()
+		p.advance()
+		lit := p.parseStringLit()
+		f.Startup = plainText(lit)
+		if hasInterp(lit) {
+			p.errorf(lit.Start, "interpolation is not allowed in a startup route's name")
+		}
 	} else {
-		p.errorf(p.cur().Start, "expected `from env \"NAME\"` after config field %q's type (ADR 0071 §1), got %s", name.Text, p.cur().Kind)
+		p.errorf(p.cur().Start, "expected `from env \"NAME\"` or `from startup \"Adapter.workflow\"` after config field %q's type (ADR 0071 §1, ADR 0127), got %s", name.Text, p.cur().Kind)
 	}
 	if p.at(lexer.Equals) {
 		p.advance()
@@ -1129,10 +1137,10 @@ func (p *Parser) parseStartupRoute(start lexer.Pos) *syntax.Route {
 				p.expect(lexer.Arrow)
 				dStart := p.cur().Start
 				d := &syntax.DispositionResponse{}
-				if p.atContextual("proceed") || p.atContextual("halt") {
+				if p.atContextual("proceed") || p.atContextual("degrade") || p.atContextual("halt") {
 					d.Kind = p.advance().Text
 				} else {
-					p.errorf(p.cur().Start, "expected 'proceed' or 'halt' in a startup route's mapping, got %s", p.cur().Kind)
+					p.errorf(p.cur().Start, "expected 'proceed', 'degrade' or 'halt' in a startup route's mapping, got %s", p.cur().Kind)
 					p.advance()
 				}
 				d.Span = syntax.Span{Start: dStart, End: p.cur().Start}

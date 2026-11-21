@@ -437,6 +437,10 @@ func Variables(sources []runtime.ConfigSource, capsPath string) ([]Variable, err
 	var out []Variable
 	for _, src := range sources {
 		for _, f := range src.Decl.Fields {
+			// A field read from startup (ADR 0127) is no variable to set.
+			if f.Startup != "" {
+				continue
+			}
 			v := Variable{Name: src.EnvName(f), Type: types.SyntaxString(f.Type), Requirement: "required", Where: src.Where(f)}
 			if f.Default != nil {
 				v.Requirement = "= " + format.Expr(f.Default)

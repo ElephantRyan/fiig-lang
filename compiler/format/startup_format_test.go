@@ -24,6 +24,25 @@ func TestFormatStartupAdapter(t *testing.T) {
 }
 
 // ADR 0124 §6: `once` and `within` sit between `run` and the arrow.
+// ADR 0127: `degrade`, and a config field read from a startup route.
+func TestFormatDegradeAndStartupConfigField(t *testing.T) {
+	want := "adapter startup Preflight {\n" +
+		"    run -> verifyStorage() {\n" +
+		"        Ok(_) -> proceed\n" +
+		"        Err(_) -> degrade\n" +
+		"    }\n" +
+		"}\n"
+	got, errs := Format("adapter startup Preflight {\n run -> verifyStorage() {\n Ok(_)->proceed\n Err(_)->degrade\n }\n}")
+	if len(errs) > 0 || got != want {
+		t.Errorf("got:\n%s\nerrs: %v", got, errs)
+	}
+	wantConfig := "config Health {\n    storageDown: bool from startup \"Preflight.verifyStorage\"\n}\n"
+	got, errs = Format("config Health {\n storageDown:bool   from startup \"Preflight.verifyStorage\"\n}")
+	if len(errs) > 0 || got != wantConfig {
+		t.Errorf("got:\n%s\nerrs: %v", got, errs)
+	}
+}
+
 func TestFormatStartupOnceAndWithin(t *testing.T) {
 	want := "adapter startup Preflight {\n" +
 		"    run once within \"2m\" -> migrate() {\n" +

@@ -78,7 +78,27 @@ func (in *Interp) LoadTestConfig(sources []ConfigSource, lookup Lookup) []string
 	return in.loadConfig(sources, lookup, true)
 }
 
+// startupField is one config field read from a startup route, `Adapter.workflow`
+// of package pkg ("" for the application).
+type startupField struct {
+	rec        Record
+	field      string
+	pkg, route string
+}
+
+// MarkDegraded says the startup route `Adapter.workflow` of package pkg ended
+// degraded (ADR 0127), so the config fields that read it are true from here
+// on. It runs once, after the startup routes and before anything serves.
+func (in *Interp) MarkDegraded(pkg, route string) {
+	for _, s := range in.startupFields {
+		if s.pkg == pkg && s.route == route {
+			s.rec.Fields[s.field] = Bool(true)
+		}
+	}
+}
+
 func (in *Interp) loadConfig(sources []ConfigSource, lookup Lookup, partial bool) []string {
+	in.startupFields = nil
 	var problems []string
 	values := map[*syntax.ConfigDecl]Record{}
 	absent := map[*syntax.ConfigDecl]string{}
@@ -142,6 +162,12 @@ func (in *Interp) readSource(src ConfigSource, lookup Lookup, partial bool, valu
 	var problems []string
 	rec := Record{Fields: map[string]Value{}}
 	for _, f := range src.Decl.Fields {
+		// ADR 0127: no variable to read. It is false until the route says so.
+		if f.Startup != "" {
+			rec.Fields[f.Name] = Bool(false)
+			in.startupFields = append(in.startupFields, startupField{rec: rec, field: f.Name, pkg: src.Package, route: f.Startup})
+			continue
+		}
 		t, _ := types.ResolveWithImports(f.Type, src.Universe, src.Imports)
 		name := src.EnvName(f)
 		text, set := lookup(name)

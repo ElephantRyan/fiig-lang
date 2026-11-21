@@ -1,6 +1,8 @@
 package checker
 
 import (
+	"strings"
+
 	"fiig-lang/compiler/lexer"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
@@ -33,6 +35,10 @@ func (c *checker) checkConfigDecl(d *syntax.ConfigDecl) {
 			c.report(f.Start, "V1", "config %s declares field %q twice", d.Name, f.Name)
 		}
 		seen[f.Name] = true
+		if f.Startup != "" {
+			c.checkStartupField(d, f)
+			continue
+		}
 		if !validEnvName(f.Env) {
 			c.report(f.Start, "V1", "config field %s.%s reads %q, which isn't an environment variable name: letters, digits, and _, not starting with a digit", d.Name, f.Name, f.Env)
 		}
@@ -55,6 +61,33 @@ func (c *checker) checkConfigDecl(d *syntax.ConfigDecl) {
 		}
 		c.checkExpected(f.Default, t, map[string]types.Type{})
 	}
+}
+
+// checkStartupField is V1 for `degraded: bool from startup "Adapter.workflow"`
+// (ADR 0127): a bool, with no default, naming a startup route of this package.
+func (c *checker) checkStartupField(d *syntax.ConfigDecl, f syntax.ConfigField) {
+	if t := c.resolve(f.Type); t != (types.Primitive{Name: "bool"}) {
+		c.report(f.Start, "V1", "config field %s.%s is %s; a field read from startup says whether the route ended degraded, so it is a bool (ADR 0127)", d.Name, f.Name, t)
+	}
+	if f.Default != nil {
+		start, _ := f.Default.(syntax.Spanned).Bounds()
+		c.report(start, "V1", "config field %s.%s has a default; a field read from startup is false until its route ends degraded (ADR 0127)", d.Name, f.Name)
+	}
+	adapterName, workflow, ok := strings.Cut(f.Startup, ".")
+	if !ok || adapterName == "" || workflow == "" {
+		c.report(f.Start, "V1", "config field %s.%s reads startup %q; name a route as \"Adapter.workflow\" (ADR 0127)", d.Name, f.Name, f.Startup)
+		return
+	}
+	if a, found := c.lookup(adapterName); found {
+		if ad, isAdapter := a.(*syntax.AdapterDecl); isAdapter && ad.Kind == syntax.AdapterStartup {
+			for _, r := range ad.Routes {
+				if r.Workflow != nil && r.Workflow.Name == workflow {
+					return
+				}
+			}
+		}
+	}
+	c.report(f.Start, "V1", "config field %s.%s reads startup %q, but this package has no startup adapter %s with a route to %s (ADR 0127)", d.Name, f.Name, f.Startup, adapterName, workflow)
 }
 
 func validEnvName(s string) bool {

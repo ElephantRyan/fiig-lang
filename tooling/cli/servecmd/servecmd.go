@@ -279,7 +279,20 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	if len(checks) > 0 {
 		loops = append(loops, loop{
 			startup: true,
-			run:     func(ctx context.Context) error { return adapter.RunStartup(ctx, checks) },
+			run: func(ctx context.Context) error {
+				if err := adapter.RunStartup(ctx, checks); err != nil {
+					return err
+				}
+				// A route that ended degraded is true to the config fields
+				// that read it, before anything serves (ADR 0127).
+				for _, r := range checks {
+					if r.Degraded() {
+						pkg, route := r.Route()
+						in.MarkDegraded(pkg, route)
+					}
+				}
+				return nil
+			},
 			setLog: func(f func(string, ...any)) {
 				for _, r := range checks {
 					r.Logf = f

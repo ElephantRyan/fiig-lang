@@ -208,6 +208,9 @@ func (p *printer) printDecl(d syntax.Decl) {
 		p.printFieldedDecl(header, spanned, startLine(d), func(i int) string {
 			f := d.Fields[i]
 			line := fmt.Sprintf("%s: %s from env %s", f.Name, printType(f.Type), strconv.Quote(f.Env))
+			if f.Startup != "" {
+				line = fmt.Sprintf("%s: %s from startup %s", f.Name, printType(f.Type), strconv.Quote(f.Startup))
+			}
 			if f.Default != nil {
 				line += " = " + printExpr(f.Default)
 			}

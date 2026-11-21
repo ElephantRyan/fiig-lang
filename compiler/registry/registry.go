@@ -282,12 +282,17 @@ func BuildCard(decl syntax.Decl, source string) *Card {
 		sort.Strings(usesList)
 		return &Card{Name: d.Name, Kind: "capability", Catalog: Default, Source: source, Operations: ops, Uses: usesList, Dependencies: dedupe(deps)}
 	case *syntax.ConfigDecl:
-		vars := make([]EnvVar, len(d.Fields))
-		for i, f := range d.Fields {
-			vars[i] = EnvVar{Name: f.Env, Field: f.Name, Type: typeString(f.Type), Secret: holdsSecretName(f.Type)}
-			if f.Default != nil {
-				vars[i].Default = format.Expr(f.Default)
+		// A field read from startup (ADR 0127) is no variable to set.
+		vars := make([]EnvVar, 0, len(d.Fields))
+		for _, f := range d.Fields {
+			if f.Startup != "" {
+				continue
 			}
+			v := EnvVar{Name: f.Env, Field: f.Name, Type: typeString(f.Type), Secret: holdsSecretName(f.Type)}
+			if f.Default != nil {
+				v.Default = format.Expr(f.Default)
+			}
+			vars = append(vars, v)
 		}
 		return &Card{Name: d.Name, Kind: "config", Catalog: Default, Source: source, Environment: vars}
 	default:

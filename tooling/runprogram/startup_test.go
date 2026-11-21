@@ -66,6 +66,21 @@ var startupProgram = map[string]string{
         Err(CheckError.Missing) -> halt
     }
 }`,
+	// ADR 0127: a failed check the process starts after, and says so.
+	"degrading.fiig": `adapter startup Degrading {
+    run -> cacheSlow() {
+        Ok(_) -> proceed
+        Err(CheckError.Missing) -> halt
+        Err(CheckError.Slow) -> degrade
+    }
+}`,
+	"degrading_once.fiig": `adapter startup DegradingOnce {
+    run once -> cacheSlow() {
+        Ok(_) -> proceed
+        Err(CheckError.Missing) -> halt
+        Err(CheckError.Slow) -> degrade
+    }
+}`,
 	// ADR 0124 §6: a route's own deadline, and a route one replica runs.
 	"tight.fiig": `adapter startup Tight {
     run within "100ms" -> hung() {
@@ -210,6 +225,49 @@ func TestStartupProceedsWhenNothingHalts(t *testing.T) {
 	// A failure the mapping tolerates is still said (ADR 0124 §1).
 	if got := logs.all(); !strings.Contains(got, "Good run -> cacheSlow failed with CheckError.Slow, and its mapping lets the process start") {
 		t.Errorf("logs = %q", got)
+	}
+}
+
+// ADR 0127: a route that says degrade lets the process start, says so, and is
+// reported as degraded; one that proceeds is not.
+func TestStartupDegradeStartsAndIsReported(t *testing.T) {
+	var logs logLines
+	runners := startupRunners(t, "Degrading", "Good")
+	for _, r := range runners {
+		r.Logf = logs.Logf
+	}
+	if err := adapter.RunStartup(context.Background(), runners); err != nil {
+		t.Fatalf("a degraded start was refused: %v", err)
+	}
+	degraded := map[string]bool{}
+	for _, r := range runners {
+		_, key := r.Route()
+		degraded[key] = r.Degraded()
+	}
+	if !degraded["Degrading.cacheSlow"] || degraded["Good.storageOk"] || degraded["Good.cacheSlow"] {
+		t.Errorf("degraded = %v, want only Degrading.cacheSlow", degraded)
+	}
+	if got := logs.all(); !strings.Contains(got, "Degrading run -> cacheSlow: starting degraded, for Err(CheckError.Slow)") {
+		t.Errorf("logs = %q", got)
+	}
+}
+
+// ADR 0127 §3: a once route that degraded is not recorded as done, so the
+// replicas waiting on it find out for themselves.
+func TestStartupDegradedOnceRouteIsNotRecordedDone(t *testing.T) {
+	lock := &onceLock{grantAt: 1}
+	runners, err := startupRunnersWith(t, lock, "DegradingOnce")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := adapter.RunStartup(context.Background(), runners); err != nil {
+		t.Fatal(err)
+	}
+	if !runners[0].Degraded() {
+		t.Error("the route did not end degraded")
+	}
+	if len(lock.done) != 0 {
+		t.Errorf("a degraded route was recorded as done: %v", lock.done)
 	}
 }
 

@@ -2,6 +2,8 @@ package servecmd
 
 import (
 	"context"
+	"fmt"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -77,5 +79,49 @@ func TestAFailingStartupCheckRefusesToServe(t *testing.T) {
 	err := loops[0].run(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "refusing to start") || !strings.Contains(err.Error(), "verifyStorage") {
 		t.Fatalf("run = %v, want a refusal naming verifyStorage", err)
+	}
+}
+
+// ADR 0127: a route whose mapping says degrade lets the process start, and a
+// config field that reads the route is true from then on, here through a route.
+var degradedApp = map[string]string{
+	"app/fiig.pkg.json":    `{"path": "t.degraded", "kind": "application", "version": "1.0.0"}`,
+	"app/check_error.fiig": "enum CheckError {\n    Missing\n    Slow\n}\n",
+	"app/cache_state.fiig": "config CacheState {\n    degraded: bool from startup \"preflight.verifyCache\"\n}\n",
+	"app/verify_cache.fiig": "workflow verifyCache() -> Result<None, CheckError> {\n" +
+		"    return Err(CheckError.Slow)\n}\n",
+	"app/cache_is_degraded.fiig": "activity cacheIsDegraded() -> bool {\n    return CacheState.degraded\n}\n",
+	"app/status.fiig":            "workflow status() -> string {\n    if cacheIsDegraded() {\n        return \"degraded\"\n    }\n    return \"ok\"\n}\n",
+	"app/api.fiig":               "adapter http api {\n    GET \"/status\" -> status()\n        produces \"application/json\"\n}\n",
+	"app/preflight.fiig":         "adapter startup preflight {\n    run -> verifyCache() {\n        Ok(_) -> proceed\n        Err(CheckError.Slow) -> degrade\n        Err(CheckError.Missing) -> halt\n    }\n}\n",
+}
+
+func TestADegradedStartupIsReadThroughConfig(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, degradedApp)
+	env, _ := runprogram.NewEnvironment("")
+	handler, loops, _, caps, err := load(filepath.Join(root, "app"), []string{"api", "preflight"}, "", nil, nil, nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(caps.Close)
+	status := func() string {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest("GET", "/status", nil))
+		return strings.TrimSpace(rec.Body.String())
+	}
+	if got := status(); got != `"ok"` {
+		t.Fatalf("before the checks ran, /status = %s, want not degraded", got)
+	}
+	var logs []string
+	loops[0].setLog(func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) })
+	if err := loops[0].run(context.Background()); err != nil {
+		t.Fatalf("a degraded start was refused: %v", err)
+	}
+	if got := status(); got != `"degraded"` {
+		t.Errorf("after a degraded start, /status = %s", got)
+	}
+	if !strings.Contains(strings.Join(logs, "\n"), "starting degraded") {
+		t.Errorf("logs = %q, want the degraded start logged", logs)
 	}
 }

@@ -663,7 +663,9 @@ func checkRenames(m *manifest.Manifest, packages types.Packages) []error {
 			for _, d := range pkg.Universe.Decls {
 				if cd, ok := d.(*syntax.ConfigDecl); ok {
 					for _, f := range cd.Fields {
-						reads[f.Env] = true
+						if f.Startup == "" {
+							reads[f.Env] = true
+						}
 					}
 				}
 			}

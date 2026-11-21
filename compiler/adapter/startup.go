@@ -37,6 +37,10 @@ const (
 type StartupRunner struct {
 	name  string // `Preflight run -> verifyStorage`
 	route *syntax.Route
+	// pkgPath and key identify the route to a config field that reads it
+	// (ADR 0127): the package ("" for the application) and `Adapter.workflow`.
+	pkgPath, key string
+	degraded     bool
 	in    *runtime.Interp
 	enter func(context.Context) context.Context
 	lock  runtime.ScheduleLock // set for a `once` route
@@ -63,6 +67,15 @@ type StartupRunner struct {
 
 // Name is the route's name, as the report of a failure gives it.
 func (r *StartupRunner) Name() string { return r.name }
+
+// Degraded reports whether the route ran and its mapping said `degrade`: the
+// process starts, and a config field that reads the route is true (ADR 0127).
+// It is read after RunStartup has returned.
+func (r *StartupRunner) Degraded() bool { return r.degraded }
+
+// Route is the route as a config field names it, `Adapter.workflow`, with the
+// path of its package ("" for the application).
+func (r *StartupRunner) Route() (pkgPath, key string) { return r.pkgPath, r.key }
 
 // Lock is the route's claim lock, nil unless the route says `once`, so the
 // caller can read the config a lock written in fiig uses.
@@ -113,6 +126,8 @@ func StartupRunners(adapters []Served, u *types.Universe, in *runtime.Interp, ho
 			out = append(out, &StartupRunner{
 				name:     fmt.Sprintf("%s run -> %s", a.Name(), workflowName(route)),
 				route:    route,
+				pkgPath:  pkgPath,
+				key:      d.Name + "." + workflowName(route),
 				in:       in,
 				enter:    enter,
 				lock:     lock,
@@ -211,7 +226,11 @@ func (r *StartupRunner) Check(ctx context.Context) error {
 	if err := r.run(ctx); err != nil {
 		return err
 	}
-	r.complete(ctx)
+	// A degraded route is not recorded as done: the replicas waiting on it
+	// run it themselves, each finding out for itself (ADR 0127 §3).
+	if !r.degraded {
+		r.complete(ctx)
+	}
 	return nil
 }
 
@@ -231,6 +250,11 @@ func (r *StartupRunner) run(ctx context.Context) error {
 	for _, arm := range r.route.Mapping {
 		if !runtime.MatchPattern(arm.Pattern, result, runtime.NewEnv()) {
 			continue
+		}
+		if d, ok := arm.Value.(*syntax.DispositionResponse); ok && d.Kind == "degrade" {
+			r.degraded = true
+			r.Logf("startup %s: starting degraded, for %s", r.name, result)
+			return nil
 		}
 		if d, ok := arm.Value.(*syntax.DispositionResponse); ok && d.Kind == "proceed" {
 			if res, isResult := result.(runtime.Result); isResult && !res.Ok {

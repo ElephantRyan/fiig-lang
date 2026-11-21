@@ -262,6 +262,8 @@ at most 30 s.
 
 - The mapping says what each outcome means: `proceed` starts the process
   (an `Err` mapped to it is still logged), and `halt` refuses to.
+- `degrade` also starts the process, and tells the program it started that
+  way (below).
 - A fault or a check that runs out of time refuses to start, whatever the
   mapping says, since a check that crashed hasn't said the thing is fine.
 - When any check refuses, nothing starts, and the one error names every
@@ -297,6 +299,34 @@ could not, naming every check that refused. Nothing listens, no migration
 is applied, and a `once` route runs here without claiming, so a CI job or a
 Kubernetes init container can call it. It reads the same config, so a
 variable that is missing fails it as it would fail `fiig serve`.
+
+**Starting degraded.** A check that fails can let the process start and say
+so, in place of `proceed`, which says nothing afterwards:
+
+```fiig
+adapter startup Preflight {
+    run -> verifyStorage() {
+        Ok(_) -> proceed
+        Err(StorageError.NoSuchBucket(_)) -> halt
+        Err(StorageError.Unreachable(_)) -> degrade
+    }
+}
+
+config Health {
+    storageDown: bool from startup "Preflight.verifyStorage"
+}
+```
+
+- `degrade` is logged, and the process starts. `Health.storageDown` is
+  `true` from then on, read like any config in an activity or a gateway, so a
+  health route can report it and a route that needs the storage can refuse
+  with a clear error.
+- It is `false` when the route passed, or didn't run (the adapter isn't
+  served). A test sets it with `fake Health { storageDown: true }`.
+- It is decided once, at start. A storage that comes back later doesn't turn
+  it off; for that, check again in the route, as a health endpoint does.
+- On a `once` route, a degraded start isn't recorded as done, so the replicas
+  waiting for it run the check themselves.
 
 ## Kafka
 

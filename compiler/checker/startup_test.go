@@ -100,10 +100,38 @@ func TestStartupRouteCallsAWorkflow(t *testing.T) {
 	}
 }
 
-func TestStartupMappingTakesOnlyProceedOrHalt(t *testing.T) {
+// ADR 0127: a config field read from a startup route is a bool with no
+// default, naming a route of this package.
+func TestStartupConfigFieldChecks(t *testing.T) {
+	adapter := `adapter startup Preflight {
+    run -> verifyStorage() {
+        Ok(_) -> proceed
+        Err(StorageError.Missing) -> halt
+        Err(StorageError.Unreachable(_)) -> degrade
+    }
+}`
+	config := func(field string) []Diagnostic {
+		return checkSrc(t, startupErrors, verifyStorage, adapter, "config Health {\n    "+field+"\n}")
+	}
+	if diags := config(`storageDown: bool from startup "Preflight.verifyStorage"`); len(diags) > 0 {
+		t.Errorf("a field naming a route: %v", diags)
+	}
+	cases := []struct{ field, fragment string }{
+		{`storageDown: int from startup "Preflight.verifyStorage"`, "so it is a bool"},
+		{`storageDown: bool from startup "Preflight.verifyStorage" = false`, "has a default"},
+		{`storageDown: bool from startup "Preflight.nothing"`, "no startup adapter Preflight with a route to nothing"},
+		{`storageDown: bool from startup "Missing.verifyStorage"`, "no startup adapter Missing"},
+		{`storageDown: bool from startup "verifyStorage"`, `name a route as "Adapter.workflow"`},
+	}
+	for _, c := range cases {
+		wantDiag(t, config(c.field), "V1", c.fragment)
+	}
+}
+
+func TestStartupMappingTakesOnlyProceedDegradeOrHalt(t *testing.T) {
 	for _, word := range []string{"ack", "done", "retry"} {
 		_, errs := parser.Parse("adapter startup Preflight {\n    run -> verifyStorage() {\n        _ -> " + word + "\n    }\n}")
-		if len(errs) == 0 || !strings.Contains(errs[0].Msg, "expected 'proceed' or 'halt'") {
+		if len(errs) == 0 || !strings.Contains(errs[0].Msg, "expected 'proceed', 'degrade' or 'halt'") {
 			t.Errorf("%s: errs = %v", word, errs)
 		}
 	}

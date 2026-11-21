@@ -76,6 +76,8 @@ startup-mapping ::= '{' { pattern '->' ( 'proceed' | 'halt' ) } '}'
   the mapping says the process may start anyway. That is the choice a Spring
   runner makes by catching its exception, written down where a reader sees it.
 - `startup`, `run`, `proceed` are contextual words.
+- *(Added 2026-11-21, ADR 0127: a third disposition, `degrade`, starts the
+  process and marks the route for a config field to read.)*
 
 ### 2. When it runs
 
@@ -282,6 +284,6 @@ a poll, so a replica starts up to a second after the winner is done.
    `SqlScheduleLock` (ADR 0125). Still open: a deploy id that a platform
    supplies without an environment variable.
 3. ~~A per-route deadline~~, done: `within` (§6).
-4. **Starting degraded.** `proceed` lets the process start with a check
-   failed, and nothing tells the program afterwards. A health endpoint can
-   report it only if the workflow recorded it somewhere.
+4. ~~Starting degraded~~, done (ADR 0127): `degrade` starts the process and
+   marks the route, and a config field `from startup "Adapter.workflow"` is
+   true when it ended degraded, so a health route can report it.

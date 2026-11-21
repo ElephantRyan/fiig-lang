@@ -11,8 +11,8 @@ import (
 // checkStartupRoute is ADR 0124 §1 and §5, bug classes I7 and I9: a startup
 // route calls a workflow that takes nothing, and its mapping says whether
 // the process starts after each outcome. The parser has already refused
-// every disposition but `proceed` and `halt`, and any route keyword but
-// `run`.
+// every disposition but `proceed`, `degrade` (ADR 0127) and `halt`, and any
+// route keyword but `run`.
 func (c *checker) checkStartupRoute(route *syntax.Route, wd *syntax.WorkflowDecl) {
 	if len(wd.Params) != 0 || len(route.Args) != 0 {
 		c.report(route.Start, "I9", "a startup route's workflow takes nothing, and the route gives no arguments; %s takes %s and the route gives %d (ADR 0124 §1)", wd.Name, paramList(wd.Params), len(route.Args))

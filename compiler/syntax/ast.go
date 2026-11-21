@@ -398,6 +398,9 @@ type ConfigField struct {
 	Name    string
 	Type    Type
 	Env     string // the environment variable's name
+	// Startup, instead of Env, names a startup route as `Adapter.workflow`:
+	// the field is true when that route ended degraded (ADR 0127).
+	Startup string
 	Default Expr
 }
 

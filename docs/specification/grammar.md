@@ -267,7 +267,7 @@ formulas-decl  ::= 'formulas' identifier '{' { formula-member } '}'
 formula-member ::= 'formula' identifier params '->' type [ block ]
 
 config-decl  ::= 'config' identifier [ 'when' expression ] '{' { config-field } '}'   // `when` is contextual (ADR 0122)
-config-field ::= identifier ':' type 'from' 'env' string [ '=' expression ]   // `from` and `env` are contextual
+config-field ::= identifier ':' type ( 'from' 'env' string [ '=' expression ] | 'from' 'startup' string )   // `from`, `env` and `startup` are contextual; the startup form is a bool naming `Adapter.workflow`, with no default (ADR 0127)
 ```
 
 `config-decl` is ADR 0071's: values a deployment supplies through the
@@ -418,11 +418,11 @@ disposition    ::= 'ack' | 'halt' | 'deadLetter' string-literal
                  | 'retry' '(' 'attempts' ':' integer-literal ')' [ 'else' ( 'halt' | 'deadLetter' string-literal ) ]
 
 schedule-mapping ::= '{' { pattern '->' ( 'done' | 'halt' ) } '}'       -- required, exhaustive over the workflow's result (I7)
-startup-mapping ::= '{' { pattern '->' ( 'proceed' | 'halt' ) } '}'     -- required, exhaustive over the workflow's result (I7)
+startup-mapping ::= '{' { pattern '->' ( 'proceed' | 'degrade' | 'halt' ) } '}'     -- required, exhaustive over the workflow's result (I7); `degrade` starts the process and marks the route (ADR 0127)
 ```
 
 `stream`, `source`, `group`, `earliest`, `latest`, `key`, `ack`, `halt`, `deadLetter`, `schedule`,
-`every`, `cron`, `done`, `startup`, `run`, `once`, `within`, and `proceed` are contextual words, keywords only in these
+`every`, `cron`, `done`, `startup`, `run`, `once`, `within`, `proceed`, and `degrade` are contextual words, keywords only in these
 positions (ADR 0018). An `every` string is a duration that divides a day;
 a `cron` string is five fields, in UTC (ADR 0112 §1).
 
