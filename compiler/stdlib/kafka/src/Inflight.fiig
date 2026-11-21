@@ -1,0 +1,11 @@
+// A request a session wrote and hasn't had answered, in the order it was
+// written, which is the order a broker answers in. A Request's response
+// goes back to key with callerCorrelation in place of correlation; the
+// group's own (kind "versions", "coordinator", "heartbeat", "offsets",
+// "commit") the session reads itself.
+model Inflight {
+    correlation: int
+    key: int
+    callerCorrelation: int
+    kind: string
+}

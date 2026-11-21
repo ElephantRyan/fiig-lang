@@ -1,0 +1,32 @@
+// ADR 0117 §4: Fetch v11 (API key 1) at a leader: each partition from its
+// position, waiting up to waitMillis for a first byte, at most maxBytes in
+// all and in any one partition. Read uncommitted, as Java's consumer does
+// by default; no fetch session (KIP-227) and no rack.
+conversion fetchRequest(clientId: string, correlation: int, topic: string, waitMillis: int, maxBytes: int, positions: List<PartitionOffset>) -> bytes {
+    partitions: bytes = <<positions.length(): i32be>>
+    for p in positions {
+        partitions = <<
+            partitions: bytes,
+            p.partition: i32be,
+            0 - 1: i32be,
+            p.offset: i64be,
+            0 - 1: i64be,
+            maxBytes: i32be,
+        >>
+    }
+    body = <<
+        0 - 1: i32be,
+        waitMillis: i32be,
+        1: i32be,
+        maxBytes: i32be,
+        0: u8,
+        0: i32be,
+        0 - 1: i32be,
+        1: i32be,
+        kafkaString(topic): bytes,
+        partitions: bytes,
+        0: i32be,
+        kafkaString(""): bytes,
+    >>
+    return kafkaRequest(1, 11, correlation, clientId, body)
+}

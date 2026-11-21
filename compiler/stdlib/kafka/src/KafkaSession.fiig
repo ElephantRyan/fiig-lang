@@ -1,0 +1,36 @@
+use fiig.session
+
+// ADR 0117 §2-§3: fiig.kafka's session protocol, which the consumer's
+// gateways reach through Session.call. Each operation is a conversion
+// over the state, so the runtime half only carries bytes.
+capability KafkaSession provides session.SessionProtocol {
+    gateway opened(settings: Map<string, string>, now: int) -> session.Step
+        requires Session
+    {
+        return sessionOpened(settings, now)
+    }
+
+    gateway received(state: bytes, data: bytes, now: int) -> session.Step
+        requires Session
+    {
+        return sessionReceived(state, data, now)
+    }
+
+    gateway asked(state: bytes, message: bytes, now: int) -> session.Step
+        requires Session
+    {
+        return sessionAsked(state, message, now)
+    }
+
+    gateway tick(state: bytes, now: int) -> session.Step
+        requires Session
+    {
+        return sessionTick(state, now)
+    }
+
+    gateway closing(state: bytes, now: int) -> session.Step
+        requires Session
+    {
+        return sessionClosing(state, now)
+    }
+}

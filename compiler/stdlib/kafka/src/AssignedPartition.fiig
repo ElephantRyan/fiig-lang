@@ -1,0 +1,9 @@
+// A partition the member owns and may fetch: where to fetch from (-1 when
+// it has no committed offset), and the attempt the record at retryOffset
+// is on, when one was retried.
+model AssignedPartition {
+    partition: int
+    position: int
+    retryOffset: int
+    attempt: int
+}

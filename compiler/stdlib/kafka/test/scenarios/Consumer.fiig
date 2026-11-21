@@ -1,0 +1,262 @@
+use fiig.session
+use fiig.stream
+
+// ADR 0117: the consumer's wire and its session's state machine, driven
+// with bytes alone (ADR 0114 open question 5).
+test varintsRoundTrip {
+    for n in [0, 1, 127, 128, 300, 16384, 2147483647] {
+        expect uvarintAt(uvarint(n), 0) == IntAt(value: n, next: uvarint(n).length())
+    }
+    for n in [0, 1, 0 - 1, 63, 0 - 64, 64, 0 - 65, 1000000, 0 - 1000000] {
+        expect varintAt(varint(n), 0) == IntAt(value: n, next: varint(n).length())
+    }
+    expect uvarintAt(<<128: u8>>, 0) == None
+}
+
+test compactStringsReadBack {
+    expect compactStringAt(compactString("héllo"), 0) == TextAt(text: "héllo", next: 7)
+    expect compactStringAt(<<0: u8>>, 0) == TextAt(text: "", next: 1)
+    expect compactStringAt(<<9: u8, 1: u8>>, 0) == None
+    expect afterTags(<<0: u8, 7: u8>>, 0) == 1
+    expect afterTags(<<1: u8, 0: u8, 2: u8, 9: u8, 9: u8, 7: u8>>, 0) == 5
+}
+
+test aBrokerSessionPassesRequestsThrough {
+    settings: Map<string, string> = ["role": "broker", "host": "b", "port": "9092", "clientId": "fiig"]
+    opened = sessionOpened(settings, 1000)
+    expect opened.write == <<>>
+    expect opened.nextTickAt == None
+    request = metadataRequest("fiig", 77, "orders")
+    asked = sessionAsked(opened.state, requestAsk(request), 1000)
+    expect asked.accepted == 1
+    // It goes out with the session's correlation id ...
+    expect asked.write == <<request.slice(0, 8): bytes, 1: i32be, request.slice(12, request.length()): bytes>>
+    // ... and its response, arriving in two pieces, back with the caller's.
+    response = <<1: i32be, "body".utf8(): bytes>>
+    framed = <<response.length(): i32be, response: bytes>>
+    partial = sessionReceived(asked.state, framed.slice(0, 5), 1001)
+    expect partial.replies.length() == 0
+    whole = sessionReceived(partial.state, framed.slice(5, framed.length()), 1002)
+    expect whole.replies == [session.SessionReply(key: 1, message: <<77: i32be, "body".utf8(): bytes>>, last: true)]
+}
+
+test aGroupSessionMovesToItsCoordinator {
+    opened = sessionOpened(groupSettingsAt("a", 9092), 1000)
+    expect opened.write == <<apiVersionsRequest("fiig", 1): bytes, findCoordinatorRequest("fiig", 2, "g"): bytes>>
+    moved = sessionReceived(
+        opened.state,
+        <<versionsOf(1): bytes, coordinatorOf(2, "b", 9093): bytes>>,
+        1001,
+    )
+    expect moved.close == session.SessionClose.MoveTo(host: "b", port: 9093)
+}
+
+test anOldBrokerIsRefusedByName {
+    opened = sessionOpened(groupSettingsAt("a", 9092), 1000)
+    old = framed(<<1: i32be, 0: i16be, 1: i32be, 0: i16be, 0: i16be, 12: i16be>>)
+    refused = sessionReceived(
+        opened.state,
+        <<old: bytes, coordinatorOf(2, "a", 9092): bytes>>,
+        1001,
+    )
+    polled = sessionAsked(refused.state, json.encode(KafkaAsk.Poll(waitMillis: 500)), 1002)
+    expect polled.replies.length() == 1
+    expect pollOf(polled.replies.first().message).failure.contains("Kafka 4.0")
+}
+
+test aMemberIsAssignedRetriesAndCommits {
+    topicId = "0123456789abcdef".utf8()
+    opened = sessionOpened(groupSettingsAt("a", 9092), 1000)
+    joined = sessionReceived(
+        opened.state,
+        <<versionsOf(1): bytes, coordinatorOf(2, "a", 9092): bytes>>,
+        1001,
+    )
+    // On the coordinator, the member joins at once with epoch 0.
+    expect joined.close == None
+    expect joined.write == heartbeatRequest("fiig", 3, "g", "m1", 0, "t", <<>>, [])
+    // A poll waits: nothing is assigned yet.
+    waiting = sessionAsked(joined.state, json.encode(KafkaAsk.Poll(waitMillis: 5000)), 1002)
+    expect waiting.replies.length() == 0
+    expect waiting.nextTickAt == 6002
+    // Assigned partitions 0 and 1: their committed offsets are asked for,
+    // and the next heartbeat says the member owns them.
+    assigned = sessionReceived(waiting.state, heartbeatAnswerOf(3, 1, topicId, [0, 1]), 1003)
+    expect assigned.write == <<offsetFetchRequest("fiig", 5, "g", "t", [0, 1]): bytes, heartbeatRequest("fiig", 6, "g", "m1", 1, "t", topicId, [0, 1]): bytes>>
+    // Partition 0 committed 42; 1 has nothing, so it starts where `from`
+    // says (-1). The waiting poll is answered.
+    placed = sessionReceived(assigned.state, offsetsOf(5, [42, 0 - 1]), 1004)
+    expect placed.replies.length() == 1
+    expect pollOf(placed.replies.first().message).partitions == [AssignedPartition(partition: 0, position: 42, retryOffset: 0 - 1, attempt: 1), AssignedPartition(partition: 1, position: 0 - 1, retryOffset: 0 - 1, attempt: 1)]
+    // A retry of 0/42 pauses partition 0 until 3000, then brings 42 back
+    // on its second attempt (§5).
+    retried = sessionAsked(
+        placed.state,
+        json.encode(KafkaAsk.Retry(partition: 0, offset: 42, resumeAt: 3000)),
+        1005,
+    )
+    early = sessionAsked(retried.state, json.encode(KafkaAsk.Poll(waitMillis: 500)), 1006)
+    expect pollOf(early.replies.first().message).partitions == [AssignedPartition(partition: 1, position: 0 - 1, retryOffset: 0 - 1, attempt: 1)]
+    later = sessionAsked(early.state, json.encode(KafkaAsk.Poll(waitMillis: 500)), 3000)
+    expect pollOf(later.replies.first().message).partitions.first() == AssignedPartition(partition: 0, position: 42, retryOffset: 42, attempt: 2)
+    // An ack of 42 is committed as 43 once the commit interval is up.
+    acked = sessionAsked(later.state, json.encode(KafkaAsk.Ack(partition: 0, offset: 42)), 3001)
+    expect acked.write == <<>>
+    expect acked.nextTickAt == 4001
+    committed = sessionTick(acked.state, 4001)
+    expect committed.write.length() > 0
+    expect stateOf(committed.state) is Ok(s)
+    expect s.partitions.first().committed == 43
+    expect s.partitions.first().retryOffset == 0 - 1
+    expect s.commitAt == 0
+    // A member the broker fenced joins again, owning nothing.
+    fenced = sessionReceived(committed.state, heartbeatErrorOf(6, 110), 4002)
+    expect stateOf(fenced.state) is Ok(rejoining)
+    expect rejoining.epoch == 0
+    expect rejoining.partitions.length() == 0
+}
+
+test fetchedBatchesReadBack {
+    records = [
+        KafkaRecord(key: "k".utf8(), value: "one".utf8(), headers: None),
+        KafkaRecord(key: None, value: "two".utf8(), headers: [KafkaHeader(name: "h", value: "v".utf8())]),
+    ]
+    for codec in [Compression.None, Compression.Gzip, Compression.Snappy, Compression.Lz4, Compression.Zstd] {
+        expect recordBatch(records, 1000, codec) is Ok(batch)
+        // recordBatch writes base offset 0; a broker writes the log's.
+        placed = <<100: i64be, batch.slice(8, batch.length()): bytes>>
+        expect readFetch(fetchResponseOf(placed), 10000) is Ok(parts)
+        expect parts == [FetchedPartition(partition: 3, code: 0, records: [FetchedRecord(offset: 100, value: "one".utf8()), FetchedRecord(offset: 101, value: "two".utf8())])]
+    }
+    // A batch cut short at the end is left for the next fetch.
+    expect recordBatch(records, 1000, Compression.None) is Ok(whole)
+    expect readFetch(fetchResponseOf(whole.slice(0, whole.length() - 3)), 10000) is Ok(cut)
+    expect cut.first().records.length() == 0
+}
+
+test deliveriesStartAtThePosition {
+    part = FetchedPartition(
+        partition: 2,
+        code: 0,
+        records: [FetchedRecord(offset: 8, value: "a".utf8()), FetchedRecord(offset: 9, value: "b".utf8()), FetchedRecord(offset: 10, value: "c".utf8())],
+    )
+    assigned = AssignedPartition(partition: 2, position: 9, retryOffset: 9, attempt: 3)
+    taken = takenFrom(part, 9, assigned, 5)
+    expect taken.next == 11
+    expect taken.deliveries == [stream.Delivery(id: "2/9", payload: "b".utf8(), attempt: 3, order: "2"), stream.Delivery(id: "2/10", payload: "c".utf8(), attempt: 1, order: "2")]
+    expect takenFrom(part, 9, assigned, 1).next == 10
+    expect deliveryAt("2/10") is Ok(at)
+    expect at == PartitionOffset(partition: 2, offset: 10)
+    expect deliveryAt("2-10") is Err(_)
+}
+
+private {
+    groupSettingsAt(host: string, port: int) -> Map<string, string> {
+        return ["role": "group", "host": host, "port": "${port}", "clientId": "fiig", "group": "g", "topic": "t", "sessionId": "m1", "commitMillis": "1000"]
+    }
+
+    framed(response: bytes) -> bytes {
+        return <<response.length(): i32be, response: bytes>>
+    }
+
+    // ApiVersions v0's answer, with every API the consumer sends.
+    versionsOf(correlation: int) -> bytes {
+        entries = <<
+            68: i16be,
+            0: i16be,
+            1: i16be,
+            1: i16be,
+            4: i16be,
+            17: i16be,
+            2: i16be,
+            1: i16be,
+            10: i16be,
+            3: i16be,
+            0: i16be,
+            13: i16be,
+            8: i16be,
+            2: i16be,
+            9: i16be,
+            9: i16be,
+            1: i16be,
+            9: i16be,
+            10: i16be,
+            0: i16be,
+            6: i16be,
+            0: i16be,
+            0: i16be,
+            12: i16be,
+        >>
+        return framed(<<correlation: i32be, 0: i16be, 8: i32be, entries: bytes>>)
+    }
+
+    coordinatorOf(correlation: int, host: string, port: int) -> bytes {
+        return framed(
+            <<correlation: i32be, 0: i32be, 0: i16be, 0 - 1: i16be, 1: i32be, kafkaString(host): bytes, port: i32be>>,
+        )
+    }
+
+    heartbeatAnswerOf(correlation: int, epoch: int, topicId: bytes, partitions: List<int>) -> bytes {
+        ids: bytes = uvarint(partitions.length() + 1)
+        for p in partitions {
+            ids = <<ids: bytes, p: i32be>>
+        }
+        return framed(
+            <<correlation: i32be, 0: u8, 0: i32be, 0: i16be, 0: u8, compactString("m1"): bytes, epoch: i32be, 3000: i32be, 1: u8, uvarint(2): bytes, topicId: bytes, ids: bytes, 0: u8, 0: u8, 0: u8>>,
+        )
+    }
+
+    heartbeatErrorOf(correlation: int, code: int) -> bytes {
+        return framed(
+            <<correlation: i32be, 0: u8, 0: i32be, code: i16be, 0: u8, 0: u8, 0 - 1: i32be, 0: i32be, 255: u8, 0: u8>>,
+        )
+    }
+
+    offsetsOf(correlation: int, offsets: List<int>) -> bytes {
+        partitions: bytes = <<offsets.length(): i32be>>
+        p: int = 0
+        for o in offsets {
+            partitions = <<partitions: bytes, p: i32be, o: i64be, 0 - 1: i16be, 0: i16be>>
+            p = p + 1
+        }
+        return framed(<<correlation: i32be, 1: i32be, kafkaString("t"): bytes, partitions: bytes>>)
+    }
+
+    // A Fetch v11 response, after its size, of one partition holding records.
+    fetchResponseOf(records: bytes) -> bytes {
+        return <<
+            1: i32be,
+            0: i32be,
+            0: i16be,
+            0: i32be,
+            1: i32be,
+            kafkaString("t"): bytes,
+            1: i32be,
+            3: i32be,
+            0: i16be,
+            200: i64be,
+            200: i64be,
+            0: i64be,
+            0 - 1: i32be,
+            0 - 1: i32be,
+            records.length(): i32be,
+            records: bytes,
+        >>
+    }
+
+    pollOf(message: bytes) -> PollReply {
+        decoded: Result<PollReply, JsonError> = json.decode(message)
+        match decoded {
+            Ok(reply) -> {
+                return reply
+            }
+            Err(_) -> {
+                return PollReply(failure: "not a PollReply", partitions: [])
+            }
+        }
+    }
+
+    stateOf(state: bytes) -> Result<KafkaSessionState, JsonError> {
+        return json.decode(state)
+    }
+}

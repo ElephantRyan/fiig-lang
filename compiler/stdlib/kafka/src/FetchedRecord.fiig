@@ -1,0 +1,5 @@
+// One record a fetch returned: its offset, and its value, empty for null.
+model FetchedRecord {
+    offset: int
+    value: bytes
+}

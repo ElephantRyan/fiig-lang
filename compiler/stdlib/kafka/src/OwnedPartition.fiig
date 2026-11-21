@@ -1,0 +1,14 @@
+// A partition a group session's member owns (ADR 0117 §3): the next offset
+// to fetch (-2 while its committed offset is asked for, -1 when there is
+// none), the next offset to commit and the last one committed (-1: none),
+// and a retried record's offset, its retries so far, and when its
+// partition may be fetched again.
+model OwnedPartition {
+    partition: int
+    position: int
+    acked: int
+    committed: int
+    retryOffset: int
+    retries: int
+    resumeAt: int
+}

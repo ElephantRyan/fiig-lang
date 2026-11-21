@@ -182,7 +182,7 @@ var kafkaProgram = map[string]string{
     "kind": "application",
     "version": "1.0.0",
     "dependencies": { "fiig.kafka": "1.0.0" },
-    "capabilities": ["Socket"]
+    "capabilities": ["Socket", "Session"]
 }`,
 	"src/orders/Publish.fiig": `use fiig.kafka
 use fiig.kafka.Kafka

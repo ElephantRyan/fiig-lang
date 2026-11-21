@@ -17,8 +17,8 @@ conversion checkApiVersions(frame: bytes, correlation: int) -> Result<None, Kafk
                     KafkaError.MalformedReply(reason: "ApiVersions lists ${count} APIs in ${rest.length()} bytes"),
                 )
             }
-            metadata = supports(rest, count, 3, 4)
-            produce = supports(rest, count, 0, 8)
+            metadata = apiSupports(rest, count, 3, 4)
+            produce = apiSupports(rest, count, 0, 8)
             if not metadata or not produce {
                 return Err(
                     KafkaError.Unsupported(reason: "the broker doesn't take Metadata v4 and Produce v8, which fiig.kafka sends (ADR 0113 §4)"),
@@ -31,25 +31,5 @@ conversion checkApiVersions(frame: bytes, correlation: int) -> Result<None, Kafk
                 KafkaError.MalformedReply(reason: "an ApiVersions response is shorter than its header"),
             )
         }
-    }
-}
-
-private {
-    // Whether the list of (key, min, max) six-byte entries covers key at
-    // version.
-    supports(entries: bytes, count: int, key: int, version: int) -> bool {
-        i: int = 0
-        while i < count {
-            match entries.slice(i * 6, i * 6 + 6) {
-                <<apiKey: i16be, low: i16be, high: i16be>> -> {
-                    if apiKey == key {
-                        return low <= version and version <= high
-                    }
-                }
-                _ -> None
-            }
-            i = i + 1
-        }
-        return false
     }
 }

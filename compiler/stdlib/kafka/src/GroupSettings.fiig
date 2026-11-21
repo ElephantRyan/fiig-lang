@@ -1,0 +1,18 @@
+use fiig.stream
+
+// ADR 0117 §3: the settings naming a route's group session: the first
+// bootstrap server, which moves it to the group's coordinator, and the
+// group, topic, and commit interval its protocol reads.
+conversion groupSettings(subscription: stream.Subscription, bootstrap: string, tls: bool, clientId: string, commitMillis: int) -> Result<Map<string, string>, stream.SourceError> {
+    match bootstrapOf(bootstrap) {
+        Err(failure) -> {
+            return Err(consumerError(failure))
+        }
+        Ok(servers) -> {
+            first = servers.first()
+            return Ok(
+                ["host": first.host, "port": "${first.port}", "tls": "${tls}", "role": "group", "clientId": clientId, "group": subscription.group, "topic": subscription.source, "commitMillis": "${commitMillis}"],
+            )
+        }
+    }
+}

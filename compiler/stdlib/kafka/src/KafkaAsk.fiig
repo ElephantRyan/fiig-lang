@@ -1,0 +1,13 @@
+// What the consumer's gateways ask of a fiig.kafka session (ADR 0117 §3-§5),
+// as JSON. Request is a whole Kafka request, answered by its response with
+// the request's own correlation id. The rest are a group session's: Poll
+// waits for partitions to fetch, Advance records how far a fetch got (-1:
+// start the partition again where the route's `from` says), and Ack and
+// Retry settle one record, Retry seeking its partition back until resumeAt.
+enum KafkaAsk {
+    Request(data: bytes)
+    Poll(waitMillis: int)
+    Advance(partition: int, next: int)
+    Ack(partition: int, offset: int)
+    Retry(partition: int, offset: int, resumeAt: int)
+}

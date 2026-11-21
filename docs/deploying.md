@@ -216,6 +216,29 @@ effect, and renaming the group starts a new one.
   delivered again, so the halt keeps showing until someone deals with it.
 - Shutdown finishes the element in hand and settles it before stopping.
 
+`fiig.kafka` reads a Kafka topic as a consumer group (ADR 0117), with
+`{"StreamSource": {"type": "source", "source": "fiig.kafka"}}`. The route's
+`source` is the topic and its `group` the consumer group. It speaks
+KIP-848's group protocol only, so the cluster must run **Kafka 4.0 or
+later**; an older one halts the route at its first read, saying so. It
+reads `KAFKA_BOOTSTRAP` and the rest of the producer's settings (below),
+and an application that depends on `fiig.kafka` lists `Session` among its
+manifest's capabilities, beside `Socket`.
+
+- Each partition is handled in order. A `retry` seeks the partition back
+  to the record and pauses it for `KAFKA_RETRY_AFTER_MS` (1000), so
+  nothing after it is handled first; its attempts are counted by this
+  process, so a restart or a rebalance starts them again at 1.
+- An acked record's offset is committed within `KAFKA_COMMIT_INTERVAL_MS`
+  (1000), and before a partition moves or the process stops, so a crash
+  delivers again at most that long's records.
+- `deadLetter "topic"` produces the record's value to that topic, keyed
+  `<source>/<partition>/<offset>`, then acks it. The topic must exist.
+- A partition with no committed offset starts at the log's first record
+  (`from earliest`) or after its last (`from latest`).
+- Shutdown leaves the group, so its partitions move to the other
+  replicas at once. `KAFKA_FETCH_MAX_BYTES` (1 MiB) bounds one fetch.
+
 ## Schedule adapters
 
 An `adapter schedule` is served the same way too. Its jobs fire in UTC,

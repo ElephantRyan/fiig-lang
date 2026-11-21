@@ -1,0 +1,11 @@
+// ADR 0117 §4: ListOffsets v2 (API key 2) at a leader, for partitions with
+// no committed offset: timestamp -2 asks for each log's start, -1 for its
+// end (ADR 0111 §3a's earliest and latest).
+conversion listOffsetsRequest(clientId: string, correlation: int, topic: string, partitions: List<int>, timestamp: int) -> bytes {
+    ids: bytes = <<partitions.length(): i32be>>
+    for p in partitions {
+        ids = <<ids: bytes, p: i32be, timestamp: i64be>>
+    }
+    body = <<0 - 1: i32be, 0: u8, 1: i32be, kafkaString(topic): bytes, ids: bytes>>
+    return kafkaRequest(2, 2, correlation, clientId, body)
+}

@@ -1,0 +1,240 @@
+use fiig.session
+
+// ADR 0117 §3: bytes the broker sent. Each whole response answers the
+// oldest request still waiting: a call's Request gets it back, and the
+// group's own are read here. Then whatever became due is written, and held
+// polls are answered.
+conversion sessionReceived(state: bytes, data: bytes, now: int) -> session.Step {
+    decoded: Result<KafkaSessionState, JsonError> = json.decode(state)
+    match decoded {
+        Err(_) -> {
+            return failedStep("fiig.kafka's session state doesn't decode")
+        }
+        Ok(s) -> {
+            turn: SessionTurn = SessionTurn(
+                state: copy(s, buffer: <<>>),
+                write: <<>>,
+                replies: [],
+                close: None,
+            )
+            rest: bytes = <<s.buffer: bytes, data: bytes>>
+            reading: bool = true
+            while reading {
+                match nextFrame(rest) {
+                    FrameRead.Done(frame, more) -> {
+                        turn = answered(turn, frame, now)
+                        rest = more
+                        reading = turn.close == None
+                    }
+                    FrameRead.NeedMore -> {
+                        reading = false
+                    }
+                    FrameRead.Malformed(reason) -> {
+                        turn = copy(turn, close: session.SessionClose.Failed(reason: reason))
+                        reading = false
+                    }
+                }
+            }
+            turn = copy(turn, state: copy(turn.state, buffer: rest))
+            if turn.close == None {
+                turn = answerPolls(dueWork(turn, now), now)
+            }
+            return sessionStep(turn, None)
+        }
+    }
+}
+
+private {
+    answered(turn: SessionTurn, frame: bytes, now: int) -> SessionTurn {
+        s = turn.state
+        if s.inflight.length() == 0 {
+            return failed(turn, "the broker sent a response no request asked for")
+        }
+        head = s.inflight.first()
+        match frame {
+            <<correlation: i32be, body: bytes>> -> {
+                if correlation != head.correlation {
+                    return failed(
+                        turn,
+                        "the broker answered correlation ${correlation}, not ${head.correlation}",
+                    )
+                }
+                next = copy(
+                    turn,
+                    state: copy(s, inflight: s.inflight.slice(1, s.inflight.length())),
+                )
+                if head.kind == "request" {
+                    reply = session.SessionReply(
+                        key: head.key,
+                        message: <<head.callerCorrelation: i32be, body: bytes>>,
+                        last: true,
+                    )
+                    return copy(next, replies: append(next.replies, reply))
+                }
+                if head.kind == "versions" {
+                    return copy(next, state: copy(next.state, fatal: consumerVersions(frame)))
+                }
+                if head.kind == "coordinator" {
+                    return coordinatorAnswered(next, frame, now)
+                }
+                if head.kind == "heartbeat" {
+                    return heartbeatAnswered(next, frame, now)
+                }
+                if head.kind == "offsets" {
+                    return offsetsAnswered(next, frame)
+                }
+                // A commit's answer: a failed one is delivered again (§5).
+                return next
+            }
+            _ -> {
+                return failed(turn, "a response is shorter than its correlation id")
+            }
+        }
+    }
+
+    failed(turn: SessionTurn, reason: string) -> SessionTurn {
+        return copy(turn, close: session.SessionClose.Failed(reason: reason))
+    }
+
+    // On the coordinator, the member joins; elsewhere, the session moves.
+    coordinatorAnswered(turn: SessionTurn, frame: bytes, now: int) -> SessionTurn {
+        match readCoordinator(frame) {
+            Err(reason) -> {
+                return failed(turn, reason)
+            }
+            Ok(node) -> {
+                s = turn.state
+                if node.host != s.host or node.port != s.port {
+                    return copy(
+                        turn,
+                        close: session.SessionClose.MoveTo(host: node.host, port: node.port),
+                    )
+                }
+                return copy(turn, state: copy(s, phase: "member", nextHeartbeatAt: now))
+            }
+        }
+    }
+
+    heartbeatAnswered(turn: SessionTurn, frame: bytes, now: int) -> SessionTurn {
+        s = copy(turn.state, heartbeatInFlight: false)
+        match readHeartbeat(frame) {
+            Err(reason) -> {
+                return failed(turn, reason)
+            }
+            Ok(answer) -> {
+                if answer.code == 25 or answer.code == 110 {
+                    // Fenced or forgotten: join again, owning nothing, and
+                    // commit nothing, since the broker would refuse it.
+                    return copy(
+                        turn,
+                        state: copy(s, epoch: 0, topicId: <<>>, partitions: [], commitAt: 0, nextHeartbeatAt: now),
+                    )
+                }
+                if answer.code == 14 {
+                    return copy(turn, state: copy(s, nextHeartbeatAt: now + s.heartbeatMillis))
+                }
+                if answer.code == 15 or answer.code == 16 {
+                    return failed(turn, "ConsumerGroupHeartbeat: ${errorName(answer.code)}")
+                }
+                if answer.code != 0 {
+                    return copy(
+                        turn,
+                        state: copy(s, fatal: "ConsumerGroupHeartbeat: ${errorName(answer.code)}: ${answer.message}"),
+                    )
+                }
+                beat = copy(
+                    turn,
+                    state: copy(s, heartbeatMillis: answer.intervalMillis, nextHeartbeatAt: now + answer.intervalMillis),
+                )
+                if not answer.assigned {
+                    return copy(beat, state: copy(beat.state, epoch: answer.epoch))
+                }
+                return reconciled(beat, answer, now)
+            }
+        }
+    }
+
+    // The broker's assignment taken (KIP-848): what was acked is committed
+    // at the old epoch before anything is given up, a new partition's
+    // committed offset is asked for, and the next heartbeat goes at once
+    // to say the member owns what it was given.
+    reconciled(turn: SessionTurn, answer: HeartbeatAnswer, now: int) -> SessionTurn {
+        before = turn.state
+        kept: List<OwnedPartition> = []
+        changed: bool = false
+        for p in before.partitions {
+            if answer.partitions.contains(p.partition) {
+                kept = append(kept, p)
+            } else {
+                changed = true
+            }
+        }
+        added: List<int> = []
+        for n in answer.partitions {
+            owned: bool = false
+            for p in before.partitions {
+                owned = owned or p.partition == n
+            }
+            if not owned {
+                added = append(added, n)
+                kept = append(
+                    kept,
+                    OwnedPartition(partition: n, position: 0 - 2, acked: 0 - 1, committed: 0 - 1, retryOffset: 0 - 1, retries: 0, resumeAt: 0),
+                )
+            }
+        }
+        out: SessionTurn = turn
+        if changed {
+            out = commitAll(out)
+        }
+        s: KafkaSessionState = copy(
+            out.state,
+            epoch: answer.epoch,
+            topicId: answer.topicId,
+            partitions: kept,
+        )
+        write: bytes = out.write
+        if added.length() > 0 {
+            write = <<
+                write: bytes,
+                offsetFetchRequest(s.clientId, s.nextCorrelation, s.group, s.topic, added): bytes,
+            >>
+            s = tracked(s, "offsets")
+            changed = true
+        }
+        if changed {
+            s = copy(s, nextHeartbeatAt: now)
+        }
+        return copy(out, state: s, write: write)
+    }
+
+    // Each newly owned partition starts at its committed offset, or, with
+    // none, where the route's `from` says (-1, which receive resolves).
+    offsetsAnswered(turn: SessionTurn, frame: bytes) -> SessionTurn {
+        match readOffsetFetch(frame) {
+            Err(reason) -> {
+                return failed(turn, reason)
+            }
+            Ok(committed) -> {
+                placed: List<OwnedPartition> = []
+                for p in turn.state.partitions {
+                    if p.position == 0 - 2 {
+                        position: int = 0 - 1
+                        for c in committed {
+                            if c.partition == p.partition and c.offset >= 0 {
+                                position = c.offset
+                            }
+                        }
+                        placed = append(
+                            placed,
+                            copy(p, position: position, committed: position, acked: position),
+                        )
+                    } else {
+                        placed = append(placed, p)
+                    }
+                }
+                return copy(turn, state: copy(turn.state, partitions: placed))
+            }
+        }
+    }
+}

@@ -1,0 +1,37 @@
+use fiig.session
+
+// turn with every held Poll answered that can be (ADR 0117 §4): with the
+// partitions ready to fetch, those whose committed offset is known and
+// that no retry pauses, once there are any; with none once a poll's wait
+// is up; and with the failure once the group can't be joined.
+conversion answerPolls(turn: SessionTurn, now: int) -> SessionTurn {
+    s = turn.state
+    if s.polls.length() == 0 {
+        return turn
+    }
+    ready: List<AssignedPartition> = []
+    if s.phase == "member" {
+        for p in s.partitions {
+            if p.position != 0 - 2 and p.resumeAt <= now {
+                ready = append(
+                    ready,
+                    AssignedPartition(partition: p.partition, position: p.position, retryOffset: p.retryOffset, attempt: p.retries + 1),
+                )
+            }
+        }
+    }
+    replies: List<session.SessionReply> = turn.replies
+    waiting: List<WaitingPoll> = []
+    for poll in s.polls {
+        if s.fatal != "" or ready.length() > 0 or poll.until <= now {
+            answer = json.encode(PollReply(failure: s.fatal, partitions: ready))
+            replies = append(
+                replies,
+                session.SessionReply(key: poll.key, message: answer, last: true),
+            )
+        } else {
+            waiting = append(waiting, poll)
+        }
+    }
+    return copy(turn, state: copy(s, polls: waiting), replies: replies)
+}

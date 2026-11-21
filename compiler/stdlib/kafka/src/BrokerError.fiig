@@ -1,56 +1,9 @@
-// A broker's error code as KafkaError.Broker (ADR 0113 §1), with the name
-// and the retriable flag the protocol gives it (kafka.apache.org's error
-// table), for the codes a producer meets; others keep their number.
+// A broker's error code as KafkaError.Broker (ADR 0113 §1), with its name
+// (errorName) and the retriable flag the protocol gives it
+// (kafka.apache.org's error table).
 conversion brokerError(code: int, during: string) -> KafkaError {
-    name: string = "UNKNOWN_CODE_${code}"
-    retriable: bool = false
-    if code == 0 - 1 {
-        name = "UNKNOWN_SERVER_ERROR"
-    } else if code == 2 {
-        name = "CORRUPT_MESSAGE"
-        retriable = true
-    } else if code == 3 {
-        name = "UNKNOWN_TOPIC_OR_PARTITION"
-        retriable = true
-    } else if code == 5 {
-        name = "LEADER_NOT_AVAILABLE"
-        retriable = true
-    } else if code == 6 {
-        name = "NOT_LEADER_OR_FOLLOWER"
-        retriable = true
-    } else if code == 7 {
-        name = "REQUEST_TIMED_OUT"
-        retriable = true
-    } else if code == 10 {
-        name = "MESSAGE_TOO_LARGE"
-    } else if code == 17 {
-        name = "INVALID_TOPIC_EXCEPTION"
-    } else if code == 18 {
-        name = "RECORD_LIST_TOO_LARGE"
-    } else if code == 19 {
-        name = "NOT_ENOUGH_REPLICAS"
-        retriable = true
-    } else if code == 20 {
-        name = "NOT_ENOUGH_REPLICAS_AFTER_APPEND"
-        retriable = true
-    } else if code == 21 {
-        name = "INVALID_REQUIRED_ACKS"
-    } else if code == 29 {
-        name = "TOPIC_AUTHORIZATION_FAILED"
-    } else if code == 31 {
-        name = "CLUSTER_AUTHORIZATION_FAILED"
-    } else if code == 35 {
-        name = "UNSUPPORTED_VERSION"
-    } else if code == 42 {
-        name = "INVALID_REQUEST"
-    } else if code == 43 {
-        name = "UNSUPPORTED_FOR_MESSAGE_FORMAT"
-    } else if code == 56 {
-        name = "KAFKA_STORAGE_ERROR"
-        retriable = true
-    } else if code == 87 {
-        name = "INVALID_RECORD"
-    }
+    name = errorName(code)
+    retriable = [2, 3, 5, 6, 7, 19, 20, 56].contains(code)
     return KafkaError.Broker(
         code: code,
         name: name,

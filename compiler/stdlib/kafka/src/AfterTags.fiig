@@ -1,0 +1,36 @@
+// The offset after the tagged fields at offset at (KIP-482): a count, then
+// each field's tag, size, and that many bytes. None when they run past the
+// end.
+conversion afterTags(data: bytes, at: int) -> int | None {
+    match uvarintAt(data, at) {
+        None -> {
+            return None
+        }
+        count -> {
+            pos: int = count.next
+            i: int = 0
+            while i < count.value {
+                match uvarintAt(data, pos) {
+                    None -> {
+                        return None
+                    }
+                    tag -> {
+                        match uvarintAt(data, tag.next) {
+                            None -> {
+                                return None
+                            }
+                            size -> {
+                                pos = size.next + size.value
+                            }
+                        }
+                    }
+                }
+                i = i + 1
+            }
+            if pos > data.length() {
+                return None
+            }
+            return pos
+        }
+    }
+}

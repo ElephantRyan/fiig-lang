@@ -1,0 +1,7 @@
+// s once a request of the group's own, of kind, is written with the
+// session's next correlation id: that id is taken, and the response read
+// for it.
+conversion tracked(s: KafkaSessionState, kind: string) -> KafkaSessionState {
+    entry = Inflight(correlation: s.nextCorrelation, key: 0 - 1, callerCorrelation: 0, kind: kind)
+    return copy(s, nextCorrelation: s.nextCorrelation + 1, inflight: append(s.inflight, entry))
+}

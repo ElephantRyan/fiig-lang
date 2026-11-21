@@ -1,0 +1,8 @@
+// ADR 0117 §5, §7: how long after the first unsent ack a group session
+// commits, how long a retried record's partition waits before it is
+// fetched again, and the most bytes one fetch takes from one leader.
+config KafkaConsumer {
+    commitIntervalMillis: int from env "KAFKA_COMMIT_INTERVAL_MS" = 1000
+    retryAfterMillis: int from env "KAFKA_RETRY_AFTER_MS" = 1000
+    fetchMaxBytes: int from env "KAFKA_FETCH_MAX_BYTES" = 1048576
+}

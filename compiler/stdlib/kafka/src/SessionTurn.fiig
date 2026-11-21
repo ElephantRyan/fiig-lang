@@ -1,0 +1,11 @@
+use fiig.session
+
+// What one of the session's operations has decided so far: its next
+// state, what to write, the replies to give, and whether the connection is
+// done.
+model SessionTurn {
+    state: KafkaSessionState
+    write: bytes
+    replies: List<session.SessionReply>
+    close: session.SessionClose | None
+}

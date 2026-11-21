@@ -1,5 +1,13 @@
 {
     "path": "fiig.kafka",
     "kind": "library",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "dependencies": {
+        "fiig.session": "1.0.0",
+        "fiig.stream": "1.0.0"
+    },
+    "provides": {
+        "fiig.session.SessionProtocol": "KafkaSession",
+        "fiig.stream.StreamSource": "KafkaSource"
+    }
 }

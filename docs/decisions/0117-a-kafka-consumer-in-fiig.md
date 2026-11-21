@@ -192,6 +192,14 @@ servers, TLS, and client id, and a new `KafkaConsumer` config for
 - `fiig.kafka` provides `fiig.stream.StreamSource` and
   `fiig.session.SessionProtocol`.
 - The stream adapter skips the rest of a retried delivery's order.
+- An application that depends on `fiig.kafka` lists `Session` among its
+  manifest's capabilities (ADR 0035), a producer-only one too, since the
+  check is by package.
+- Tested against a Kafka 4.0 broker
+  (`TestStreamAdapterOverAKafkaConsumerGroup`, run when
+  `FIIG_KAFKA_BOOTSTRAP` and `FIIG_KAFKA_CONTAINER` name one): order kept
+  through a retried record, dead letters, commits a second process
+  resumes from, and a leave that hands it the partition at once.
 
 ## Open questions
 
