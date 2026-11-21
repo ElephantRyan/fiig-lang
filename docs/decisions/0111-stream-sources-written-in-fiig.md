@@ -344,6 +344,19 @@ said so; this is where it happens.
 4. **Throughput settings**: the batch size (16), the wait (2 s), and
    processing in parallel by key. They are fixed until a program needs
    them changed.
+
+   *(Amended 2026-11-21: the batch and the wait are settable, process-wide,
+   from the environment. `fiig serve` reads `STREAM_BATCH_SIZE`, 1 to 1000,
+   default 16, and `STREAM_WAIT_MS`, 1 to 60000, default 2000. A value out
+   of bounds or not a whole number is a problem in ADR 0071 §3's one
+   report, so `fiig serve` refuses to start. The wait can't be 0: Redis
+   reads `BLOCK 0` as waiting for ever, and a source that returned at once
+   would spin. Every route in the process gets the same settings; a
+   setting per route waits for a program that needs one. §5a still holds:
+   a source may ask for fewer than the batch. The receive's own timeout is
+   30 s plus the wait, so a long wait isn't cut short. Processing in
+   parallel by key is still open. `adapter.StreamSettings` and
+   `ParseStreamSettings` in `compiler/adapter/stream.go`.)*
 5. **Kafka and NATS**: both keep group or subscription state on a
    connection, so they wait on ADR 0109's open question 2.
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"fiig-lang/compiler/runtime"
@@ -17,13 +18,58 @@ import (
 // element with the source, or halts.
 
 const (
-	streamBatch    = 16
-	streamWait     = 2 * time.Second
 	sourceTimeout  = 30 * time.Second
 	settleTimeout  = 10 * time.Second
 	firstBackoff   = time.Second
 	longestBackoff = 30 * time.Second
 )
+
+// StreamSettings is how much one receive asks a source for: at most Batch
+// elements, waiting up to Wait for the first. They are process-wide,
+// fiig serve's STREAM_BATCH_SIZE and STREAM_WAIT_MS (ADR 0111 open
+// question 4, as amended 2026-11-21).
+type StreamSettings struct {
+	Batch int
+	Wait  time.Duration
+}
+
+// The bounds ParseStreamSettings holds the settings to.
+const (
+	MaxStreamBatch = 1000
+	MaxStreamWait  = time.Minute
+)
+
+// DefaultStreamSettings is 16 elements and a 2 s wait.
+func DefaultStreamSettings() StreamSettings {
+	return StreamSettings{Batch: 16, Wait: 2 * time.Second}
+}
+
+// ParseStreamSettings reads STREAM_BATCH_SIZE (1 to 1000) and
+// STREAM_WAIT_MS (1 to 60000) through lookup, each else its default. A bad
+// value is a problem for ADR 0071 §3's one report. No wait isn't one of
+// them: Redis reads BLOCK 0 as waiting for ever, and a source that
+// returned at once would spin.
+func ParseStreamSettings(lookup func(string) (string, bool)) (StreamSettings, []string) {
+	s := DefaultStreamSettings()
+	var problems []string
+	if v, ok := lookup("STREAM_BATCH_SIZE"); ok && v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > MaxStreamBatch {
+			problems = append(problems, fmt.Sprintf("STREAM_BATCH_SIZE: %q isn't a whole number from 1 to %d", v, MaxStreamBatch))
+		} else {
+			s.Batch = n
+		}
+	}
+	if v, ok := lookup("STREAM_WAIT_MS"); ok && v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > int(MaxStreamWait/time.Millisecond) {
+			problems = append(problems, fmt.Sprintf("STREAM_WAIT_MS: %q isn't a whole number of milliseconds from 1 to %d", v, MaxStreamWait/time.Millisecond))
+		} else {
+			s.Wait = time.Duration(n) * time.Millisecond
+		}
+	}
+	return s, problems
+}
 
 // Halt is a stream adapter stopping (ADR 0111 §4): a halt disposition, a
 // retry out of attempts, a fault, or an element that doesn't decode. The
@@ -54,6 +100,9 @@ type StreamRunner struct {
 	// the workflow's timeout it is the handleMillis the source is told
 	// (ADR 0111 §5a).
 	SettleTimeout time.Duration
+	// Settings is each receive's batch and wait (DefaultStreamSettings
+	// unless fiig serve or a test sets it).
+	Settings StreamSettings
 	// Logf reports what the loop can carry on past: a source that's
 	// unavailable, a settle that failed.
 	Logf func(format string, args ...any)
@@ -108,10 +157,11 @@ func StreamRunners(adapters []Served, u *types.Universe, in *runtime.Interp, con
 				source:  source,
 				// The route names its group (ADR 0111 §3a), so moving or
 				// renaming the adapter keeps it.
-				sub:           runtime.Subscription{Source: route.Path, Group: route.Group, Consumer: consumer, WaitMillis: int(streamWait / time.Millisecond), Latest: route.From == "latest"},
+				sub:           runtime.Subscription{Source: route.Path, Group: route.Group, Consumer: consumer, Latest: route.From == "latest"},
 				enter:         enter,
 				timeout:       timeout,
 				SettleTimeout: settleTimeout,
+				Settings:      DefaultStreamSettings(),
 				Logf:          func(string, ...any) {},
 			})
 		}
@@ -124,10 +174,11 @@ func StreamRunners(adapters []Served, u *types.Universe, in *runtime.Interp, con
 // handled when ctx ends is finished and settled first (§5).
 func (r *StreamRunner) Run(ctx context.Context) error {
 	r.sub.HandleMillis = int((r.timeout + r.SettleTimeout) / time.Millisecond)
+	r.sub.WaitMillis = int(r.Settings.Wait / time.Millisecond)
 	backoff := firstBackoff
 	for ctx.Err() == nil {
-		rctx, cancel := context.WithTimeout(r.enter(ctx), sourceTimeout)
-		deliveries, failure, fault := r.source.Receive(rctx, r.sub, streamBatch)
+		rctx, cancel := context.WithTimeout(r.enter(ctx), sourceTimeout+r.Settings.Wait)
+		deliveries, failure, fault := r.source.Receive(rctx, r.sub, r.Settings.Batch)
 		cancel()
 		if ctx.Err() != nil {
 			return nil

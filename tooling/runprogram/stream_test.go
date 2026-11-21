@@ -228,6 +228,23 @@ func TestStreamBatchFitsTheRedeliveryDelay(t *testing.T) {
 	}
 }
 
+// ADR 0111 open question 4, as amended 2026-11-21: a receive asks for the
+// batch and waits the wait its settings name, which fiig serve reads from
+// STREAM_BATCH_SIZE and STREAM_WAIT_MS.
+func TestStreamReceivesWithItsSettings(t *testing.T) {
+	redis := startFakeRedis(t, "pw")
+	runner := streamRunner(t, redis)
+	runner.Settings = adapter.StreamSettings{Batch: 1, Wait: 150 * time.Millisecond}
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+	if err := runner.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n, ms := redis.lastCount.Load(), redis.lastBlock.Load(); n != 1 || ms != 150 {
+		t.Errorf("XREADGROUP asked for COUNT %d BLOCK %d, want 1 and 150", n, ms)
+	}
+}
+
 // Item 6 of the review: a payload that isn't UTF-8 is dead-lettered as it
 // is, through Redis.sendBytes, rather than failing and coming back forever.
 func TestStreamDeadLettersBinaryPayloads(t *testing.T) {

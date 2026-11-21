@@ -18,6 +18,10 @@
 // many waiting up to 5 s, and REQUEST_TIMEOUT per request
 // (-request-timeout, 30 s).
 //
+// A stream route receives up to STREAM_BATCH_SIZE elements at a time (16),
+// waiting up to STREAM_WAIT_MS for the first (2000), as amended in ADR
+// 0111.
+//
 // A modular monolith serves several adapters at once (ADR 0079 §6): a
 // bare name is an adapter in root, and a dotted one is a dependency's,
 // its package path then its name. They share the listener, the limits,
@@ -254,6 +258,13 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	streams, err := adapter.StreamRunners(streamed, universe, in, consumerName(), limits.RequestTimeout)
 	if err != nil {
 		return nil, nil, nil, nil, err
+	}
+	// ADR 0111 open question 4, as amended 2026-11-21: every route
+	// receives with the same batch and wait.
+	throughput, throughputProblems := adapter.ParseStreamSettings(env.Lookup)
+	problems = append(problems, throughputProblems...)
+	for _, r := range streams {
+		r.Settings = throughput
 	}
 	jobs, err := adapter.ScheduleRunners(scheduled, universe, in, consumerName())
 	if err != nil {

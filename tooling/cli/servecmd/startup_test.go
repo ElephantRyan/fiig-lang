@@ -125,3 +125,17 @@ func TestADegradedStartupIsReadThroughConfig(t *testing.T) {
 		t.Errorf("logs = %q, want the degraded start logged", logs)
 	}
 }
+
+// ADR 0111 open question 4, as amended 2026-11-21: a stream setting out of
+// bounds stops fiig serve before it starts, in the one report.
+func TestABadStreamSettingRefusesToServe(t *testing.T) {
+	t.Setenv("STORAGE_READY", "true")
+	t.Setenv("STREAM_BATCH_SIZE", "5000")
+	root := t.TempDir()
+	writeTree(t, root, startupApp)
+	env, _ := runprogram.NewEnvironment("")
+	_, _, _, _, err := load(filepath.Join(root, "app"), []string{"api"}, "", nil, nil, nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
+	if err == nil || !strings.Contains(err.Error(), "STREAM_BATCH_SIZE") {
+		t.Errorf("err = %v, want a problem naming STREAM_BATCH_SIZE", err)
+	}
+}

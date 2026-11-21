@@ -23,6 +23,8 @@ type fakeRedis struct {
 	accepted atomic.Int32
 	// lastCount is the COUNT the last XREADGROUP asked for.
 	lastCount atomic.Int32
+	// lastBlock is the BLOCK it waited up to, in milliseconds.
+	lastBlock atomic.Int32
 
 	mu      sync.Mutex
 	kv      map[string]int
@@ -303,6 +305,7 @@ func (r *fakeRedis) readGroup(args []string) string {
 	count, _ := strconv.Atoi(args[4])
 	r.lastCount.Store(int32(count))
 	block, _ := strconv.Atoi(args[6])
+	r.lastBlock.Store(int32(block))
 	until := time.Now().Add(time.Duration(block) * time.Millisecond)
 	for {
 		r.mu.Lock()

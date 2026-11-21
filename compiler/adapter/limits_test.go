@@ -180,3 +180,29 @@ func TestASlowBodyStopsAtTheDeadline(t *testing.T) {
 		t.Errorf("took %s to stop a body past its 200ms deadline", took)
 	}
 }
+
+// ADR 0111 open question 4, as amended 2026-11-21: STREAM_BATCH_SIZE and
+// STREAM_WAIT_MS, each else its default, and a value out of bounds is a
+// problem naming it.
+func TestParseStreamSettings(t *testing.T) {
+	lookup := func(env map[string]string) func(string) (string, bool) {
+		return func(name string) (string, bool) { v, ok := env[name]; return v, ok }
+	}
+	if s, problems := ParseStreamSettings(lookup(nil)); s != DefaultStreamSettings() || len(problems) > 0 {
+		t.Errorf("defaults: got %+v %v", s, problems)
+	}
+	if s, problems := ParseStreamSettings(lookup(map[string]string{"STREAM_BATCH_SIZE": "100", "STREAM_WAIT_MS": "500"})); s != (StreamSettings{Batch: 100, Wait: 500 * time.Millisecond}) || len(problems) > 0 {
+		t.Errorf("set: got %+v %v", s, problems)
+	}
+	for _, env := range []map[string]string{
+		{"STREAM_BATCH_SIZE": "0"}, {"STREAM_BATCH_SIZE": "1001"}, {"STREAM_BATCH_SIZE": "lots"},
+		{"STREAM_WAIT_MS": "0"}, {"STREAM_WAIT_MS": "60001"}, {"STREAM_WAIT_MS": "2s"},
+	} {
+		_, problems := ParseStreamSettings(lookup(env))
+		for name := range env {
+			if len(problems) != 1 || !strings.Contains(problems[0], name) {
+				t.Errorf("%v: problems = %v", env, problems)
+			}
+		}
+	}
+}
