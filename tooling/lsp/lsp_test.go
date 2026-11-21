@@ -92,12 +92,49 @@ application Runs {
     serve web {
         Api
         ratings.clampApi
+        ratings.whoApi
     }
 }
 `,
 	"app/src/ratings/ClampApi.fiig": `adapter http clampApi {
     GET "/clamp/{score}" -> clampRoute(score: int)
         produces "application/json"
+}
+`,
+	// A route names its adapter's principal, which Go to Declaration and hover
+	// reach (ADR 0137).
+	"app/src/ratings/WhoApi.fiig": `adapter http whoApi {
+    principal me: Caller from header "Authorization" by signedIn else refused
+
+    GET "/who" -> who(me)
+        produces "application/json"
+}
+`,
+	"app/src/ratings/Caller.fiig": `model Caller {
+    id: string
+}
+`,
+	"app/src/ratings/CallerError.fiig": `enum CallerError {
+    Unknown
+}
+`,
+	"app/src/ratings/SignedIn.fiig": `workflow signedIn(key: string | None) -> Result<Caller, CallerError> {
+    match key {
+        None -> {
+            return Err(CallerError.Unknown)
+        }
+        given -> {
+            return Ok(Caller(id: given))
+        }
+    }
+}
+`,
+	"app/src/ratings/Refused.fiig": `conversion refused(error: CallerError) -> HttpResponse<string> {
+    return HttpResponse(status: 401, body: "who are you")
+}
+`,
+	"app/src/ratings/Who.fiig": `workflow who(me: Caller) -> string {
+    return me.id
 }
 `,
 	"app/src/ratings/ClampRoute.fiig": `workflow clampRoute(score: int) -> int {
@@ -506,4 +543,25 @@ func TestFolderPackagesNavigate(t *testing.T) {
 	}
 	c.open("app/test/ratings/Clamp.fiig", "test clampsHigh {\n    expect clamp(11) == \"ten\"\n}\n")
 	c.diagnostics(c.uri("app/test/ratings/Clamp.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+}
+
+// ADR 0137: a principal named by a route reaches its declaration, hovers as
+// one, and its binder navigates like a route's workflow.
+func TestAPrincipalNavigates(t *testing.T) {
+	c, _ := startClient(t, nil)
+	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
+	// `    GET "/who" -> who(me)`: line 3, me at character 22.
+	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/ratings/WhoApi.fiig", 3, 23)))
+	if len(locs) != 1 || locs[0].URI != c.uri("app/src/ratings/WhoApi.fiig") || locs[0].Range.Start.Line != 1 || locs[0].Range.Start.Character != 14 {
+		t.Fatalf("definition of me = %+v, want its principal at 2:15", locs)
+	}
+	h := decode[hover](t, c.request("textDocument/hover", c.at("app/src/ratings/WhoApi.fiig", 3, 23)))
+	if !strings.Contains(h.Contents.Value, `principal (who is calling) me: Caller from header "Authorization"`) {
+		t.Errorf("hover on me = %q", h.Contents.Value)
+	}
+	// `by signedIn`: line 1, character 56.
+	locs = decode[[]location](t, c.request("textDocument/definition", c.at("app/src/ratings/WhoApi.fiig", 1, 57)))
+	if len(locs) != 1 || locs[0].URI != c.uri("app/src/ratings/SignedIn.fiig") {
+		t.Fatalf("definition of signedIn = %+v, want SignedIn.fiig", locs)
+	}
 }

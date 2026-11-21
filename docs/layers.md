@@ -69,9 +69,19 @@ adapter http api {
 A request is refused at the first point that has the information (charter
 principle 11):
 
-1. **Who is asking.** Today that is a workflow's first line. Once ADR 0137
-   (proposed) is built, the adapter settles it before it reads the body, and
-   a workflow that needs a person takes one as a parameter, as below.
+1. **Who is asking.** The adapter settles its principal before it reads the
+   body (ADR 0137), and a workflow that needs a caller takes one as a
+   parameter, as below:
+
+   ```fiig
+   adapter http ratingsApi {
+       principal me: accounts.Identity from cookie "sid"
+           by sessions.signedIn else sessions.identityErrorResponse
+
+       PUT "/ratings/{itemId}" -> putRating(me, itemId: string, input: RatingInput)
+       ...
+   }
+   ```
 2. **The workflow** runs its pure checks next: rules over the input, with no
    I/O.
 3. **Then the steps.** Checks that need the outside world (does the book

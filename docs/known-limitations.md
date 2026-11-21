@@ -79,6 +79,10 @@ doesn't have to discover them.
   (`https://*.example.com`) match any depth but never the apex, and a
   two-label public suffix (`https://*.co.uk`) isn't detected, since the
   toolchain carries no Public Suffix List.
+- **A principal has one source, and is never optional** (ADR 0137 §8, §9,
+  decided and not built). A route can't accept a cookie *or* an API key
+  header; put the script-facing routes in their own adapter with their own
+  principal. A public route can't also see who is signed in.
 - **One content type per route**, and no `Accept` negotiation (ADR 0069
   open question 4). A non-JSON body is a `string` or `bytes` the program
   parses or writes itself; there's no XML library (open question 5).

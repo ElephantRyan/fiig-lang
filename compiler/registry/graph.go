@@ -17,6 +17,10 @@ func bodyCallNames(body *syntax.Block) []string { return syntax.BodyCallNames(bo
 // CustomerId) is a type, not a call dependency.
 func adapterCallNames(d *syntax.AdapterDecl) []string {
 	names := map[string]bool{}
+	for _, pr := range d.Principals {
+		syntax.CollectExprCallNames(pr.By.Call(), names)
+		syntax.CollectExprCallNames(pr.Else.Call(), names)
+	}
 	for _, route := range d.Routes {
 		if !syntax.PreludeCallForms[route.Workflow.Name] {
 			names[route.Workflow.Name] = true

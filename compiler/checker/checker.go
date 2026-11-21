@@ -730,6 +730,9 @@ type checker struct {
 	// safe here rather than threading a parameter through every function).
 	// Used by checkEffect (Category B).
 	callerKind declKind
+	// principals is the adapter being checked's principals by name (ADR
+	// 0137), for its routes; nil outside an adapter.
+	principals map[string]principalInfo
 	// tryTarget is the return type a `?` returns its Err into (F2): the
 	// enclosing declaration's, or nil where a `?` doesn't return from it (a
 	// test, a concurrent body, whose Err becomes that item's outcome).

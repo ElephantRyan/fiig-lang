@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -892,6 +893,18 @@ func describe(d syntax.Decl, member string) string {
 			}
 		}
 		return "formulas " + d.Name
+	case *syntax.AdapterDecl:
+		if pr := d.Principal(member); pr != nil {
+			from := pr.Source + " " + strconv.Quote(pr.SourceName)
+			if pr.From != nil {
+				from = pr.From.Name
+			}
+			out := "principal (who is calling) " + pr.Name + ": " + ty(pr.Type) + " from " + from
+			if pr.By != nil && pr.Else != nil {
+				out += "\n    by " + pr.By.Name() + " else " + pr.Else.Name()
+			}
+			return out
+		}
 	}
 	return syntax.DeclKindName(d) + " " + syntax.DeclName(d)
 }

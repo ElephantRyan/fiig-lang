@@ -73,6 +73,7 @@ func HTTPHandlerFor(adapters []Served, u *types.Universe, in *runtime.Interp, l 
 			if err != nil {
 				return nil, fmt.Errorf("route %s %q: %w", route.Verb, route.Path, err)
 			}
+			plan.principals = principalsFor(d, route)
 			pathPart, _, _ := strings.Cut(route.Path, "?")
 			pattern := route.Verb + " " + pathPart
 			where := fmt.Sprintf("%s %q in adapter %s", route.Verb, route.Path, a.Name())
@@ -132,6 +133,32 @@ func httpRouteHandler(route *syntax.Route, plan routePlan, u *types.Universe, in
 				}
 				return c.Value, true
 			},
+		}
+		// Who is calling is settled before anything else of the request is
+		// read (ADR 0137 §4), so a refused request's body is never read.
+		if len(plan.principals) > 0 {
+			ctx := enter(r.Context())
+			settled, refusal, fault := settlePrincipals(ctx, in, plan.principals, req)
+			if fault == nil && refusal == nil {
+				req.principals = settled
+			} else {
+				if fault != nil && r.Context().Err() == context.DeadlineExceeded {
+					lim.timedOut(w)
+					return
+				}
+				if fault != nil {
+					writeFault(w, r, fault)
+					return
+				}
+				produces := "application/json"
+				if route.Produces != nil {
+					produces = route.Produces.Text
+				}
+				if fault := writeResponse(w, *refusal, produces); fault != nil {
+					writeFault(w, r, fault)
+				}
+				return
+			}
 		}
 		if plan.bodyArg != "" {
 			consumes := "application/json"

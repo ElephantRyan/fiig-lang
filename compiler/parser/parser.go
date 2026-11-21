@@ -1018,12 +1018,81 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 	}
 	name := p.expectName()
 	p.expect(lexer.LBrace)
+	var principals []*syntax.PrincipalDecl
 	var routes []*syntax.Route
 	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
-		p.guardProgress(func() { routes = append(routes, p.parseRoute(kind)) })
+		p.guardProgress(func() {
+			// `principal` is contextual: a keyword only at the start of an
+			// adapter body line, before a name (ADR 0137 §1).
+			if p.atContextual("principal") && isNameToken(p.peek(1).Kind) {
+				pr := p.parsePrincipal()
+				if len(routes) > 0 {
+					p.errorf(pr.Start, "principal %s comes after a route; an adapter declares its principals first (ADR 0137 §1)", pr.Name)
+				}
+				principals = append(principals, pr)
+				return
+			}
+			routes = append(routes, p.parseRoute(kind))
+		})
 	}
 	end := p.expect(lexer.RBrace).End
-	return &syntax.AdapterDecl{Span: syntax.Span{Start: start, End: end}, Kind: kind, Name: name.Text, Routes: routes}
+	return &syntax.AdapterDecl{Span: syntax.Span{Start: start, End: end}, Kind: kind, Name: name.Text, Principals: principals, Routes: routes}
+}
+
+// parsePrincipal parses `principal name: Type from (header|cookie) "name"
+// by binder else refusal`, or `from earlier` for a principal settled from
+// another (ADR 0137 §1, §2). `by` is contextual; `else` is a keyword.
+func (p *Parser) parsePrincipal() *syntax.PrincipalDecl {
+	start := p.advance().Start // principal
+	pr := &syntax.PrincipalDecl{Name: p.expectName().Text}
+	p.expect(lexer.Colon)
+	pr.Type = p.parseType()
+	if p.atContextual("from") {
+		p.advance()
+		switch {
+		case p.atContextual("header"), p.atContextual("cookie"):
+			pr.Source = p.advance().Text
+			lit := p.parseStringLit()
+			pr.SourceName = plainText(lit)
+			if hasInterp(lit) {
+				p.errorf(lit.Start, "interpolation is not allowed in a %s name", pr.Source)
+			}
+		default:
+			tok := p.expectName()
+			pr.From = &syntax.Ident{Span: syntax.Span{Start: tok.Start, End: tok.End}, Name: tok.Text}
+		}
+	} else {
+		p.errorf(p.cur().Start, "expected 'from' after principal %s's type: from cookie \"name\", from header \"Name\", or from an earlier principal (ADR 0137 §1)", pr.Name)
+	}
+	if p.atContextual("by") {
+		p.advance()
+		pr.By = p.parseQualifiedRef()
+	} else {
+		p.errorf(p.cur().Start, "expected 'by' and the workflow that settles principal %s (ADR 0137 §1)", pr.Name)
+	}
+	if p.at(lexer.KwElse) {
+		p.advance()
+		pr.Else = p.parseQualifiedRef()
+	} else {
+		p.errorf(p.cur().Start, "expected 'else' and the conversion that answers when principal %s is refused (ADR 0137 §1)", pr.Name)
+	}
+	pr.Span = syntax.Span{Start: start, End: p.cur().Start}
+	return pr
+}
+
+// parseQualifiedRef parses `name` or `alias.name`.
+func (p *Parser) parseQualifiedRef() *syntax.QualifiedRef {
+	first := p.expectName()
+	ref := &syntax.QualifiedRef{Path: []string{first.Text}}
+	end := first.End
+	for p.at(lexer.Dot) {
+		p.advance()
+		next := p.expectName()
+		ref.Path = append(ref.Path, next.Text)
+		end = next.End
+	}
+	ref.Span = syntax.Span{Start: first.Start, End: end}
+	return ref
 }
 
 func (p *Parser) parseRoute(kind syntax.AdapterKind) *syntax.Route {
@@ -1048,8 +1117,13 @@ func (p *Parser) parseRoute(kind syntax.AdapterKind) *syntax.Route {
 		verb = p.expectName().Text
 	}
 	path := p.parsePlainString()
-	p.expect(lexer.Arrow)
 	route := &syntax.Route{Verb: verb, Path: path}
+	// `public` is contextual after an http route's path (ADR 0137 §3).
+	if kind == syntax.AdapterHTTP && p.atContextual("public") {
+		p.advance()
+		route.Public = true
+	}
+	p.expect(lexer.Arrow)
 	nameTok := p.expectName()
 	route.Workflow = &syntax.Ident{Span: syntax.Span{Start: nameTok.Start, End: nameTok.End}, Name: nameTok.Text}
 	route.Args = p.parseRouteArgs()
@@ -1292,6 +1366,15 @@ func (p *Parser) parseRouteArgs() []syntax.RouteArg {
 	for !p.at(lexer.RParen) && !p.at(lexer.EOF) {
 		start := p.cur().Start
 		name := p.expectName()
+		if p.at(lexer.Comma) || p.at(lexer.RParen) {
+			// A bare name passes the adapter's principal (ADR 0137 §1).
+			args = append(args, syntax.RouteArg{Span: syntax.Span{Start: start, End: name.End}, Name: name.Text, Principal: true})
+			if !p.at(lexer.Comma) {
+				break
+			}
+			p.advance()
+			continue
+		}
 		p.expect(lexer.Colon)
 		arg := syntax.RouteArg{Name: name.Text, Type: p.parseType()}
 		if p.atContextual("from") {

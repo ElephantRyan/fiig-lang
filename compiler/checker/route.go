@@ -2,6 +2,7 @@ package checker
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"fiig-lang/compiler/httpspec"
@@ -18,9 +19,14 @@ func (c *checker) checkAdapterRoutes(d *syntax.AdapterDecl) {
 	isStream := d.Kind == syntax.AdapterStream
 	isSchedule := d.Kind == syntax.AdapterSchedule
 	isStartup := d.Kind == syntax.AdapterStartup
+	c.principals = c.checkPrincipals(d)
+	defer func() { c.principals = nil }()
 	for _, route := range d.Routes {
 		if !isStream && !isSchedule && !isStartup {
 			c.checkMediaClauses(route, isHTTP)
+		}
+		if isHTTP {
+			c.checkRoutePrincipals(d, route)
 		}
 		decl, found := c.lookup(route.Workflow.Name)
 		if !found {
@@ -102,6 +108,10 @@ func (c *checker) checkRouteBinding(route *syntax.Route, wd *syntax.WorkflowDecl
 			c.report(arg.Start, "", "route argument %q is given twice", arg.Name)
 			continue
 		}
+		if arg.Principal {
+			c.checkPrincipalArg(arg, wd, paramTypes, argTypes)
+			continue
+		}
 		written := c.resolve(arg.Type)
 		argTypes[arg.Name] = written
 		pt, ok := paramTypes[arg.Name]
@@ -152,6 +162,12 @@ func (c *checker) checkRouteBinding(route *syntax.Route, wd *syntax.WorkflowDecl
 			c.report(arg.Start, "", "%q is bound by a %s placeholder and from a %s; bind it once", n, where, arg.Source)
 			return
 		}
+		if arg.Principal {
+			if _, isPrincipal := c.principals[n]; isPrincipal {
+				c.report(arg.Start, "U4", "%q is bound by a %s placeholder and is also a principal; rename the placeholder (ADR 0137 §1)", n, where)
+			}
+			return // otherwise checkPrincipalArg reported it
+		}
 		from := "a " + where + " placeholder"
 		if !isHTTP {
 			from = "the command line"
@@ -167,7 +183,7 @@ func (c *checker) checkRouteBinding(route *syntax.Route, wd *syntax.WorkflowDecl
 
 	var unclaimed []syntax.RouteArg
 	for _, arg := range route.Args {
-		if !claimed[arg.Name] && arg.Source == "" {
+		if !claimed[arg.Name] && arg.Source == "" && !arg.Principal {
 			unclaimed = append(unclaimed, arg)
 		}
 	}
@@ -201,6 +217,40 @@ func (c *checker) checkRouteBinding(route *syntax.Route, wd *syntax.WorkflowDecl
 		c.report(route.Start, "", "ambiguous request body: %d parameters unclaimed by path/query placeholders (%s)", len(unclaimed), strings.Join(names, ", "))
 	}
 	c.checkDefaultBody(route, wd)
+}
+
+// checkPrincipalArg is U4: a bare route argument names one of the
+// adapter's principals, whose type is the workflow parameter's.
+func (c *checker) checkPrincipalArg(arg syntax.RouteArg, wd *syntax.WorkflowDecl, paramTypes, argTypes map[string]types.Type) {
+	info, ok := c.principals[arg.Name]
+	if !ok {
+		argTypes[arg.Name] = types.Unknown{}
+		if len(c.principals) == 0 {
+			c.report(arg.Start, "U4", "route argument %s has no type, and this adapter declares no principal named %s; write %s: Type, or declare `principal %s: ...` (ADR 0137 §1)", arg.Name, arg.Name, arg.Name, arg.Name)
+		} else {
+			c.report(arg.Start, "U4", "route argument %s has no type and names no principal of this adapter; write %s: Type, or pass one of its principals (%s) (ADR 0137 §1)", arg.Name, arg.Name, principalNamesOf(c.principals))
+		}
+		return
+	}
+	argTypes[arg.Name] = info.typ
+	c.ref(arg.Start, arg.Name, info.adapter, arg.Name)
+	pt, ok := paramTypes[arg.Name]
+	if !ok {
+		c.report(arg.Start, "", "workflow %q has no parameter named %q", wd.Name, arg.Name)
+		return
+	}
+	if !isUnknown(info.typ) && !isUnknown(pt) && !types.Equal(info.typ, pt) {
+		c.report(arg.Start, "U4", "principal %s is %s, but %s's parameter %s is %s (ADR 0137 §1)", arg.Name, info.typ, wd.Name, arg.Name, pt)
+	}
+}
+
+func principalNamesOf(m map[string]principalInfo) string {
+	names := make([]string, 0, len(m))
+	for n := range m {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
 }
 
 func routeArg(route *syntax.Route, name string) *syntax.RouteArg {
