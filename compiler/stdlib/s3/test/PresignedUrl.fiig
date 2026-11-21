@@ -1,0 +1,123 @@
+// AWS's published presigned-URL example (SigV4 query-string
+// authentication, GET examplebucket/test.txt), and vectors from the Python
+// reference ADR 0121 describes, which reproduces AWS's.
+test aPresignedGetMatchesAwssExample {
+    account = S3Account(
+        endpoint: "https://s3.amazonaws.com",
+        region: "us-east-1",
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        token: "",
+        pathStyle: false,
+        timeoutMillis: 30000,
+    )
+    expect presignedUrl("GET", "examplebucket", "test.txt", 86400, account, 1369353600000) is Ok(url)
+    expect url == "https://examplebucket.s3.amazonaws.com/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404"
+}
+
+test aPresignedPutWithAnEncodedKey {
+    account = S3Account(
+        endpoint: "http://localhost:19000",
+        region: "us-east-1",
+        accessKeyId: "minioadmin",
+        secret: "minioadmin",
+        token: "",
+        pathStyle: true,
+        timeoutMillis: 30000,
+    )
+    expect presignedUrl("PUT", "photos", "2026/cat é.png", 900, account, 1700000000000) is Ok(url)
+    expect url == "http://localhost:19000/photos/2026/cat%20%C3%A9.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20231114%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20231114T221320Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=4823ce1edd70d637675a0bbbf07575cb15902abc28db864b51afcbbc6f4d934e"
+}
+
+test aPresignedUrlSignsTheSessionToken {
+    account = S3Account(
+        endpoint: "https://s3.eu-west-1.amazonaws.com",
+        region: "eu-west-1",
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        token: "FQoG/to+ken==",
+        pathStyle: true,
+        timeoutMillis: 30000,
+    )
+    expect presignedUrl("GET", "abc", "dir/b.txt", 3600, account, 1700000000000) is Ok(url)
+    expect url == "https://s3.eu-west-1.amazonaws.com/abc/dir/b.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20231114%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20231114T221320Z&X-Amz-Expires=3600&X-Amz-Security-Token=FQoG%2Fto%2Bken%3D%3D&X-Amz-SignedHeaders=host&X-Amz-Signature=e154384610e0767d8a180533ee1bc1a9d226ad403de33279cafd93b6721997f0"
+}
+
+test aPresignedHeadForSevenDays {
+    account = S3Account(
+        endpoint: "http://localhost:19000",
+        region: "us-east-1",
+        accessKeyId: "AKIDTEST",
+        secret: "SECRETTEST",
+        token: "",
+        pathStyle: true,
+        timeoutMillis: 30000,
+    )
+    expect presignedUrl("HEAD", "photos", "a", 604800, account, 1700000000000) is Ok(url)
+    expect url == "http://localhost:19000/photos/a?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIDTEST%2F20231114%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20231114T221320Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=b8618c7de882bf8dda6c8038d8c7b8e4256cd1af9903d25fa68b005e7b2ba403"
+}
+
+test aPresignedDeleteForOneSecond {
+    account = S3Account(
+        endpoint: "http://localhost:19000",
+        region: "us-east-1",
+        accessKeyId: "AKIDTEST",
+        secret: "SECRETTEST",
+        token: "",
+        pathStyle: true,
+        timeoutMillis: 30000,
+    )
+    expect presignedUrl("DELETE", "photos", "a", 1, account, 1700000000000) is Ok(url)
+    expect url == "http://localhost:19000/photos/a?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIDTEST%2F20231114%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20231114T221320Z&X-Amz-Expires=1&X-Amz-SignedHeaders=host&X-Amz-Signature=3e6cade4c3aa8319e84ea9e421b1adcd90bad7546a0a2febea91fffaa7b353fd"
+}
+
+test aPresignedUrlExpiresWithinSevenDays {
+    account = S3Account(
+        endpoint: "http://localhost:19000",
+        region: "us-east-1",
+        accessKeyId: "AKIDTEST",
+        secret: "SECRETTEST",
+        token: "",
+        pathStyle: true,
+        timeoutMillis: 30000,
+    )
+    expect presignedUrl("GET", "photos", "a", 0, account, 1700000000000) is Err(S3Error.InvalidRequest(reason))
+    expect presignedUrl("GET", "photos", "a", 604801, account, 1700000000000) is Err(S3Error.InvalidRequest(reason))
+}
+
+test aPresignedUrlIsForTheFourOperations {
+    account = S3Account(
+        endpoint: "http://localhost:19000",
+        region: "us-east-1",
+        accessKeyId: "AKIDTEST",
+        secret: "SECRETTEST",
+        token: "",
+        pathStyle: true,
+        timeoutMillis: 30000,
+    )
+    expect presignedUrl("POST", "photos", "a", 60, account, 1700000000000) is Err(S3Error.InvalidRequest(reason))
+    expect presignedUrl("get", "photos", "a", 60, account, 1700000000000) is Err(S3Error.InvalidRequest(reason))
+}
+
+test aPresignedUrlChecksTheKeyAndEndpoint {
+    account = S3Account(
+        endpoint: "ftp://storage.example",
+        region: "us-east-1",
+        accessKeyId: "AKIDTEST",
+        secret: "SECRETTEST",
+        token: "",
+        pathStyle: true,
+        timeoutMillis: 30000,
+    )
+    expect presignedUrl("GET", "photos", "a", 60, account, 1700000000000) is Err(S3Error.InvalidConfig(reason))
+    good = S3Account(
+        endpoint: "http://localhost:19000",
+        region: "us-east-1",
+        accessKeyId: "AKIDTEST",
+        secret: "SECRETTEST",
+        token: "",
+        pathStyle: true,
+        timeoutMillis: 30000,
+    )
+    expect presignedUrl("GET", "photos", "a/../b", 60, good, 1700000000000) is Err(S3Error.InvalidRequest(reason))
+}

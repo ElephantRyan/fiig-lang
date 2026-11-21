@@ -190,6 +190,42 @@ gateway copy(fromBucket: string, fromKey: string, toBucket: string, toKey: strin
   and `SignedHeaders` from it. `S3Call` gains `headers`. `canonicalRequest`
   and `signedHeaderNames` stay, for the four headers every request signs.)*
 
+*(Amended 2026-11-21: presigned URLs are in, as a ninth gateway:*
+
+```fiig
+gateway presign(method: string, bucket: string, key: string, expiresSeconds: int) -> Result<string, S3Error>
+    requires HttpClient
+```
+
+*- **SigV4 in the query string**: `X-Amz-Algorithm`, `X-Amz-Credential`,
+  `X-Amz-Date`, `X-Amz-Expires`, `X-Amz-Security-Token` with temporary
+  credentials, and `X-Amz-SignedHeaders=host`, then `X-Amz-Signature`. Only
+  `host` is signed and the payload is `UNSIGNED-PAYLOAD`, since the body
+  isn't known when the link is made; that is the one place this package
+  doesn't sign a body (§3), and it is how every SDK presigns. The token is
+  signed with the rest, as botocore and the Go SDK do it. The query has a
+  fixed set of names, written in SigV4's sorted order, so the general query
+  canonicaliser the "presigned URLs first" alternative assumed isn't needed;
+  listing still needs one.
+- **The method is GET, PUT, HEAD or DELETE**, as `signedRequest` takes, and
+  the expiry is 1 to 604800 seconds (seven days), S3's own bounds; anything
+  else is `InvalidRequest`, as is a key or bucket `objectTarget` refuses.
+  The URL is path or virtual-hosted style as `S3_PATH_STYLE` says.
+- **The signing is the conversion `presignedUrl`**, which takes the
+  `S3Account` and the time like `signedRequest`; the gateway reads the
+  settings and `Clock.now()` and calls it.
+- **It requires `HttpClient` and never calls it.** A gateway outside a fake
+  must name what it requires (ADR 0010; the parser makes the clause
+  mandatory), and only a gateway or an activity may read config or reveal a
+  Secret (ADR 0071), so `presign` can't be a conversion. `HttpClient` is
+  the client the link's request goes through, made by whoever holds the
+  URL, and the package's gateways already require it, so this adds no
+  binding: a program that uses `fiig.s3` binds `Socket` either way. Calling
+  `presign` opens no connection (a Go test runs it against a socket script
+  with no peers). Allowing a `requires`-less gateway for "reads settings,
+  touches nothing" would be a language change for one operation, and the
+  honest clause is close enough.)*
+
 ## Alternatives considered
 
 - **The whole S3 API.** Hundreds of operations, most of which no program
@@ -223,7 +259,8 @@ gateway copy(fromBucket: string, fromKey: string, toBucket: string, toKey: strin
 2. **Multipart upload**, for objects over 5 GiB (S3's limit for one PUT) and
    to retry a part, and **streaming**, which needs `fiig.http` to send and
    read a body in pieces (ADR 0074 §9). The whole object is in memory now.
-3. **Presigned URLs**, to give a browser a time-limited link.
+3. ~~**Presigned URLs**, to give a browser a time-limited link.~~ Done
+   2026-11-21 as `S3.presign` (§5's second amendment).
 4. ~~**Ranges** (`Range: bytes=0-99`), for reading part of an object.~~
    Done 2026-11-21 as `S3.getRange` (§5's amendment).
 5. ~~**Custom metadata and checksums** (`x-amz-meta-*`, `Content-MD5`,
@@ -298,3 +335,16 @@ quay.io): a PUT of a key
   running and none is kept, so the new signatures are checked only against
   the reference. The four gateways' repeated settings block (friction 1)
   is now eight.
+- *(Amended 2026-11-21: presigned URLs.)* New file `PresignedUrl`; `S3`
+  gains `presign`. The Python reference gained query-string signing and
+  reproduces AWS's published presigned-URL example (GET
+  `examplebucket/test.txt` at `20130524T000000Z` for 86400 seconds,
+  signature `aeeed9bb...d404`); note that example's secret is
+  `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`, with a `/` where the
+  header-signing examples have a `+`. 92 fiig tests now: AWS's example, a
+  PUT with an encoded key, a session token (`/`, `+` and `=` encoded), HEAD
+  for seven days, DELETE for one second, an expiry of 0 and of 604801, an
+  unknown or lower-case method, and a bad endpoint or key. One Go test
+  (17 now) runs the gateway against a socket script with no peers. **Not
+  tried against a real server.** The friction-1 settings block is now
+  nine.

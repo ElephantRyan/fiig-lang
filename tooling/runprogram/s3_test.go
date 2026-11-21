@@ -110,6 +110,14 @@ gateway archive(bucket: string, key: string) -> Result<None, s3.S3Error>
 {
     return S3.copy(bucket, key, "archive", "2026/${key}")
 }`,
+	"share.fiig": `use fiig.s3
+use fiig.s3.S3
+
+gateway share(bucket: string, key: string, seconds: int) -> Result<string, s3.S3Error>
+    requires S3
+{
+    return S3.presign("GET", bucket, key, seconds)
+}`,
 }
 
 // s3Interp loads s3Program with the given settings; the clock stands at
@@ -146,7 +154,8 @@ func s3Interp(t *testing.T, script *runtime.ScriptedSocket, env map[string]strin
 	lookup := func(name string) (string, bool) { v, ok := env[name]; return v, ok }
 	program := Program{Universe: u, Imports: in.Imports, Groups: in.Groups}
 	entries := []Entry{{Name: "upload"}, {Name: "download"}, {Name: "inspect"}, {Name: "remove"},
-		{Name: "tagged"}, {Name: "mistagged"}, {Name: "fetch"}, {Name: "middle"}, {Name: "rest"}, {Name: "archive"}}
+		{Name: "tagged"}, {Name: "mistagged"}, {Name: "fetch"}, {Name: "middle"}, {Name: "rest"}, {Name: "archive"},
+		{Name: "share"}}
 	if problems := in.LoadConfig(ReachableConfigFrom(program, entries), lookup); len(problems) > 0 {
 		t.Fatal(problems)
 	}
@@ -354,5 +363,30 @@ func TestS3ACopyThatFailsAfter200IsRefused(t *testing.T) {
 		send(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s", len(body), body)))
 	if !strings.Contains(got, "Refused(200, InternalError, try again)") {
 		t.Errorf("archive = %s, want Refused(200, InternalError, ...)", got)
+	}
+}
+
+// presign reads the settings and the clock and signs a URL, and makes no
+// connection: the script has no peers, so any byte written fails it.
+func TestS3PresignMakesAURLWithoutConnecting(t *testing.T) {
+	script := &runtime.ScriptedSocket{}
+	in := s3Interp(t, script, s3Env())
+	args := s3Args("a b.txt")
+	args["seconds"] = runtime.Int(600)
+	v, fault := in.Call(context.Background(), "share", args)
+	if fault != nil {
+		t.Fatalf("share faulted: %v", fault)
+	}
+	want := "http://localhost:19000/photos/a%20b.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIDTEST%2F20231114%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20231114T221320Z&X-Amz-Expires=600&X-Amz-SignedHeaders=host&X-Amz-Signature=b0067905d3e91059962b10b8d9211020cf850c55e7c716c7b296b8b01b40710b"
+	if got := fmt.Sprint(v); !strings.Contains(got, want) {
+		t.Errorf("share = %s, want Ok(%s)", got, want)
+	}
+	if err := script.Done(); err != nil {
+		t.Errorf("script: %v", err)
+	}
+	args["seconds"] = runtime.Int(604801)
+	v, fault = in.Call(context.Background(), "share", args)
+	if fault != nil || !strings.Contains(fmt.Sprint(v), "InvalidRequest") {
+		t.Errorf("an eight-day link: %v %v, want InvalidRequest", v, fault)
 	}
 }

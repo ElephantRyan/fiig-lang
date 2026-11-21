@@ -10,7 +10,8 @@ use fiig.http.HttpClient
 // keys are revealed, since signing needs their bytes (ADR 0071 §4). A PUT
 // sends its body's SHA-256 for S3 to check; putWithMetadata adds user
 // metadata, getObject reads it back with the body, getRange reads part of an
-// object, and copy copies one server-side, within a bucket or across two.
+// object, and copy copies one server-side, within a bucket or across two;
+// presign makes a time-limited URL for one of those requests and sends none.
 capability S3 {
     gateway put(bucket: string, key: string, body: bytes, contentType: string) -> Result<None, S3Error>
         requires HttpClient
@@ -269,5 +270,33 @@ capability S3 {
         request = signedRequest(call, account, Clock.now())?
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?
         return copyResult(reply)
+    }
+
+    // A URL that lets whoever holds it make one GET, PUT, HEAD or DELETE of
+    // the key until it expires (presignedUrl). Nothing is sent: the settings
+    // and the clock are all it reads. Every gateway says what it requires
+    // (ADR 0010), and HttpClient is the one the URL's request goes through,
+    // made by whoever holds it; this gateway never calls it, so making a
+    // link opens no connection, and the package binds nothing it didn't.
+    gateway presign(method: string, bucket: string, key: string, expiresSeconds: int) -> Result<string, S3Error>
+        requires HttpClient
+    {
+        token: string = ""
+        match S3Settings.sessionToken {
+            None -> None
+            given -> {
+                token = given.reveal()
+            }
+        }
+        account = S3Account(
+            endpoint: S3Settings.endpoint,
+            region: S3Settings.region,
+            accessKeyId: S3Settings.accessKeyId,
+            secret: S3Settings.secretAccessKey.reveal(),
+            token: token,
+            pathStyle: S3Settings.pathStyle,
+            timeoutMillis: S3Settings.timeoutMillis,
+        )
+        return presignedUrl(method, bucket, key, expiresSeconds, account, Clock.now())
     }
 }
