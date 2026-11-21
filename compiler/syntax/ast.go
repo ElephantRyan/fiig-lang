@@ -395,9 +395,9 @@ type ConfigDecl struct {
 // is nil when the field has none; the checker holds it to a constant.
 type ConfigField struct {
 	Span
-	Name    string
-	Type    Type
-	Env     string // the environment variable's name
+	Name string
+	Type Type
+	Env  string // the environment variable's name
 	// Startup, instead of Env, names a startup route as `Adapter.workflow`:
 	// the field is true when that route ended degraded (ADR 0127).
 	Startup string
@@ -493,8 +493,8 @@ type Route struct {
 	// Group and From are a stream route's consumer group and where a new
 	// group starts reading, "earliest" or "latest" (ADR 0111 §3a); ""
 	// otherwise or when omitted.
-	Group    string
-	From string
+	Group string
+	From  string
 	// Once and Within are a startup route's `once` (one replica runs it,
 	// claimed with the ScheduleLock) and `within "10s"` (its own deadline),
 	// ADR 0124 §6; false and "" otherwise or when omitted.

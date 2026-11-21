@@ -41,9 +41,9 @@ type StartupRunner struct {
 	// (ADR 0127): the package ("" for the application) and `Adapter.workflow`.
 	pkgPath, key string
 	degraded     bool
-	in    *runtime.Interp
-	enter func(context.Context) context.Context
-	lock  runtime.ScheduleLock // set for a `once` route
+	in           *runtime.Interp
+	enter        func(context.Context) context.Context
+	lock         runtime.ScheduleLock // set for a `once` route
 	// holder names this process in a `once` claim, and deploy names the
 	// deploy the claim is for: a route runs once per deploy, so a new deploy
 	// runs it again (ADR 0124 §6).
