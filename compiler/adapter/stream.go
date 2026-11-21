@@ -150,10 +150,16 @@ func (r *StreamRunner) Run(ctx context.Context) error {
 			continue
 		}
 		backoff = firstBackoff
+		// The orders with a retried element in this batch: the rest of
+		// each comes again after it, so it stays unsettled (ADR 0117 §6).
+		var retried map[string]bool
 		for _, d := range deliveries {
 			if ctx.Err() != nil {
 				// Unsettled, so it comes back from a later receive.
 				return nil
+			}
+			if retried[d.Order] {
+				continue
 			}
 			// Finished even if ctx ends meanwhile, so shutdown doesn't
 			// turn an element in hand into a fault.
@@ -170,6 +176,12 @@ func (r *StreamRunner) Run(ctx context.Context) error {
 			}
 			if failure != nil {
 				r.Logf("stream %s: settling id %s as %s failed (%v); the source will deliver it again", r.name, d.ID, outcome, failure)
+			}
+			if outcome == "Retry" && d.Order != "" {
+				if retried == nil {
+					retried = map[string]bool{}
+				}
+				retried[d.Order] = true
 			}
 		}
 	}

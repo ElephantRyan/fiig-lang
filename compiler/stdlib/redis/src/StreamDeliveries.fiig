@@ -15,7 +15,7 @@ conversion streamDeliveries(entries: List<RespValue>, counts: Map<string, int>) 
                         id -> {
                             out = append(
                                 out,
-                                stream.Delivery(id: id, payload: payloadOf(parts.last()), attempt: counts.atOr(id, 1)),
+                                stream.Delivery(id: id, payload: payloadOf(parts.last()), attempt: counts.atOr(id, 1), order: ""),
                             )
                         }
                     }

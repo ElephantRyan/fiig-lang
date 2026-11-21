@@ -119,11 +119,13 @@ type Subscription struct {
 }
 
 // Delivery is one element a receive returned (§1). value is the record as
-// the source built it, handed back to settle unchanged.
+// the source built it, handed back to settle unchanged. Order is the
+// sequence it belongs to, or "" (ADR 0117 §6).
 type Delivery struct {
 	ID      string
 	Payload []byte
 	Attempt int
+	Order   string
 	value   Value
 }
 
@@ -187,10 +189,11 @@ func (p *SourceProvider) Receive(ctx context.Context, s Subscription, limit int)
 		id, okID := rec.Fields["id"].(Str)
 		payload, okPayload := rec.Fields["payload"].(Bytes)
 		attempt, okAttempt := rec.Fields["attempt"].(Int)
-		if !ok || !okID || !okPayload || !okAttempt {
+		order, okOrder := rec.Fields["order"].(Str)
+		if !ok || !okID || !okPayload || !okAttempt || !okOrder {
 			return nil, nil, Faultf("StreamSource: %s's receive returned %s, not a Delivery", p.path, e)
 		}
-		deliveries = append(deliveries, Delivery{ID: string(id), Payload: payload.B, Attempt: int(attempt), value: rec})
+		deliveries = append(deliveries, Delivery{ID: string(id), Payload: payload.B, Attempt: int(attempt), Order: string(order), value: rec})
 	}
 	return deliveries, nil, nil
 }
