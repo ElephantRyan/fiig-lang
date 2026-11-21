@@ -289,14 +289,30 @@ type builtResponse struct {
 // 0098 §1): `return HttpResponse(status: 302, headers: ["Location": ...])`
 // is a 302 with a Location. A computed status gives nothing to read.
 func builtResponses(e syntax.Expr, r resolver) []builtResponse {
+	out, computed := builtResponsesIn(e, r, map[syntax.Decl]bool{})
+	if computed {
+		// One status known and another not: describing only the known one
+		// would hide the rest.
+		return nil
+	}
+	return out
+}
+
+// builtResponsesIn is builtResponses for the declaration e calls, also
+// reading each conversion that one calls in turn: `RatingError.Session(c)
+// -> sessions.identityErrorResponse(c)` answers with that conversion's 401
+// (Hearsay G57). visiting stops a cycle. computed reports a status that
+// isn't a constant anywhere it reached.
+func builtResponsesIn(e syntax.Expr, r resolver, visiting map[syntax.Decl]bool) (out []builtResponse, computed bool) {
 	call, ok := e.(*syntax.CallExpr)
 	if !ok {
-		return nil
+		return nil, false
 	}
 	decl, found := r.callee(call)
-	if !found {
-		return nil
+	if !found || visiting[decl] {
+		return nil, false
 	}
+	visiting[decl] = true
 	var body *syntax.Block
 	switch d := decl.(type) {
 	case *syntax.ConversionDecl:
@@ -305,17 +321,23 @@ func builtResponses(e syntax.Expr, r resolver) []builtResponse {
 		body = d.Body
 	}
 	if body == nil {
-		return nil
+		return nil, false
 	}
-	var out []builtResponse
 	seen := map[string]bool{}
-	computed := false
 	syntax.WalkBlockExprs(body, func(x syntax.Expr) {
 		c, ok := x.(*syntax.CallExpr)
 		if !ok {
 			return
 		}
 		if id, ok := c.Callee.(*syntax.Ident); !ok || id.Name != types.HttpResponseName {
+			nested, nestedComputed := builtResponsesIn(c, r, visiting)
+			computed = computed || nestedComputed
+			for _, b := range nested {
+				if !seen[b.code] {
+					seen[b.code] = true
+					out = append(out, b)
+				}
+			}
 			return
 		}
 		var b builtResponse
@@ -345,12 +367,7 @@ func builtResponses(e syntax.Expr, r resolver) []builtResponse {
 		b.redirect = strings.HasPrefix(b.code, "3")
 		out = append(out, b)
 	})
-	if computed {
-		// One status known and another not: describing only the known one
-		// would hide the rest.
-		return nil
-	}
-	return out
+	return out, computed
 }
 
 func statusAndBody(v syntax.ResponseValue) (code string, body syntax.Expr, hasBody bool) {
