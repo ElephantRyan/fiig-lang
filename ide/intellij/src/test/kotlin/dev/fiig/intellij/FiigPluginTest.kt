@@ -87,21 +87,29 @@ class FiigPluginTest : BasePlatformTestCase() {
     }
 
     fun testRunTargetsFromTheGutter() {
-        fun keyword(text: String) = myFixture.configureByText("a.fiig", text).let { file ->
+        val contributor = FiigRunLineMarkerContributor()
+        fun identifier(text: String, word: String, nth: Int = 0) = myFixture.configureByText("a.fiig", text).let { file ->
+            file.firstChild.siblings().filter { it.elementType == FiigTokens.IDENTIFIER && it.text == word }.drop(nth).first()
+        }
+        val app = "application Shop {\n    serve web { api }\n    serve worker { jobs }\n}\n"
+        val application = identifier(app, "application")
+        assertEquals(FiigRunTargets.Target(FiigCommand.SERVE, "Shop", ""), FiigRunTargets.at(application))
+        assertNotNull(contributor.getInfo(application))
+        assertEquals(FiigRunTargets.Target(FiigCommand.SERVE, "worker", "worker"), FiigRunTargets.at(identifier(app, "serve", 1)))
+        val test = identifier("test refusesNothing {\n    expect 1 is 1\n}\n", "test")
+        assertEquals(FiigRunTargets.Target(FiigCommand.TEST, "refusesNothing", "refusesNothing"), FiigRunTargets.at(test))
+
+        // No Play on a workflow, an adapter, or any other declaration.
+        fun keyword(text: String) = myFixture.configureByText("b.fiig", text).let { file ->
             file.firstChild.siblings().first { it.elementType == FiigTokens.KEYWORD }
         }
-        val contributor = FiigRunLineMarkerContributor()
-        val workflow = keyword("// Reads one.\nworkflow readCustomer(id: string) -> int {\n    return 0\n}\n")
-        assertEquals(FiigCommand.RUN, FiigRunTargets.at(workflow)?.command)
-        assertEquals("readCustomer", FiigRunTargets.at(workflow)?.decl?.name)
-        assertNotNull(contributor.getInfo(workflow))
-        val adapter = keyword("adapter http customerApi {\n}\n")
-        assertEquals(FiigCommand.SERVE, FiigRunTargets.at(adapter)?.command)
-        assertEquals("customerApi", FiigRunTargets.at(adapter)?.decl?.name)
-        val rule = keyword("rule check(n: int) -> bool {\n    return n > 0\n}\n")
-        assertEquals(FiigCommand.CHECK, FiigRunTargets.at(rule)?.command)
-        val cli = keyword("adapter cli tools {\n}\n")
-        assertEquals(FiigCommand.CHECK, FiigRunTargets.at(cli)?.command)
+        for (text in listOf(
+            "workflow readCustomer(id: string) -> int {\n    return 0\n}\n",
+            "adapter http customerApi {\n}\n",
+            "rule check(n: int) -> bool {\n    return n > 0\n}\n",
+        )) {
+            assertNull(text, contributor.getInfo(keyword(text)))
+        }
     }
 
     fun testCommandLines() {
@@ -125,6 +133,9 @@ class FiigPluginTest : BasePlatformTestCase() {
             listOf("fiig", "serve", "-caps", "/work/app/caps.json", "-addr", ":9090", "-workspace", "/work", "/work/app", "ordersApi", "shop.payments.paymentsApi"),
             config.commandLine("fiig").getCommandLineList(null),
         )
+        o.command = FiigCommand.TEST.name
+        o.target = "refusesNothing"
+        assertEquals(listOf("fiig", "test", "-caps", "/work/app/caps.json", "-run", "refusesNothing", "-workspace", "/work", "/work/app"), config.commandLine("fiig").getCommandLineList(null))
         o.command = FiigCommand.CHECK.name
         assertEquals(listOf("fiig", "check", "-workspace", "/work", "/work/app"), config.commandLine("fiig").getCommandLineList(null))
     }

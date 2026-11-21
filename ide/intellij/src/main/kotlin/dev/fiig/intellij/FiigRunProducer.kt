@@ -14,30 +14,33 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * ADR 0090 §4: what the gutter offers for a declaration: Run on a workflow,
- * Serve on an `adapter http`, Check on any other file's declaration.
+ * What the gutter offers: Play on the program's `application` and on each of
+ * its `serve` blocks (ADR 0132), and on each `test` (ADR 0091), and nowhere
+ * else. Workflows and adapters have no Play: a program is started by its
+ * application, which names what it runs.
  */
 object FiigRunTargets {
-    data class Target(val command: FiigCommand, val decl: FiigDeclaration)
+    /** [arg] is what the command takes: a serve block's role, a test's name, or none. */
+    data class Target(val command: FiigCommand, val name: String, val arg: String)
 
     fun at(element: PsiElement): Target? {
-        val decl = FiigDeclarations.of(element) ?: return null
+        if (element.elementType != FiigTokens.IDENTIFIER) return null
+        val name = FiigDeclarations.blockName(element) ?: return null
+        val depth = FiigDeclarations.depthAt(element)
         val file = element.containingFile ?: return null
-        if (FiigDeclarations.first(file)?.keyword != element) return null
         return when {
-            decl.kind == "workflow" -> Target(FiigCommand.RUN, decl)
-            FiigDeclarations.isHttpAdapter(decl) -> Target(FiigCommand.SERVE, decl)
-            else -> Target(FiigCommand.CHECK, decl)
+            depth == 0 && element.text == "application" -> Target(FiigCommand.SERVE, name, "")
+            depth == 0 && element.text == "test" -> Target(FiigCommand.TEST, name, name)
+            depth == 1 && element.text == "serve" && FiigDeclarations.iconKind(file) == "application" -> Target(FiigCommand.SERVE, name, name)
+            else -> null
         }
     }
 }
 
 class FiigRunLineMarkerContributor : RunLineMarkerContributor() {
     override fun getInfo(element: PsiElement): Info? {
-        if (element.elementType != FiigTokens.KEYWORD) return null
         val target = FiigRunTargets.at(element) ?: return null
-        val icon = if (target.command == FiigCommand.CHECK) AllIcons.Actions.Checked else AllIcons.RunConfigurations.TestState.Run
-        return Info(icon, ExecutorAction.getActions(0)) { "${target.command.title} ${target.decl.name}" }
+        return Info(AllIcons.RunConfigurations.TestState.Run, ExecutorAction.getActions(0)) { "${target.command.title} ${target.name}" }
     }
 }
 
@@ -58,22 +61,18 @@ class FiigRunConfigurationProducer : LazyRunConfigurationProducer<FiigRunConfigu
         val o = configuration.options
         o.command = target.command.name
         o.packageDir = pkg.toString()
-        o.target = if (target.command == FiigCommand.CHECK) "" else target.decl.name
+        o.target = target.arg
         o.workspace = context.project.basePath ?: ""
-        o.capsFile = pkg.resolve("caps.json").takeIf { Files.isRegularFile(it) && target.command != FiigCommand.CHECK }?.toString() ?: ""
-        configuration.name = when (target.command) {
-            FiigCommand.CHECK -> "Check ${pkg.fileName}"
-            else -> "${target.command.title} ${target.decl.name}"
-        }
+        o.capsFile = pkg.resolve("caps.json").takeIf { Files.isRegularFile(it) }?.toString() ?: ""
+        configuration.name = "${target.command.title} ${target.name}"
         return true
     }
 
     override fun isConfigurationFromContext(configuration: FiigRunConfiguration, context: ConfigurationContext): Boolean {
         val (target, file) = target(context) ?: return false
         val o = configuration.options
-        val wantTarget = if (target.command == FiigCommand.CHECK) "" else target.decl.name
         return configuration.command == target.command &&
             o.packageDir == FiigDeclarations.packageDir(file).toString() &&
-            (o.target ?: "") == wantTarget
+            (o.target ?: "") == target.arg
     }
 }

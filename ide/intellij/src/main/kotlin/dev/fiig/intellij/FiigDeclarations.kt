@@ -64,6 +64,26 @@ object FiigDeclarations {
         return null
     }
 
+    /** How many `{` are open before [leaf], counting from the file's first token. */
+    fun depthAt(leaf: PsiElement): Int {
+        var depth = 0
+        for (t in leaf.containingFile?.firstChild?.siblings() ?: return 0) {
+            if (t == leaf) break
+            when (t.elementType) {
+                FiigTokens.LBRACE -> depth++
+                FiigTokens.RBRACE -> depth--
+            }
+        }
+        return depth
+    }
+
+    /** The name after [leaf] when a `{` follows it: `test name {`, `serve role {`, `application Name {`. */
+    fun blockName(leaf: PsiElement): String? {
+        val code = leaf.nextSibling?.siblings()?.filter { it.elementType != FiigTokens.WHITE_SPACE && it.elementType != FiigTokens.LINE_COMMENT }?.take(2)?.toList() ?: return null
+        val (name, brace) = code.takeIf { it.size == 2 } ?: return null
+        return name.text.takeIf { (name.elementType == FiigTokens.IDENTIFIER || name.elementType == FiigTokens.TYPE_NAME) && brace.elementType == FiigTokens.LBRACE }
+    }
+
     /** Whether an adapter declaration is `adapter http`. */
     fun isHttpAdapter(decl: FiigDeclaration): Boolean {
         if (decl.kind != "adapter") return false

@@ -30,7 +30,7 @@ import javax.swing.JComponent
 
 /** ADR 0090 §4: what a fiig run configuration runs. */
 enum class FiigCommand(val title: String) {
-    RUN("Run"), SERVE("Serve"), CHECK("Check");
+    RUN("Run"), SERVE("Serve"), TEST("Test"), CHECK("Check");
 
     override fun toString(): String = title
 }
@@ -57,7 +57,7 @@ class FiigConfigurationFactory(type: FiigRunConfigurationType) : ConfigurationFa
 class FiigRunConfigurationOptions : RunConfigurationOptions() {
     var command by string(FiigCommand.RUN.name)
     var packageDir by string("")
-    /** Run: the declaration; Serve: the adapters, space-separated. */
+    /** Run: the declaration; Serve: a role or the adapters, space-separated, or none for the application; Test: the tests to run (a name contains match). */
     var target by string("")
     var argsJson by string("")
     var capsFile by string("")
@@ -78,9 +78,7 @@ class FiigRunConfiguration(project: Project, factory: ConfigurationFactory, name
     override fun checkConfiguration() {
         if (FiigBinary.find() == null) throw RuntimeConfigurationError("No fiig binary: set it in Settings | Languages & Frameworks | fiig, or put fiig on PATH")
         if (options.packageDir.isNullOrBlank()) throw RuntimeConfigurationError("Choose the package directory")
-        if (command != FiigCommand.CHECK && options.target.isNullOrBlank()) {
-            throw RuntimeConfigurationError(if (command == FiigCommand.RUN) "Name the declaration to run" else "Name the adapters to serve")
-        }
+        if (command == FiigCommand.RUN && options.target.isNullOrBlank()) throw RuntimeConfigurationError("Name the declaration to run")
     }
 
     /** The command line ADR 0090 §4's table gives each kind. */
@@ -96,9 +94,10 @@ class FiigRunConfiguration(project: Project, factory: ConfigurationFactory, name
         }
         if (command == FiigCommand.RUN) flag("-args", o.argsJson)
         if (command == FiigCommand.SERVE) flag("-addr", o.addr)
+        if (command == FiigCommand.TEST) flag("-run", o.target)
         flag("-workspace", o.workspace)
         args += o.packageDir ?: "."
-        if (command != FiigCommand.CHECK) args += ParametersListUtil.parse(o.target ?: "")
+        if (command == FiigCommand.RUN || command == FiigCommand.SERVE) args += ParametersListUtil.parse(o.target ?: "")
         return GeneralCommandLine(args).withWorkDirectory(o.packageDir).withCharset(Charsets.UTF_8)
     }
 
@@ -172,7 +171,7 @@ class FiigRunConfigurationEditor : SettingsEditor<FiigRunConfiguration>() {
     override fun createEditor(): JComponent = panel {
         row("Command:") { cell(command) }
         row("Package directory:") { cell(packageDir).align(AlignX.FILL) }
-        row("Declaration / adapters:") { cell(target).align(AlignX.FILL).comment("Run: a declaration. Serve: adapters, separated by spaces.") }
+        row("Declaration / adapters:") { cell(target).align(AlignX.FILL).comment("Run: a declaration. Serve: a role, or adapters separated by spaces; empty runs the application. Test: part of a test name.") }
         row("-args (JSON):") { cell(argsJson).align(AlignX.FILL) }
         row("-caps:") { cell(capsFile).align(AlignX.FILL) }
         row("-env-file:") { cell(envFile).align(AlignX.FILL) }
