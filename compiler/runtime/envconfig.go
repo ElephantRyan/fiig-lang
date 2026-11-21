@@ -171,6 +171,7 @@ func (in *Interp) readSource(src ConfigSource, lookup Lookup, partial bool, valu
 		t, _ := types.ResolveWithImports(f.Type, src.Universe, src.Imports)
 		name := src.EnvName(f)
 		text, set := lookup(name)
+		given := set // the variable is there, even when empty
 		if set && text == "" {
 			set = false
 		}
@@ -193,6 +194,11 @@ func (in *Interp) readSource(src ConfigSource, lookup Lookup, partial bool, valu
 				continue
 			}
 			rec.Fields[f.Name] = v
+		case partial && !given:
+			// `fiig test`: a field the env file doesn't name stays unset, even
+			// one that may be None, so reading it fails the test naming it
+			// (ADR 0091 §5, Hearsay G68). `NAME=` in the env file, or
+			// `fake C { field: None }`, says unset on purpose.
 		case admitsNoneType(t):
 			rec.Fields[f.Name] = None{}
 		case partial:
