@@ -270,15 +270,21 @@ at most 30 s.
 **A route's own deadline.** `run within "2m" -> slowCheck() { ... }` gives
 that route 2 minutes in place of 30 s (a Go duration, above zero).
 
-**One replica runs it.** `run once -> seed() { ... }` is claimed with the
-`ScheduleLock` the capabilities file binds, as a schedule's firings are
-(`{"ScheduleLock": {"type": "lock", "lock": "fiig.redis"}}`). The replica
-that wins the claim runs the route; one that loses it logs that and starts
-without running it, and **does not wait**: a claim says who runs the route,
-not that it has finished. The claim is held for 10 minutes, so a replica
-that starts later than that, in a slow rollout, runs it again. Write a
-`once` route so that running it twice is harmless. A claim that can't be
-made refuses to start.
+**One replica runs it, once per deploy.** `run once -> migrate() { ... }`
+is claimed with the `ScheduleLock` the capabilities file binds, as a
+schedule's firings are (`{"ScheduleLock": {"type": "lock", "lock":
+"fiig.redis"}}`).
+- One replica runs the route. The others **wait for it to finish** and then
+  start, without running it, so a route that must finish before anything
+  serves, such as a data migration, can say `once`.
+- A route that proceeds is remembered for 7 days. One that halts, faults or
+  times out isn't, so the replicas that wait take it over one at a time.
+- A replica that can't reach the lock refuses to start, and one that waits
+  twice as long as the route and 30 s allow gives up the same way.
+- **A deploy** is named by `$FIIG_DEPLOY` when you set it (a release tag or a
+  commit), and otherwise by a hash of the program's `.fiig`, `.sql` and
+  `.json` files, so shipping changed code, which is what a migration is
+  shipped with, runs the route again, and restarting the same code doesn't.
 
 **Checking without serving.** `fiig serve -check . app.Preflight` runs only
 the startup routes, then exits 0 when the program could start and 1 when it

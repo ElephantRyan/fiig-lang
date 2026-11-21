@@ -20,10 +20,18 @@ import (
 // StartupDeadline is how long one startup route may run (ADR 0124 §2).
 const StartupDeadline = 30 * time.Second
 
-// OnceHold is how long a `once` route's claim is held (ADR 0124 §6): a
-// replica that starts within it, as the replicas of one rolling deploy do,
-// finds the route claimed and skips it.
-const OnceHold = 10 * time.Minute
+const (
+	// OnceSlack is added to a `once` route's deadline for how long its claim
+	// is held (ADR 0124 §6): past it, a claimant that died without finishing
+	// is presumed gone, and a waiting replica claims the route next.
+	OnceSlack = 30 * time.Second
+	// OnceRetain is how long a finished `once` route is remembered for its
+	// deploy. A later replica of the same deploy finds it done.
+	OnceRetain = 7 * 24 * time.Hour
+	// OncePoll is how often a replica that lost the claim asks whether the
+	// winner has finished.
+	OncePoll = time.Second
+)
 
 // StartupRunner runs one startup route.
 type StartupRunner struct {
@@ -32,16 +40,24 @@ type StartupRunner struct {
 	in    *runtime.Interp
 	enter func(context.Context) context.Context
 	lock  runtime.ScheduleLock // set for a `once` route
-	// holder names this process in a `once` claim.
+	// holder names this process in a `once` claim, and deploy names the
+	// deploy the claim is for: a route runs once per deploy, so a new deploy
+	// runs it again (ADR 0124 §6).
 	holder string
+	deploy int64
 	// Deadline is how long the route may run: its `within`, else
 	// StartupDeadline, unless a test shortens it.
 	Deadline time.Duration
 	// IgnoreOnce runs a `once` route without claiming it, as `fiig serve
 	// -check` does: a check run is one process asking whether it could start.
 	IgnoreOnce bool
+	// Slack and Poll are OnceSlack and OncePoll unless a test shortens them;
+	// Wait is how a replica waits between polls, false when ctx ends first.
+	Slack time.Duration
+	Poll  time.Duration
+	Wait  func(ctx context.Context, d time.Duration) bool
 	// Logf reports a failed check the mapping lets the process start after,
-	// and a `once` route another replica has claimed.
+	// and a `once` route another replica ran or is running.
 	Logf func(format string, args ...any)
 }
 
@@ -55,8 +71,8 @@ func (r *StartupRunner) Lock() runtime.ScheduleLock { return r.lock }
 // StartupRunners plans every route of the startup adapters in adapters. A
 // `once` route is claimed with the ScheduleLock bound for its package, and
 // fails here, before anything runs, when none is bound. holder names this
-// process in its claims.
-func StartupRunners(adapters []Served, u *types.Universe, in *runtime.Interp, holder string) ([]*StartupRunner, error) {
+// process in its claims, and deploy names the deploy they are for.
+func StartupRunners(adapters []Served, u *types.Universe, in *runtime.Interp, holder string, deploy int64) ([]*StartupRunner, error) {
 	var out []*StartupRunner
 	for _, a := range adapters {
 		d := a.Decl
@@ -101,7 +117,11 @@ func StartupRunners(adapters []Served, u *types.Universe, in *runtime.Interp, ho
 				enter:    enter,
 				lock:     lock,
 				holder:   holder,
+				deploy:   deploy,
 				Deadline: deadline,
+				Slack:    OnceSlack,
+				Poll:     OncePoll,
+				Wait:     realWait,
 				Logf:     func(string, ...any) {},
 			})
 		}
@@ -109,36 +129,94 @@ func StartupRunners(adapters []Served, u *types.Universe, in *runtime.Interp, ho
 	return out, nil
 }
 
-// claim reports whether this replica runs the route. A replica that finds it
-// claimed skips it and starts without waiting: a claim says who runs the
-// route, not when it has finished (ADR 0124 §6).
-func (r *StartupRunner) claim(ctx context.Context) (bool, error) {
-	if r.lock == nil || r.IgnoreOnce {
-		return true, nil
-	}
+// once reports whether the route is claimed, and so run only once per deploy.
+func (r *StartupRunner) once() bool { return r.lock != nil && !r.IgnoreOnce }
+
+// lockCall runs one call of the route's lock under the lock's own timeout,
+// turning a fault or an Unavailable failure into the error that refuses the
+// start: whether the route has run is unknown, and starting on that is what
+// a check exists to prevent.
+func (r *StartupRunner) lockCall(ctx context.Context, what string, call func(context.Context) (bool, error, *runtime.Fault)) (bool, error) {
 	lctx, cancel := context.WithTimeout(r.enter(ctx), lockTimeout)
 	defer cancel()
-	claimed, failure, fault := r.lock.Claim(lctx, r.name, 0, r.holder, OnceHold.Milliseconds())
+	ok, failure, fault := call(lctx)
 	if fault != nil {
-		return false, fmt.Errorf("%s: claiming it faulted: %s", r.name, fault.Message)
+		return false, fmt.Errorf("%s: %s faulted: %s", r.name, what, fault.Message)
 	}
 	if failure != nil {
-		// Whether the route has run is unknown, and starting on that is what
-		// a check exists to prevent.
-		return false, fmt.Errorf("%s: it could not be claimed (%v)", r.name, failure)
+		return false, fmt.Errorf("%s: it could not be %s (%v)", r.name, what, failure)
 	}
-	if !claimed {
-		r.Logf("startup %s: another replica has claimed it, so this one starts without running it", r.name)
+	return ok, nil
+}
+
+// claim reports whether this replica runs the route. A replica that loses
+// the claim waits for the winner to finish it, and claims it again if the
+// winner's claim lapses without that: it died, and somebody must run it.
+// The wait is as long as a winner needs, its deadline and the claim's slack,
+// twice over, so a lapsed claim's successor has its own turn (ADR 0124 §6).
+func (r *StartupRunner) claim(ctx context.Context) (bool, error) {
+	hold := r.Deadline + r.Slack
+	wctx, cancel := context.WithTimeout(ctx, hold+hold)
+	defer cancel()
+	for {
+		mine, err := r.lockCall(wctx, "claimed", func(c context.Context) (bool, error, *runtime.Fault) {
+			return r.lock.Claim(c, r.name, r.deploy, r.holder, hold.Milliseconds())
+		})
+		if err != nil || mine {
+			return mine, err
+		}
+		done, err := r.lockCall(wctx, "asked about", func(c context.Context) (bool, error, *runtime.Fault) {
+			return r.lock.Completed(c, r.name, r.deploy)
+		})
+		if err != nil {
+			return false, err
+		}
+		if done {
+			r.Logf("startup %s: another replica has run it for this deploy, so this one starts without running it", r.name)
+			return false, nil
+		}
+		if !r.Wait(wctx, r.Poll) {
+			return false, fmt.Errorf("%s: another replica claimed it, and it was not finished within %s", r.name, hold+hold)
+		}
 	}
-	return claimed, nil
+}
+
+// complete records that this replica ran the route and its mapping said to
+// proceed, so the replicas waiting on it may start. A failure to record it
+// is logged and not fatal: this replica's check passed, and the others wait
+// out their time and then run it themselves.
+func (r *StartupRunner) complete(ctx context.Context) {
+	lctx, cancel := context.WithTimeout(r.enter(ctx), lockTimeout)
+	defer cancel()
+	failure, fault := r.lock.Complete(lctx, r.name, r.deploy, r.holder, OnceRetain.Milliseconds())
+	switch {
+	case fault != nil:
+		r.Logf("startup %s: it passed, but recording that faulted: %s", r.name, fault.Message)
+	case failure != nil:
+		r.Logf("startup %s: it passed, but recording that failed: %v", r.name, failure)
+	}
 }
 
 // Check runs the route once. It returns nil when the process may start
-// (the mapping says proceed), and the reason it may not otherwise.
+// (the mapping says proceed), and the reason it may not otherwise. A `once`
+// route is run by the replica that claims it for the deploy; the others wait
+// for that replica to finish.
 func (r *StartupRunner) Check(ctx context.Context) error {
+	if !r.once() {
+		return r.run(ctx)
+	}
 	if mine, err := r.claim(ctx); err != nil || !mine {
 		return err
 	}
+	if err := r.run(ctx); err != nil {
+		return err
+	}
+	r.complete(ctx)
+	return nil
+}
+
+// run runs the route's workflow under its deadline and applies its mapping.
+func (r *StartupRunner) run(ctx context.Context) error {
 	wctx, cancel := context.WithTimeout(r.enter(ctx), r.Deadline)
 	defer cancel()
 	result, fault := r.in.Call(wctx, workflowName(r.route), map[string]runtime.Value{})

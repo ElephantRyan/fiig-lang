@@ -261,7 +261,11 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	}
 	// A source or lock reads its own config (ADR 0111 §2, ADR 0112 §4),
 	// which no workflow reaches, so its gateways are entries too.
-	checks, err := adapter.StartupRunners(startups, universe, in, consumerName())
+	deploy, err := deployID(root, env.Lookup)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("naming the deploy: %w", err)
+	}
+	checks, err := adapter.StartupRunners(startups, universe, in, consumerName(), deploy)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

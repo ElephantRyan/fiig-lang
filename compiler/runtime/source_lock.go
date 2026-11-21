@@ -27,6 +27,12 @@ type ScheduleLock interface {
 	// Claim reports whether this holder runs job's firing at firedAt
 	// (Unix ms); a non-nil error is Err(LockError...), logged and skipped.
 	Claim(ctx context.Context, job string, firedAt int64, holder string, holdMillis int64) (bool, error, *Fault)
+	// Complete records that holder finished job's firedAt, for retainMillis
+	// (ADR 0124 §6); a schedule never calls it.
+	Complete(ctx context.Context, job string, firedAt int64, holder string, retainMillis int64) (error, *Fault)
+	// Completed reports whether anyone has completed job's firedAt, so a
+	// replica that lost the claim can wait for the one that won it.
+	Completed(ctx context.Context, job string, firedAt int64) (bool, error, *Fault)
 	// Describe says where claims go, for fiig serve's log.
 	Describe() string
 }
@@ -65,6 +71,16 @@ func (LocalLock) Call(context.Context, string, []Value) (Value, *Fault) {
 
 func (LocalLock) Claim(context.Context, string, int64, string, int64) (bool, error, *Fault) {
 	return true, nil, nil
+}
+
+// Complete and Completed: a local lock's claim always wins, so nothing
+// waits on a completion.
+func (LocalLock) Complete(context.Context, string, int64, string, int64) (error, *Fault) {
+	return nil, nil
+}
+
+func (LocalLock) Completed(context.Context, string, int64) (bool, error, *Fault) {
+	return false, nil, nil
 }
 
 func (LocalLock) Describe() string { return "this process alone (local)" }
@@ -118,27 +134,42 @@ func (p *LockProvider) Resolve() (*types.Package, string, *Fault) {
 }
 
 func (p *LockProvider) Claim(ctx context.Context, job string, firedAt int64, holder string, holdMillis int64) (bool, error, *Fault) {
+	return p.gatewayBool(ctx, "claim", Str(job), Int(firedAt), Str(holder), Int(holdMillis))
+}
+
+func (p *LockProvider) Complete(ctx context.Context, job string, firedAt int64, holder string, retainMillis int64) (error, *Fault) {
+	_, failure, f := p.gatewayBool(ctx, "complete", Str(job), Int(firedAt), Str(holder), Int(retainMillis))
+	return failure, f
+}
+
+func (p *LockProvider) Completed(ctx context.Context, job string, firedAt int64) (bool, error, *Fault) {
+	return p.gatewayBool(ctx, "completed", Str(job), Int(firedAt))
+}
+
+// gatewayBool calls the lock's gateway name, which takes args and returns
+// Result<bool, LockError>: the bool, or an Unavailable failure the caller
+// reports.
+func (p *LockProvider) gatewayBool(ctx context.Context, name string, args ...Value) (bool, error, *Fault) {
 	if _, _, f := p.Resolve(); f != nil {
 		return false, nil, f
 	}
-	gw := p.group.Gateway("claim")
-	if gw == nil || len(gw.Params) != 4 {
-		return false, nil, Faultf("ScheduleLock: lock %s has no claim gateway of four parameters", p.path)
+	gw := p.group.Gateway(name)
+	if gw == nil || len(gw.Params) != len(args) {
+		return false, nil, Faultf("ScheduleLock: lock %s has no %s gateway of %d parameters (ADR 0124 §6)", p.path, name, len(args))
 	}
-	args := []Value{Str(job), Int(firedAt), Str(holder), Int(holdMillis)}
-	named := make(map[string]Value, 4)
+	named := make(map[string]Value, len(args))
 	for i, prm := range gw.Params {
 		named[prm.Name] = args[i]
 	}
 	ctx, end := withResourceOwner(context.WithValue(ctx, resourceOwnerKey{}, nil))
 	defer end()
-	out, f := p.in.callDecl(ctx, p.sc, p.group.Name+".claim", gw, named)
+	out, f := p.in.callDecl(ctx, p.sc, p.group.Name+"."+name, gw, named)
 	if f != nil {
 		return false, nil, f
 	}
 	r, ok := out.(Result)
 	if !ok {
-		return false, nil, Faultf("ScheduleLock: %s's claim returned %s, not a Result", p.path, out)
+		return false, nil, Faultf("ScheduleLock: %s's %s returned %s, not a Result", p.path, name, out)
 	}
 	if !r.Ok {
 		reason := r.Value.String()
@@ -151,7 +182,7 @@ func (p *LockProvider) Claim(ctx context.Context, job string, firedAt int64, hol
 	}
 	b, ok := r.Value.(Bool)
 	if !ok {
-		return false, nil, Faultf("ScheduleLock: %s's claim returned Ok(%s), not a bool", p.path, r.Value)
+		return false, nil, Faultf("ScheduleLock: %s's %s returned Ok(%s), not a bool", p.path, name, r.Value)
 	}
 	return bool(b), nil, nil
 }

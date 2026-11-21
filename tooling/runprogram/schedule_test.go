@@ -63,6 +63,34 @@ gateway countTick(firedAt: int) -> Result<None, JobError>
     }
     return Ok(None)
 }`,
+	// ADR 0124 §6: a startup route that runs once per deploy, counted.
+	"count_seed.fiig": `use fiig.redis.Redis
+
+gateway countSeed() -> Result<None, JobError>
+    requires Redis
+{
+    match Redis.send(["INCR", "seeds"]) {
+        Ok(_) -> {
+            return Ok(None)
+        }
+        Err(_) -> {
+            return Err(JobError.Broken)
+        }
+    }
+}`,
+	"note_seed.fiig": `activity noteSeed() -> Result<None, JobError> {
+    return countSeed()
+}`,
+	"seed.fiig": `workflow seed() -> Result<None, JobError> {
+    noteSeed()?
+    return Ok(None)
+}`,
+	"seeded.fiig": `adapter startup Seeded {
+    run once -> seed() {
+        Ok(_) -> proceed
+        Err(_) -> halt
+    }
+}`,
 	"spin.fiig": `workflow spin() -> Result<None, JobError> {
     while true {
     }
@@ -290,6 +318,14 @@ func (l *recordingLock) Claim(_ context.Context, _ string, _ int64, _ string, ho
 	defer l.mu.Unlock()
 	l.holds = append(l.holds, holdMillis)
 	return true, nil, nil
+}
+
+func (l *recordingLock) Complete(context.Context, string, int64, string, int64) (error, *runtime.Fault) {
+	return nil, nil
+}
+
+func (l *recordingLock) Completed(context.Context, string, int64) (bool, error, *runtime.Fault) {
+	return false, nil, nil
 }
 
 func (l *recordingLock) Describe() string { return "a test" }

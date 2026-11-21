@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -210,11 +211,17 @@ func (r *fakeRedis) command(name string, args []string) string {
 	case "SET":
 		// SET key value NX PX ms, the form a schedule lock sends (ADR
 		// 0112 §4); expiry isn't modelled, since a test's firings differ.
-		if _, taken := r.strings[args[0]]; taken {
+		if _, taken := r.strings[args[0]]; taken && slices.Contains(args, "NX") {
 			return "$-1\r\n"
 		}
 		r.strings[args[0]] = args[1]
 		return "+OK\r\n"
+	case "EXISTS":
+		// A lock's done key (ADR 0124 §6).
+		if _, ok := r.strings[args[0]]; ok {
+			return ":1\r\n"
+		}
+		return ":0\r\n"
 	case "INCR":
 		r.kv[args[0]]++
 		return fmt.Sprintf(":%d\r\n", r.kv[args[0]])

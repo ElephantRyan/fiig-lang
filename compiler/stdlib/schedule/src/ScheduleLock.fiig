@@ -1,9 +1,15 @@
-// ADR 0112 §4: what a schedule lock written in fiig provides, so one
-// replica runs each firing of a job. A program never calls it: the runtime
-// claims a firing before running its workflow. claim is true for exactly
-// one caller per job and firedAt; the claim lasts holdMillis. A lock's
+// ADR 0112 §4, ADR 0124 §6: what a lock written in fiig provides. A program
+// never calls it: the runtime claims a firing before running its workflow,
+// and a startup route that says `once` before running its check. claim is
+// true for exactly one caller per job and firedAt; the claim lasts
+// holdMillis. complete records that the claimant finished, for retainMillis,
+// and completed asks whether anyone has, so a replica that lost the claim can
+// wait for the winner instead of starting early. A schedule only claims; a
+// startup route uses all three, with a deploy's id as firedAt. A lock's
 // manifest names the group that fulfils it:
 // "provides": {"fiig.schedule.ScheduleLock": "RedisScheduleLock"}.
 interface ScheduleLock {
     claim(job: string, firedAt: int, holder: string, holdMillis: int) -> Result<bool, LockError>
+    complete(job: string, firedAt: int, holder: string, retainMillis: int) -> Result<bool, LockError>
+    completed(job: string, firedAt: int) -> Result<bool, LockError>
 }

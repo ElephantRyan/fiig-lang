@@ -72,6 +72,12 @@ var startupProgram = map[string]string{
         _ -> proceed
     }
 }`,
+	"once_ok.fiig": `adapter startup OnceOk {
+    run once -> storageOk() {
+        Ok(_) -> proceed
+        Err(_) -> halt
+    }
+}`,
 	"once.fiig": `adapter startup Once {
     run once -> storageMissing() {
         Ok(_) -> proceed
@@ -93,12 +99,17 @@ var startupProgram = map[string]string{
 }`,
 }
 
-// onceLock is a ScheduleLock that records its claims.
+// onceLock is a ScheduleLock that records its calls and answers from a
+// script: a claim is granted from its grantAt-th call on (0 never), and a
+// completion is seen from its doneAt-th Completed call on (0 never).
 type onceLock struct {
 	mu      sync.Mutex
-	grant   bool
+	grantAt int
+	doneAt  int
 	failure error
 	claims  []string
+	asked   int
+	done    []string
 }
 
 func (*onceLock) Call(context.Context, string, []runtime.Value) (runtime.Value, *runtime.Fault) {
@@ -109,10 +120,30 @@ func (l *onceLock) Claim(_ context.Context, job string, firedAt int64, holder st
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.claims = append(l.claims, fmt.Sprintf("%s|%d|%s|%d", job, firedAt, holder, hold))
-	return l.grant, l.failure, nil
+	return l.grantAt > 0 && len(l.claims) >= l.grantAt, l.failure, nil
+}
+
+func (l *onceLock) Complete(_ context.Context, job string, firedAt int64, holder string, retain int64) (error, *runtime.Fault) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.done = append(l.done, fmt.Sprintf("%s|%d|%s|%d", job, firedAt, holder, retain))
+	return nil, nil
+}
+
+func (l *onceLock) Completed(context.Context, string, int64) (bool, error, *runtime.Fault) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.asked++
+	return l.doneAt > 0 && l.asked >= l.doneAt, nil, nil
 }
 
 func (*onceLock) Describe() string { return "a test lock" }
+
+// quick makes a runner's polling instant, and its slack small.
+func quick(r *adapter.StartupRunner) {
+	r.Poll = time.Millisecond
+	r.Slack = 20 * time.Millisecond
+}
 
 func startupRunners(t *testing.T, adapterNames ...string) []*adapter.StartupRunner {
 	t.Helper()
@@ -161,7 +192,7 @@ func startupRunnersWith(t *testing.T, lock runtime.ScheduleLock, adapterNames ..
 		d, _ := u.Lookup(name)
 		served = append(served, adapter.Served{Decl: d.(*syntax.AdapterDecl)})
 	}
-	return adapter.StartupRunners(served, u, in, "replica-1")
+	return adapter.StartupRunners(served, u, in, "replica-1", 7)
 }
 
 func TestStartupProceedsWhenNothingHalts(t *testing.T) {
@@ -240,11 +271,11 @@ func TestStartupWithinIsTheRoutesDeadline(t *testing.T) {
 	}
 }
 
-// §6: a `once` route is claimed, and a replica that loses the claim starts
-// without running it.
+// §6: a `once` route is claimed for the deploy, and a replica that loses the
+// claim to a replica that has finished starts without running it.
 func TestStartupOnceRunsOnlyWhereItIsClaimed(t *testing.T) {
 	var logs logLines
-	lock := &onceLock{grant: false}
+	lock := &onceLock{doneAt: 1}
 	runners, err := startupRunnersWith(t, lock, "Once")
 	if err != nil {
 		t.Fatal(err)
@@ -257,24 +288,104 @@ func TestStartupOnceRunsOnlyWhereItIsClaimed(t *testing.T) {
 	if err := adapter.RunStartup(context.Background(), runners); err != nil {
 		t.Fatalf("a replica that lost the claim was refused: %v", err)
 	}
-	if want := "Once run -> storageMissing|0|replica-1|600000"; len(lock.claims) != 1 || lock.claims[0] != want {
+	// The claim is for deploy 7, held for the deadline and the slack.
+	if want := "Once run -> storageMissing|7|replica-1|60000"; len(lock.claims) != 1 || lock.claims[0] != want {
 		t.Errorf("claims = %v, want [%s]", lock.claims, want)
 	}
-	if !strings.Contains(logs.all(), "another replica has claimed it") {
+	if !strings.Contains(logs.all(), "another replica has run it for this deploy") {
 		t.Errorf("logs = %q", logs.all())
 	}
-	// Claimed here: it runs, and its mapping halts.
-	lock.grant = true
+	if len(lock.done) != 0 {
+		t.Errorf("a replica that did not run it recorded %v", lock.done)
+	}
+	// Claimed here: it runs, and its mapping halts, so nothing is recorded.
+	lock.grantAt, lock.doneAt = 1, 0
 	err = adapter.RunStartup(context.Background(), runners)
 	if err == nil || !strings.Contains(err.Error(), "its mapping says halt") {
 		t.Errorf("err = %v, want the claimed route to run and halt", err)
+	}
+	if len(lock.done) != 0 {
+		t.Errorf("a route that halted was recorded as done: %v", lock.done)
+	}
+}
+
+// §6: a route that proceeds is recorded, so the replicas waiting on it may
+// start, and is recorded for the deploy it ran in.
+func TestStartupOnceRecordsACompletion(t *testing.T) {
+	lock := &onceLock{grantAt: 1}
+	runners, err := startupRunnersWith(t, lock, "OnceOk")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := adapter.RunStartup(context.Background(), runners); err != nil {
+		t.Fatal(err)
+	}
+	// Retained for seven days.
+	if want := "OnceOk run -> storageOk|7|replica-1|604800000"; len(lock.done) != 1 || lock.done[0] != want {
+		t.Errorf("done = %v, want [%s]", lock.done, want)
+	}
+}
+
+// §6: a replica that loses the claim waits for the winner to finish, polling,
+// and starts when it has; it does not run the route.
+func TestStartupOnceWaitsForTheWinner(t *testing.T) {
+	var logs logLines
+	lock := &onceLock{doneAt: 4}
+	runners, err := startupRunnersWith(t, lock, "Once")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runners[0].Logf = logs.Logf
+	quick(runners[0])
+	if err := adapter.RunStartup(context.Background(), runners); err != nil {
+		t.Fatalf("a replica waiting on a winner that finished was refused: %v", err)
+	}
+	if lock.asked != 4 || len(lock.claims) != 4 {
+		t.Errorf("asked %d times and claimed %d times, want 4 of each", lock.asked, len(lock.claims))
+	}
+	if !strings.Contains(logs.all(), "another replica has run it for this deploy") {
+		t.Errorf("logs = %q", logs.all())
+	}
+}
+
+// §6: when the winner dies without finishing, its claim lapses and a waiting
+// replica's next claim wins; it runs the route itself.
+func TestStartupOnceTakesOverFromAWinnerThatDied(t *testing.T) {
+	lock := &onceLock{grantAt: 3}
+	runners, err := startupRunnersWith(t, lock, "Once")
+	if err != nil {
+		t.Fatal(err)
+	}
+	quick(runners[0])
+	err = adapter.RunStartup(context.Background(), runners)
+	if err == nil || !strings.Contains(err.Error(), "its mapping says halt") {
+		t.Errorf("err = %v, want the replica that took over to run the route", err)
+	}
+	if len(lock.claims) != 3 {
+		t.Errorf("claims = %v, want three", lock.claims)
+	}
+}
+
+// §6: a winner that never finishes and never lets go is waited on for its
+// deadline and slack, twice, and then the start is refused.
+func TestStartupOnceGivesUpWaiting(t *testing.T) {
+	lock := &onceLock{}
+	runners, err := startupRunnersWith(t, lock, "Once")
+	if err != nil {
+		t.Fatal(err)
+	}
+	quick(runners[0])
+	runners[0].Deadline = 10 * time.Millisecond
+	err = adapter.RunStartup(context.Background(), runners)
+	if err == nil || !strings.Contains(err.Error(), "another replica claimed it, and it was not finished within 60ms") {
+		t.Errorf("err = %v", err)
 	}
 }
 
 // §6: a claim that can't be made is a refusal: whether the route has run is
 // not known.
 func TestStartupOnceRefusesWhenTheClaimFails(t *testing.T) {
-	lock := &onceLock{grant: true, failure: errors.New("redis is down")}
+	lock := &onceLock{grantAt: 1, failure: errors.New("redis is down")}
 	runners, err := startupRunnersWith(t, lock, "Once")
 	if err != nil {
 		t.Fatal(err)
@@ -287,7 +398,7 @@ func TestStartupOnceRefusesWhenTheClaimFails(t *testing.T) {
 
 // §6: `-check` runs a once route in the process that asks, claiming nothing.
 func TestStartupIgnoreOnceRunsWithoutClaiming(t *testing.T) {
-	lock := &onceLock{grant: false}
+	lock := &onceLock{}
 	runners, err := startupRunnersWith(t, lock, "Once")
 	if err != nil {
 		t.Fatal(err)
@@ -299,6 +410,85 @@ func TestStartupIgnoreOnceRunsWithoutClaiming(t *testing.T) {
 	}
 	if len(lock.claims) != 0 {
 		t.Errorf("claims = %v, want none", lock.claims)
+	}
+}
+
+// seededRunner plans the Seeded adapter of scheduleProgram for one replica of
+// a deploy, with fiig.redis's lock bound and redis as its server.
+func seededRunner(t *testing.T, redis *fakeRedis, holder string, deploy int64) *adapter.StartupRunner {
+	t.Helper()
+	root := t.TempDir()
+	for name, src := range fixture.Module(scheduleProgram) {
+		os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
+		if err := os.WriteFile(filepath.Join(root, name), []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loaded, errs := loader.Load(root, nil)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	files, _, err := LoadFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diags := Check(root, files, loaded.Packages); len(diags) > 0 {
+		t.Fatal(diags)
+	}
+	u, _ := types.BuildUniverse(files)
+	lock, err := runtime.LockFactory(map[string]any{"type": "lock", "lock": "fiig.redis"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	caps := runtime.NewCapabilityRegistry()
+	caps.Register(runtime.ScheduleLockCapability, lock)
+	RegisterDefaults(caps)
+	t.Cleanup(caps.Close)
+	in := runtime.New(u, caps)
+	in.Imports = BuildImports(files, loaded.Packages)
+	in.Groups = BuildGroups(files, loaded.Packages)
+	in.Packages = loaded.Packages
+	d, _ := u.Lookup("Seeded")
+	runners, err := adapter.StartupRunners([]adapter.Served{{Decl: d.(*syntax.AdapterDecl)}}, u, in, holder, deploy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lp := runners[0].Lock().(*runtime.LockProvider)
+	pkg, group, _ := lp.Resolve()
+	env := map[string]string{"REDIS_URL": redis.url()}
+	lookup := func(name string) (string, bool) { v, ok := env[name]; return v, ok }
+	program := Program{Universe: u, Imports: in.Imports, Groups: in.Groups}
+	if problems := in.LoadConfig(ReachableConfigFrom(program, []Entry{{Name: "Seeded"}, {Package: pkg, Name: group}}), lookup); len(problems) > 0 {
+		t.Fatal(problems)
+	}
+	return runners[0]
+}
+
+// §6, through fiig.redis's own lock: of two replicas of one deploy, one runs
+// the route and the other finds it done and does not; a new deploy runs it
+// again.
+func TestStartupOncePerDeployThroughRedis(t *testing.T) {
+	redis := startFakeRedis(t, "pw")
+	var logs logLines
+	for _, holder := range []string{"replica-a", "replica-b"} {
+		r := seededRunner(t, redis, holder, 11)
+		r.Logf = logs.Logf
+		if err := adapter.RunStartup(context.Background(), []*adapter.StartupRunner{r}); err != nil {
+			t.Fatalf("%s: %v", holder, err)
+		}
+	}
+	if n := redis.counter("seeds"); n != 1 {
+		t.Errorf("two replicas of one deploy ran the route %d times, want 1", n)
+	}
+	if !strings.Contains(logs.all(), "another replica has run it for this deploy") {
+		t.Errorf("logs = %q", logs.all())
+	}
+	next := seededRunner(t, redis, "replica-c", 12)
+	if err := adapter.RunStartup(context.Background(), []*adapter.StartupRunner{next}); err != nil {
+		t.Fatal(err)
+	}
+	if n := redis.counter("seeds"); n != 2 {
+		t.Errorf("after a new deploy the route has run %d times, want 2", n)
 	}
 }
 
