@@ -64,8 +64,10 @@ doesn't have to discover them.
 
 ## HTTP
 
-- **CORS origins are listed exactly** (ADR 0070 §9): no wildcard
-  subdomains for per-tenant front ends, and one policy per adapter.
+- **One CORS policy per adapter** (ADR 0070 §9). Wildcard subdomains
+  (`https://*.example.com`) match any depth but never the apex, and a
+  two-label public suffix (`https://*.co.uk`) isn't detected, since the
+  toolchain carries no Public Suffix List.
 - **One content type per route**, and no `Accept` negotiation (ADR 0069
   open question 4). A non-JSON body is a `string` or `bytes` the program
   parses or writes itself; there's no XML library (open question 5).
@@ -96,8 +98,10 @@ doesn't have to discover them.
 - **`fiig.s3` covers single objects** (ADR 0121): put (optionally with
   user metadata, always with an `x-amz-checksum-sha256` for S3 to verify),
   get (whole, with its metadata, or a byte range), head, delete, and copy
-  within or across buckets. No listing (it needs an XML reader),
-  multipart upload, presigned URLs, or server-side encryption headers. A
+  within or across buckets, and presigned URLs for GET, PUT, HEAD or
+  DELETE (up to seven days, host the only signed header). No listing (it
+  needs an XML reader), multipart upload, or server-side encryption
+  headers. A
   copy's error inside a 200 reply is found by looking for `<Error>`, not
   by parsing XML, and metadata values must be printable ASCII. The whole
   object (or range) is held in memory, so a very large one isn't

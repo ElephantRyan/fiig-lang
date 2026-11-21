@@ -498,7 +498,15 @@ ALLOW_ORIGINS=https://app.example.com,http://localhost:5173 fiig serve -caps cap
 
 - Write each origin exactly as a browser sends it: `scheme://host` or
   `scheme://host:port`, with no path or trailing slash, and without the
-  scheme's default port. `null` and wildcards are refused at startup.
+  scheme's default port. `null` is refused at startup.
+- For per-tenant front ends, `https://*.example.com` (or
+  `http://*.example.com:5173`) allows every subdomain of `example.com`,
+  at any depth, with that scheme and port, and never `example.com`
+  itself; list the apex beside it if it serves a front end too. `*` may
+  only be the whole first label: `https://a.*.example.com`,
+  `*.example.com`, `https://*` and `https://*.com` are refused at
+  startup. A matching origin gets cookies like an exact one, so use a
+  pattern only for a domain whose every host you control.
 - A listed origin may send cookies, so a cookie session works from it.
   `-allow-origin '*'` allows every origin without cookies, and is refused
   for an adapter whose routes read a cookie.
