@@ -168,7 +168,11 @@ and bind it.
 
 Its settings are `host` and `user` (required), `port` (5432), `password`,
 `database` (the user's name), `sslmode` (`verify-full`, the default, or
-`disable`), and `applicationName`. It logs in with SCRAM-SHA-256, a
+`disable`), `applicationName`, and `statementCacheSize` (100), how many
+prepared statements each connection keeps, least recently used out
+first; `0` parses every statement each time (write
+`"statementCacheSize": "${PG_STATEMENT_CACHE_SIZE}"` to set it from the
+environment). It logs in with SCRAM-SHA-256, a
 password in clear text only over TLS, or none, and refuses MD5. Programs
 keep writing `?`; the driver numbers them `$1`, `$2`, ... (write `??` for a
 literal `?`, as JSONB's operators need).
@@ -179,7 +183,12 @@ conflict the program handled. On SQLite the same names come back as the
 column list, `customers.email`, since SQLite names no constraint; match
 on the variant to stay portable.
 
-`settings` is handed to the driver's `connect` as strings; the other
+When a call's deadline passes while Postgres runs its statement, the pool
+sends a CancelRequest on a new connection, negotiated with the same
+`sslmode`, and discards the old one, so the server stops the statement
+instead of finishing it (ADR 0084 §3a).
+
+`settings` is handed to the driver's `connect` (or `open`) as strings; the other
 three are the pool's, shown with their defaults. A call that finds every
 connection busy waits for one until its request deadline. The
 application's manifest lists `Socket` among its capabilities, since the

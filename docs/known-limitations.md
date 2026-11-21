@@ -27,9 +27,11 @@ doesn't have to discover them.
   keys in an HSM or cloud KMS, or encrypted private keys (ADR 0086 open
   questions). Custom CAs and client certificates are configured on
   `Socket` (ADR 0086).
-- **`fiig.postgres` doesn't cancel a query whose call timed out (the server finishes it), caches no prepared
-  statements, normalizes no non-ASCII passwords (SASLprep), and has no
-  `COPY` or `LISTEN`/`NOTIFY`. One `execute` runs one statement.
+- **`fiig.postgres` normalizes no non-ASCII passwords (SASLprep), and has
+  no `COPY` or `LISTEN`/`NOTIFY`.** One `execute` runs one statement. A
+  query whose call timed out is cancelled with a CancelRequest and its
+  connection discarded (ADR 0084 §3a); each connection caches up to
+  `statementCacheSize` prepared statements (ADR 0085 §3b).
 - **No savepoints or read-only transactions** in fiig source (ADR 0088
   open questions); isolation levels and retrying a whole transaction are
   `transaction Database serializable retry(attempts: N)`. Two packages
