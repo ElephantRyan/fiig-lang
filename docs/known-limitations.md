@@ -139,9 +139,10 @@ doesn't have to discover them.
 - **No package-internal visibility** (ADR 0079 open question 1). A
   declaration is private to its file or public to every importer, so the conversions `fiig.http`'s gateway
   calls (`readReply`, `outgoingRequest`, and two helpers) are public too.
-- **A `bytes` field is always written as standard base64** (ADR 0078
-  open question 1): an API that demands base64url for a field (Gmail's
-  `raw`) needs a `string` field filled with `toBase64Url()`.
+- **A base64url `bytes` field is always written unpadded** (ADR 0078 §6):
+  `from json base64url` writes RFC 4648 §5 without `=`, which JWT,
+  WebAuthn and Google's APIs accept; an API that demands padded base64url
+  has no form yet.
 - **No streaming JSON** (ADR 0073 §9): a decode reads the whole input,
   and `json.encode` and `json.encodePretty` build the whole output in
   memory.
