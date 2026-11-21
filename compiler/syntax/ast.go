@@ -455,8 +455,8 @@ type WorkflowDecl struct {
 	Body       *Block
 }
 
-// AdapterKind is "http", "cli", "stream", or "schedule" (grammar.md
-// `adapter-kind`, ADRs 0111 and 0112).
+// AdapterKind is "http", "cli", "stream", "schedule", or "startup"
+// (grammar.md `adapter-kind`, ADRs 0111, 0112, and 0124).
 type AdapterKind string
 
 const (
@@ -464,6 +464,7 @@ const (
 	AdapterCLI      AdapterKind = "cli"
 	AdapterStream   AdapterKind = "stream"
 	AdapterSchedule AdapterKind = "schedule"
+	AdapterStartup  AdapterKind = "startup"
 )
 
 type AdapterDecl struct {
@@ -477,7 +478,8 @@ type AdapterDecl struct {
 // is an HTTP method ("GET") for an http adapter, "command" for a cli
 // adapter, "source" for a stream adapter, whose Path is the source's name
 // (ADR 0111 §3), or "every" or "cron" for a schedule adapter, whose Path
-// is the schedule (ADR 0112 §1) — the productions differ mainly in that
+// is the schedule (ADR 0112 §1), or "run" for a startup adapter, which has
+// no Path (ADR 0124 §1) — the productions differ mainly in that
 // one keyword,
 // so one struct covers them rather than duplicating it.
 type Route struct {

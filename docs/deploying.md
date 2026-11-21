@@ -241,6 +241,32 @@ runs every firing in this process, for a single replica. With neither,
   run that faults; the next firing runs as usual. One the mapping sends to
   `halt` stops `fiig serve` with an error.
 
+## Startup adapters
+
+An `adapter startup` checks the deployment before anything serves (ADR
+0124), for what config can't say: that the bucket exists, that the database
+answers. Name it to `fiig serve` like any adapter:
+
+```
+fiig serve . app.Api app.Preflight
+```
+
+Each `run -> workflow()` route runs once, after config is read and before
+any listener, stream or schedule starts. All of them run at once, each for
+at most 30 s.
+
+- The mapping says what each outcome means: `proceed` starts the process
+  (an `Err` mapped to it is still logged), and `halt` refuses to.
+- A fault or a check that runs out of time refuses to start, whatever the
+  mapping says, since a check that crashed hasn't said the thing is fine.
+- When any check refuses, nothing starts, and the one error names every
+  check that did.
+- Every replica runs its own checks, with no lock. A check that changes
+  something, such as a migration, runs on each replica at once, so it must
+  be safe to repeat; "once per deploy" is your platform's release phase.
+- It runs once. For whether the process is still healthy later, use a
+  health route, which a readiness probe can call.
+
 ## Kafka
 
 A program that sends to Kafka with `fiig.kafka` reads where the cluster

@@ -229,7 +229,7 @@ attests them (T2 also by any program file).
 | T6 | A test reaches an operation its fake lacks, or a provider a rule can return that it doesn't fake (§4) | Attested — `TestTestBugClasses` |
 | T7 | A fake of a capability with no fiig declaration (§4): there's nothing to check it against | Attested — `TestTestBugClasses` |
 
-## I. Stream and schedule adapter errors (ADR 0047, ADR 0111, ADR 0112)
+## I. Stream, schedule and startup adapter errors (ADR 0047, ADR 0111, ADR 0112, ADR 0124)
 
 A stream route binds one element from a source, names it by a key, and
 says what happens to every outcome of its workflow, since a stream has no
@@ -244,8 +244,9 @@ fires a workflow at times its schedule names, with the same obligation.
 | I4 | A stream element that is neither a model, decoded from the payload's JSON, nor `bytes`, the payload as it arrived (§3) | Attested — `TestStreamElementMustBeAModelOrBytes` |
 | I5 | A schedule route's `every` isn't a duration, is under 1 s, or doesn't divide a day; or its `cron` isn't five valid fields, or never fires (`0 0 31 2 *`) (§1) | Attested — `compiler/checker`'s `TestScheduleRouteBugClasses` |
 | I6 | A scheduled workflow takes anything but nothing or one `int`, the firing time, or the route's arguments don't match it (§1) | Attested — `TestScheduleRouteBugClasses` |
-| I7 | A schedule route has no mapping, or its mapping doesn't cover `Ok` and every variant of the workflow's `Err` enum (§2) | Attested — `TestScheduleRouteBugClasses` |
+| I7 | A schedule or startup route has no mapping, or its mapping doesn't cover `Ok` and every variant of the workflow's `Err` enum (ADR 0112 §2, ADR 0124 §1) | Attested — `TestScheduleRouteBugClasses`, `TestStartupRouteBugClasses` |
 | I8 | A stream route names no `group`, or doesn't say `from earliest` or `from latest` (ADR 0111 §3a): the group is state the broker holds, so it is written down rather than derived from where the adapter lives | Attested — `TestStreamRouteBugClasses` |
+| I9 | A startup route's workflow takes arguments, or the route gives any: a startup route has no caller to supply them (ADR 0124 §1) | Attested — `TestStartupRouteBugClasses` |
 
 ## Explicitly out of scope (not statically checkable)
 

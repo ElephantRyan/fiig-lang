@@ -1,6 +1,6 @@
 # ADR 0124: Startup Checks: `adapter startup`
 
-Status: Proposed
+Status: Accepted (2026-11-20; the owner approved the design in review).
 Date: 2026-11-20
 Related: ADR 0044 (a workflow is the adapter boundary), ADR 0047 (stream
 adapters: a route has no caller, so its mapping must be exhaustive), ADR 0071
@@ -121,10 +121,12 @@ I becomes "Stream, schedule and startup adapter errors":
 - **I7** (widened): a route's mapping is missing or doesn't cover every
   outcome, for a schedule or a startup route.
 - **I9**: a startup route's workflow takes arguments, or the route gives any.
-- **I10**: a startup route's mapping uses a disposition from another kind
-  (`done`, `ack`, `retry`), or an adapter mixes route kinds.
 
-(I8 is already the stream route's `group` and `from`, ADR 0111 §3a.)
+(I8 is already the stream route's `group` and `from`, ADR 0111 §3a. A draft
+had an I10 for a mapping that uses another kind's disposition (`done`,
+`ack`, `retry`), or an adapter that mixes route kinds. The parser refuses
+both outright, as it does for a schedule, so there is nothing left for the
+checker to class.)
 
 ## Alternatives considered
 
@@ -154,13 +156,39 @@ I becomes "Stream, schedule and startup adapter errors":
 
 - `adapter startup` in the syntax, parser, formatter, and checker (I7-I9);
   the runner in `compiler/adapter`, called by `fiig serve` before it starts the
-  other loops; `fiig catalog` lists a program's startup routes. I7-I10 become
-  the classes above.
-- The contextual words join the IntelliJ and LSP keyword sets.
+  other loops; `fiig catalog` lists a program's startup routes.
 - `fiig test` needs nothing: a test calls the workflow like any other (ADR
   0102 §3a).
-- `docs/writing-a-client.md` and the getting-started page gain a short "checking
-  at startup" section.
+- `docs/deploying.md` gains a "Startup adapters" section.
+
+## Implementation notes (2026-11-20)
+
+- **Syntax:** `AdapterStartup`; `parseStartupRoute` reads `run -> workflow()
+  { pattern -> proceed | halt }`, with `startup`, `run` and `proceed` as
+  contextual words. A route has `Verb: "run"` and no `Path`. The formatter
+  writes `run -> ...` and the catalog lists a route as `run`.
+- **Checker** (`compiler/checker/startup.go`): I9, and I7 through the same
+  `uncoveredOutcomes` a schedule uses. A route that calls a non-workflow is
+  B6 as ever. The grammar and `bug-classes.md` are updated.
+- **Runner** (`compiler/adapter/startup.go`): `StartupRunners` plans each
+  route, `Check` runs one with a deadline, and `RunStartup` runs all of them
+  at once and returns one error that names every failure, sorted so it reads
+  the same each time. `fiig serve` partitions its loops, runs the startup
+  one first, and exits 1 before it listens when it fails. Nothing else needed
+  to know: the config a startup workflow reads is reached through the
+  adapter, so `fiig config . app.Preflight` lists it.
+- **Tests:** the parser and checker (I7, I9, B6, and a mapping or route
+  keyword from another kind refused); the formatter; and
+  `tooling/runprogram/startup_test.go` for the runner: a check that
+  proceeds, a tolerated `Err` that is logged, and one report naming a halt,
+  a fault and a deadline together, with what passed left out.
+- **Dogfooded** with `fiig serve` on a scratch application (an HTTP route,
+  two startup routes reading config): with `STORAGE_READY=false` it logged
+  the tolerated cache failure, refused, named the storage check, and exit
+  code 1 came before any listener; with `STORAGE_READY=true
+  CACHE_READY=false` it started and served.
+- **Not needed:** no IntelliJ or LSP change. The contextual words aren't in
+  their keyword lists (`every` and `done` aren't either).
 
 ## Open questions
 
