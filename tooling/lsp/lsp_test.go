@@ -417,6 +417,11 @@ func TestARoutesWorkflowNavigates(t *testing.T) {
 	if !found {
 		t.Errorf("references of hello = %+v, want the route in Api.fiig", refs)
 	}
+	// Ctrl+click on the declaration's own name lists its users, the same set.
+	locs = decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Hello.fiig", 0, 11)))
+	if len(locs) != len(refs) || len(locs) == 0 || locs[0].URI != c.uri("app/src/Api.fiig") {
+		t.Errorf("definition on hello's own name = %+v, want its references %+v", locs, refs)
+	}
 }
 
 // abs-recommendations: a variant of another package's enum in a pattern

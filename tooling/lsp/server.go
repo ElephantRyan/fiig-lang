@@ -239,6 +239,11 @@ func (s *server) handle(m *message) (any, *rpcError) {
 		if loc, ok := s.definition(p); ok {
 			return []location{loc}, nil
 		}
+		// On a declaration's own name there is nothing to jump to, so go to
+		// its users: one is a jump, several are the client's chooser.
+		if s.onDeclaration(p) {
+			return s.references(p), nil
+		}
 		return []location{}, nil
 	case "textDocument/references":
 		p, err := params[textDocumentPositionParams](m)
@@ -525,6 +530,18 @@ func (s *server) definition(p textDocumentPositionParams) (location, bool) {
 		return location{URI: pathToURI(a.path), Range: rangeOf(a.src, start, end, s.enc)}, true
 	}
 	return location{}, false
+}
+
+func (s *server) onDeclaration(p textDocumentPositionParams) bool {
+	a, ok := s.at(p)
+	if !ok {
+		return false
+	}
+	if _, ok := refAt(a.checked, a.offset); ok {
+		return false
+	}
+	_, _, ok = declUnder(a.checked.File, a.src, a.offset)
+	return ok
 }
 
 func (s *server) references(p textDocumentPositionParams) []location {
