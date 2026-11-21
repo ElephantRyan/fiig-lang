@@ -100,8 +100,11 @@ doesn't have to discover them.
   runtime can own a connection past every call and run a protocol written
   in fiig over it, but no Redis subscription, Postgres `LISTEN`, or HTTP/2
   connection is built on one yet.
-- **No limit on a reply's size** (ADR 0074 open question 2): the timeout
-  bounds how long a reply takes, not how much memory it uses.
+- **A reply is read whole into memory** (ADR 0074 §7a): `fiig.http` holds
+  a reply's body in memory, up to `HTTP_CLIENT_MAX_REPLY_BYTES` (16 MiB by
+  default); a larger reply is `HttpError.ReplyTooLarge`, and there is no
+  way to stream a body in pieces, so a program reading big bodies (large
+  `fiig.s3` objects) must raise the limit for the whole process.
 - **Request limits are per service, not per route** (ADR 0076 open
   question 1): a route taking uploads over 2 MiB needs `MAX_BODY_BYTES`
   raised for every route. No rate limit per client (§5); put it in the

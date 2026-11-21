@@ -112,7 +112,7 @@ doesn't pay a new TCP and TLS handshake for every call to the same host
 (ADR 0109). The defaults suit most services; `idle` changes them:
 
 ```json
-{"Socket": {"type": "socket", "idle": {"perKey": 10, "total": 100, "timeout": "90s"}}}
+{"Socket": {"type": "socket", "idle": {"perKey": 10, "total": 100, "timeout": "90s", "maxLifetime": "10m"}}}
 ```
 
 - `perKey` is how many idle connections are kept for one host, port, and
@@ -122,6 +122,16 @@ doesn't pay a new TCP and TLS handshake for every call to the same host
   request after a quiet spell finds a closed connection. `fiig.http` sends
   a `GET`, `PUT`, or `DELETE` again when that happens, but never a `POST`
   or `PATCH`.
+- `maxLifetime` closes a connection that old, counted from when it was
+  opened, even if it was never idle, so a busy service still follows a
+  DNS change or a load balancer's new addresses (ADR 0109 §5a). `"0s"`
+  keeps connections however old they are.
+
+`fiig.http` reads at most `HTTP_CLIENT_MAX_REPLY_BYTES` of a reply (16 MiB
+by default; ADR 0074 §7a). A reply past it, or one whose `Content-Length`
+says it will be, ends as `HttpError.ReplyTooLarge` and its connection is
+closed. Raise it for a program that downloads large bodies, such as big
+`fiig.s3` objects.
 
 A capability can also be bound for one package's workflows, so each
 domain of a modular monolith keeps its own database (ADR 0079 §6a); see
