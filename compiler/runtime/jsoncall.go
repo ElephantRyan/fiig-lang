@@ -29,6 +29,12 @@ func (in *Interp) callJson(ctx context.Context, e *syntax.CallExpr, member strin
 			return nil, false, Faultf("json.encode: %v", err)
 		}
 		return Bytes{B: b}, false, nil
+	case "encodePretty":
+		b, err := EncodePrettyJSON(vals[0])
+		if err != nil {
+			return nil, false, Faultf("json.encodePretty: %v", err)
+		}
+		return Bytes{B: b}, false, nil
 	case "decode":
 		into, ok := e.DecodeInto.(types.Type)
 		if !ok {

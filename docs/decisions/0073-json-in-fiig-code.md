@@ -313,6 +313,29 @@ Out:
   types.
 - **Streaming** large documents. A decode reads the whole input.
 - **Pretty-printed output**; `json.encode` writes no whitespace.
+  *(Amended 2026-11-21: `json.encodePretty(value) -> bytes` is in.)* It
+  writes what `json.encode` writes, in the same member order, but
+  indented:
+
+  ```json
+  {
+    "id": "o1",
+    "tags": [],
+    "lines": [
+      1,
+      2
+    ]
+  }
+  ```
+
+  Each element is on its own line, two spaces deeper than its parent. A
+  member is `"name": value`, with one space. An empty object or array is
+  `{}` or `[]`. There is no newline after the last `}`: the caller adds
+  one if it writes a file, and a body or a log line doesn't want one. It
+  accepts exactly what `json.encode` accepts, so J1 refuses the same
+  types, worded `json.encodePretty of ...`. The runtime reindents
+  `json.encode`'s bytes, so the two can only differ in whitespace.
+  `json.encode` stays compact: it is what gets sent and signed.
 
 ## Alternatives considered
 

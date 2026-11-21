@@ -639,6 +639,23 @@ func EncodeBodyJSON(v Value) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+// EncodePrettyJSON is EncodeBodyJSON indented (ADR 0073 §9, amended
+// 2026-11-21): the same members in the same order, each element on its
+// own line two spaces in, `"name": value` with one space, `{}` and `[]`
+// for empty ones, and no newline at the end. It reindents encode's bytes,
+// so the two can't disagree on anything but whitespace.
+func EncodePrettyJSON(v Value) ([]byte, error) {
+	compact, err := EncodeBodyJSON(v)
+	if err != nil {
+		return nil, err
+	}
+	var b bytes.Buffer
+	if err := json.Indent(&b, compact, "", "  "); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
 func writeBodyJSON(b *bytes.Buffer, v Value) error {
 	switch v := v.(type) {
 	case Int:

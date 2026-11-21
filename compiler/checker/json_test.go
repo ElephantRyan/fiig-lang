@@ -21,6 +21,8 @@ func TestJsonDecodeTakesItsTypeFromContext(t *testing.T) {
     return json.decode(tree)
 }`, `rule send(event: Event) -> bytes {
     return json.encode(event)
+}`, `rule show(event: Event) -> bytes {
+    return json.encodePretty(value: event)
 }`)
 	if len(diags) > 0 {
 		t.Fatalf("diags = %v", diags)
@@ -59,7 +61,10 @@ func TestJsonDecodeRefusals(t *testing.T) {
 }`, "A1", "takes a string, bytes, or a JsonValue, got int"},
 		{"no member", `rule r(body: bytes) -> bytes {
     return json.parse(body)
-}`, "", "has no member \"parse\""},
+}`, "", "has no member \"parse\"; it has decode, encode, and encodePretty"},
+		{"encodePretty arity", `rule r(body: bytes) -> bytes {
+    return json.encodePretty(body, body)
+}`, "", "json calls take one argument, value"},
 		{"local named json", `rule r(json: int) -> int {
     return json
 }`, "G4", "prelude json group"},
@@ -92,6 +97,9 @@ func TestJ1(t *testing.T) {
 		{"encode secret", `rule r(s: Session) -> bytes {
     return json.encode(s)
 }`, "json.encode of Session: field token is a Secret"},
+		{"encodePretty secret", `rule r(s: Session) -> bytes {
+    return json.encodePretty(s)
+}`, "json.encodePretty of Session: field token is a Secret"},
 		{"map keys", `rule r(body: string) -> Result<Map<int, string>, JsonError> {
     return json.decode(body)
 }`, "a Map with int keys"},

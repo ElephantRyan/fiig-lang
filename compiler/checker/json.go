@@ -72,8 +72,8 @@ func (c *checker) checkExpectedJson(e syntax.Expr, expected types.Type, env map[
 	return true
 }
 
-// inferJsonCall types a json call with no expected type: json.encode,
-// which needs none, and json.decode, which then has nothing to decode
+// inferJsonCall types a json call with no expected type: json.encode and
+// json.encodePretty, which need none, and json.decode, which then has nothing to decode
 // into, as `[]` has no element type (A12).
 func (c *checker) inferJsonCall(call *syntax.CallExpr, member string, env map[string]types.Type) types.Type {
 	start, _ := call.Bounds()
@@ -82,18 +82,20 @@ func (c *checker) inferJsonCall(call *syntax.CallExpr, member string, env map[st
 		c.report(start, "A12", "json.decode has no type to decode into; give it one with a typed declaration, e.g. `event: Event = json.decode(body)?`")
 		c.checkJsonDecode(call, nil, env)
 		return jsonResultOf(types.Unknown{})
-	case "encode":
+	case "encode", "encodePretty":
+		// ADR 0073 §9 (amended 2026-11-21): encodePretty accepts exactly
+		// what encode does.
 		arg, ok := c.jsonArg(call, "value", env)
 		if ok {
 			if why := c.jsonRefusal(arg, false); why != "" {
-				c.report(start, "J1", "json.encode of %s: %s, which can't be encoded as JSON (ADR 0073 §8)", arg, why)
+				c.report(start, "J1", "json.%s of %s: %s, which can't be encoded as JSON (ADR 0073 §8)", member, arg, why)
 			} else {
-				c.checkJsonOverlap(start, arg, "json.encode of "+arg.String())
+				c.checkJsonOverlap(start, arg, "json."+member+" of "+arg.String())
 			}
 		}
 		return types.Primitive{Name: "bytes"}
 	}
-	c.report(start, "", "the prelude json group has no member %q; it has decode and encode", member)
+	c.report(start, "", "the prelude json group has no member %q; it has decode, encode, and encodePretty", member)
 	for _, a := range call.Args {
 		c.inferExpr(a.Value, env)
 	}

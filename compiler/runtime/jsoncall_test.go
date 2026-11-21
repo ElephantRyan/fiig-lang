@@ -210,3 +210,66 @@ func TestJsonEncodeEscapesStrings(t *testing.T) {
 		t.Errorf("got %s, want %s", b, want)
 	}
 }
+
+// ADR 0073 §9 (amended 2026-11-21): json.encodePretty is json.encode's
+// members in its order, indented two spaces, with no newline at the end.
+func TestJsonEncodePretty(t *testing.T) {
+	in := checkedInterp(t, append(jsonProgram,
+		`rule prettyPage(page: Page) -> bytes {
+    return json.encodePretty(page)
+}`,
+		`rule prettyTree(v: JsonValue) -> bytes {
+    return json.encodePretty(v)
+}`,
+		`rule prettyList(items: List<string>) -> bytes {
+    return json.encodePretty(value: items)
+}`,
+		`rule prettyBadNumber(text: string) -> bytes {
+    return json.encodePretty(JsonValue.Number(text: text))
+}`)...)
+	r := callJSON(t, in, "parsePage", map[string]Value{"body": Str(pageJSON)}).(Result)
+	if !r.Ok {
+		t.Fatal(r.Value)
+	}
+	r.Value.(Record).Fields["tags"] = Map{} // an empty object
+	out := callJSON(t, in, "prettyPage", map[string]Value{"page": r.Value}).(Bytes)
+	want := `{
+  "limit": 3,
+  "in": "inbox",
+  "content-type": "text/csv",
+  "tags": {},
+  "extra": {
+    "b": [
+      1.50,
+      null
+    ],
+    "a": true
+  },
+  "next": null,
+  "region": "EU"
+}`
+	if string(out.B) != want {
+		t.Errorf("encodePretty:\n got %s\nwant %s", out.B, want)
+	}
+	// Strings are written as encode writes them, punctuation and escapes
+	// included; an empty list is [].
+	items := List{Elems: []Value{Str(`a, "b": {c}`), Str("line\nbreak \u2028")}}
+	out = callJSON(t, in, "prettyList", map[string]Value{"items": items}).(Bytes)
+	if want := `[
+  "a, \"b\": {c}",
+  "line\nbreak \u2028"
+]`; string(out.B) != want {
+		t.Errorf("encodePretty of strings:\n got %s\nwant %s", out.B, want)
+	}
+	out = callJSON(t, in, "prettyList", map[string]Value{"items": List{}}).(Bytes)
+	if string(out.B) != "[]" {
+		t.Errorf("encodePretty of [] = %s", out.B)
+	}
+	out = callJSON(t, in, "prettyTree", map[string]Value{"v": jsonValue("Number", Str("1e400"))}).(Bytes)
+	if string(out.B) != "1e400" {
+		t.Errorf("encodePretty of a Number = %s", out.B)
+	}
+	if _, fault := in.Call(context.Background(), "prettyBadNumber", map[string]Value{"text": Str("abc")}); fault == nil || !strings.Contains(fault.Message, `json.encodePretty: JsonValue.Number(text: "abc") is not a JSON number`) {
+		t.Errorf("prettyBadNumber: fault = %v", fault)
+	}
+}

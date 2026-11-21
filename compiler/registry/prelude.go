@@ -47,6 +47,9 @@ func Prelude() []*Card {
 			Params: []Param{{Name: "text", Type: "string | bytes | JsonValue"}}, Returns: "Result<T, JsonError>"},
 		&Card{Name: "json.encode", Kind: "formula", Group: types.JsonGroup, Catalog: Default, Source: PreludeSource, Pure: true,
 			Params: []Param{{Name: "value", Type: "T"}}, Returns: "bytes"},
+		// ADR 0073 §9 (amended 2026-11-21).
+		&Card{Name: "json.encodePretty", Kind: "formula", Group: types.JsonGroup, Catalog: Default, Source: PreludeSource, Pure: true,
+			Params: []Param{{Name: "value", Type: "T"}}, Returns: "bytes"},
 	)
 	// ADR 0075: every crypto member is pure but hashPassword, whose salt
 	// comes from Random.
