@@ -23,16 +23,19 @@ import (
 )
 
 // ADR 0113: fiig.kafka against a broker in memory that answers
-// ApiVersions v0, Metadata v4, and Produce v8, and checks every record
-// batch's CRC-32C with Go's hash/crc32, independently of crypto.crc32c.
+// ApiVersions v0, Metadata v12, and Produce v9 (the flexible versions, as
+// amended 2026-11-21), and checks every record batch's CRC-32C with Go's
+// hash/crc32, independently of crypto.crc32c.
 
 type fakeKafka struct {
 	ln       net.Listener
 	accepted atomic.Int32
 
-	mu      sync.Mutex
-	records map[int]int // partition -> records written
-	bad     []string    // what was wrong with a request
+	mu        sync.Mutex
+	records   map[int]int // partition -> records written
+	bad       []string    // what was wrong with a request
+	metadatas int         // Metadata requests answered
+	refuse    int16       // the error code the next produce answers, once
 }
 
 func startFakeKafka(t *testing.T) *fakeKafka {
@@ -82,10 +85,10 @@ func (k *fakeKafka) serve(c net.Conn) {
 		switch {
 		case key == 18 && version == 0:
 			reply = k.apiVersions()
-		case key == 3 && version == 4:
-			reply = k.metadata(body)
-		case key == 0 && version == 8:
-			reply = k.produce(body)
+		case key == 3 && version == 12:
+			reply = append([]byte{0}, k.metadata(flexBody(body))...)
+		case key == 0 && version == 9:
+			reply = append([]byte{0}, k.produce(flexBody(body))...)
 		default:
 			k.problem("unexpected API %d v%d", key, version)
 			return
@@ -98,11 +101,30 @@ func (k *fakeKafka) serve(c net.Conn) {
 	}
 }
 
+// flexBody is a flexible request's body, after request header v2's
+// tagged fields (none, from fiig).
+func flexBody(b []byte) []byte { return b[1:] }
+
 func i16(b []byte, v int) []byte { return binary.BigEndian.AppendUint16(b, uint16(int16(v))) }
 func i32(b []byte, v int) []byte { return binary.BigEndian.AppendUint32(b, uint32(int32(v))) }
 func i64(b []byte, v int) []byte { return binary.BigEndian.AppendUint64(b, uint64(int64(v))) }
 func kstr(b []byte, s string) []byte {
 	return append(i16(b, len(s)), s...)
+}
+
+// cstrk is a COMPACT_STRING; ucount a compact array's length.
+func cstrk(b []byte, s string) []byte { return append(binary.AppendUvarint(b, uint64(len(s)+1)), s...) }
+func ucount(b []byte, n int) []byte   { return binary.AppendUvarint(b, uint64(n+1)) }
+
+// readCompact reads a compact string or bytes at the front of r.
+func readCompact(r *bytes.Reader) []byte {
+	n, _ := binary.ReadUvarint(r)
+	if n == 0 {
+		return nil
+	}
+	out := make([]byte, n-1)
+	io.ReadFull(r, out)
+	return out
 }
 
 func (k *fakeKafka) apiVersions() []byte {
@@ -116,64 +138,83 @@ func (k *fakeKafka) apiVersions() []byte {
 // metadata says this broker leads all three partitions of any topic but
 // "missing", which is unknown.
 func (k *fakeKafka) metadata(body []byte) []byte {
-	name := string(body[6 : 6+int(binary.BigEndian.Uint16(body[4:]))])
+	k.mu.Lock()
+	k.metadatas++
+	k.mu.Unlock()
+	r := bytes.NewReader(body)
+	binary.ReadUvarint(r)
+	io.ReadFull(r, make([]byte, 16)) // no topic id
+	name := string(readCompact(r))
 	host, portText, _ := net.SplitHostPort(k.ln.Addr().String())
 	port, _ := strconv.Atoi(portText)
-	b := i32(nil, 0)                     // throttle
-	b = i32(b, 1)                        // one broker
-	b = i32(kstr(i32(b, 1), host), port) // id 1, host, port
-	b = i16(b, -1)                       // no rack
-	b = i32(kstr(b, "cluster"), 1)       // cluster id, controller
-	b = i32(b, 1)                        // one topic
+	b := i32(nil, 0)                      // throttle
+	b = ucount(b, 1)                      // one broker
+	b = i32(cstrk(i32(b, 1), host), port) // id 1, host, port
+	b = append(b, 0, 0)                   // no rack, no tags
+	b = i32(cstrk(b, "cluster"), 1)       // cluster id, controller
+	code := 0
 	if name == "missing" {
-		return i32(append(kstr(i16(b, 3), name), 0), 0)
+		code = 3
 	}
-	b = i32(append(kstr(i16(b, 0), name), 0), 3)
+	b = ucount(b, 1)                                           // one topic
+	b = append(cstrk(i16(b, code), name), make([]byte, 17)...) // no id, not internal
+	if code != 0 {
+		return append(i32(ucount(b, 0), 0), 0, 0)
+	}
+	b = ucount(b, 3)
 	for p := 2; p >= 0; p-- { // out of order, as a broker may send them
-		b = i32(i32(i32(i32(i32(i16(b, 0), p), 1), 1), 1), 1)
-		b = i32(b, 1)
+		b = i32(i32(i32(i16(b, 0), p), 1), 0) // index, leader 1, epoch
+		b = i32(ucount(b, 1), 1)              // replicas
+		b = i32(ucount(b, 1), 1)              // in sync
+		b = append(ucount(b, 0), 0)           // none offline, no tags
 	}
-	return b
+	return append(i32(b, 0), 0, 0)
 }
 
 func (k *fakeKafka) produce(body []byte) []byte {
 	r := bytes.NewReader(body)
-	var txn, acks int16
-	var timeout, topics int32
-	binary.Read(r, binary.BigEndian, &txn)
+	var acks int16
+	var timeout int32
+	txn := readCompact(r)
 	binary.Read(r, binary.BigEndian, &acks)
 	binary.Read(r, binary.BigEndian, &timeout)
-	binary.Read(r, binary.BigEndian, &topics)
-	if txn != -1 || acks != -1 {
-		k.problem("transactional id %d, acks %d; want -1 and -1", txn, acks)
+	topics, _ := binary.ReadUvarint(r)
+	if txn != nil || acks != -1 || topics != 2 {
+		k.problem("transactional id %q, acks %d, %d topics; want none, -1, and 1", txn, acks, topics-1)
 	}
-	var nameLen int16
-	binary.Read(r, binary.BigEndian, &nameLen)
-	name := make([]byte, nameLen)
-	io.ReadFull(r, name)
-	var partitions int32
-	binary.Read(r, binary.BigEndian, &partitions)
-	out := i32(kstr(i32(nil, 1), string(name)), int(partitions))
-	for range partitions {
-		var index, size int32
+	name := readCompact(r)
+	partitions, _ := binary.ReadUvarint(r)
+	out := ucount(cstrk(ucount(nil, 1), string(name)), int(partitions-1))
+	k.mu.Lock()
+	refuse := k.refuse
+	k.refuse = 0
+	k.mu.Unlock()
+	for range partitions - 1 {
+		var index int32
 		binary.Read(r, binary.BigEndian, &index)
-		binary.Read(r, binary.BigEndian, &size)
-		batch := make([]byte, size)
-		io.ReadFull(r, batch)
+		batch := readCompact(r)
+		r.ReadByte() // the partition's tags
 		// The CRC covers the attributes on, from byte 21.
 		if want := crc32.Checksum(batch[21:], crc32.MakeTable(crc32.Castagnoli)); binary.BigEndian.Uint32(batch[17:]) != want || batch[16] != 2 {
 			k.problem("partition %d: magic %d, crc %08x, want 2 and %08x", index, batch[16], binary.BigEndian.Uint32(batch[17:]), want)
 		}
 		count := int(binary.BigEndian.Uint32(batch[57:]))
+		if refuse != 0 {
+			out = i16(i32(out, int(index)), int(refuse))
+			out = i64(i64(i64(out, -1), -1), 0)
+			out = append(ucount(out, 0), 0, 0) // no record errors, no message, no tags
+			continue
+		}
 		k.mu.Lock()
 		base := k.records[int(index)]
 		k.records[int(index)] += count
 		k.mu.Unlock()
 		out = i16(i32(out, int(index)), 0)
 		out = i64(i64(i64(out, base), -1), 0)
-		out = i16(i32(out, 0), -1)
+		out = append(ucount(out, 0), 0, 0)
 	}
-	return i32(out, 0)
+	out = append(out, 0) // the topic's tags
+	return append(i32(out, 0), 0)
 }
 
 var kafkaProgram = map[string]string{

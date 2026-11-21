@@ -24,7 +24,7 @@ capability Kafka {
         now = Clock.now()
         until: int = now + KafkaServer.timeoutMillis
         pending: List<Exchange> = [
-            Exchange(broker: servers.first(), request: metadataRequest(clientId, 2, topic), purpose: Purpose.Metadata),
+            Exchange(broker: servers.first(), request: metadataV12Request(clientId, 2, topic), purpose: Purpose.Metadata),
         ]
         // The next bootstrap server to ask when one can't be reached.
         nextServer: int = 1
@@ -104,16 +104,16 @@ capability Kafka {
                     reply = frames.last()
                     match exchange.purpose {
                         Purpose.Metadata -> {
-                            layout = readMetadata(reply, 2, topic)?
+                            layout = readMetadataV12(reply, 2, topic)?
                             for call in producePlan(layout, records, now, compression)? {
                                 pending = append(
                                     pending,
-                                    Exchange(broker: call.broker, request: produceRequest(clientId, 2, topic, KafkaServer.timeoutMillis, call.batches), purpose: Purpose.Produce(call: call)),
+                                    Exchange(broker: call.broker, request: produceV9Request(clientId, 2, topic, KafkaServer.timeoutMillis, call.batches), purpose: Purpose.Produce(call: call)),
                                 )
                             }
                         }
                         Purpose.Produce(call) -> {
-                            for s in readProduce(reply, 2, call)? {
+                            for s in readProduceV9(reply, 2, call)? {
                                 sent = append(sent, s)
                             }
                         }

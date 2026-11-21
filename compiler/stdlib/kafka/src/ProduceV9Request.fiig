@@ -1,0 +1,29 @@
+// ADR 0113 §1, §4, as amended 2026-11-21: Produce v9 (API key 0), the
+// producer's flexible version (KIP-482), of one topic's batches: no
+// transactional id (a null compact string), acks=all (-1), and each
+// partition's batch as COMPACT_RECORDS, its length plus one then the
+// batch. timeoutMillis is how long the leader may wait for the in-sync
+// replicas.
+conversion produceV9Request(clientId: string, correlation: int, topic: string, timeoutMillis: int, batches: List<PartitionBatch>) -> bytes {
+    partitions: bytes = uvarint(batches.length() + 1)
+    for batch in batches {
+        partitions = <<
+            partitions: bytes,
+            batch.partition: i32be,
+            uvarint(batch.batch.length() + 1): bytes,
+            batch.batch: bytes,
+            0: u8,
+        >>
+    }
+    body = <<
+        0: u8,
+        0 - 1: i16be,
+        timeoutMillis: i32be,
+        uvarint(2): bytes,
+        compactString(topic): bytes,
+        partitions: bytes,
+        0: u8,
+        0: u8,
+    >>
+    return kafkaFlexRequest(0, 9, correlation, clientId, body)
+}

@@ -106,6 +106,21 @@ is changed if it fails.
 `allow_auto_topic_creation` is false: a misspelled topic is
 `Err(UnknownTopic)`, not a new topic.
 
+*(Amended 2026-11-21: the producer sends the flexible versions (KIP-482)
+now, Metadata v12 and Produce v9, so a broker that drops the old ones
+still takes it. v9 is Produce's lowest flexible version; for Metadata,
+v12, whose request carries nothing fiig must fill in but the topic's
+name. The dogfood broker, Kafka 4.0, lists Metadata 0-13 and Produce
+0-12. The requests use header v2 and compact
+encodings, the responses header v1, and every struct's tagged fields are
+skipped, so a broker that adds one is still read. ApiVersions now
+refuses a broker without Metadata v12 and Produce v9, by name.
+`metadataV12Request`, `readMetadataV12`, `produceV9Request`, and
+`readProduceV9` sit beside the v4 and v8 conversions, which the
+consumer's own Metadata and dead-letter Produce still send (ADR 0117
+§3); moving those is the consumer's change to make, in
+`KafkaSource.fiig`.)*
+
 ### 5. Record batches carry their compression bits
 
 A batch is Kafka's v2 format (magic 2). Its attributes field holds the
@@ -167,8 +182,9 @@ old versions will need.
    Neither is built yet.)*
 2. **SASL**, which most hosted Kafka needs: SCRAM can reuse
    `crypto.pbkdf2Sha256` (ADR 0085), PLAIN is a handshake.
-3. **Flexible versions**, before a broker that drops the non-flexible
-   ones ships.
+3. ~~**Flexible versions**, before a broker that drops the non-flexible
+   ones ships.~~ Done 2026-11-21 for the producer: Metadata v12 and
+   Produce v9 (§4, as amended).
 
 ## Implementation notes (2026-11-20)
 
