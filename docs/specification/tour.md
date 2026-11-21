@@ -686,6 +686,8 @@ requires Database
 // including Postgres wire, HTTP, and JSON, gets written in fiig. ADR 0060
 // folded TlsSocket into Socket, leaving four:                       [decided]
 //     Socket  Clock  FileSystem  Random
+// ADR 0117 adds a fifth, Session: a connection the runtime owns past any
+// call, running the calling package's own protocol (ADR 0114).    [built]
 
 // Socket is built (ADR 0060). A Connection is opaque; only Socket makes or
 // uses one, and only in a gateway that requires Socket.             [built]

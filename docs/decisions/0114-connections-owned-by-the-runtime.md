@@ -1,7 +1,9 @@
 # ADR 0114: Connections the Runtime Owns, Driven by Protocols Written as State Machines
 
 Status: Accepted (2026-11-20; the owner approved it in review, with `bytes`
-state, §4). Design only: nothing is built yet.
+state, §4). Built 2026-11-21 as ADR 0117 §2 amends §1-§3: a session
+runs its caller's own protocol, `Session.call` names it by settings, it can
+move, and protocols have a fifth operation, `closing`.
 Date: 2026-11-20
 Answers: ADR 0109 open question 2 (a connection owned by something that
 outlives every call).

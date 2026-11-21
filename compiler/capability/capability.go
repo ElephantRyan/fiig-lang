@@ -15,7 +15,10 @@ var primitives = map[string]bool{
 	// as Socket.connectTls/startTls rather than a capability of its own:
 	// protocols upgrade a live plain connection, and ADR 0010 allows a
 	// gateway one capability (ADR 0060).
-	"Socket":     true,
+	"Socket": true,
+	// ADR 0114, ADR 0117 §2: a connection the runtime owns past any call,
+	// reading for it and running its package's protocol on what arrives.
+	"Session":    true,
 	"Clock":      true,
 	"FileSystem": true,
 	"Random":     true,

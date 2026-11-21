@@ -38,6 +38,11 @@ func RegisterDefaults(caps *runtime.CapabilityRegistry) {
 	if _, configured := caps.Lookup("Socket"); !configured {
 		caps.Register("Socket", runtime.NewSocketProvider())
 	}
+	// Session is one too (ADR 0117 §2): it runs a package's own protocol,
+	// so it needs no configuration.
+	if _, configured := caps.Lookup("Session"); !configured {
+		caps.Register("Session", runtime.NewSessionProvider())
+	}
 	if _, configured := caps.Lookup("Random"); !configured {
 		caps.Register("Random", runtime.NewRandomProvider())
 	}

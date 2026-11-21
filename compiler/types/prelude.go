@@ -47,6 +47,10 @@ var preludeSources = []string{`enum SocketError {
     Tls(reason: string)
     TimedOut
 }
+`, `enum SessionError {
+    Broken(reason: string)
+    TimedOut
+}
 `, `enum Rounding {
     HalfUp
     HalfEven
@@ -123,6 +127,13 @@ var SocketErrorDecl = preludeDecls["SocketError"].(*syntax.EnumDecl)
 
 // SocketErrorType is `SocketError` as a type.
 var SocketErrorType = Named{Name: "SocketError", Decl: SocketErrorDecl}
+
+// SessionErrorDecl is the prelude's `SessionError` enum (ADR 0114 §2, ADR
+// 0117 §2): a session's connection broke, or no reply came in time.
+var SessionErrorDecl = preludeDecls["SessionError"].(*syntax.EnumDecl)
+
+// SessionErrorType is `SessionError` as a type.
+var SessionErrorType = Named{Name: "SessionError", Decl: SessionErrorDecl}
 
 // RoundingType is the prelude's `Rounding` enum (ADR 0064 §4), whose
 // variants are in compiler/decimal's Rounding order.

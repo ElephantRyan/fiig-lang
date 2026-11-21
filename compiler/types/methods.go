@@ -125,6 +125,11 @@ var primitiveOps = map[string]map[string]Method{
 		"reuse": {[]Param{p("host", stringType), p("port", intType), p("tls", boolType), p("session", stringType)}, Union{Members: []Type{ConnectionType, NoneType{}}}},
 		"keep":  {[]Param{p("connection", ConnectionType), p("session", stringType)}, NoneType{}},
 	},
+	// ADR 0114 §3, ADR 0117 §2: a message to the session settings names,
+	// running the calling package's own protocol; its reply's parts.
+	"Session": {
+		"call": {[]Param{p("settings", Generic{Name: "Map", Args: []Type{stringType, stringType}}), p("message", bytesType), deadline}, Generic{Name: "Result", Args: []Type{Generic{Name: "List", Args: []Type{bytesType}}, SessionErrorType}}},
+	},
 	// ADR 0068 §5 (amended 2026-11-20): Clock.now() is Unix milliseconds as an int, so a moment
 	// can't be added to a string or returned as one.
 	"Clock": {
