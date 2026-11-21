@@ -39,6 +39,14 @@ var sessionLibrary = map[string]string{
         parts = Session.call(settings, text.utf8(), deadline: Clock.now() + 2000)?
         return Ok(parts.first().utf8() or "")
     }
+
+    gateway shoutVia(port: int, alternates: string, text: string) -> Result<string, SessionError>
+        requires Session
+    {
+        settings: Map<string, string> = ["host": "127.0.0.1", "port": "${port}", "movePort": "0", "alternates": alternates]
+        parts = Session.call(settings, text.utf8(), deadline: Clock.now() + 8000)?
+        return Ok(parts.first().utf8() or "")
+    }
 }`,
 	"line_session.fiig": `use fiig.session
 
@@ -55,7 +63,7 @@ capability LineSession provides session.SessionProtocol {
                 }
             }
         }
-        return lineStep(<<1: i64be>>, "HELLO ${settings.at("sessionId")}\n".utf8(), None, [], None)
+        return lineStep(<<1: i64be>>, "HELLO ${settings.at("sessionId")} ${settings.at("port")}\n".utf8(), None, [], None)
     }
 
     gateway received(state: bytes, data: bytes, now: int) -> session.Step
@@ -136,6 +144,11 @@ var sessionApp = map[string]string{
 
 activity shout(port: int, movePort: int, text: string) -> Result<string, SessionError> {
     return Lines.shout(port, movePort, text)
+}`,
+	"shout_via.fiig": `use sessiontest.lines.Lines
+
+activity shoutVia(port: int, alternates: string, text: string) -> Result<string, SessionError> {
+    return Lines.shoutVia(port, alternates, text)
 }`,
 }
 
@@ -350,5 +363,65 @@ func TestSessionCallTimesOut(t *testing.T) {
 	r := shout(t, in, ln.Addr().(*net.TCPAddr).Port, 0, "anyone")
 	if r.Ok || !strings.Contains(r.Value.String(), "TimedOut") || time.Since(start) > 4*time.Second {
 		t.Fatalf("a silent server gave %v after %s", r, time.Since(start))
+	}
+}
+
+// closedPort is a port nothing listens on.
+func closedPort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	return port
+}
+
+func shoutVia(t *testing.T, in *runtime.Interp, port int, alternates, text string) runtime.Result {
+	t.Helper()
+	v, f := in.Call(context.Background(), "shoutVia", map[string]runtime.Value{
+		"port": runtime.Int(port), "alternates": runtime.Str(alternates), "text": runtime.Str(text),
+	})
+	if f != nil {
+		t.Fatalf("shoutVia %q: %s", text, f.Message)
+	}
+	return v.(runtime.Result)
+}
+
+// ADR 0117 §2, as amended 2026-11-21: a host that can't be reached is
+// passed over for the settings' alternates, in order, and opened is told
+// the one reached; when none can be, the call is Broken, naming each.
+func TestSessionFailsOverToAnAlternate(t *testing.T) {
+	server := startLineServer(t)
+	dead, deadToo := closedPort(t), closedPort(t)
+	in, caps := sessionInterp(t)
+	defer caps.Close()
+
+	alternates := "127.0.0.1:" + strconv.Itoa(deadToo) + ", 127.0.0.1:" + strconv.Itoa(server.port())
+	if r := shoutVia(t, in, dead, alternates, "over"); !r.Ok || r.Value != runtime.Str("OVER") {
+		t.Fatalf("a session with a live alternate gave %v", r)
+	}
+	lines, conns := server.seen()
+	if conns != 1 || len(lines) != 2 || !strings.HasSuffix(lines[0], " "+strconv.Itoa(server.port())) || lines[1] != "1 over" {
+		t.Fatalf("the alternate saw %d connections and %q, want opened told its own port", conns, lines)
+	}
+
+	r := shoutVia(t, in, dead, "127.0.0.1:"+strconv.Itoa(deadToo), "nobody")
+	if got := r.Value.String(); r.Ok || !strings.Contains(got, "Broken") || !strings.Contains(got, strconv.Itoa(dead)) || !strings.Contains(got, strconv.Itoa(deadToo)) {
+		t.Fatalf("a session reaching nothing gave %v", r)
+	}
+}
+
+// An alternate that isn't a host:port faults the call: a defect in the
+// package that wrote it.
+func TestSessionRefusesAMalformedAlternate(t *testing.T) {
+	in, caps := sessionInterp(t)
+	defer caps.Close()
+	_, f := in.Call(context.Background(), "shoutVia", map[string]runtime.Value{
+		"port": runtime.Int(1), "alternates": runtime.Str("::1:9092"), "text": runtime.Str("x"),
+	})
+	if f == nil || !strings.Contains(f.Message, "alternates") {
+		t.Fatalf("got %v", f)
 	}
 }

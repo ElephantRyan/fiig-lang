@@ -150,6 +150,28 @@ test deliveriesStartAtThePosition {
     expect deliveryAt("2-10") is Err(_)
 }
 
+// §2, as amended 2026-11-21: the group session opens to the first
+// bootstrap server, with the rest as its alternates, in order.
+test aGroupSessionFailsOverAcrossTheBootstrapServers {
+    subscription = stream.Subscription(
+        source: "orders",
+        group: "intake",
+        consumer: "c1",
+        waitMillis: 2000,
+        start: stream.StartAt.Earliest,
+        handleMillis: 40000,
+    )
+    expect groupSettings(subscription, "a:9092, [::1]:9093,c:9094", false, "fiig", 1000) is Ok(settings)
+    expect settings.at("host") == "a"
+    expect settings.at("port") == "9092"
+    expect settings.at("alternates") == "[::1]:9093,c:9094"
+    expect settings.at("topic") == "orders"
+    expect groupSettings(subscription, "[::1]:9092", true, "fiig", 1000) is Ok(alone)
+    expect alone.at("host") == "::1"
+    expect alone.at("alternates") == ""
+    expect groupSettings(subscription, "a", false, "fiig", 1000) is Err(_)
+}
+
 private {
     groupSettingsAt(host: string, port: int) -> Map<string, string> {
         return ["role": "group", "host": host, "port": "${port}", "clientId": "fiig", "group": "g", "topic": "t", "sessionId": "m1", "commitMillis": "1000"]

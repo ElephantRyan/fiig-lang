@@ -74,6 +74,20 @@ for its first user.
   same client. A Kafka consumer needs a session to the group's
   coordinator and one to each partition leader, and the settings are
   what tells them apart.
+
+  *(Amended 2026-11-21: the settings may also name `"alternates"`,
+  `"host:port,host:port"`, with an IPv6 host in brackets,
+  `"[::1]:9092"`. When the runtime can't connect to `"host"` and
+  `"port"`, it tries each alternate in order. `opened` is given the host
+  and port it reached in place of the settings' own. Only when none can
+  be reached are the waiting calls Broken, with a reason naming each
+  server tried. The alternates are part of the settings, so part of
+  which session it is. A malformed alternate faults the call, a defect
+  in the package that wrote it. A `MoveTo` goes where it says, with no
+  alternates: the coordinator is one broker. Each reconnect starts again
+  at `"host"`. A dial that failed also now fails the call that started
+  it with Broken, where before that call waited out its deadline.
+  `alternatesOf` and `session.open` in `compiler/runtime/session.go`.)*
 - **A session can move.** `SessionClose` is `Done(reason)`,
   `Failed(reason)`, or `MoveTo(host, port)`. A move closes the
   connection, opens one to the new place, calls `opened` again, and asks
@@ -165,6 +179,16 @@ servers, TLS, and client id, and a new `KafkaConsumer` config for
 `KAFKA_COMMIT_INTERVAL_MS`, `KAFKA_RETRY_AFTER_MS`, and
 `KAFKA_FETCH_MAX_BYTES` (1 MiB by default, per fetch). A route's
 `source` is the topic and its `group` the consumer group.
+
+*(Amended 2026-11-21: the group session opens to the first bootstrap
+server, with the rest of `KAFKA_BOOTSTRAP` as its `"alternates"` (§2),
+in the order written. A consumer whose first server is down still
+starts, through the next one that answers. Before this, it used the
+first server only. `groupSettings` in
+`compiler/stdlib/kafka/src/GroupSettings.fiig`. Tested by
+`TestStreamAdapterOverAKafkaConsumerGroup` with
+`FIIG_KAFKA_BOOTSTRAP=127.0.0.1:1,127.0.0.1:59092`, which fails without
+the alternates and passes with them.)*
 
 ## Alternatives considered
 

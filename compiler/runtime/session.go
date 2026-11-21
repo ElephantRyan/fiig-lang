@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +23,10 @@ import (
 // distinct settings map: one goroutine per session owns the connection,
 // reads everything that arrives, and calls the protocol's operations one at
 // a time, so its state is never shared.
+//
+// ADR 0117 §2, as amended 2026-11-21: the settings may name "alternates",
+// "host:port,host:port", tried in order when host and port can't be
+// reached; an IPv6 host is written in brackets, "[::1]:9092".
 
 const (
 	// SessionProtocolInterface is the interface a protocol package provides.
@@ -186,6 +191,9 @@ func (p *SessionProvider) session(proto *sessionProtocol, settings map[string]st
 	if _, err := strconv.Atoi(settings["port"]); settings["host"] == "" || err != nil {
 		return nil, Faultf(`Session.call's settings name no "host" and "port" to connect to (ADR 0117 §2)`)
 	}
+	if _, err := alternatesOf(settings["alternates"]); err != nil {
+		return nil, Faultf(`Session.call's "alternates" setting: %v (ADR 0117 §2)`, err)
+	}
 	id := make([]byte, 16)
 	_, _ = rand.Read(id)
 	own := map[string]string{"sessionId": hex.EncodeToString(id)}
@@ -348,7 +356,8 @@ func (s *session) loop() {
 		case a := <-s.asks:
 			if s.conn == nil {
 				s.moves = 0
-				if !s.connect(s.settings["host"], s.settings["port"]) {
+				if reason, ok := s.open(); !ok {
+					a.finish(sessionResult{failure: &sessionFailure{variant: "Broken", reason: reason}})
 					continue
 				}
 			}
@@ -377,9 +386,55 @@ func (s *session) loop() {
 
 func (s *session) now() Value { return Int(time.Now().UnixMilli()) }
 
-// connect opens a connection to host and port, and runs opened on it.
-func (s *session) connect(host, portText string) bool {
-	port, _ := strconv.Atoi(portText)
+// open connects to the settings' host and port, else to each of their
+// alternates in order, and runs opened on the first it reaches. When it
+// reaches none, or opened closes the connection, it says why.
+func (s *session) open() (string, bool) {
+	targets := []sessionTarget{{s.settings["host"], s.settings["port"]}}
+	alternates, _ := alternatesOf(s.settings["alternates"]) // checked when the session started
+	targets = append(targets, alternates...)
+	var failures []string
+	for _, target := range targets {
+		port, _ := strconv.Atoi(target.port)
+		t, err := s.dial(target.host, port)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v", addrOf(target.host, port), err))
+			continue
+		}
+		if s.opened(target.host, target.port, t) {
+			return "", true
+		}
+		return "the connection to " + addrOf(target.host, port) + " closed as it opened", false
+	}
+	reason := "can't connect to " + strings.Join(failures, "; nor to ")
+	s.broken(reason)
+	return reason, false
+}
+
+// sessionTarget is one place a session may connect.
+type sessionTarget struct{ host, port string }
+
+// alternatesOf reads an "alternates" setting: host:port entries, comma
+// separated, each IPv6 host in brackets.
+func alternatesOf(text string) ([]sessionTarget, error) {
+	var out []sessionTarget
+	for _, entry := range strings.Split(text, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		host, port, err := net.SplitHostPort(entry)
+		if _, bad := strconv.Atoi(port); err != nil || bad != nil || host == "" {
+			return nil, fmt.Errorf("%q isn't a host:port, such as broker-2:9092 or [::1]:9092", entry)
+		}
+		out = append(out, sessionTarget{host, port})
+	}
+	return out, nil
+}
+
+// dial opens a connection to host and port, upgraded to TLS when the
+// settings say so.
+func (s *session) dial(host string, port int) (Transport, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), sessionWriteTimeout)
 	defer cancel()
 	b := s.p.backend()
@@ -392,10 +447,23 @@ func (s *session) connect(host, portText string) bool {
 			t = tt
 		}
 	}
+	return t, err
+}
+
+// connect opens a connection to host and port, and runs opened on it.
+func (s *session) connect(host, portText string) bool {
+	port, _ := strconv.Atoi(portText)
+	t, err := s.dial(host, port)
 	if err != nil {
 		s.broken(fmt.Sprintf("can't connect to %s: %v", addrOf(host, port), err))
 		return false
 	}
+	return s.opened(host, portText, t)
+}
+
+// opened makes t the session's connection and runs opened on it, with
+// the host and port it reached in place of the settings' own.
+func (s *session) opened(host, portText string, t Transport) bool {
 	s.gen++
 	s.conn = t
 	go s.read(s.gen, t)
