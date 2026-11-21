@@ -232,8 +232,13 @@ claims each firing with a Redis key at `REDIS_URL`, and
 {"ScheduleLock": {"type": "local"}}
 ```
 
-runs every firing in this process, for a single replica. With neither,
-`fiig serve` refuses to start the adapter.
+runs every firing in this process, for a single replica. A program with a
+SQL database and no Redis can claim in the database instead, with
+`{"ScheduleLock": {"type": "lock", "lock": "fiig.sqllock"}}` (the program
+depends on `fiig.sqllock`): the lock keeps its
+claims in a `fiig_locks` table, which it creates the first time it is used,
+so there is nothing to migrate (ADR 0125). With none of these, `fiig serve`
+refuses to start the adapter.
 
 - A firing missed while no process ran is skipped; the next one runs.
 - A run is stopped when the next firing comes, and logged as an overrun.

@@ -139,7 +139,8 @@ bound doesn't start**:
 ```
 
 - `"lock"` names a package that provides `fiig.schedule.ScheduleLock`.
-  `fiig.redis` does, with `SET <key> <holder> NX PX <holdMillis>`.
+  `fiig.redis` does, with `SET <key> <holder> NX PX <holdMillis>`, and
+  `fiig.sqllock` does, in a table of the program's database (ADR 0125).
 - `"local"` always claims, which is right when one process runs the
   schedule (a single replica, or a deployment that runs schedules in a
   process of their own). Choosing it is a line in the file, so running

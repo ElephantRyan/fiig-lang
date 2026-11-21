@@ -1,0 +1,71 @@
+use fiig.schedule
+
+// ADR 0125: a schedule lock in the program's own SQL database, for a program
+// that has one and no Redis. A claim is a row in fiig_locks naming the job and
+// the firing, held until expires_at. One statement inserts it, or takes it over
+// when the row it finds has expired, so it is atomic and answers true to exactly
+// one caller: the same rule as Redis's SET NX PX, in SQL that Postgres and
+// SQLite both read.
+//
+// ADR 0124 §6: a startup route that says once is also completed. The claimant
+// writes a second row, `<claim key>:done`, that expires after retainMillis, and
+// completed asks whether an unexpired one is there. A claimant that dies leaves
+// no done row, so its claim expires and a waiting replica takes it over.
+//
+// The table is made on first use, so a program has nothing to migrate and
+// `fiig serve -check`, which applies no migration, can still ask. Expiry is
+// measured on each replica's clock, as a schedule's firing times already are.
+capability SqlScheduleLock provides schedule.ScheduleLock {
+    gateway claim(job: string, firedAt: int, holder: string, holdMillis: int) -> Result<bool, schedule.LockError>
+        requires Database
+    {
+        Database.execute(
+            "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)",
+        )
+        now: int = Clock.now()
+        changed: int = Database.execute(
+            "INSERT INTO fiig_locks (lock_key, holder, expires_at) VALUES (?, ?, ?) ON CONFLICT (lock_key) DO UPDATE SET holder = excluded.holder, expires_at = excluded.expires_at WHERE fiig_locks.expires_at <= ?",
+            "fiig:schedule:${job}:${firedAt}",
+            holder,
+            now + holdMillis,
+            now,
+        )
+        return Ok(changed > 0)
+    }
+
+    gateway complete(job: string, firedAt: int, holder: string, retainMillis: int) -> Result<bool, schedule.LockError>
+        requires Database
+    {
+        Database.execute(
+            "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)",
+        )
+        changed: int = Database.execute(
+            "INSERT INTO fiig_locks (lock_key, holder, expires_at) VALUES (?, ?, ?) ON CONFLICT (lock_key) DO UPDATE SET holder = excluded.holder, expires_at = excluded.expires_at",
+            "fiig:schedule:${job}:${firedAt}:done",
+            holder,
+            Clock.now() + retainMillis,
+        )
+        return Ok(changed > 0)
+    }
+
+    gateway completed(job: string, firedAt: int) -> Result<bool, schedule.LockError>
+        requires Database
+    {
+        Database.execute(
+            "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)",
+        )
+        row: LockRow | None = Database.queryOne(
+            "SELECT holder FROM fiig_locks WHERE lock_key = ? AND expires_at > ?",
+            "fiig:schedule:${job}:${firedAt}:done",
+            Clock.now(),
+        )
+        match row {
+            None -> {
+                return Ok(false)
+            }
+            _ -> {
+                return Ok(true)
+            }
+        }
+    }
+}

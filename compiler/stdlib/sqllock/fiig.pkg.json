@@ -1,0 +1,10 @@
+{
+    "path": "fiig.sqllock",
+    "kind": "library",
+    "version": "1.0.0",
+    "dependencies": {
+        "fiig.schedule": "1.0.0"
+    },
+    "capabilities": ["Database"],
+    "nativeCapabilities": ["Database"]
+}

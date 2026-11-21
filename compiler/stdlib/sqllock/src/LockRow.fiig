@@ -1,0 +1,4 @@
+// ADR 0125: a row of fiig_locks as completed reads it.
+model LockRow {
+    holder: string
+}

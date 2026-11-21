@@ -278,9 +278,9 @@ a poll, so a replica starts up to a second after the winner is done.
 1. ~~A way to run the checks alone~~, done: `fiig serve -check` (§6).
 2. ~~Once per deploy, with the others waiting~~, done: `once` (§6) is run by
    one replica per deploy and awaited by the rest, with `complete` and
-   `completed` on the lock. Still open: a lock other than Redis (the
-   Postgres advisory lock a sql program would want), and a deploy id that a
-   platform supplies without an environment variable.
+   `completed` on the lock. A lock for a sql program is `fiig.sqllock`'s
+   `SqlScheduleLock` (ADR 0125). Still open: a deploy id that a platform
+   supplies without an environment variable.
 3. ~~A per-route deadline~~, done: `within` (§6).
 4. **Starting degraded.** `proceed` lets the process start with a check
    failed, and nothing tells the program afterwards. A health endpoint can
