@@ -3,7 +3,8 @@ use fiig.time
 // ADR 0120: sending mail by SMTP, written in fiig over Socket. A mail goes
 // out on a connection an earlier one kept for the same server and login
 // (ADR 0109), starting with RSET, or on a new one: connect, greet, upgrade
-// with STARTTLS when the URL says to, log in. Then MAIL FROM, RCPT TO each
+// with STARTTLS when the URL says to, log in (with a password, or an OAuth
+// token by XOAUTH2, §3b). Then MAIL FROM, RCPT TO each
 // recipient, DATA, and the connection is kept for the next mail (§3a).
 // Every decision about what to send next is a conversion (nextStep,
 // advance); this gateway only writes the bytes and reads the replies.
@@ -12,11 +13,18 @@ capability Smtp {
         requires Socket
     {
         checkMail(mail)?
-        target = parseSmtpUrl(SmtpServer.url.reveal())?
+        token: string | None = None
+        match SmtpServer.oauthToken {
+            None -> None
+            given -> {
+                token = given.reveal()
+            }
+        }
+        target = withLogin(parseSmtpUrl(SmtpServer.url.reveal())?, SmtpServer.auth, token)?
         now = Clock.now()
-        token = Random.bytes(12).toHex()
+        unique = Random.bytes(12).toHex()
         date = mapErr(e in time.formatRfc5322(now)): SmtpError.Protocol(reason: "the clock reads a year outside 0000 to 9999")?
-        data = mailData(mail, date, messageIdFor(mail, token))
+        data = mailData(mail, date, messageIdFor(mail, unique))
         until: int = now + SmtpServer.timeoutMillis
         session = sessionFor(target)
         reused: Connection | None = Socket.reuse(

@@ -15,6 +15,9 @@ model Dialogue {
     startTls: bool
     authPlain: bool
     authLogin: bool
+    authXOAuth2: bool
+    // What a server refusing an XOAUTH2 token said of it, for the refusal.
+    oauthFailure: string
     // The most bytes the server takes in a message, 0 when it says nothing.
     sizeLimit: int
 }

@@ -8,6 +8,7 @@ conversion afterUpgrade(d: Dialogue) -> Dialogue {
         startTls: false,
         authPlain: false,
         authLogin: false,
+        authXOAuth2: false,
         sizeLimit: 0,
     )
 }

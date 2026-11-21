@@ -1,8 +1,9 @@
 // Where a send has got to. Upgrading is the moment between the server's
 // agreement to STARTTLS and the handshake, which has no reply to read. Auth
 // is AUTH PLAIN's one line; AuthLogin, LoginUser and LoginPassword are AUTH
-// LOGIN's three. Reset is the RSET a kept connection starts with, and Sent
-// is a mail the server has accepted.
+// LOGIN's three. XOAuth2 sends the token, and XOAuth2Refused answers the
+// challenge a server sends when it refuses one. Reset is the RSET a kept
+// connection starts with, and Sent is a mail the server has accepted.
 enum SmtpPhase {
     Greeting
     Hello
@@ -13,6 +14,8 @@ enum SmtpPhase {
     AuthLogin
     LoginUser
     LoginPassword
+    XOAuth2
+    XOAuth2Refused
     Reset
     MailFrom
     Rcpt

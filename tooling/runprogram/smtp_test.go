@@ -93,6 +93,13 @@ func smtpInterp(t *testing.T, script *runtime.ScriptedSocket, url string) *runti
 
 func smtpInterpWith(t *testing.T, socket runtime.SocketProvider, url string) *runtime.Interp {
 	t.Helper()
+	return smtpInterpEnv(t, socket, map[string]string{"SMTP_URL": url})
+}
+
+// smtpInterpEnv is smtpInterpWith with settings beyond SMTP_URL; the HELO
+// name is always client.test.
+func smtpInterpEnv(t *testing.T, socket runtime.SocketProvider, settings map[string]string) *runtime.Interp {
+	t.Helper()
 	root := t.TempDir()
 	for name, src := range fixture.Module(smtpProgram) {
 		os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
@@ -121,7 +128,10 @@ func smtpInterpWith(t *testing.T, socket runtime.SocketProvider, url string) *ru
 	in.Imports = BuildImports(files, loaded.Packages)
 	in.Groups = BuildGroups(files, loaded.Packages)
 	in.Packages = loaded.Packages
-	env := map[string]string{"SMTP_URL": url, "SMTP_HELO_NAME": "client.test"}
+	env := map[string]string{"SMTP_HELO_NAME": "client.test"}
+	for k, v := range settings {
+		env[k] = v
+	}
 	lookup := func(name string) (string, bool) { v, ok := env[name]; return v, ok }
 	program := Program{Universe: u, Imports: in.Imports, Groups: in.Groups}
 	if problems := in.LoadConfig(ReachableConfigFrom(program, []Entry{{Name: "sendWelcome"}}), lookup); len(problems) > 0 {
@@ -453,4 +463,64 @@ func TestSmtpKeepsConnectionsBetweenMails(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ADR 0120 §3b: with SMTP_OAUTH_TOKEN set, a server that offers XOAUTH2 is
+// logged in to with the token in one step; one that refuses it sends a
+// base64 JSON challenge, is answered with an empty line, and its refusal
+// carries the JSON's status but never the token.
+func TestSmtpLogsInWithXOAuth2(t *testing.T) {
+	// user=ann@gmail.com, 0x01, auth=Bearer ya29.tok, 0x01 0x01.
+	const login = "AUTH XOAUTH2 dXNlcj1hbm5AZ21haWwuY29tAWF1dGg9QmVhcmVyIHlhMjkudG9rAQE=\r\n"
+	hello := []runtime.SocketStep{
+		tlsStep,
+		send("220 smtp.gmail.com ESMTP\r\n"),
+		expect("EHLO client.test\r\n"),
+		send("250-smtp.gmail.com\r\n250 AUTH LOGIN PLAIN XOAUTH2 PLAIN-CLIENTTOKEN OAUTHBEARER\r\n"),
+		expect(login),
+	}
+	run := func(t *testing.T, steps ...runtime.SocketStep) string {
+		t.Helper()
+		script := &runtime.ScriptedSocket{Peers: []*runtime.SocketPeer{
+			{Host: "smtp.gmail.com", Port: 465, Steps: append(append([]runtime.SocketStep{}, hello...), steps...)},
+		}}
+		in := smtpInterpEnv(t, runtime.SocketProvider{Backend: script}, map[string]string{
+			"SMTP_URL":         "smtps://ann%40gmail.com@smtp.gmail.com",
+			"SMTP_OAUTH_TOKEN": "ya29.tok",
+		})
+		v, fault := in.Call(context.Background(), "sendWelcome",
+			map[string]runtime.Value{"to": str("bob@y.org"), "subject": str("Welcome")})
+		if fault != nil {
+			t.Fatalf("fault: %v", fault)
+		}
+		if err := script.Done(); err != nil {
+			t.Errorf("script: %v", err)
+		}
+		return fmt.Sprint(v)
+	}
+	t.Run("accepted", func(t *testing.T) {
+		got := run(t,
+			send("235 2.7.0 Accepted\r\n"),
+			expect("MAIL FROM:<noreply@shop.example>\r\n"), send("250 OK\r\n"),
+			expect("RCPT TO:<bob@y.org>\r\n"), send("250 OK\r\n"),
+			expect("DATA\r\n"), send("354 go\r\n"),
+			expect(strings.Replace(welcomeMessage(t, "Welcome"), "To: ann@y.org", "To: bob@y.org", 1)),
+			send("250 OK\r\n"))
+		if got != "Ok(None)" {
+			t.Errorf("sendWelcome = %s, want Ok(None)", got)
+		}
+	})
+	t.Run("refused", func(t *testing.T) {
+		got := run(t,
+			// {"status":"401","schemes":"Bearer","scope":"https://mail.google.com/"}
+			send("334 eyJzdGF0dXMiOiI0MDEiLCJzY2hlbWVzIjoiQmVhcmVyIiwic2NvcGUiOiJodHRwczovL21haWwuZ29vZ2xlLmNvbS8ifQ==\r\n"),
+			expect("\r\n"),
+			send("535-5.7.8 Username and Password not accepted.\r\n535 5.7.8 https://support.google.com/mail/?p=BadCredentials\r\n"))
+		if !strings.HasPrefix(got, "Err(SmtpError.Refused(535") || !strings.Contains(got, "status 401") {
+			t.Errorf("sendWelcome = %s, want Refused(535, ...) with status 401", got)
+		}
+		if strings.Contains(got, "ya29") {
+			t.Errorf("the error repeats the token: %s", got)
+		}
+	})
 }

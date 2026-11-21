@@ -11,6 +11,8 @@ conversion nextStep(d: Dialogue) -> SmtpStep {
         SmtpPhase.AuthLogin -> SmtpStep.Send(data: crlfLine("AUTH LOGIN"))
         SmtpPhase.LoginUser -> SmtpStep.Send(data: crlfLine(userOf(d.target).utf8().toBase64()))
         SmtpPhase.LoginPassword -> SmtpStep.Send(data: crlfLine(passwordOf(d.target).utf8().toBase64()))
+        SmtpPhase.XOAuth2 -> SmtpStep.Send(data: crlfLine("AUTH XOAUTH2 ${oauthLogin(d.target)}"))
+        SmtpPhase.XOAuth2Refused -> SmtpStep.Send(data: crlfLine(""))
         SmtpPhase.Reset -> SmtpStep.Send(data: crlfLine("RSET"))
         SmtpPhase.MailFrom -> SmtpStep.Send(data: crlfLine("MAIL FROM:<${d.mail.from}>"))
         SmtpPhase.Rcpt -> SmtpStep.Send(data: crlfLine("RCPT TO:<${d.recipients.at(d.recipient)}>"))
@@ -31,6 +33,24 @@ private {
         user = userOf(target)
         password = passwordOf(target)
         login: bytes = <<0: u8, user: utf8, 0: u8, password: utf8>>
+        return login.toBase64()
+    }
+
+    // XOAUTH2 (Google's and Microsoft's): user= and the user, a 0x01 byte,
+    // auth=Bearer and the token, and two 0x01 bytes, in base64 as AUTH's
+    // initial response, so the login is one round trip.
+    oauthLogin(target: SmtpTarget) -> string {
+        user = userOf(target)
+        token: string = ""
+        match target.token {
+            None -> None
+            given -> {
+                token = given
+            }
+        }
+        prefix = "user="
+        bearer = "auth=Bearer ${token}"
+        login: bytes = <<prefix: utf8, user: utf8, 1: u8, bearer: utf8, 1: u8, 1: u8>>
         return login.toBase64()
     }
 

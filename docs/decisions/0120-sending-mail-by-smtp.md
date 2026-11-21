@@ -245,6 +245,68 @@ AUTH round trips once.
   arrived, and sending it again could deliver it twice. A new connection
   is never retried, so a send makes at most two.
 
+### 3b. XOAUTH2
+
+*(Amended 2026-11-21: open question 2's XOAUTH2 decided.)* Gmail and
+Microsoft 365 turn passwords off for SMTP and take an OAuth 2.0 access token
+instead, by the XOAUTH2 mechanism both document.
+
+- **The token is a setting, `SMTP_OAUTH_TOKEN`**, a `Secret`; the user it
+  logs in as is SMTP_URL's, percent-encoded as any user is:
+  `smtps://ann%40gmail.com@smtp.gmail.com`. The URL then needs no password.
+  A token with a space, a control character or non-ASCII is refused before
+  anything is sent (it would break the framing below), and no reason ever
+  repeats it.
+- **One step.** `AUTH XOAUTH2` carries `user=<user>\x01auth=Bearer
+  <token>\x01\x01` in base64 as its initial response. 235 logs in. A server
+  that refuses the token answers 334 with a base64 JSON object
+  (`{"status":"401","schemes":"Bearer","scope":"https://mail.google.com/"}`);
+  the client answers it with an empty line, as the mechanism requires, and
+  the server's next reply (535) ends the send as `Refused`, its message
+  saying `the XOAUTH2 token (status 401): ` before the server's text. A
+  challenge that isn't base64 JSON leaves the status out, nothing more:
+  what's read from it is decoration on a refusal that is coming anyway.
+- **Which mechanism: `SMTP_AUTH`**, `auto` (the default), `plain`, `login`
+  or `xoauth2`. `auto` prefers XOAUTH2 when a token is set and EHLO offers
+  it, then PLAIN, then LOGIN, as before; a token without XOAUTH2 offered
+  falls back to the URL's password, or with none ends the send
+  `Err(Protocol(...))`. The other three take that mechanism or end the send
+  the same way, for a server whose offers include one that doesn't work for
+  this account. `xoauth2` without a token, or any of them with no user in
+  the URL, is refused before connecting.
+- **The kept-connection session is unchanged**, `user=<name>`: the
+  mechanism is how a connection proves who it is, not who it is.
+
+**Refreshing the token is not fiig.smtp's.** An access token lasts about an
+hour. Considered: a refresh inside `send` (a POST of `refresh_token`,
+`client_id` and `client_secret` to the provider's token endpoint through
+`fiig.http`, the token cached until it expires). Not done, because:
+
+- **It would change every program that sends mail.** `send` would
+  `require HttpClient` as well as `Socket`, so every manifest naming fiig.smtp
+  would have to allow `HttpClient` (ADR 0035), the ones that log in with a
+  password included.
+- **A cache has nowhere to live.** Nothing survives between calls but a kept
+  connection, and its session is a key the pool matches, not a store; a
+  token in it would be a secret in a pool key, and gone with the connection.
+  Without one, every new connection would ask the token endpoint first.
+- **The grants differ by provider**, and none is SMTP's: a Google service
+  account signs an RS256 JWT (fiig has no RSA signing), a Microsoft 365
+  daemon uses client credentials with a scope, a user's app a refresh token.
+  Choosing among them is an OAuth package's job (none exists yet), not a mail
+  package's.
+- **A login outlives its token.** SMTP authentication lasts the session
+  (RFC 4954 §4), so a kept connection goes on sending after the token
+  expires; only a new connection needs a fresh one.
+
+So the deployment supplies a fresh token: config is read once, at start
+(ADR 0071 §8), so a long-running program is restarted with a new
+`SMTP_OAUTH_TOKEN` before the old one expires, by whatever rotates its
+secrets. A short-lived one (a job, a CLI run) fetches one as it starts. A
+token that has expired shows as the 535 refusal above, never as a hang.
+Config reloading, or an OAuth package that a program calls itself, would
+lift this; either is its own decision.
+
 ### 4. Scope
 
 In: one plain-text mail to one or more recipients, over STARTTLS, implicit
@@ -252,10 +314,11 @@ TLS, or plain, with AUTH PLAIN or none; SIZE respected when the server
 offers it (a message over its limit is `Err(InvalidMail)` before it is sent).
 
 Out: HTML and attachments (multipart), ~~Cc, Bcc, Reply-To and display names,
-AUTH LOGIN,~~ CRAM-MD5 and XOAUTH2, SMTPUTF8 and internationalised addresses,
+AUTH LOGIN,~~ CRAM-MD5 ~~and XOAUTH2~~, SMTPUTF8 and internationalised addresses,
 delivery status notifications, ~~connection reuse,~~ and pipelining.
 *(Amended 2026-11-21: AUTH LOGIN (§3), connection reuse (§3a), and Cc,
-Bcc, Reply-To and display names (§2a) moved in.)*
+Bcc, Reply-To and display names (§2a) moved in.)* *(Amended 2026-11-21:
+XOAUTH2 (§3b) moved in; refreshing its token stays out.)*
 
 ## Alternatives considered
 
@@ -291,9 +354,9 @@ Bcc, Reply-To and display names (§2a) moved in.)*
    a `session` naming the user (RSET between mails), which a program that
    sends in bulk wants.~~ Done 2026-11-21 (§3a).
 2. **More login mechanisms.** ~~AUTH LOGIN (older Exchange),~~ Done
-   2026-11-21 (§3's amendment). XOAUTH2 (Gmail, Microsoft 365), and
-   CRAM-MD5 remain. XOAUTH2 needs an access token, not a password, which is
-   a different configuration.
+   2026-11-21 (§3's amendment). ~~XOAUTH2 (Gmail, Microsoft 365)~~ Done
+   2026-11-21 (§3b), with the token a setting the deployment refreshes.
+   CRAM-MD5 remains.
 3. **SMTPUTF8 and internationalised addresses** (RFC 6531), and IDN domains.
 4. **Multipart: HTML and attachments**, ~~and Cc, Bcc, Reply-To and display
    names. A `Mail` model grows fields, or a second `send` takes a richer

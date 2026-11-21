@@ -12,6 +12,8 @@ conversion advance(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError>
         SmtpPhase.AuthLogin -> expecting(d, reply, 334, SmtpPhase.LoginUser)
         SmtpPhase.LoginUser -> expecting(d, reply, 334, SmtpPhase.LoginPassword)
         SmtpPhase.LoginPassword -> expecting(d, reply, 235, SmtpPhase.MailFrom)
+        SmtpPhase.XOAuth2 -> afterXOAuth2(d, reply)
+        SmtpPhase.XOAuth2Refused -> Err(refused(reply, "the XOAUTH2 token${d.oauthFailure}: "))
         SmtpPhase.Reset -> expecting(d, reply, 250, SmtpPhase.MailFrom)
         SmtpPhase.MailFrom -> expectingStart(d, reply)
         SmtpPhase.Rcpt -> afterRecipient(d, reply)
@@ -50,10 +52,50 @@ private {
         return Ok(copy(d, phase: SmtpPhase.Data))
     }
 
+    // XOAUTH2 accepted the token (235), or refused it: a 334 whose text is a
+    // base64 JSON object saying why, which the client answers with an empty
+    // line before the server's final refusal (§3b).
+    afterXOAuth2(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError> {
+        if reply.code == 235 {
+            return Ok(copy(d, phase: SmtpPhase.MailFrom))
+        }
+        if reply.code == 334 {
+            return Ok(copy(d, phase: SmtpPhase.XOAuth2Refused, oauthFailure: oauthStatus(reply)))
+        }
+        return Err(refused(reply, "the XOAUTH2 token: "))
+    }
+
+    // " (status 401)" from the challenge's JSON, or nothing when it can't be
+    // read: the refusal that follows says the rest.
+    oauthStatus(reply: SmtpReply) -> string {
+        match reply.lines.join("").trim().fromBase64() {
+            None -> {
+                return ""
+            }
+            raw -> {
+                decoded: Result<XOAuth2Failure, JsonError> = json.decode(raw)
+                match decoded {
+                    Err(_) -> {
+                        return ""
+                    }
+                    Ok(failure) -> {
+                        match failure.status {
+                            None -> {
+                                return ""
+                            }
+                            status -> {
+                                return " (status ${status})"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // EHLO's reply lists what the server offers, a keyword a line after the
     // first. STARTTLS is required of smtp:// before anything is sent, and a
-    // login before MAIL FROM when the URL has one: AUTH PLAIN when offered,
-    // else AUTH LOGIN, which older Exchange servers offer alone.
+    // login before MAIL FROM when the URL has one (loginPhase).
     afterHello(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError> {
         if reply.code != 250 {
             return Err(refused(reply, ""))
@@ -73,6 +115,7 @@ private {
             startTls: offers.contains("STARTTLS"),
             authPlain: offersAuth(offers, "PLAIN"),
             authLogin: offersAuth(offers, "LOGIN"),
+            authXOAuth2: offersAuth(offers, "XOAUTH2"),
             sizeLimit: size,
         )
         if not d.secure and d.target.security == SmtpSecurity.StartTls {
@@ -88,17 +131,73 @@ private {
                 return Ok(copy(learned, phase: SmtpPhase.MailFrom))
             }
             _ -> {
-                if learned.authPlain {
-                    return Ok(copy(learned, phase: SmtpPhase.Auth))
-                }
-                if learned.authLogin {
-                    return Ok(copy(learned, phase: SmtpPhase.AuthLogin))
+                return loginPhase(learned)
+            }
+        }
+    }
+
+    // The login SMTP_AUTH chooses among what the server offers. Auto takes
+    // XOAUTH2 when there is a token and the server offers it, else AUTH
+    // PLAIN, else AUTH LOGIN, which older Exchange servers offer alone; a
+    // token is never sent where a password would go.
+    loginPhase(d: Dialogue) -> Result<Dialogue, SmtpError> {
+        chosen: SmtpAuth = SmtpAuth.Auto
+        match d.target.auth {
+            None -> None
+            given -> {
+                chosen = given
+            }
+        }
+        match chosen {
+            SmtpAuth.XOAuth2 -> {
+                if d.authXOAuth2 {
+                    return Ok(copy(d, phase: SmtpPhase.XOAuth2))
                 }
                 return Err(
-                    SmtpError.Protocol(reason: "the server offers neither AUTH PLAIN nor AUTH LOGIN, which are what fiig.smtp logs in with"),
+                    notOffered("SMTP_AUTH is xoauth2, and the server doesn't offer AUTH XOAUTH2"),
+                )
+            }
+            SmtpAuth.Plain -> {
+                if d.authPlain {
+                    return Ok(copy(d, phase: SmtpPhase.Auth))
+                }
+                return Err(
+                    notOffered("SMTP_AUTH is plain, and the server doesn't offer AUTH PLAIN"),
+                )
+            }
+            SmtpAuth.Login -> {
+                if d.authLogin {
+                    return Ok(copy(d, phase: SmtpPhase.AuthLogin))
+                }
+                return Err(
+                    notOffered("SMTP_AUTH is login, and the server doesn't offer AUTH LOGIN"),
+                )
+            }
+            SmtpAuth.Auto -> None
+        }
+        if d.target.token != None {
+            if d.authXOAuth2 {
+                return Ok(copy(d, phase: SmtpPhase.XOAuth2))
+            }
+            if d.target.password == None {
+                return Err(
+                    notOffered("the server doesn't offer AUTH XOAUTH2, and SMTP_URL has no password to log in with instead"),
                 )
             }
         }
+        if d.authPlain {
+            return Ok(copy(d, phase: SmtpPhase.Auth))
+        }
+        if d.authLogin {
+            return Ok(copy(d, phase: SmtpPhase.AuthLogin))
+        }
+        return Err(
+            notOffered("the server offers neither AUTH PLAIN nor AUTH LOGIN, which are what fiig.smtp logs in with"),
+        )
+    }
+
+    notOffered(reason: string) -> SmtpError {
+        return SmtpError.Protocol(reason: reason)
     }
 
     // SIZE n, the largest message in bytes, or 0 when it isn't offered.

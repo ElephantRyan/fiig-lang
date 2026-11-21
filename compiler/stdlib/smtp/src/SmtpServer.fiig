@@ -1,7 +1,11 @@
 // Where mail goes (ADR 0120 §2). The URL is a Secret because it usually
-// carries the password.
+// carries the password. SMTP_AUTH chooses the login mechanism, and
+// SMTP_OAUTH_TOKEN is an OAuth 2.0 access token for XOAUTH2 (§3b), read
+// once at start like the rest: refreshing it is the deployment's job.
 config SmtpServer {
     url: Secret from env "SMTP_URL"
     helloName: string from env "SMTP_HELO_NAME" = "localhost"
     timeoutMillis: int from env "SMTP_TIMEOUT_MS" = 30000
+    auth: SmtpAuth | None from env "SMTP_AUTH"
+    oauthToken: Secret | None from env "SMTP_OAUTH_TOKEN"
 }

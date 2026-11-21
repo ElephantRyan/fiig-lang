@@ -145,6 +145,71 @@ test theOlderAuthEqualsFormIsRead {
     expect sent(d) == "AUTH PLAIN AHVzZXIAcGFzcw==\r\n"
 }
 
+test xoauth2IsPreferredWhenATokenIsConfiguredAndOffered {
+    d = go(
+        go(begin(oauth(SmtpAuth.Auto, "pass"), ["b@y.org"]), 220, ["hi"]),
+        250,
+        ["smtp.gmail.com", "AUTH LOGIN PLAIN XOAUTH2 OAUTHBEARER"],
+    )
+    // user=ann@gmail.com, 0x01, auth=Bearer ya29.tok, 0x01 0x01.
+    expect sent(d) == "AUTH XOAUTH2 dXNlcj1hbm5AZ21haWwuY29tAWF1dGg9QmVhcmVyIHlhMjkudG9rAQE=\r\n"
+    expect sent(go(d, 235, ["2.7.0 Accepted"])) == "MAIL FROM:<a@x.org>\r\n"
+}
+
+test aRefusedTokenIsAnsweredAndItsStatusReported {
+    d = go(
+        go(begin(oauth(SmtpAuth.Auto, ""), ["b@y.org"]), 220, ["hi"]),
+        250,
+        ["Hello", "AUTH XOAUTH2"],
+    )
+    // {"status":"401","schemes":"Bearer","scope":"https://mail.google.com/"}
+    challenge = go(
+        d,
+        334,
+        ["eyJzdGF0dXMiOiI0MDEiLCJzY2hlbWVzIjoiQmVhcmVyIiwic2NvcGUiOiJodHRwczovL21haWwuZ29vZ2xlLmNvbS8ifQ=="],
+    )
+    // The challenge is answered with an empty line; the server then refuses.
+    expect sent(challenge) == "\r\n"
+    expect advance(challenge, reply(535, ["5.7.8 Username and Password not accepted"])) is Err(SmtpError.Refused(code, message))
+    expect code == 535
+    expect message == "the XOAUTH2 token (status 401): 5.7.8 Username and Password not accepted"
+}
+
+test aChallengeThatIsntJsonStillEndsInTheRefusal {
+    d = go(
+        go(begin(oauth(SmtpAuth.XOAuth2, ""), ["b@y.org"]), 220, ["hi"]),
+        250,
+        ["Hello", "AUTH XOAUTH2"],
+    )
+    challenge = go(d, 334, ["not base64!"])
+    expect sent(challenge) == "\r\n"
+    expect advance(challenge, reply(535, ["no"])) is Err(SmtpError.Refused(code, message))
+    expect message == "the XOAUTH2 token: no"
+}
+
+test aTokenWithoutXOAuth2FallsBackToThePassword {
+    d = go(
+        go(begin(oauth(SmtpAuth.Auto, "pass"), ["b@y.org"]), 220, ["hi"]),
+        250,
+        ["Hello", "AUTH PLAIN"],
+    )
+    expect sent(d) == "AUTH PLAIN AGFubkBnbWFpbC5jb20AcGFzcw==\r\n"
+    // With no password, there is nothing else to log in with.
+    tokenOnly = go(begin(oauth(SmtpAuth.Auto, ""), ["b@y.org"]), 220, ["hi"])
+    expect advance(tokenOnly, reply(250, ["Hello", "AUTH PLAIN"])) is Err(SmtpError.Protocol(reason))
+    expect reason.contains("XOAUTH2")
+}
+
+test smtpAuthTakesOnlyTheMechanismItNames {
+    greeted = go(begin(oauth(SmtpAuth.Login, "pass"), ["b@y.org"]), 220, ["hi"])
+    expect sent(go(greeted, 250, ["Hello", "AUTH PLAIN LOGIN XOAUTH2"])) == "AUTH LOGIN\r\n"
+    plainOnly = copy(greeted, target: copy(greeted.target, auth: SmtpAuth.Plain))
+    expect sent(go(plainOnly, 250, ["Hello", "AUTH PLAIN LOGIN XOAUTH2"])) == "AUTH PLAIN AGFubkBnbWFpbC5jb20AcGFzcw==\r\n"
+    oauthOnly = copy(greeted, target: copy(greeted.target, auth: SmtpAuth.XOAuth2))
+    expect advance(oauthOnly, reply(250, ["Hello", "AUTH PLAIN LOGIN"])) is Err(SmtpError.Protocol(reason))
+    expect reason.contains("xoauth2")
+}
+
 test aRefusedRecipientEndsTheSend {
     d = go(
         go(go(go(begin(plain(None, None), ["b@y.org", "c@y.org"]), 220, ["hi"]), 250, ["Hello"]), 250, ["OK"]),
@@ -237,6 +302,24 @@ private {
             user: user,
             password: password,
         )
+    }
+
+    // smtps:// as ann@gmail.com with the token ya29.tok, and a password
+    // too unless it is "".
+    oauth(auth: SmtpAuth, password: string) -> SmtpTarget {
+        target = SmtpTarget(
+            host: "smtp.gmail.com",
+            port: 465,
+            security: SmtpSecurity.Implicit,
+            user: "ann@gmail.com",
+            password: None,
+            auth: auth,
+            token: "ya29.tok",
+        )
+        if password == "" {
+            return target
+        }
+        return copy(target, password: password)
     }
 
     plain(user: string | None, password: string | None) -> SmtpTarget {

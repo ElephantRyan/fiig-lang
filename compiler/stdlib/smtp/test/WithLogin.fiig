@@ -1,0 +1,48 @@
+test noSettingsLeaveTheTargetAsItWas {
+    expect withLogin(target("ann"), None, None) is Ok(t)
+    expect t == target("ann")
+}
+
+test aTokenIsKeptForXOAuth2 {
+    expect withLogin(target("ann@gmail.com"), None, "ya29.a0Af-_~+/=") is Ok(t)
+    expect t.token == "ya29.a0Af-_~+/="
+    expect withLogin(target("ann@gmail.com"), SmtpAuth.XOAuth2, "tok") is Ok(chosen)
+    expect chosen.auth == SmtpAuth.XOAuth2
+}
+
+test xoauth2NeedsAToken {
+    expect withLogin(target("ann"), SmtpAuth.XOAuth2, None) is Err(SmtpError.Protocol(reason))
+    expect reason.contains("SMTP_OAUTH_TOKEN")
+}
+
+test aTokenCantBreakTheFraming {
+    for bad in ["", "zq9 x", "zq9\tauth=Bearer x", "zq9\r\n", "zqé9"] {
+        expect withLogin(target("ann"), None, bad) is Err(SmtpError.Protocol(reason))
+        expect not reason.contains("zq")
+    }
+}
+
+test aLoginSettingNeedsAUser {
+    noUser = SmtpTarget(
+        host: "mail.example",
+        port: 587,
+        security: SmtpSecurity.StartTls,
+        user: None,
+        password: None,
+    )
+    expect withLogin(noUser, None, "tok") is Err(SmtpError.Protocol(reason))
+    expect withLogin(noUser, SmtpAuth.Plain, None) is Err(SmtpError.Protocol(why))
+    expect withLogin(noUser, SmtpAuth.Auto, None) is Ok(_)
+}
+
+private {
+    target(user: string) -> SmtpTarget {
+        return SmtpTarget(
+            host: "mail.example",
+            port: 587,
+            security: SmtpSecurity.StartTls,
+            user: user,
+            password: None,
+        )
+    }
+}

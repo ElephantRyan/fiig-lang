@@ -1,0 +1,10 @@
+// How fiig.smtp logs in (ADR 0120 §3b), as SMTP_AUTH writes it. Auto, the
+// default, takes XOAUTH2 when a token is configured and the server offers
+// it, else AUTH PLAIN, else AUTH LOGIN; the others take that mechanism or
+// end the send.
+enum SmtpAuth {
+    Auto from json "auto"
+    Plain from json "plain"
+    Login from json "login"
+    XOAuth2 from json "xoauth2"
+}
