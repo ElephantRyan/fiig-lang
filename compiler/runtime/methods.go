@@ -261,6 +261,18 @@ var builtinMethods = map[string]map[string]builtinFunc{
 			}
 			return List{Elems: elems[n:len(elems):len(elems)]}, nil
 		},
+		// ADR 0129 §2a: the receiver's elements then other's, in a list of
+		// its own, so neither input's spare capacity is claimed (ADR 0057 §5).
+		"concat": func(recv Value, args []Value) (Value, *Fault) {
+			first := recv.(List).Elems
+			other, ok := args[0].(List)
+			if !ok {
+				return nil, Faultf("concat takes a list, got %s", args[0])
+			}
+			out := make([]Value, 0, len(first)+len(other.Elems))
+			out = append(append(out, first...), other.Elems...)
+			return List{Elems: out}, nil
+		},
 		// The first of each run of equal elements, in order, by == (a Map
 		// keys by it, so a decimal matches by value).
 		"distinct": func(recv Value, _ []Value) (Value, *Fault) {

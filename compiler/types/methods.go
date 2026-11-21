@@ -205,6 +205,7 @@ func listMethods(elem Type) map[string]Method {
 		"take":          {[]Param{p("count", intType)}, list},
 		"drop":          {[]Param{p("count", intType)}, list},
 		"distinct":      {nil, list},
+		"concat":        {[]Param{p("other", list)}, list}, // ADR 0129 §2a
 		"indexOfOrNone": {[]Param{p("element", elem)}, Union{Members: []Type{intType, NoneType{}}}},
 		// ADR 0067 §5: on List<string> only, which the checker enforces.
 		"join": {[]Param{p("separator", stringType)}, stringType},

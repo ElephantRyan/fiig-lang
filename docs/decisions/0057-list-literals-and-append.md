@@ -97,7 +97,8 @@ rule largeOrderIds(orders: List<Order>, threshold: int) -> List<string> {
   quadratic is wrong. Appending to an older version that has already been
   extended is allowed and correct, but copies (§5).
 - Joining two lists is not in this ADR. It is a `for` loop of `append`s until
-  a case is attested.
+  a case is attested. (Attested by Hearsay on 2026-11-21: it is now
+  `xs.concat(ys)`, ADR 0129 §2a.)
 
 ### 4. Out of scope
 

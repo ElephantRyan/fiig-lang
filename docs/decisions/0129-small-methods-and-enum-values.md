@@ -52,6 +52,31 @@ as it is.
 - The name `indexOfOrNone` follows `atOrNone` and `firstOrNone`: a result that
   may be absent says so.
 
+### 2a. `concat(other)` (added 2026-11-21)
+
+`xs.concat(ys)` is a new list: `xs`'s elements, then `ys`'s, in order. Both
+lists have the same element type. Neither input is changed, and the result
+has storage of its own, so appending to it never claims an input's spare
+capacity (ADR 0057 §5).
+
+```fiig
+everyone = RatedBooks.recommended().concat(LinkedRatings.matched())
+ids = recommenders.concat(stateOwners).distinct()
+```
+
+ADR 0057 left joining two lists out until a case was attested. Hearsay wrote
+the same `for`/`append` helper twice (`links/EveryRecommendation.fiig`,
+`links/RatingsOfBook.fiig`). The owner chose a method over the other three
+ways in:
+- **`append(xs, ys...)`**, Go's: it needs spread syntax, and gives `append`,
+  chosen for one element, two meanings.
+- **`+` on lists**: ADR 0057 rejected it, along with `+` on strings, so `+`
+  stays arithmetic.
+- **`[...xs, ...ys]`**: new syntax, and a second way to build a list.
+
+The name is JavaScript's (`a.concat(b)`) and Java's (`Stream.concat`).
+`plus`, Kotlin's name, reads as arithmetic.
+
 ### 3. `Level.values()`
 
 For an enum **none of whose variants carries data**, `Level.values()` is every

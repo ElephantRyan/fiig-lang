@@ -109,3 +109,22 @@ func TestListDistinctKeepsTheFirstAndIndexOfFindsIt(t *testing.T) {
 		t.Errorf("indexOfOrNone of a missing element = %v", got)
 	}
 }
+
+// ADR 0129 §2a (Hearsay): concat is a new list of the receiver's elements
+// then the argument's; appending to it changes neither input.
+func TestListConcatIsANewList(t *testing.T) {
+	first := List{Elems: make([]Value, 2, 8)}
+	first.Elems[0], first.Elems[1] = Int(1), Int(2)
+	got, f := evalBuiltinMethod(first, "concat", []Value{ints(3, 4)})
+	if f != nil || !Equal(got, ints(1, 2, 3, 4)) {
+		t.Fatalf("concat = %v %v", got, f)
+	}
+	joined := got.(List)
+	joined.Elems = append(joined.Elems, Int(5))
+	if spare := first.Elems[:3]; spare[2] == Int(5) {
+		t.Error("concat wrote into the receiver's spare capacity")
+	}
+	if got, _ := evalBuiltinMethod(ints(), "concat", []Value{ints()}); !Equal(got, ints()) {
+		t.Errorf("concat of empties = %v", got)
+	}
+}
