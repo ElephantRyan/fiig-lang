@@ -220,7 +220,8 @@ func (in *Interp) fakeCall(ctx context.Context, p Provider, member string, args 
 	if gw == nil {
 		return nil, false, Faultf("this test reaches %s.%s, which fake %s doesn't have (ADR 0091 §4)", p.Group.Name, member, f.TargetName()), true
 	}
-	supplied, earlyReturn, fault := in.evalArgs(ctx, env, args, paramNames(gw.Params))
+	fr, vals := newCallFrame(len(gw.Params))
+	supplied, earlyReturn, fault := in.evalParamArgs(ctx, env, args, gw.Params, vals)
 	if fault != nil || earlyReturn {
 		return nil, earlyReturn, fault, true
 	}
@@ -230,7 +231,7 @@ func (in *Interp) fakeCall(ctx context.Context, p Provider, member string, args 
 	}
 	run.counts[p.Group][member]++
 	run.mu.Unlock()
-	v, f2 := in.callDecl(ctx, run.scope, "fake "+f.TargetName()+"."+member, gw, supplied)
+	v, f2 := in.callDeclValues(ctx, run.scope, "fake "+f.TargetName()+"."+member, gw, supplied, fr)
 	return v, false, f2, true
 }
 

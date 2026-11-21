@@ -77,11 +77,12 @@ type Interp struct {
 // DefaultMaxCallDepth is ADR 0054 §6's default call depth limit.
 const DefaultMaxCallDepth = 1000
 
-type callDepthKey struct{}
-
+// callDepth is how many declaration calls deep ctx is.
 func callDepth(ctx context.Context) int {
-	d, _ := ctx.Value(callDepthKey{}).(int)
-	return d
+	if c, ok := ctx.Value(callKey{}).(*callInfo); ok {
+		return c.depth
+	}
+	return 0
 }
 
 func (in *Interp) maxCallDepth() int {
@@ -158,6 +159,21 @@ func (in *Interp) EnterPackage(ctx context.Context, pkg *types.Package) context.
 // cross-package call (evalQualifiedCall, which builds a fresh sc for
 // the imported package before calling this).
 func (in *Interp) callDecl(ctx context.Context, sc scope, displayName string, decl syntax.Decl, args map[string]Value) (Value, *Fault) {
+	params, _, _, ok := callableShape(decl)
+	if !ok {
+		return nil, Faultf("%q is not callable", displayName)
+	}
+	fr, vals := newCallFrame(len(params))
+	for i, p := range params {
+		vals[i] = args[p.Name]
+	}
+	return in.callDeclValues(ctx, sc, displayName, decl, vals, fr)
+}
+
+// callDeclValues is callDecl with the arguments in parameter order, a nil
+// for one not supplied, as evalParamArgs builds them for a call in fiig
+// code (ADR 0115 §5), in fr, the frame newCallFrame gave them.
+func (in *Interp) callDeclValues(ctx context.Context, sc scope, displayName string, decl syntax.Decl, args []Value, fr *callFrame) (Value, *Fault) {
 	if f := checkCancelled(ctx); f != nil {
 		return nil, f
 	}
@@ -171,7 +187,6 @@ func (in *Interp) callDecl(ctx context.Context, sc scope, displayName string, de
 		// fault carries the whole chain from the entry point to here.
 		return nil, Faultf("call depth limit of %d exceeded calling %s", limit, displayName).withFrame(displayName)
 	}
-	ctx = context.WithValue(ctx, callDepthKey{}, depth)
 	// A declaration's body resolves names in its own file's scope, which
 	// holds that file's private members when it has any (ADR 0054). A
 	// call between files of one package keeps the package and imports.
@@ -181,12 +196,14 @@ func (in *Interp) callDecl(ctx context.Context, sc scope, displayName string, de
 	if in.Tracer != nil {
 		ctx, span = in.startSpan(ctx, displayName, kind)
 	}
-	ctx = withScope(ctx, sc)
-
-	env := NewEnv()
-	for _, p := range params {
-		v, ok := args[p.Name]
-		if !ok {
+	// The frame's context layer carries both the depth and the scope, and
+	// its root scope is the body's (ADR 0115 §3, §5).
+	fr.callCtx = callCtx{Context: ctx, info: callInfo{sc: sc, depth: depth}}
+	ctx = &fr.callCtx
+	env := &fr.env
+	for i, p := range params {
+		v := args[i]
+		if v == nil {
 			fault := Faultf("missing argument %q to %s", p.Name, displayName).withFrame(displayName)
 			if in.Tracer != nil {
 				in.finishSpan(span, nil, fault)
@@ -397,11 +414,13 @@ func (in *Interp) evalFor(ctx context.Context, s *syntax.ForStmt, env *Env) (Val
 	default:
 		return nil, false, Faultf("for ... in iterable is not a List or bytes (got %s)", iterVal)
 	}
+	// One scope for the body, emptied each iteration (ADR 0115 §3).
+	bodyEnv := env.Child()
 	for i := range count {
 		if f := checkCancelled(ctx); f != nil {
 			return nil, false, f
 		}
-		bodyEnv := env.Child()
+		bodyEnv.reset()
 		bodyEnv.Bind(s.Var, elem(i))
 		val, jumped, fault := in.evalBlock(ctx, s.Body, bodyEnv, false)
 		if exit, out, outJumped, outFault := loopExit(val, jumped, fault, s.Label); exit {
@@ -417,11 +436,12 @@ func (in *Interp) evalMapFor(ctx context.Context, s *syntax.ForStmt, m Map, env 
 	type entry struct{ k, v Value }
 	var entries []entry
 	m.Each(func(k, v Value) bool { entries = append(entries, entry{k, v}); return true })
+	bodyEnv := env.Child()
 	for _, en := range entries {
 		if f := checkCancelled(ctx); f != nil {
 			return nil, false, f
 		}
-		bodyEnv := env.Child()
+		bodyEnv.reset()
 		if s.Var != "_" {
 			bodyEnv.Bind(s.Var, en.k)
 		}
@@ -440,6 +460,7 @@ func (in *Interp) evalMapFor(ctx context.Context, s *syntax.ForStmt, m Map, env 
 // cancellation first, so a loop that never ends stops at the call's deadline
 // (§4); there is no iteration cap.
 func (in *Interp) evalWhile(ctx context.Context, s *syntax.WhileStmt, env *Env) (Value, bool, *Fault) {
+	bodyEnv := env.Child()
 	for {
 		if f := checkCancelled(ctx); f != nil {
 			return nil, false, f
@@ -451,7 +472,8 @@ func (in *Interp) evalWhile(ctx context.Context, s *syntax.WhileStmt, env *Env) 
 		if !matched.ok {
 			return nil, false, nil
 		}
-		val, jumped, fault := in.evalBlock(ctx, s.Body, env.Child(), false)
+		bodyEnv.reset()
+		val, jumped, fault := in.evalBlock(ctx, s.Body, bodyEnv, false)
 		if exit, out, outJumped, outFault := loopExit(val, jumped, fault, s.Label); exit {
 			return out, outJumped, outFault
 		}
@@ -535,8 +557,11 @@ func (in *Interp) evalMatchStmt(ctx context.Context, s *syntax.MatchStmt, env *E
 	if earlyReturn {
 		return subject, true, nil
 	}
+	// One scope for the arms, emptied before each is tried, since a
+	// pattern that fails partway may have bound some names (ADR 0115 §3).
+	armEnv := env.Child()
 	for _, arm := range s.Arms {
-		armEnv := env.Child()
+		armEnv.reset()
 		if !MatchPattern(arm.Pattern, subject, armEnv) {
 			continue
 		}

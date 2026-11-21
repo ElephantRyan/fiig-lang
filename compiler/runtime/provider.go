@@ -81,11 +81,12 @@ func (in *Interp) callProvider(ctx context.Context, p Provider, member string, a
 	if gw == nil {
 		return nil, false, Faultf("capability %s has no operation %q", p.Group.Name, member)
 	}
-	supplied, earlyReturn, fault := in.evalArgs(ctx, env, args, paramNames(gw.Params))
+	fr, vals := newCallFrame(len(gw.Params))
+	supplied, earlyReturn, fault := in.evalParamArgs(ctx, env, args, gw.Params, vals)
 	if fault != nil || earlyReturn {
 		return nil, earlyReturn, fault
 	}
-	v, f := in.callDecl(ctx, p.scope, p.Group.Name+"."+member, gw, supplied)
+	v, f := in.callDeclValues(ctx, p.scope, p.Group.Name+"."+member, gw, supplied, fr)
 	if f != nil {
 		return nil, false, f
 	}

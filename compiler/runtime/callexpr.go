@@ -196,7 +196,8 @@ func (in *Interp) callDeclInPackage(ctx context.Context, pkg *types.Package, ali
 	if !ok {
 		return nil, false, Faultf("%q is not callable", field)
 	}
-	supplied, earlyReturn, fault := in.evalArgs(ctx, env, args, paramNames(params))
+	fr, vals := newCallFrame(len(params))
+	supplied, earlyReturn, fault := in.evalParamArgs(ctx, env, args, params, vals)
 	if fault != nil || earlyReturn {
 		return nil, earlyReturn, fault
 	}
@@ -206,7 +207,7 @@ func (in *Interp) callDeclInPackage(ctx context.Context, pkg *types.Package, ali
 		// use (§6a).
 		ctx = WithDomain(ctx, pkg.Path)
 	}
-	v, f := in.callDecl(ctx, packageScope(pkg), alias+"."+field, decl, supplied)
+	v, f := in.callDeclValues(ctx, packageScope(pkg), alias+"."+field, decl, supplied, fr)
 	if f != nil {
 		return nil, false, f
 	}
@@ -218,11 +219,12 @@ func (in *Interp) evalDeclCall(ctx context.Context, sc scope, name string, decl 
 	if !ok {
 		return nil, false, Faultf("%q is not callable", name)
 	}
-	supplied, earlyReturn, fault := in.evalArgs(ctx, env, args, paramNames(params))
+	fr, vals := newCallFrame(len(params))
+	supplied, earlyReturn, fault := in.evalParamArgs(ctx, env, args, params, vals)
 	if fault != nil || earlyReturn {
 		return nil, earlyReturn, fault
 	}
-	v, f := in.callDecl(ctx, sc, name, decl, supplied)
+	v, f := in.callDeclValues(ctx, sc, name, decl, supplied, fr)
 	if f != nil {
 		return nil, false, f
 	}
@@ -436,6 +438,39 @@ func (in *Interp) evalArgs(ctx context.Context, env *Env, args []syntax.Arg, nam
 	return supplied, false, nil
 }
 
+// evalParamArgs is evalArgs for a declaration's params, filling vals
+// (newCallFrame's, all nil) in parameter order and leaving nil one not
+// supplied, with no maps built (ADR 0115 §5).
+func (in *Interp) evalParamArgs(ctx context.Context, env *Env, args []syntax.Arg, params []syntax.Param, vals []Value) ([]Value, bool, *Fault) {
+	posIdx := 0
+	for _, a := range args {
+		v, earlyReturn, fault := in.evalExpr(ctx, a.Value, env)
+		if fault != nil || earlyReturn {
+			return nil, earlyReturn, fault
+		}
+		if a.Name != "" {
+			i := 0
+			for i < len(params) && params[i].Name != a.Name {
+				i++
+			}
+			if i == len(params) {
+				return nil, false, Faultf("no parameter named %q", a.Name)
+			}
+			vals[i] = v
+			continue
+		}
+		for posIdx < len(params) && vals[posIdx] != nil {
+			posIdx++
+		}
+		if posIdx >= len(params) {
+			return nil, false, Faultf("too many arguments")
+		}
+		vals[posIdx] = v
+		posIdx++
+	}
+	return vals, false, nil
+}
+
 // evalArgsPositional evaluates args in order with no name matching — used
 // for capability/builtin-method calls, neither of which has a declared
 // parameter list to match against.
@@ -488,14 +523,6 @@ func fieldNames(fields []syntax.Field) []string {
 	names := make([]string, len(fields))
 	for i, f := range fields {
 		names[i] = f.Name
-	}
-	return names
-}
-
-func paramNames(params []syntax.Param) []string {
-	names := make([]string, len(params))
-	for i, p := range params {
-		names[i] = p.Name
 	}
 	return names
 }

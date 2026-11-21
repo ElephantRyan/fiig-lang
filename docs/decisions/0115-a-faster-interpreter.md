@@ -222,3 +222,28 @@ gets an index. Every caller of `Env` is unchanged.
 | murmur2 | 243 ms | 1.5x | 4,099,860 |
 | calls | 126 ms | 1.5x | 1,899,442 |
 | parse | 37.3 ms (12.3 MB/s) | 1.3x | 319,971 |
+
+### Steps 3b and 5: reused scopes, and one allocation a call
+
+- **Reused scopes.** A loop's body, a `match`'s arms, a list form's body
+  and `sorted`'s keys each get one scope, emptied before every run,
+  rather than a new one each time. Nothing outlives its block: fiig has
+  no closures, and a concurrent expression waits for every body.
+- **One allocation per call.** A call's context layer, carrying its depth
+  and scope as one value, its root scope, and its first four arguments
+  are one allocation (`callFrame`). Arguments go into it in parameter
+  order, with no maps built.
+
+| Workload | Time | vs baseline | Allocations |
+|---|---|---|---|
+| bytes | 95.4 ms (11.0 MB/s) | 2.3x | 3,139,480 |
+| build | 2.98 ms | 1.4x | 59,855 |
+| records | 5.92 ms | 1.4x | 89,393 |
+| murmur2 | 220 ms | 1.7x | 2,980,496 |
+| calls | 75.9 ms | 2.5x | 799,438 |
+| parse | 33.6 ms (13.7 MB/s) | 1.4x | 289,969 |
+
+Bytes allocates 25 MB per run, down from 419 MB. What's left is mostly
+boxing: an `int` above 255 is a heap allocation each time it becomes a
+`Value`, three times a byte here. That, and the tree walk itself, are
+step 4.
