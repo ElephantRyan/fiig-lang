@@ -31,6 +31,12 @@ func writePackage(t *testing.T, files map[string]string) string {
 // the results by test name.
 func runJSON(t *testing.T, root string) (int, map[string]Result) {
 	t.Helper()
+	return runJSONWith(t, root, "")
+}
+
+// runJSONWith is runJSON with -env-file envFile.
+func runJSONWith(t *testing.T, root, envFile string) (int, map[string]Result) {
+	t.Helper()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +56,7 @@ func runJSON(t *testing.T, root string) (int, map[string]Result) {
 	}()
 	stdout := os.Stdout
 	os.Stdout = w
-	code := run(root, "", "", "", 5*time.Second, false, true, nil, nil)
+	code := run(root, "", "", envFile, 5*time.Second, false, true, nil, nil)
 	os.Stdout = stdout
 	w.Close()
 	results := map[string]Result{}
@@ -205,6 +211,59 @@ func TestAConfigIsFakedPerTest(t *testing.T) {
 	unfaked := results["readsUnfakedConfig"].Failures
 	if len(unfaked) != 1 || !strings.Contains(unfaked[0].Message, "SHOP_TOKEN") {
 		t.Fatalf("want one failure naming SHOP_TOKEN, got %+v", unfaked)
+	}
+}
+
+// Hearsay G53 and G54: a `Secret | None` field is faked by a literal or
+// None, and -env-file gives a test what it reads but doesn't fake.
+func TestOptionalConfigInTests(t *testing.T) {
+	files := withTests(map[string]string{
+		"config/shop.fiig": `config Shop {
+    url: string | None from env "SHOP_URL"
+    token: Secret | None from env "SHOP_TOKEN"
+}
+`,
+		"activities/token_set.fiig": `activity tokenSet() -> bool {
+    match Shop.token {
+        None -> false
+        given -> true
+    }
+}
+`,
+		"activities/url_set.fiig": `activity urlSet() -> bool {
+    match Shop.url {
+        None -> false
+        given -> true
+    }
+}
+`,
+		"tests/token.fiig": `test aLiteralIsTheToken {
+    fake Shop { token: "t-1" }
+    expect tokenSet()
+}
+
+test noneIsNoToken {
+    fake Shop { token: None }
+    expect not tokenSet()
+}
+`,
+		"tests/url.fiig": `test urlFromTheEnvFile {
+    expect urlSet()
+}
+`,
+	})
+	root := writePackage(t, files)
+	envFile := filepath.Join(root, "test.env")
+	if err := os.WriteFile(envFile, []byte("SHOP_URL=https://x.test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, results := runJSONWith(t, root, envFile)
+	if code != 0 || len(results) != 3 {
+		t.Fatalf("want 3 passing tests and exit 0, got %d: %+v", code, results)
+	}
+	// Without the file the optional url reads as unset.
+	if code, results := runJSON(t, root); code != 1 || results["urlFromTheEnvFile"].Outcome == "pass" {
+		t.Fatalf("want urlFromTheEnvFile to fail without -env-file, got %d: %+v", code, results)
 	}
 }
 

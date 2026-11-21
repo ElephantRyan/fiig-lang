@@ -237,6 +237,16 @@ func (w *walker) visit(d syntax.Decl, sc configScope) {
 		w.block(d.Body, sc)
 	case *syntax.HelperDecl:
 		w.block(d.Body, sc)
+	case *syntax.TestDecl:
+		// `fiig test` starts here, so -env-file gives what the test and its
+		// fakes reach (ADR 0091 §5; Hearsay G54).
+		sc = w.fileScope(d, sc)
+		w.block(d.Body, sc)
+		for _, f := range d.Fakes {
+			for _, g := range f.Gateways {
+				w.block(g.Body, sc)
+			}
+		}
 	default:
 		if body := bodyOf(d); body != nil {
 			w.block(body, w.fileScope(d, sc))

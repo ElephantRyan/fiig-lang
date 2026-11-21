@@ -202,11 +202,35 @@ func (c *checker) checkFakeValues(f *syntax.FakeDecl, fields map[string]types.Ty
 			}
 			continue
 		}
+		// `Secret | None` takes a literal as the Secret, or None (Hearsay G53).
+		if lit, ok := v.Value.(*syntax.StringLit); ok && optionalSecret(want) {
+			if hasInterpolation(lit) {
+				c.report(at, "T4", "%s.%s is a Secret | None; its fake is a string literal or None (ADR 0091 §4)", f.TargetName(), v.Name)
+			}
+			continue
+		}
 		got := c.inferExpr(v.Value, map[string]types.Type{})
 		if !types.AssignableTo(got, want) {
 			c.report(at, "T4", "%s.%s is %s, so its fake can't be %s", f.TargetName(), v.Name, want, got)
 		}
 	}
+}
+
+// optionalSecret is `Secret | None`.
+func optionalSecret(t types.Type) bool {
+	u, ok := t.(types.Union)
+	if !ok || len(u.Members) != 2 {
+		return false
+	}
+	var secret, none bool
+	for _, m := range u.Members {
+		if m == types.SecretType {
+			secret = true
+		} else if _, ok := m.(types.NoneType); ok {
+			none = true
+		}
+	}
+	return secret && none
 }
 
 func hasInterpolation(lit *syntax.StringLit) bool {

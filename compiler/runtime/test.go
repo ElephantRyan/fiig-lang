@@ -151,7 +151,17 @@ func (in *Interp) RunTest(ctx context.Context, t *syntax.TestDecl) []TestFailure
 	return append([]TestFailure(nil), run.failures...)
 }
 
+// isSecretType is `Secret`, or `Secret | None`, whose fake may also be a
+// string literal (Hearsay G53).
 func isSecretType(t syntax.Type) bool {
+	if u, ok := t.(*syntax.UnionType); ok {
+		for _, m := range u.Members {
+			if isSecretType(m) {
+				return true
+			}
+		}
+		return false
+	}
 	q, ok := t.(*syntax.QualifiedType)
 	return ok && len(q.Path) == 1 && q.Path[0] == "Secret"
 }
