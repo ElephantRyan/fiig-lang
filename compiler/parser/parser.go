@@ -1101,6 +1101,20 @@ func (p *Parser) parseStartupRoute(start lexer.Pos) *syntax.Route {
 		p.advance()
 	}
 	route := &syntax.Route{Verb: "run"}
+	// `once` and `within "10s"`, in that order (ADR 0124 §6); both are
+	// contextual, and the checker reports a duration that isn't one (I10).
+	if p.atContextual("once") {
+		p.advance()
+		route.Once = true
+	}
+	if p.atContextual("within") {
+		p.advance()
+		lit := p.parseStringLit()
+		if hasInterp(lit) {
+			p.errorf(lit.Start, "interpolation is not allowed in a deadline")
+		}
+		route.Within = plainText(lit)
+	}
 	p.expect(lexer.Arrow)
 	nameTok := p.expectName()
 	route.Workflow = &syntax.Ident{Span: syntax.Span{Start: nameTok.Start, End: nameTok.End}, Name: nameTok.Text}

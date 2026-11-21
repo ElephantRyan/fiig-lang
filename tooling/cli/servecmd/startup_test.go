@@ -50,6 +50,27 @@ func TestAStartupAdapterIsOneLoopThatRunsFirst(t *testing.T) {
 	}
 }
 
+// §6: -check loads with migrations skipped, and can tell its startup loop to
+// run a once route without claiming it.
+func TestACheckRunLoadsWithoutMigratingAndCanIgnoreOnce(t *testing.T) {
+	t.Setenv("STORAGE_READY", "true")
+	root := t.TempDir()
+	writeTree(t, root, startupApp)
+	env, _ := runprogram.NewEnvironment("")
+	_, loops, _, caps, err := load(filepath.Join(root, "app"), []string{"preflight"}, "", nil, nil, nil, adapter.DefaultLimits(), env, nil, migrate.Skip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(caps.Close)
+	if len(loops) != 1 || !loops[0].startup || loops[0].ignoreOnce == nil {
+		t.Fatalf("loops = %+v, want one startup loop with ignoreOnce", loops)
+	}
+	loops[0].ignoreOnce()
+	if err := loops[0].run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestAFailingStartupCheckRefusesToServe(t *testing.T) {
 	t.Setenv("STORAGE_READY", "false")
 	loops := startupLoops(t)

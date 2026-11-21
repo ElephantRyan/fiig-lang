@@ -247,6 +247,7 @@ fires a workflow at times its schedule names, with the same obligation.
 | I7 | A schedule or startup route has no mapping, or its mapping doesn't cover `Ok` and every variant of the workflow's `Err` enum (ADR 0112 §2, ADR 0124 §1) | Attested — `TestScheduleRouteBugClasses`, `TestStartupRouteBugClasses` |
 | I8 | A stream route names no `group`, or doesn't say `from earliest` or `from latest` (ADR 0111 §3a): the group is state the broker holds, so it is written down rather than derived from where the adapter lives | Attested — `TestStreamRouteBugClasses` |
 | I9 | A startup route's workflow takes arguments, or the route gives any: a startup route has no caller to supply them (ADR 0124 §1) | Attested — `TestStartupRouteBugClasses` |
+| I10 | A startup route's `within` isn't a positive duration such as `"10s"` (ADR 0124 §6) | Attested — `TestStartupRouteBugClasses` |
 
 ## Explicitly out of scope (not statically checkable)
 

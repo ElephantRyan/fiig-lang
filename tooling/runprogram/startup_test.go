@@ -2,9 +2,12 @@ package runprogram
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -63,6 +66,18 @@ var startupProgram = map[string]string{
         Err(CheckError.Missing) -> halt
     }
 }`,
+	// ADR 0124 §6: a route's own deadline, and a route one replica runs.
+	"tight.fiig": `adapter startup Tight {
+    run within "100ms" -> hung() {
+        _ -> proceed
+    }
+}`,
+	"once.fiig": `adapter startup Once {
+    run once -> storageMissing() {
+        Ok(_) -> proceed
+        Err(_) -> halt
+    }
+}`,
 	// Three different ways to refuse, which one report must all name.
 	"bad.fiig": `adapter startup Bad {
     run -> storageMissing() {
@@ -78,7 +93,39 @@ var startupProgram = map[string]string{
 }`,
 }
 
+// onceLock is a ScheduleLock that records its claims.
+type onceLock struct {
+	mu      sync.Mutex
+	grant   bool
+	failure error
+	claims  []string
+}
+
+func (*onceLock) Call(context.Context, string, []runtime.Value) (runtime.Value, *runtime.Fault) {
+	return nil, runtime.Faultf("not called by a program")
+}
+
+func (l *onceLock) Claim(_ context.Context, job string, firedAt int64, holder string, hold int64) (bool, error, *runtime.Fault) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.claims = append(l.claims, fmt.Sprintf("%s|%d|%s|%d", job, firedAt, holder, hold))
+	return l.grant, l.failure, nil
+}
+
+func (*onceLock) Describe() string { return "a test lock" }
+
 func startupRunners(t *testing.T, adapterNames ...string) []*adapter.StartupRunner {
+	t.Helper()
+	runners, err := startupRunnersWith(t, nil, adapterNames...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return runners
+}
+
+// startupRunnersWith plans the named adapters with lock bound as the
+// ScheduleLock, or none when it is nil, and returns what planning said.
+func startupRunnersWith(t *testing.T, lock runtime.ScheduleLock, adapterNames ...string) ([]*adapter.StartupRunner, error) {
 	t.Helper()
 	root := t.TempDir()
 	for name, src := range fixture.Module(startupProgram) {
@@ -100,6 +147,9 @@ func startupRunners(t *testing.T, adapterNames ...string) []*adapter.StartupRunn
 	}
 	u, _ := types.BuildUniverse(files)
 	caps := runtime.NewCapabilityRegistry()
+	if lock != nil {
+		caps.Register(runtime.ScheduleLockCapability, lock)
+	}
 	RegisterDefaults(caps)
 	t.Cleanup(caps.Close)
 	in := runtime.New(u, caps)
@@ -111,11 +161,7 @@ func startupRunners(t *testing.T, adapterNames ...string) []*adapter.StartupRunn
 		d, _ := u.Lookup(name)
 		served = append(served, adapter.Served{Decl: d.(*syntax.AdapterDecl)})
 	}
-	runners, err := adapter.StartupRunners(served, u, in)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return runners
+	return adapter.StartupRunners(served, u, in, "replica-1")
 }
 
 func TestStartupProceedsWhenNothingHalts(t *testing.T) {
@@ -176,5 +222,90 @@ func TestStartupFaultHaltsEvenUnderAProceedWildcard(t *testing.T) {
 	}
 	if err := faulty.Check(context.Background()); err == nil || !strings.Contains(err.Error(), "it faulted") {
 		t.Fatalf("Check = %v, want a fault to halt", err)
+	}
+}
+
+// §6: a route's `within` is its deadline, in place of the 30 s default.
+func TestStartupWithinIsTheRoutesDeadline(t *testing.T) {
+	runners := startupRunners(t, "Tight")
+	if runners[0].Deadline != 100*time.Millisecond {
+		t.Fatalf("Deadline = %s, want 100ms", runners[0].Deadline)
+	}
+	err := adapter.RunStartup(context.Background(), runners)
+	if err == nil || !strings.Contains(err.Error(), "Tight run -> hung: it did not finish within 100ms") {
+		t.Errorf("err = %v", err)
+	}
+	if got := startupRunners(t, "Good")[0].Deadline; got != adapter.StartupDeadline {
+		t.Errorf("a route with no within has Deadline %s, want %s", got, adapter.StartupDeadline)
+	}
+}
+
+// §6: a `once` route is claimed, and a replica that loses the claim starts
+// without running it.
+func TestStartupOnceRunsOnlyWhereItIsClaimed(t *testing.T) {
+	var logs logLines
+	lock := &onceLock{grant: false}
+	runners, err := startupRunnersWith(t, lock, "Once")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runners[0].Logf = logs.Logf
+	if got := runners[0].Lock(); got == nil {
+		t.Fatal("a once route has no lock")
+	}
+	// Claimed elsewhere: storageMissing would halt, and it didn't run.
+	if err := adapter.RunStartup(context.Background(), runners); err != nil {
+		t.Fatalf("a replica that lost the claim was refused: %v", err)
+	}
+	if want := "Once run -> storageMissing|0|replica-1|600000"; len(lock.claims) != 1 || lock.claims[0] != want {
+		t.Errorf("claims = %v, want [%s]", lock.claims, want)
+	}
+	if !strings.Contains(logs.all(), "another replica has claimed it") {
+		t.Errorf("logs = %q", logs.all())
+	}
+	// Claimed here: it runs, and its mapping halts.
+	lock.grant = true
+	err = adapter.RunStartup(context.Background(), runners)
+	if err == nil || !strings.Contains(err.Error(), "its mapping says halt") {
+		t.Errorf("err = %v, want the claimed route to run and halt", err)
+	}
+}
+
+// §6: a claim that can't be made is a refusal: whether the route has run is
+// not known.
+func TestStartupOnceRefusesWhenTheClaimFails(t *testing.T) {
+	lock := &onceLock{grant: true, failure: errors.New("redis is down")}
+	runners, err := startupRunnersWith(t, lock, "Once")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = adapter.RunStartup(context.Background(), runners)
+	if err == nil || !strings.Contains(err.Error(), "it could not be claimed (redis is down)") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// §6: `-check` runs a once route in the process that asks, claiming nothing.
+func TestStartupIgnoreOnceRunsWithoutClaiming(t *testing.T) {
+	lock := &onceLock{grant: false}
+	runners, err := startupRunnersWith(t, lock, "Once")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runners[0].IgnoreOnce = true
+	err = adapter.RunStartup(context.Background(), runners)
+	if err == nil || !strings.Contains(err.Error(), "its mapping says halt") {
+		t.Errorf("err = %v, want the route to run", err)
+	}
+	if len(lock.claims) != 0 {
+		t.Errorf("claims = %v, want none", lock.claims)
+	}
+}
+
+// §6: a once route with no ScheduleLock bound is found before anything runs.
+func TestStartupOnceNeedsAScheduleLock(t *testing.T) {
+	_, err := startupRunnersWith(t, nil, "Once")
+	if err == nil || !strings.Contains(err.Error(), "binds no ScheduleLock to claim it with") {
+		t.Errorf("err = %v", err)
 	}
 }

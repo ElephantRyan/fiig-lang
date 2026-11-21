@@ -2,6 +2,7 @@ package checker
 
 import (
 	"strings"
+	"time"
 
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
@@ -15,6 +16,11 @@ import (
 func (c *checker) checkStartupRoute(route *syntax.Route, wd *syntax.WorkflowDecl) {
 	if len(wd.Params) != 0 || len(route.Args) != 0 {
 		c.report(route.Start, "I9", "a startup route's workflow takes nothing, and the route gives no arguments; %s takes %s and the route gives %d (ADR 0124 §1)", wd.Name, paramList(wd.Params), len(route.Args))
+	}
+	if route.Within != "" {
+		if d, err := time.ParseDuration(route.Within); err != nil || d <= 0 {
+			c.report(route.Start, "I10", "startup route `run within %q -> %s`: a deadline is a positive duration such as \"10s\" or \"2m\" (ADR 0124 §6)", route.Within, wd.Name)
+		}
 	}
 	if route.Mapping == nil {
 		c.report(route.Start, "I7", "startup route `run -> %s` has no mapping; nothing calls a check, so say what happens to each outcome, as in `{ Ok(_) -> proceed  Err(_) -> halt }` (ADR 0124 §1)", wd.Name)
