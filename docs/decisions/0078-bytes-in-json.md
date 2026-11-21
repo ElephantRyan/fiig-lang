@@ -1,6 +1,7 @@
 # ADR 0078: The JSON Form of `bytes`
 
-Status: Accepted and implemented (2026-11-15; see Implementation notes)
+Status: Accepted and implemented (2026-11-15; see Implementation notes);
+§6 added and implemented 2026-11-21
 Date: 2026-11-15
 Related: ADR 0058 (`bytes`), ADR 0062 (play nice with foreign data), ADR
 0068 §3 (`toBase64`, `toBase64Url`), ADR 0069 §7 (`fromBase64`,
@@ -109,6 +110,138 @@ field, received as GitHub sends it (standard base64 wrapped at 60
 characters) and answered as standard base64, with a test that the
 base64url form of the same bytes decodes too.
 
+### 6. A field can be written as base64url (added 2026-11-21)
+
+*(The owner chose a field clause over a Base64Url type, 2026-11-21.)*
+
+Some APIs require base64url for a field and refuse the standard alphabet:
+Gmail's `raw`, JWT's three segments (RFC 7515 §2), and WebAuthn's
+credential IDs and client data. §1 still decides how every other field
+is written. A field that has to be base64url says so where it already
+says how it looks in JSON, in its `from json` clause:
+
+```fiig
+model GmailMessage {
+    id: string
+    raw: bytes from json base64url
+}
+// {"id": "18c2", "raw": "RnJvbTogYUBiLmM"}
+
+model Draft {
+    raw: bytes from json "raw_data" base64url
+}
+```
+
+```
+field ::= field-name ':' type [ 'from' 'json' ( string-literal [ 'base64url' ] | 'base64url' ) ]
+```
+
+`base64url` is a contextual word, like `from` and `json`, so it isn't
+reserved. The member name, if any, comes first: the clause reads as
+"from the JSON member `raw_data`, as base64url". The clause is allowed on
+model and payload fields, the fields that already take `from json`. A
+record field has no JSON form of its own and a variant's `from json` is
+its spelling, so neither takes it.
+
+**What it writes.** RFC 4648 §5, `-` and `_`, **with no padding**: what
+`toBase64Url()` returns (ADR 0068 §3), so a field and the method can't
+disagree. JWT and WebAuthn require base64url without padding and refuse
+`=`. Google's APIs read it padded or not. Unpadded is the one form every
+consumer that asks for base64url accepts.
+
+**What it reads.** §2's rules, the same as every other `bytes` field:
+either alphabet, padded or not, CR and LF skipped. The clause changes
+what fiig says, never what it accepts (charter principle 10). A
+`base64url` field that receives standard base64 decodes it, and so does a
+plain field that receives base64url, as it has since §2. The two
+refusals §2 already made stay, because each is a case where guessing
+could give the wrong bytes:
+
+- **Both alphabets in one string** (`+` or `/` beside `-` or `_`) is a
+  `Mismatch`. Each character could be decoded on its own, but no producer
+  writes that string. It is two values joined, or one damaged in transit,
+  and decoding it would return bytes nobody sent.
+- **A space or tab** is a `Mismatch`, as now. Only CR and LF are
+  skipped, because GitHub and MIME wrap lines with them. A space inside
+  base64 is most often a `+` that was form-URL-decoded on the way in
+  (`a+b` became `a b`). Decoding around the space would drop six bits and
+  shift every byte after it.
+
+Errors keep their shape: `JsonError.Mismatch` with the member's path and
+`base64 mixes the standard alphabet (+ /) with the URL-safe one (- _)` or
+`isn't base64: ...`, and an HTTP request body answers 400 with the
+`Mismatch`, as before.
+
+**Which types.** The clause describes the field's own bytes, so the
+field's type must be bytes all the way down: `bytes`, `bytes | None`, a
+`List` of them, a `Map` whose values are, and any nesting of those
+(`List<bytes | None> | None`). On any other type it is **J4**. On
+`string` or `int` the clause would say nothing. On a model or enum it
+would reach into fields that have their own `from json` clauses, and a
+model used in two places would be written two ways. A `Map` written as
+`[key, value]` pairs (keys that aren't `string`) writes only its values
+as base64url. A key is never the field's content.
+
+**Everywhere fiig writes JSON.** `json.encode`, `json.encodePretty`
+(ADR 0073 §9), an HTTP response body, and an enum payload field all go
+through the same encoder. `fiig run -json` is a tool's tagged view keyed
+by fiig field names (ADR 0072 §7). It already ignores `from json` names,
+so it ignores `base64url` too and prints §1's form. A whole `bytes` body
+is still raw (§4).
+
+**OpenAPI.** The field's schema is `{"type": "string", "format":
+"base64url"}`, the OpenAPI Format Registry's name for RFC 4648 §5. The
+generated document is OpenAPI 3.0.3, whose Schema Object has no
+`contentEncoding`. OpenAPI 3.1 would write JSON Schema's
+`contentEncoding: base64url` instead. The other fields keep `format:
+byte`.
+
+#### Precedent
+
+| | How a field picks base64url |
+|---|---|
+| Go `encoding/json` | It can't: `[]byte` is always standard base64, padded. A JWT library declares its own type with a `MarshalJSON` method (go-jose's `byteBuffer`). |
+| Rust, serde | A field attribute: `#[serde_as(as = "Base64<UrlSafe, Unpadded>")]` (serde_with), with the alphabet and padding on the field. |
+| Python, Pydantic | A type: `Base64UrlBytes` beside `Base64Bytes`. |
+| Java, Jackson | `Base64Variants.MODIFIED_FOR_URL` (unpadded), chosen for the whole `ObjectMapper`. A single field needs a custom serializer. |
+| Protocol Buffers' JSON mapping | It can't choose: it writes standard, and reads both alphabets, padded or not. |
+
+serde puts the choice on the field, as fiig does. Pydantic uses a type,
+and Jackson a mapper-wide setting. Go and Protobuf offer no way to choose
+on the writing side.
+
+#### Alternatives considered for §6
+
+**F. A `Base64Url` type** (Pydantic's `Base64UrlBytes`). Then every
+`bytes` method, `crypto` call, and binary pattern needs a conversion in
+and out of it, for a difference that only exists in JSON. A type is how
+a value behaves, and these bytes behave like any other bytes. Only their
+JSON text differs, and the field is where a JSON member's text is
+decided (its name, ADR 0073 §7b). Rejected; the owner chose the clause.
+
+**G. One setting for a whole program or adapter** (Jackson's mapper
+variant). Gmail's `raw` would change every other `bytes` field the
+service sends, including fields a standard-base64 consumer reads.
+Rejected.
+
+**H. Keep the workaround**, a `string` field filled with `toBase64Url()`.
+The field's type then stops saying it holds bytes, and every reader
+decodes by hand. That was open question 1's interim answer, not a
+design. Rejected.
+
+**I. Pad by default, or add `base64url padded`.** No attested API needs
+padded base64url, and JWT and WebAuthn refuse it. A `padded` word can be
+added when an API needs it. Not added now.
+
+**J. `as base64url`**, the open question's sketch. `as` already renames,
+in a use line (ADR 0043). One `from json` clause holding both the name
+and the form keeps everything about a field's JSON in one place.
+Rejected.
+
+**K. A `base64url` field refuses standard base64.** The sender can't do
+anything about that refusal, and nothing about the text is ambiguous.
+Rejected: charter principle 10, and §2's reason.
+
 ## Alternatives considered
 
 **A. An array of numbers** (serde's default). Four times the size of the
@@ -142,10 +275,12 @@ Rejected.
 
 ## Open questions
 
-1. Writing a field as base64url, for an API that demands it (Gmail's
+1. ~~Writing a field as base64url, for an API that demands it (Gmail's
    `raw`). Today the field is a `string` and the program calls
    `toBase64Url()`; a field-level form, such as `from json "raw" as
-   base64url`, can wait for a second need.
+   base64url`, can wait for a second need.~~ Done 2026-11-21 as §6:
+   `raw: bytes from json base64url`, unpadded, and J4 for any other type.
+   JWT and WebAuthn were the second need.
 
 ## Implementation notes (2026-11-15)
 
