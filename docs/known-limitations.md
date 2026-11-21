@@ -90,10 +90,15 @@ doesn't have to discover them.
   (so no XOAUTH2 for Gmail or Microsoft 365), no internationalised
   addresses, and one connection per mail. A mail to several recipients goes
   to all of them or to none.
-- **`fiig.s3` has four operations** (ADR 0121): put, get, head and delete of
-  one object. No listing (it needs an XML reader), multipart upload,
-  presigned URLs, ranges, or copy, and the whole object is held in memory,
-  so a very large one isn't practical until `fiig.http` can stream.
+- **`fiig.s3` covers single objects** (ADR 0121): put (optionally with
+  user metadata, always with an `x-amz-checksum-sha256` for S3 to verify),
+  get (whole, with its metadata, or a byte range), head, delete, and copy
+  within or across buckets. No listing (it needs an XML reader),
+  multipart upload, presigned URLs, or server-side encryption headers. A
+  copy's error inside a 200 reply is found by looking for `<Error>`, not
+  by parsing XML, and metadata values must be printable ASCII. The whole
+  object (or range) is held in memory, so a very large one isn't
+  practical until `fiig.http` can stream. Not yet tried against AWS.
 - **Only Kafka uses a session** (ADR 0114, built by ADR 0117): the
   runtime can own a connection past every call and run a protocol written
   in fiig over it, but no Redis subscription, Postgres `LISTEN`, or HTTP/2

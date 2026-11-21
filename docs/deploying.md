@@ -278,7 +278,9 @@ SQL database and no Redis can claim in the database instead, with
 `{"ScheduleLock": {"type": "lock", "lock": "fiig.sqllock"}}` (the program
 depends on `fiig.sqllock`): the lock keeps its
 claims in a `fiig_locks` table, which it creates the first time it is used,
-so there is nothing to migrate (ADR 0125). With none of these, `fiig serve`
+so there is nothing to migrate (ADR 0125). Each claim deletes the rows that
+have expired, so the table holds only live claims and the last seven days
+of `once` completions. With none of these, `fiig serve`
 refuses to start the adapter.
 
 - A firing missed while no process ran is skipped; the next one runs.
