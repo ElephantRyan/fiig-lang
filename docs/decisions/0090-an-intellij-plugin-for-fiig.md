@@ -118,6 +118,11 @@ the project directory, and `-caps` is `caps.json` beside the manifest
 when there is one. A gutter Check action on any file runs `fiig check`
 on its package.
 
+*(Amended 2026-11-21: the gutter ▶ is on the `application` and its `serve`
+blocks (ADR 0132) and on `test` blocks (ADR 0091), which gain a Test command
+(`fiig test -run <name>`); workflows, adapters, and the Check action no longer
+have one, since a program is started by its application.)*
+
 ### 5. New-file templates
 
 **New → fiig File** asks for a kind (model, enum, rule, conversion,

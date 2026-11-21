@@ -28,9 +28,9 @@ binary can be found.
 | Quick Documentation | a declaration's signature and the comment above it, or an expression's type |
 | Formatting | Reformat Code runs `fiig fmt`; turn on **Settings \| Tools \| Actions on Save \| Reformat code** to format on save |
 | Highlighting | colors under **Settings \| Editor \| Color Scheme \| fiig**; each call is coloured by what it calls (rule, conversion, activity, gateway, workflow, ...) under **Calls** (ADR 0106) |
-| File icons | the Project view, tabs, and **New \| fiig File** show each file's declaration kind: data (`model`, `enum`, `interface`) as blue circles, pure logic (`rule`, `conversion`, `formulas`) as green squares, effects (`activity`, `gateway`, `workflow`) as orange diamonds, the program's edge (`adapter`, `capability`, `config`) as purple hexagons, and tests as an outlined check |
+| File icons | the Project view, tabs, and **New \| fiig File** show each file's declaration kind. The three a reader looks for first are saturated and unique: `adapter` (the entry, a magenta arrow into a bar), `workflow` (an orange diamond of joined steps) and `gateway` (the exit, a teal door with an arrow out). The rest are muted: data (`model`, `enum`, `interface`) as circles, pure logic (`rule`, `conversion`, `formulas`) as squares, `activity` as an octagon, the program's edge (`capability`, `config`, `application`) as hexagons, and tests as an outlined check |
 | Editing | brace matching, `Ctrl+/` comments, folding of blocks and comment runs, TODO |
-| Running | a ▶ in the gutter on a `workflow` (Run), an `adapter http` (Serve), or any other file's declaration (Check), and a **fiig** run configuration for `fiig run`, `serve`, and `check` |
+| Running | a ▶ in the gutter on the `application` (Serve), on each `serve` block in it (Serve that role), and on each `test` (runs that test by name), and a **fiig** run configuration for `fiig run`, `serve`, `test`, and `check` |
 | New files | **New \| fiig File**: pick a kind and a name; `get customer` makes `getCustomer` in `GetCustomer.fiig` (ADR 0104). In an application's `src/` the name must start with a folder, `orders/get customer`, since an application declares nothing at the top level (ADR 0108) |
 | Manifests and capabilities files | completion and validation in `fiig.pkg.json`, `caps.json`, `caps.*.json`, and `capabilities.json` |
 
