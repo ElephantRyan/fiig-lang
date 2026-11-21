@@ -261,9 +261,50 @@ test noneIsNoToken {
 	if code != 0 || len(results) != 3 {
 		t.Fatalf("want 3 passing tests and exit 0, got %d: %+v", code, results)
 	}
-	// Without the file the optional url reads as unset.
-	if code, results := runJSON(t, root); code != 1 || results["urlFromTheEnvFile"].Outcome == "pass" {
-		t.Fatalf("want urlFromTheEnvFile to fail without -env-file, got %d: %+v", code, results)
+	// Without the file, reading the optional url fails the test naming it
+	// (ADR 0091 §5, Hearsay G68), rather than reading None.
+	code, results = runJSON(t, root)
+	failed := results["urlFromTheEnvFile"]
+	if code != 1 || failed.Outcome == "pass" || len(failed.Failures) == 0 || !strings.Contains(failed.Failures[0].Message, "this test reads Shop.url (SHOP_URL), which it doesn't fake") {
+		t.Fatalf("want urlFromTheEnvFile to fail naming Shop.url, got %d: %+v", code, results)
+	}
+}
+
+// Hearsay G68: a test that expects an optional config to be unset says so,
+// with `fake ... { field: None }` or `NAME=` in the env file. Leaving it out
+// isn't one of those ways: the read fails, as a required one does.
+func TestAnUnfakedOptionalConfigFailsTheTest(t *testing.T) {
+	files := withTests(map[string]string{
+		"config/plain.fiig": `config Plain {
+    url: string | None from env "PLAIN_URL"
+}
+`,
+		"activities/url_set.fiig": `activity urlSet() -> bool {
+    match Plain.url {
+        None -> false
+        given -> true
+    }
+}
+`,
+		"tests/plain.fiig": `test plainIsUnset {
+    expect not urlSet()
+}
+`,
+	})
+	root := writePackage(t, files)
+	if code, results := runJSON(t, root); code != 1 || results["plainIsUnset"].Outcome == "pass" {
+		t.Fatalf("an unfaked optional config passed: %d %+v", code, results)
+	}
+	envFile := filepath.Join(root, "test.env")
+	if err := os.WriteFile(envFile, []byte("PLAIN_URL=\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, results := runJSONWith(t, root, envFile); code != 0 {
+		t.Fatalf("PLAIN_URL= in the env file is unset on purpose: %d %+v", code, results)
+	}
+	files["tests/plain.fiig"] = "test plainIsUnset {\n    fake Plain { url: None }\n    expect not urlSet()\n}\n"
+	if code, results := runJSON(t, writePackage(t, files)); code != 0 {
+		t.Fatalf("fake Plain { url: None } is unset on purpose: %d %+v", code, results)
 	}
 }
 

@@ -76,6 +76,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"fiig-lang/compiler/layout"
 	"fiig-lang/compiler/lexer"
@@ -1237,12 +1238,18 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s may not call workflow %q; a workflow is called only from outside its package, by an adapter or by another package's gateway (ADR 0079 §2)", c.callerKind, calleeName)
 		return
 	}
-	if c.callerKind == kindRule && (calleeKind == kindConversion || calleeKind == kindRule) && c.entry != nil && callee != c.entry {
+	if c.callerKind == kindRule && calleeKind == kindRule && c.entry != nil && callee != c.entry {
+		// ADR 0139 §2 (Hearsay G58): a rule doesn't combine decisions; it
+		// takes the other rule's answer as a parameter. A conversion or a
+		// formula comes second, for the cases they fit.
+		caller := syntax.DeclName(c.entry)
+		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "rule may not call rule %q; a rule doesn't combine decisions, so take its answer as a parameter (`%s: %s`) and call %s from the activity that calls %s (ADR 0029, ADR 0139). If %s only reshapes data, it can be a conversion; if %s is a format check, it can be a formula (ADR 0049)", calleeName, answerParamName(calleeName), ruleReturnText(callee), calleeName, caller, caller, lastSegment(calleeName))
+		return
+	}
+	if c.callerKind == kindRule && calleeKind == kindConversion && c.entry != nil && callee != c.entry {
 		// abs-recommendations GAPS G18: a rule calls only formulas; a
-		// conversion may call rules and conversions. Hearsay G58: a small
-		// pure helper (a match over an enum) is a formula, which keeps the
-		// caller a rule.
-		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "rule may not call %s %q; a rule calls only formulas and methods, so make %s a conversion, which may call rules and conversions, or, if %q is a small pure helper, make it a formula in a `formulas` group (fiig-lang.md §3.2, ADR 0049)", calleeKind, calleeName, syntax.DeclName(c.entry), calleeName)
+		// conversion may call rules and conversions.
+		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "rule may not call conversion %q; a rule calls only formulas and methods, so make %s a conversion, which may call rules and conversions (fiig-lang.md §3.2)", calleeName, syntax.DeclName(c.entry))
 		return
 	}
 	c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s may not call %s %q", c.callerKind, calleeKind, calleeName)
@@ -1475,4 +1482,36 @@ func withSiblings(packages, siblings types.Packages) types.Packages {
 		merged[k] = v
 	}
 	return merged
+}
+
+// answerParamName is ADR 0139 §2's hint for the parameter that carries a
+// rule's answer: its name with a leading can, is or has dropped
+// (client.canAdminister -> administer), else its name. A hint, not a rename.
+func answerParamName(callee string) string {
+	name := lastSegment(callee)
+	for _, prefix := range []string{"can", "is", "has"} {
+		rest, ok := strings.CutPrefix(name, prefix)
+		if ok && rest != "" && unicode.IsUpper([]rune(rest)[0]) {
+			r := []rune(rest)
+			r[0] = unicode.ToLower(r[0])
+			return string(r)
+		}
+	}
+	return name
+}
+
+// ruleReturnText is a rule's return type as written, for the hint.
+func ruleReturnText(d syntax.Decl) string {
+	if rd, ok := d.(*syntax.RuleDecl); ok && rd.ReturnType != nil {
+		return types.SyntaxString(rd.ReturnType)
+	}
+	return "..."
+}
+
+// lastSegment is a dotted name's last part: client.canAdminister -> canAdminister.
+func lastSegment(name string) string {
+	if i := strings.LastIndex(name, "."); i >= 0 {
+		return name[i+1:]
+	}
+	return name
 }

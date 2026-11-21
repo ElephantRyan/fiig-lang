@@ -41,9 +41,18 @@ for a string to hold, where Go's own `strings.Repeat` would panic. Hearsay
 wanted it for a boundary test (a 281-character note, GAPS G2) and built the
 string from nested interpolations instead.
 
-Neither `repeat` nor `padLeft`/`padRight` has a cap on the size of what it
-builds, below what memory allows. Whether string builders should have one
-is a separate question.
+**No size cap, by decision (the owner, 2026-11-21).** `repeat`,
+`padLeft` and `padRight` fault only when the length overflows, as Go's,
+Rust's, Python's and Lua's do. They don't fault on a fixed maximum length,
+as JavaScript engines and .NET do (about 1 GB), and there's no per-request
+memory budget, as PHP's `memory_limit` and Erlang's `max_heap_size` give.
+A count that comes from a request is input, so a rule bounds it first
+(charter principle 11, `docs/layers.md`'s order of checks). A cap on a few
+methods would promise more than it gives, since `append` loops,
+interpolation and decoding can use up memory just the same. The cost is
+that running out of memory stops the whole process, not just the request
+(`docs/known-limitations.md`). Revisit with a per-request memory budget if
+a real case appears.
 
 ### 2. Lists
 

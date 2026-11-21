@@ -36,3 +36,20 @@ func TestATestMayCallAWorkflow(t *testing.T) {
 		t.Fatalf("diags = %v, want none", diags)
 	}
 }
+
+// ADR 0139 §2 (Hearsay G58): a rule calling a rule is told to take the
+// other rule's answer as a parameter, first.
+func TestARuleCallingARuleIsToldToTakeItsAnswer(t *testing.T) {
+	diags := checkSrc(t,
+		"rule syncTargets(userType: string) -> int {\n    if canAdminister(userType) {\n        return 2\n    }\n    return 1\n}",
+		"rule canAdminister(userType: string) -> bool {\n    return userType == \"admin\"\n}")
+	wantDiag(t, diags, "B7", "a rule doesn't combine decisions, so take its answer as a parameter (`administer: bool`) and call canAdminister from the activity that calls syncTargets (ADR 0029, ADR 0139). If syncTargets only reshapes data, it can be a conversion; if canAdminister is a format check, it can be a formula (ADR 0049)")
+}
+
+func TestAnswerParamName(t *testing.T) {
+	for in, want := range map[string]string{"client.canAdminister": "administer", "isOpen": "open", "hasRole": "role", "island": "island", "can": "can", "score": "score"} {
+		if got := answerParamName(in); got != want {
+			t.Errorf("answerParamName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
