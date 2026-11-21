@@ -421,6 +421,28 @@ to the partition a Java producer would choose. The topic must exist:
 `fiig.kafka` never creates one. There is no SASL yet, so a cluster that
 requires it can't be reached.
 
+## Mail
+
+A program that sends mail with `fiig.smtp` reads where the server is from
+the environment (ADR 0120):
+
+- `SMTP_URL` (a secret): `smtp://[user[:password]@]host[:port]` (587,
+  upgraded with STARTTLS), `smtps://...` (465, TLS from the first byte),
+  or `smtp+plain://...` (25, never TLS, for a server on the same machine).
+  Percent-encode an `@` in the user: `smtps://ann%40gmail.com@smtp.gmail.com`.
+- `SMTP_HELO_NAME` (`localhost`), and `SMTP_TIMEOUT_MS` (30000), the most
+  one send takes.
+- `SMTP_AUTH`: `auto` (the default), `plain`, `login` or `xoauth2`. `auto`
+  uses XOAUTH2 when a token is set and the server offers it, then AUTH
+  PLAIN, then AUTH LOGIN.
+- `SMTP_OAUTH_TOKEN` (a secret): an OAuth 2.0 access token for XOAUTH2,
+  sent for the URL's user, so the URL needs no password. It is read once
+  at start and never refreshed: restart the program with a fresh token
+  before it expires, from whatever rotates your secrets.
+
+The server's certificate is checked against the capabilities file's
+`trust`. Connections are kept between mails, one per login.
+
 ## Migrations
 
 A package's schema lives in `migrations/<number>_<name>.sql`, plain SQL
