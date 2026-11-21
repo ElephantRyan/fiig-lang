@@ -1,6 +1,6 @@
 # ADR 0139: A Rule Takes Another Rule's Answer as a Parameter
 
-Status: Accepted (2026-11-21; the owner approved it). Not implemented yet.
+Status: Accepted (2026-11-21; the owner approved it). Implemented 2026-11-21: B7's message and the `docs/layers.md` paragraph (Hearsay's move is Lane A's).
 Date: 2026-11-21
 Related: ADR 0029 (rules call nothing; conversions compose), ADR 0030
 (activity), ADR 0049 (formulas; format checks vs policy checks), ADR 0083
@@ -194,3 +194,10 @@ mixes two policies. Splitting them is what lets "who is an admin" change
   admin routes. Then `admin` could come from the principal instead of a
   rule call in the activity. That doesn't change this decision, only where
   the answer comes from.
+
+## Implementation note (2026-11-21)
+
+B7's rule-calls-rule message reads as §2 gives it, and a rule calling a
+conversion keeps its own message. The parameter hint follows §2's rule:
+`canAdminister` gives `administer`, not the `admin` of §2's example. That
+example is the parameter Hearsay chose, which a hint can't guess.

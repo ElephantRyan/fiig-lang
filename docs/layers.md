@@ -147,6 +147,27 @@ Fiig has no union error types (`Result<T, AbsFault | BookError>`). `?` never
 converts an error (ADR 0006, F2), and the named variants say more about what
 failed (Hearsay GAPS G60).
 
+## A rule that depends on another rule's answer
+
+A rule doesn't call a rule (ADR 0029). When one decision depends on
+another, such as "admin or self" depending on "is this person an admin",
+the rule takes the other's answer as a parameter, and the activity that
+calls it makes both decisions and passes the answer by name (ADR 0139):
+
+```fiig
+rule syncTargets(me: accounts.Identity, admin: bool, requested: string | None, everyone: List<string>) -> Result<List<string>, SyncError> { ... }
+
+// in the activity
+targets = syncTargets(me, admin: client.canAdminister(me.userType), requested: userId, everyone: all)?
+```
+
+Its tests then say `admin: true` and `admin: false` directly, and
+`canAdminister` is tested once, on its own. Don't make the caller a
+conversion to get around this: a conversion reshapes data one level deeper,
+and doesn't combine decisions. Don't make the callee a formula either,
+unless it's a format check that any app would answer the same way (ADR
+0049).
+
 ## Why a workflow doesn't call a gateway
 
 A workflow that calls `findBook` directly depends on how the book is
