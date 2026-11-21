@@ -577,7 +577,8 @@ question, not addressed here.
 match-statement ::= 'match' expression '{' match-arm { match-arm } '}'
 match-arm       ::= pattern '->' ( expression | block )
 pattern         ::= '_' | qualified-name [ '(' [ pattern { ',' pattern } ] ')' ]
-                  | binary-pattern
+                  | literal-pattern | binary-pattern
+literal-pattern ::= [ '-' ] integer-literal | string-literal | 'true' | 'false'   -- ADR 0130; a string with no interpolation; no float or decimal
 binary-pattern  ::= '<<' [ pattern-segment { ',' pattern-segment } [ ',' ] ] '>' '>'
 pattern-segment ::= ( identifier | '_' | integer-literal | string-literal ) ':' encoding
 encoding        ::= identifier [ '(' expression ')' ]
@@ -594,6 +595,12 @@ which would have implied an `Option<T>` type the language doesn't have.
 qualifies a constructor by its error type, reusing the same qualified-name
 shape already used in construction (`CustomerError.NotFound(id)`) — this is
 why `pattern` uses `qualified-name` rather than a bare `identifier`.
+
+A literal pattern (ADR 0130) matches a value equal to it, by the rules of
+`==`. A match with a literal arm needs a catch-all arm for an `int` or a
+`string` subject (A9), and `true` and `false` cover a `bool`. `- 1 ->` after
+an arm's expression is the next arm, never a subtraction. A `true` or `false`
+used to parse as a name that always matched; it is now the value.
 
 Attested arm bodies: single expression (`found -> Ok(Customer(...))`) and
 block (`Err(_) -> { refundPayment(...); releaseInventory(...); return Err(...) }`

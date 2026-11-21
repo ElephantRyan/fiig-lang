@@ -375,7 +375,6 @@ fakes both providers, as §4 requires.
 4. **Snapshot tests, coverage, and benchmarks.**
 5. **Shared fakes.** A fake used by many tests is repeated in each. A
    public `fake` declaration in `tests/`, used by name, would share it.
-6. **Literal patterns.** `is` binds a value and `==` checks it, two lines
-   where one would do. Literal patterns would make it one line, and would
-   let program code `match` on values (`404 -> ...`, `200 -> ...`) instead
-   of an `if` chain. They need their own ADR.
+6. ~~**Literal patterns.**~~ Done (ADR 0130): `is` and `match` take an int, a
+   string or a bool, so `expect r is Err(RatingError.Invalid("score", _))` is
+   one line and `404 -> ...` replaces an `if` chain.

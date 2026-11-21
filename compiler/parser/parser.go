@@ -1675,18 +1675,34 @@ func (p *Parser) parsePattern() syntax.Pattern {
 		return &syntax.WildcardPattern{Span: syntax.Span{Start: start, End: p.cur().Start}}
 	}
 	switch p.cur().Kind {
-	case lexer.Int, lexer.Float, lexer.StringStart, lexer.Minus:
-		// Patterns bind names; they don't hold values to compare against.
-		text := p.cur().Text
-		if p.at(lexer.Minus) {
-			text = "-" + p.peek(1).Text
+	case lexer.Int:
+		return p.parseIntPattern(start, false)
+	case lexer.Minus:
+		if p.peek(1).Kind == lexer.Int {
+			p.advance()
+			return p.parseIntPattern(start, true)
 		}
-		if p.at(lexer.StringStart) {
-			text = "\"...\""
-		}
-		p.parseUnary()
-		p.errorf(start, "a pattern can't hold a literal (%s); bind a name and compare it: `Rejected(status)`, then `status == %s`", text, text)
+	case lexer.Float:
+		// ADR 0130: a float or decimal has no literal pattern, since two
+		// numbers that should agree can differ in the last bit (ADR 0048), and
+		// a decimal's scale is part of what it prints as (ADR 0064).
+		text := p.advance().Text
+		p.errorf(start, "a pattern can't hold a float or decimal literal (%s); bind a name and compare it, with math.closeTo for a float (ADR 0130)", text)
 		return &syntax.NamePattern{Span: syntax.Span{Start: start, End: p.cur().Start}, Path: []string{syntax.ErrorName}}
+	case lexer.StringStart:
+		lit := p.parseStringLit()
+		if hasInterp(lit) {
+			p.errorf(start, "a string pattern can't interpolate; it matches the text it is written as (ADR 0130)")
+			return &syntax.NamePattern{Span: syntax.Span{Start: start, End: p.cur().Start}, Path: []string{syntax.ErrorName}}
+		}
+		return &syntax.LiteralPattern{Span: syntax.Span{Start: start, End: p.cur().Start}, Kind: "string", Str: plainText(lit), Lit: lit}
+	case lexer.Ident:
+		// `true` and `false` are names to the lexer; as a pattern they are the
+		// values, not a binding that always matches.
+		if name := p.cur().Text; (name == "true" || name == "false") && p.peek(1).Kind != lexer.Dot && p.peek(1).Kind != lexer.LParen {
+			p.advance()
+			return &syntax.LiteralPattern{Span: syntax.Span{Start: start, End: p.cur().Start}, Kind: "bool", Bool: name == "true"}
+		}
 	}
 	path := p.parseQualifiedName()
 	if p.at(lexer.LParen) {
@@ -1703,6 +1719,20 @@ func (p *Parser) parsePattern() syntax.Pattern {
 		return &syntax.ConstructorPattern{Span: syntax.Span{Start: start, End: end}, Path: path, Args: args}
 	}
 	return &syntax.NamePattern{Span: syntax.Span{Start: start, End: p.cur().Start}, Path: path}
+}
+
+// parseIntPattern is an int literal in a pattern, after its minus sign when
+// neg: decimal or hex, as in an expression (ADR 0130).
+func (p *Parser) parseIntPattern(start lexer.Pos, neg bool) syntax.Pattern {
+	tok := p.expect(lexer.Int)
+	n, err := syntax.IntValue(tok.Text)
+	if err != nil {
+		p.errorf(start, "the int pattern %s is out of range", tok.Text)
+	}
+	if neg {
+		n = -n
+	}
+	return &syntax.LiteralPattern{Span: syntax.Span{Start: start, End: p.cur().Start}, Kind: "int", Int: n}
 }
 
 func (p *Parser) parseTransactionStmt() *syntax.TransactionStmt {
@@ -1839,6 +1869,12 @@ func (p *Parser) parseAdditive() syntax.Expr {
 	for {
 		op, ok := additiveOps[p.cur().Kind]
 		if !ok {
+			return left
+		}
+		// `- 1 ->` is the next match arm's literal pattern (ADR 0130), never a
+		// subtraction: an expression isn't followed by an arrow, so the minus
+		// starts an arm whose body is the line above.
+		if p.at(lexer.Minus) && p.peek(1).Kind == lexer.Int && p.peek(2).Kind == lexer.Arrow {
 			return left
 		}
 		p.advance()

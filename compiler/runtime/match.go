@@ -19,6 +19,19 @@ func matchPattern(p syntax.Pattern, v Value, env *Env, top bool) bool {
 	switch p := p.(type) {
 	case *syntax.WildcardPattern:
 		return true
+	case *syntax.LiteralPattern:
+		// ADR 0130: equal by ==, so an int against an int, a string against a
+		// string (code points as written, ADR 0067 §8), a bool against a bool.
+		switch p.Kind {
+		case "int":
+			n, ok := v.(Int)
+			return ok && int64(n) == p.Int
+		case "string":
+			s, ok := v.(Str)
+			return ok && string(s) == p.Str
+		}
+		b, ok := v.(Bool)
+		return ok && bool(b) == p.Bool
 	case *syntax.NamePattern:
 		if len(p.Path) == 2 {
 			// A zero-field enum variant (`Region.US`) parses with no call

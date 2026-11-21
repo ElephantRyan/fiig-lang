@@ -488,6 +488,10 @@ func patternCoverage(p syntax.Pattern, isNoneUnion bool) (coversAll bool, tag st
 // guessed at, the same policy the rest of this package follows for
 // capability calls and other deliberately-unmodeled types.
 func (c *checker) checkExhaustive(s *syntax.MatchStmt, subjectType types.Type) {
+	if hasLiteralArm(s) {
+		c.checkLiteralExhaustive(s, subjectType)
+		return
+	}
 	tags, ok := requiredTags(subjectType)
 	if !ok {
 		return

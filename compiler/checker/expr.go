@@ -925,6 +925,8 @@ func (c *checker) bindPattern(p syntax.Pattern, subject types.Type, env map[stri
 		}
 	case *syntax.ConstructorPattern:
 		c.bindConstructorPattern(p, subject, env)
+	case *syntax.LiteralPattern:
+		c.checkLiteralPattern(p, subject)
 	case *syntax.BytesPattern:
 		c.bindBytesPattern(p, subject, env)
 	}

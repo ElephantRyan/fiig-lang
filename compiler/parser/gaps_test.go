@@ -9,20 +9,22 @@ import (
 // statement after an arm's `->`, are one error each, saying what to write.
 func TestPatternLiteralAndArmStatementAreOneError(t *testing.T) {
 	cases := map[string]struct{ src, want string }{
-		"int in a pattern": {`rule r(x: Result<int, Failure>) -> int {
+		// ADR 0130 allows an int, a string and a bool in a pattern; a float and
+		// a decimal stay refused, in one error.
+		"float in a pattern": {`rule r(x: Result<float, Failure>) -> int {
     match x {
-        Err(Failure.Rejected(500)) -> 1
+        Ok(1.5) -> 1
         _ -> 0
     }
 }
-`, "a pattern can't hold a literal (500)"},
-		"negative and string": {`rule r(x: Result<int, string>) -> int {
+`, "a pattern can't hold a float or decimal literal (1.5)"},
+		"string with an interpolation": {`rule r(x: string) -> int {
     match x {
-        Ok(-1) -> 1
+        "a${x}" -> 1
         _ -> 0
     }
 }
-`, "a pattern can't hold a literal (-1)"},
+`, "a string pattern can't interpolate"},
 		"expect after an arrow": {`test t {
     match found {
         None -> expect false

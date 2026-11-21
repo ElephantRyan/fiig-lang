@@ -97,6 +97,11 @@ waits on a tracer that can be scoped to one request (ADR 0128 open question
 | B5 | **A batch of small methods**: string `padLeft`, `padRight`; list `distinct`, `reverse`, `take`, `drop`, `indexOf`; a way to list an enum's variants. Each is a table row and a runtime body, as ADR 0093 did. `Set` and `zip` need a type (a set, a pair) and are their own questions. | M | ADR (one, listing them) |
 | B6 | **Collect time evidence**: when a real program mixes a moment and a span, or a unit, record it against ADR 0123's trigger. | S | none |
 
+**Status (2026-11-21): B1 is done (ADR 0130, Proposed).** Building it found
+that `true` and `false` in a pattern were silently names, so `match on { true
+-> 1  false -> 2 }` passed `fiig check` and answered 1 for `false`; they are
+the values now.
+
 **Status (2026-11-21): B2 to B5 are done.** B2: a self-call is refused with
 "recursion belongs in a private helper that calls only itself". B3
 (`compiler/parser/hints.go`): 17 constructs, each one error, and the errors

@@ -993,6 +993,14 @@ func printPattern(pat syntax.Pattern) string {
 		return "_"
 	case *syntax.NamePattern:
 		return strings.Join(pat.Path, ".")
+	case *syntax.LiteralPattern:
+		switch pat.Kind {
+		case "int":
+			return strconv.FormatInt(pat.Int, 10)
+		case "string":
+			return printStringLit(pat.Lit)
+		}
+		return strconv.FormatBool(pat.Bool)
 	case *syntax.ConstructorPattern:
 		parts := make([]string, len(pat.Args))
 		for i, a := range pat.Args {

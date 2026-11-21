@@ -281,8 +281,23 @@ conversion customerErrorToHttpResponse(error: CustomerError) -> HttpResponse {
 }
 ```
 
-There are **no literal patterns** — you cannot match on `"ACME"` or `3`. Use
-`if` with `==` instead.
+An `int`, a `string` or a `bool` can be a **literal pattern** (ADR 0130), so
+a status code or a name is matched where it is:
+
+```fiig
+conversion describe(code: int) -> string {
+    match code {
+        200 -> "ok"
+        404 -> "missing"
+        -1 -> "unset"
+        _ -> "other"      // required: an int has more values than a match lists
+    }
+}
+```
+
+A match with a literal arm over an `int` or a `string` needs an arm that
+catches the rest (`_` or a name, A9); over a `bool`, `true` and `false` are
+enough. A float or a decimal has no literal pattern: bind it and compare.
 
 ## 6. Expressions
 
@@ -821,6 +836,6 @@ too: inside a fake, the first call sees 1. Every test gets a clock at
 // TWO-WAY CONVERSION. ADR 0004 settled that both directions live in one
 // declaration; how they're written inside it is undesigned.
 
-// LITERAL PATTERNS in `match` (`"ACME" -> ...`). Not decided; `if` covers it.
-// ADR 0091 open question 6: `expect r is Err(Invalid("score", _))` wants them.
+// LITERAL PATTERNS for floats and decimals. ADR 0130 allows int, string and
+// bool; a float's last bit and a decimal's scale make `1.5 -> ...` a trap.
 ```

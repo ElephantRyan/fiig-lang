@@ -169,9 +169,6 @@ doesn't have to discover them.
 - **No shared fakes.** A fake used by many tests is written in each.
   A test file may have a `private` block of helpers, for building values
   the test needs, but the helpers are that file's alone.
-- **No literal patterns**: `expect r is Err(e)` then `expect e == ...`,
-  two lines where one would do. A literal in a pattern is one error that
-  says so.
 - **A test of a rule that chooses a provider fakes every provider** it
   can return, so it can't run one provider's real gateway against a fake
   of what that provider uses (`Client` under `Stripe`).

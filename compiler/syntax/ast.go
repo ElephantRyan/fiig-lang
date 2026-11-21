@@ -899,6 +899,20 @@ type ConstructorPattern struct {
 	Args []Pattern
 }
 
+// LiteralPattern is an int, a string or a bool written where a pattern goes
+// (ADR 0130): `404`, `-1`, `"ACME"`, `true`. It matches a value equal to it, by
+// the rules of ==. A float or decimal has no literal pattern.
+type LiteralPattern struct {
+	Span
+	Kind string // "int", "string" or "bool"
+	Int  int64
+	Str  string
+	Bool bool
+	Lit  *StringLit // a string as written, for the formatter
+}
+
+func (*LiteralPattern) patternNode() {}
+
 func (*WildcardPattern) patternNode()    {}
 func (*NamePattern) patternNode()        {}
 func (*ConstructorPattern) patternNode() {}

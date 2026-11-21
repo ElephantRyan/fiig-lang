@@ -324,6 +324,8 @@ func (c *checker) patternFits(p syntax.Pattern, t types.Type, env map[string]typ
 		path = p.Path
 	case *syntax.ConstructorPattern:
 		path, args = p.Path, p.Args
+	case *syntax.LiteralPattern:
+		return literalFits(t, literalPrim(p))
 	default:
 		return true
 	}
