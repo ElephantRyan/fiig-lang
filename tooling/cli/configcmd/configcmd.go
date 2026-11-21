@@ -7,8 +7,11 @@
 // adds fiig serve's own LISTEN_ADDR, ALLOW_ORIGINS, and ADR 0076's limits.
 // An entry is named as `fiig serve` names one (ADR 0079 §6): bare for the
 // root, or a folder package's path (`ratings.ratingsApi`), and several may
-// be given, so one report covers every adapter a process serves. With none,
-// every package of the module is listed (abs-recommendations G44).
+// be given, so one report covers every adapter a process serves. A bare
+// name the root doesn't declare is looked for in the module's folder
+// packages too, and used when exactly one declares it (ADR 0112 open
+// question 4). With none, every package of the module is listed
+// (abs-recommendations G44).
 //
 // Usage:
 //
@@ -114,9 +117,9 @@ func Main(name string, args []string) {
 				fail(fmt.Errorf("entry %s is named twice", name))
 			}
 			seen[name] = true
-			pkg, bare, d, ok := resolveEntry(name, universe, packages, modulePath)
-			if !ok {
-				fail(fmt.Errorf("no declaration named %q", name))
+			pkg, bare, d, err := resolveEntry(name, universe, packages, modulePath, moduleOwn)
+			if err != nil {
+				fail(err)
 			}
 			ad, isAdapter := d.(*syntax.AdapterDecl)
 			serving = serving || isAdapter && ad.Kind != syntax.AdapterCLI
@@ -199,15 +202,39 @@ func Main(name string, args []string) {
 	}
 }
 
-// resolveEntry finds the declaration an entry names: bare in the root's
-// own files, or a package's path and then the name, the path in full or
-// relative to the module (`ratings.ratingsApi`), as fiig serve reads it.
-// pkg is nil for the root.
-func resolveEntry(name string, root *types.Universe, packages types.Packages, modulePath string) (pkg *types.Package, bare string, d syntax.Decl, ok bool) {
+// resolveEntry finds the declaration an entry names: a package's path and
+// then the name, the path in full or relative to the module
+// (`ratings.ratingsApi`), as fiig serve reads it; or a bare name, in the
+// root's own files and else in the module's folder packages (moduleOwn),
+// where an application's code is (ADR 0108). A bare name two folder
+// packages declare is refused with both spellings to choose from, rather
+// than picking one. pkg is nil for the root.
+func resolveEntry(name string, root *types.Universe, packages types.Packages, modulePath string, moduleOwn []*types.Package) (*types.Package, string, syntax.Decl, error) {
 	i := strings.LastIndex(name, ".")
 	if i < 0 {
-		d, ok = root.Lookup(name)
-		return nil, name, d, ok
+		if d, ok := root.Lookup(name); ok {
+			return nil, name, d, nil
+		}
+		var found []*types.Package
+		var candidates []string
+		for _, pkg := range moduleOwn {
+			if _, ok := pkg.Universe.Lookup(name); ok {
+				found = append(found, pkg)
+				candidates = append(candidates, strings.TrimPrefix(pkg.Path, modulePath+".")+"."+name)
+			}
+		}
+		switch len(found) {
+		case 0:
+			if len(moduleOwn) > 0 {
+				return nil, "", nil, fmt.Errorf("no declaration named %q, in the root or any of the module's folder packages", name)
+			}
+			return nil, "", nil, fmt.Errorf("no declaration named %q", name)
+		case 1:
+			d, _ := found[0].Universe.Lookup(name)
+			return found[0], name, d, nil
+		}
+		sort.Strings(candidates)
+		return nil, "", nil, fmt.Errorf("%q is declared in more than one of the module's folder packages; name one: %s", name, strings.Join(candidates, ", "))
 	}
 	path, bare := name[:i], name[i+1:]
 	pkg, found := packages[path]
@@ -215,10 +242,13 @@ func resolveEntry(name string, root *types.Universe, packages types.Packages, mo
 		pkg, found = packages[modulePath+"."+path]
 	}
 	if !found {
-		return nil, "", nil, false
+		return nil, "", nil, fmt.Errorf("no package %s for entry %s, in full or relative to the module", path, name)
 	}
-	d, ok = pkg.Universe.Lookup(bare)
-	return pkg, bare, d, ok
+	d, ok := pkg.Universe.Lookup(bare)
+	if !ok {
+		return nil, "", nil, fmt.Errorf("package %s has no declaration named %q", pkg.Path, bare)
+	}
+	return pkg, bare, d, nil
 }
 
 func fail(err error) {

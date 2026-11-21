@@ -213,10 +213,27 @@ I becomes "Stream and schedule adapter errors":
    bad value is a problem in ADR 0071 §3's one report.
    `adapter.ParseScheduleJitter` and `ScheduleRunner.Jitter` in
    `compiler/adapter/schedule.go`.)*
-4. **`fiig config <root> <entry>` finds only root declarations**, so an
+4. ~~**`fiig config <root> <entry>` finds only root declarations**, so an
    adapter in a folder package (ADR 0105), of any kind, isn't found by
    name. Found while dogfooding this; it belongs to the folder-package
-   work, not to schedules.
+   work, not to schedules.~~ Done 2026-11-21.
+
+   *(Amended 2026-11-21: the qualified form, `orders.ordersApi` relative
+   to the module or `t.app.orders.ordersApi` in full, already worked, as
+   `fiig serve` reads it (abs-recommendations G44). A bare name now works
+   too: one the root doesn't declare is looked for in the module's own
+   folder packages (`loader.Result.Module`, ADR 0108), never in a
+   dependency, and used when exactly one declares it. When two do, the
+   command fails and lists the spellings to choose from (`"health" is
+   declared in more than one of the module's folder packages; name one:
+   billing.health, orders.health`) rather than picking one; the root's own
+   declaration wins over a folder's, since it needs no qualifying. A
+   missing name says it was looked for in the folders too, and a missing
+   package or name in the dotted form is now its own message. `fiig serve`
+   and `fiig run` still need the dotted form for a folder package's
+   entry; the bare form is `fiig config`'s, which only reads.
+   `configcmd.resolveEntry`, tested on a fixture module with
+   `src/orders/` and `src/billing/`.)*
 
 ## Implementation notes (2026-11-20)
 
