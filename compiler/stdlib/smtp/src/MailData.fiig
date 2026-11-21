@@ -3,7 +3,8 @@
 // starts with a dot gets another (so the end marker is unmistakable). A body
 // of plain ASCII goes as it is (7bit); anything else, and any line over the
 // 998 bytes SMTP allows, goes as base64 (ADR 0120 §2). A subject that isn't
-// plain ASCII is written as RFC 2047 encoded words.
+// plain ASCII is written as RFC 2047 encoded words, and so is a display name;
+// Bcc is never written (§2a).
 conversion mailData(mail: Mail, date: string, messageId: string) -> bytes {
     plain = mail.body.replaceAll("\r\n", "\n").replaceAll("\r", "\n")
     rows: List<string> = plain.split("\n")
@@ -17,17 +18,37 @@ conversion mailData(mail: Mail, date: string, messageId: string) -> bytes {
         encoding = "base64"
         body = base64Lines(rows)
     }
-    recipients = mail.to.join(", ")
-    headers: List<string> = [
-        "From: ${mail.from}",
-        "To: ${recipients}",
-        "Subject: ${subjectHeader(mail.subject)}",
-        "Date: ${date}",
-        "Message-ID: <${messageId}>",
-        "MIME-Version: 1.0",
-        "Content-Type: text/plain; charset=utf-8",
-        "Content-Transfer-Encoding: ${encoding}",
-    ]
+    names: Map<string, string> = [:]
+    match mail.names {
+        None -> None
+        given -> {
+            names = given
+        }
+    }
+    headers: List<string> = [addressHeader("From", [mail.from], names)]
+    if mail.to.length() > 0 {
+        headers = append(headers, addressHeader("To", mail.to, names))
+    }
+    match mail.cc {
+        None -> None
+        cc -> {
+            if cc.length() > 0 {
+                headers = append(headers, addressHeader("Cc", cc, names))
+            }
+        }
+    }
+    match mail.replyTo {
+        None -> None
+        address -> {
+            headers = append(headers, addressHeader("Reply-To", [address], names))
+        }
+    }
+    headers = append(headers, "Subject: ${subjectHeader(mail.subject)}")
+    headers = append(headers, "Date: ${date}")
+    headers = append(headers, "Message-ID: <${messageId}>")
+    headers = append(headers, "MIME-Version: 1.0")
+    headers = append(headers, "Content-Type: text/plain; charset=utf-8")
+    headers = append(headers, "Content-Transfer-Encoding: ${encoding}")
     head = headers.join("\r\n")
     text = "${head}\r\n\r\n${body}.\r\n"
     return text.utf8()
@@ -112,6 +133,62 @@ private {
             words = append(words, word(raw.slice(start, raw.length())))
         }
         return words.join("\r\n ")
+    }
+
+    // A header of addresses, each with its display name when names has one,
+    // separated by commas and folded before an address that would take the
+    // line past 78 characters (RFC 5322 §2.1.1, §3.4).
+    addressHeader(field: string, addresses: List<string>, names: Map<string, string>) -> string {
+        text: string = "${field}:"
+        first: bool = true
+        for address in addresses {
+            entry = mailbox(address, names.atOr(address, ""))
+            if not first {
+                text = "${text},"
+            }
+            width = entry.split("\r\n").first().utf8().length()
+            if not first and text.split("\r\n").last().utf8().length() + 1 + width > 78 {
+                text = "${text}\r\n ${entry}"
+            } else {
+                text = "${text} ${entry}"
+            }
+            first = false
+        }
+        return text
+    }
+
+    // An address as a header writes it: bare, or after its display name in
+    // angle brackets. A name of plain words goes as it is; one with a
+    // character that means something in a header (or =?, which a reader
+    // would decode) is quoted; one that isn't printable ASCII is encoded
+    // words (RFC 5322 §3.4, RFC 2047 §5).
+    mailbox(address: string, name: string) -> string {
+        if name == "" {
+            return address
+        }
+        for b in name.utf8() {
+            if b < 32 or b > 126 {
+                return "${encodedWords(name)} <${address}>"
+            }
+        }
+        if plainPhrase(name) {
+            return "${name} <${address}>"
+        }
+        quoted = name.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")
+        return "\"${quoted}\" <${address}>"
+    }
+
+    // Letters, digits, spaces, and the symbols RFC 5322's atoms allow.
+    plainPhrase(name: string) -> bool {
+        if name.contains("=?") {
+            return false
+        }
+        for b in name.utf8() {
+            if b == 34 or b == 40 or b == 41 or b == 44 or b == 46 or b == 58 or b == 59 or b == 60 or b == 62 or b == 64 or b == 91 or b == 92 or b == 93 {
+                return false
+            }
+        }
+        return true
     }
 
     word(part: bytes) -> string {

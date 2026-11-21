@@ -42,9 +42,9 @@ private {
     // the people it is addressed to.
     afterRecipient(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError> {
         if reply.code != 250 and reply.code != 251 {
-            return Err(refused(reply, "the recipient ${d.mail.to.at(d.recipient)}: "))
+            return Err(refused(reply, "the recipient ${d.recipients.at(d.recipient)}: "))
         }
-        if d.recipient + 1 < d.mail.to.length() {
+        if d.recipient + 1 < d.recipients.length() {
             return Ok(copy(d, phase: SmtpPhase.Rcpt, recipient: d.recipient + 1))
         }
         return Ok(copy(d, phase: SmtpPhase.Data))

@@ -34,6 +34,25 @@ gateway sendWelcome(to: string, subject: string) -> Result<None, smtp.SmtpError>
 {
     return Smtp.send(smtp.Mail(from: "noreply@shop.example", to: [to], subject: subject, body: "Thanks for signing up."))
 }`,
+	"send_report.fiig": `use fiig.smtp
+use fiig.smtp.Smtp
+
+gateway sendReport() -> Result<None, smtp.SmtpError>
+    requires Smtp
+{
+    return Smtp.send(
+        smtp.Mail(
+            from: "reports@shop.example",
+            to: ["ann@y.org"],
+            subject: "Weekly report",
+            body: "All well.",
+            cc: ["bob@y.org"],
+            bcc: ["audit@shop.example"],
+            replyTo: "help@shop.example",
+            names: ["reports@shop.example": "Shop Reports", "ann@y.org": "Ann Smith", "bob@y.org": "Bob Ünal"],
+        ),
+    )
+}`,
 }
 
 // The instant the manual clock starts at, as the Date header writes it.
@@ -191,6 +210,35 @@ func TestSmtpLogsInWithAuthLoginWhenPlainIsNotOffered(t *testing.T) {
 			send("250 OK\r\n")))
 	if got != "Ok(None)" {
 		t.Errorf("sendWelcome = %s, want Ok(None)", got)
+	}
+}
+
+// ADR 0120 §2a: To, Cc and Bcc are each sent RCPT TO, Bcc is written in no
+// header, and display names are written beside their addresses.
+func TestSmtpSendsToCcAndBccWithDisplayNames(t *testing.T) {
+	script := &runtime.ScriptedSocket{Peers: []*runtime.SocketPeer{peer("localhost", 1025,
+		send("220 localhost ESMTP\r\n"),
+		expect("EHLO client.test\r\n"),
+		send("250 localhost\r\n"),
+		expect("MAIL FROM:<reports@shop.example>\r\n"), send("250 OK\r\n"),
+		expect("RCPT TO:<ann@y.org>\r\n"), send("250 OK\r\n"),
+		expect("RCPT TO:<bob@y.org>\r\n"), send("250 OK\r\n"),
+		expect("RCPT TO:<audit@shop.example>\r\n"), send("250 OK\r\n"),
+		expect("DATA\r\n"), send("354 go\r\n"),
+		expect("From: Shop Reports <reports@shop.example>\r\nTo: Ann Smith <ann@y.org>\r\n"+
+			"Cc: =?UTF-8?B?Qm9iIMOcbmFs?= <bob@y.org>\r\nReply-To: help@shop.example\r\n"+
+			"Subject: Weekly report\r\nDate: "+smtpDate+"\r\nMessage-ID: <"+smtpToken(t)+"@shop.example>\r\n"+
+			"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\nAll well.\r\n.\r\n"),
+		send("250 OK\r\n"))}}
+	v, fault := smtpInterp(t, script, "smtp+plain://localhost:1025").Call(context.Background(), "sendReport", nil)
+	if fault != nil {
+		t.Fatalf("fault: %v", fault)
+	}
+	if got := fmt.Sprint(v); got != "Ok(None)" {
+		t.Errorf("sendReport = %s, want Ok(None)", got)
+	}
+	if err := script.Done(); err != nil {
+		t.Errorf("script: %v", err)
 	}
 }
 

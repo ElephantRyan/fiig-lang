@@ -67,6 +67,64 @@ test aCharacterAcrossTheCutIsKeptWhole {
     expect not text.contains("?=\r\n =?UTF-8?B?")
 }
 
+test ccAndReplyToAreWrittenAndBccIsNot {
+    mail = Mail(
+        from: "a@x.org",
+        to: ["b@y.org"],
+        subject: "s",
+        body: "x",
+        cc: ["c@y.org", "d@y.org"],
+        bcc: ["secret@z.org"],
+        replyTo: "help@x.org",
+    )
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    expect text.startsWith(
+        "From: a@x.org\r\nTo: b@y.org\r\nCc: c@y.org, d@y.org\r\nReply-To: help@x.org\r\nSubject: s\r\n",
+    )
+    expect not text.contains("secret")
+    expect not text.contains("Bcc")
+}
+
+test aMailToBccAloneHasNoToHeader {
+    mail = Mail(from: "a@x.org", to: [], subject: "s", body: "x", bcc: ["b@y.org"])
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    expect text.startsWith("From: a@x.org\r\nSubject: s\r\n")
+}
+
+test displayNamesArePlainQuotedOrEncoded {
+    names: Map<string, string> = ["a@x.org": "Shop Team", "b@y.org": "Smith, Ann", "c@y.org": "Zoë Ünal", "d@y.org": "say \"hi\" \\ bye", "e@y.org": "=?UTF-8?B?not-a-word?="]
+    mail = Mail(
+        from: "a@x.org",
+        to: ["b@y.org"],
+        subject: "s",
+        body: "x",
+        cc: ["c@y.org", "d@y.org", "e@y.org", "f@y.org"],
+        names: names,
+    )
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    expect text.startsWith("From: Shop Team <a@x.org>\r\nTo: \"Smith, Ann\" <b@y.org>\r\n")
+    // "Zoë Ünal" in UTF-8 and base64.
+    expect text.contains("Cc: =?UTF-8?B?Wm/DqyDDnG5hbA==?= <c@y.org>,")
+    expect text.contains("\"say \\\"hi\\\" \\\\ bye\" <d@y.org>,")
+    expect text.contains("\"=?UTF-8?B?not-a-word?=\" <e@y.org>")
+    // f@y.org has no name, so it goes bare.
+    expect text.contains(" f@y.org\r\nSubject: s")
+}
+
+test aLongAddressListIsFolded {
+    many: List<string> = []
+    n: int = 0
+    while n < 20 {
+        many = append(many, "recipient${n}@example.org")
+        n = n + 1
+    }
+    mail = Mail(from: "a@x.org", to: many, subject: "s", body: "x")
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    expect longestLine(text) <= 78
+    expect text.contains(",\r\n recipient")
+    expect text.contains("recipient19@example.org\r\nSubject: s")
+}
+
 private {
     textOf(data: bytes) -> string {
         match data.utf8() {

@@ -8,6 +8,7 @@ conversion startDialogue(target: SmtpTarget, mail: Mail, hello: string, data: by
         data: data,
         phase: SmtpPhase.Greeting,
         secure: target.security == SmtpSecurity.Implicit,
+        recipients: recipientsOf(mail),
         recipient: 0,
         startTls: false,
         authPlain: false,

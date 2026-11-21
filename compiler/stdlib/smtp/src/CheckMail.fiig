@@ -1,27 +1,56 @@
-// A mail that can be sent as written (ADR 0120 §2). Addresses go into
+// A mail that can be sent as written (ADR 0120 §2, §2a). Addresses go into
 // protocol lines and headers, so a line break or a space in one could write
-// a command or a header of the caller's choosing; they're refused instead.
-// The reasons say which address, never what it said.
+// a command or a header of the caller's choosing; they're refused instead,
+// and so is a display name with a line break. The reasons say which address,
+// never what it said.
 conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
     if not validAddress(mail.from) {
         return Err(
             SmtpError.InvalidMail(reason: "the sender isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"),
         )
     }
-    if mail.to.length() == 0 {
-        return Err(SmtpError.InvalidMail(reason: "a mail has at least one recipient"))
+    cc = listOf(mail.cc)
+    bcc = listOf(mail.bcc)
+    count = mail.to.length() + cc.length() + bcc.length()
+    if count == 0 {
+        return Err(
+            SmtpError.InvalidMail(reason: "a mail has at least one recipient, in to, cc, or bcc"),
+        )
     }
-    if mail.to.length() > 100 {
-        return Err(SmtpError.InvalidMail(reason: "a mail has at most 100 recipients"))
+    if count > 100 {
+        return Err(
+            SmtpError.InvalidMail(reason: "a mail has at most 100 recipients, to, cc, and bcc together"),
+        )
     }
-    number: int = 1
-    for recipient in mail.to {
-        if not validAddress(recipient) {
-            return Err(
-                SmtpError.InvalidMail(reason: "recipient ${number} isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"),
-            )
+    checkList(mail.to, "recipient")?
+    checkList(cc, "cc recipient")?
+    checkList(bcc, "bcc recipient")?
+    // Every address the mail has, which are the ones a display name may be
+    // given for (a Bcc recipient's is allowed, and never written).
+    known: List<string> = append(recipientsOf(mail), mail.from)
+    match mail.replyTo {
+        None -> None
+        address -> {
+            if not validAddress(address) {
+                return Err(
+                    SmtpError.InvalidMail(reason: "the reply-to address isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"),
+                )
+            }
+            known = append(known, address)
         }
-        number = number + 1
+    }
+    match mail.names {
+        None -> None
+        names -> {
+            for address in names.keys() {
+                if not known.contains(address) {
+                    return Err(
+                        SmtpError.InvalidMail(reason: "a display name is given for an address the mail doesn't have"),
+                    )
+                }
+                checkName(names.at(address))?
+            }
+        }
     }
     if mail.subject.contains("\r") or mail.subject.contains("\n") {
         return Err(SmtpError.InvalidMail(reason: "the subject has a line break"))
@@ -33,6 +62,44 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
 }
 
 private {
+    listOf(addresses: List<string> | None) -> List<string> {
+        match addresses {
+            None -> []
+            given -> given
+        }
+    }
+
+    // Each address in a list, named by its kind and its position from 1.
+    checkList(addresses: List<string>, kind: string) -> Result<None, SmtpError> {
+        number: int = 1
+        for address in addresses {
+            if not validAddress(address) {
+                return Err(
+                    SmtpError.InvalidMail(reason: "${kind} ${number} isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"),
+                )
+            }
+            number = number + 1
+        }
+        return Ok(None)
+    }
+
+    // A display name is any text but a control character, a line break
+    // among them; MailData quotes or encodes the rest.
+    checkName(name: string) -> Result<None, SmtpError> {
+        raw = name.utf8()
+        if raw.length() > 200 {
+            return Err(SmtpError.InvalidMail(reason: "a display name is longer than 200 bytes"))
+        }
+        for b in raw {
+            if b < 32 or b == 127 {
+                return Err(
+                    SmtpError.InvalidMail(reason: "a display name has a line break or another control character"),
+                )
+            }
+        }
+        return Ok(None)
+    }
+
     // local@domain in plain ASCII: exactly one @ with something on each
     // side, and none of the characters that end or quote an address.
     validAddress(text: string) -> bool {

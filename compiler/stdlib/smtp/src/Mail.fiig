@@ -1,9 +1,16 @@
 // An email as plain text: who it is from, who it goes to, and what it says.
-// Every address in `to` is written in the To header as well as sent to, so
-// there is no hidden recipient (ADR 0120 §2). Addresses are ASCII.
+// Every address in `to` and `cc` is written in its header as well as sent
+// to; `bcc` is sent to and written nowhere (ADR 0120 §2a). Addresses are
+// ASCII. `names` gives display names by address, written beside it in
+// From, To, Cc and Reply-To: ["ann@y.org": "Ann Smith"]. Every field after
+// body may be left out.
 model Mail {
     from: string
     to: List<string>
     subject: string
     body: string
+    cc: List<string> | None
+    bcc: List<string> | None
+    replyTo: string | None
+    names: Map<string, string> | None
 }

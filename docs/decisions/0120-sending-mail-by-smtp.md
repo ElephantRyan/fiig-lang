@@ -116,6 +116,62 @@ one), `Subject`, `Date` (UTC, from `fiig.time`'s `formatRfc5322`, ADR 0123),
 addressed to or to none. It doesn't report a partial success the caller
 must then untangle. The `Refused` message says which recipient.
 
+### 2a. Cc, Bcc, Reply-To and display names
+
+*(Amended 2026-11-21: the first half of open question 4 decided.)* `Mail`
+grows four fields, each of which may be left out, so every `Mail` written
+before still means what it did:
+
+```fiig
+model Mail {
+    from: string
+    to: List<string>
+    subject: string
+    body: string
+    cc: List<string> | None
+    bcc: List<string> | None
+    replyTo: string | None
+    names: Map<string, string> | None   // display names, by address
+}
+
+Smtp.send(Mail(from: "reports@shop.example", to: ["ann@y.org"], cc: ["bob@y.org"],
+    bcc: ["audit@shop.example"], subject: "Weekly report", body: text,
+    names: ["reports@shop.example": "Shop Reports", "ann@y.org": "Ann Smith"]))
+```
+
+- **Every recipient is sent to; Bcc is written nowhere.** RCPT TO names
+  `to`, then `cc`, then `bcc`, each address once however many lists hold it
+  (`recipientsOf`). To and Cc are written as headers, Bcc never, so a Bcc
+  recipient's address reaches no one else. "All or none" holds across the
+  three: a refused Bcc recipient ends the send like any other. The 100
+  limit counts all three, and a mail needs one recipient in any of them; a
+  mail to Bcc alone has no To header (RFC 5322 §3.6.3 allows that).
+- **Reply-To is one address**, checked as the others are. A list is rare
+  enough in practice to wait for a use.
+- **Display names are a map from address to name, not an `Address`
+  model.** Addresses stay plain strings everywhere (checking, RCPT TO,
+  deduplication), and a name is presentation only, so `to: [email]` keeps
+  working and a program that has no names writes nothing new. An `Address
+  { email, name }` (Go's `mail.Address`, Jakarta's `InternetAddress`) would
+  have made every `to` a list of models for the common case of no names;
+  `"Ann <ann@y.org>"` strings (Python, Nodemailer) would have made the
+  package parse what the caller wrote, the injection surface §2 avoids. A
+  name given for an address the mail doesn't have is `Err(InvalidMail)`,
+  which catches a typo in either; one for a Bcc address is allowed and
+  never written.
+- **A name is written the safest way it can be.** Plain words (letters,
+  digits, spaces and the symbols RFC 5322's atoms allow) go as they are:
+  `Shop Reports <reports@shop.example>`. One with a character that means
+  something in an address header (`, . : ; @ < > ( ) [ ] \ "`), or `=?`,
+  which a reader would take for an encoded word, is quoted, with `\` and
+  `"` escaped: `"Smith, Ann" <ann@y.org>`. One that isn't printable ASCII is
+  RFC 2047 encoded words, as the subject is. A name with a control
+  character (a line break among them) or over 200 bytes is
+  `Err(InvalidMail)`, and the reason never repeats it.
+- **An address header is folded** before an address that would take its
+  line past 78 characters, so 100 recipients can't make a line SMTP won't
+  carry.
+
 ### 3. The dialogue is a state machine of conversions
 
 A gateway can't call another gateway, and every Socket call must be in one,
@@ -195,9 +251,11 @@ In: one plain-text mail to one or more recipients, over STARTTLS, implicit
 TLS, or plain, with AUTH PLAIN or none; SIZE respected when the server
 offers it (a message over its limit is `Err(InvalidMail)` before it is sent).
 
-Out: HTML and attachments (multipart), Cc, Bcc, Reply-To and display names,
-AUTH LOGIN, CRAM-MD5 and XOAUTH2, SMTPUTF8 and internationalised addresses,
-delivery status notifications, connection reuse, and pipelining.
+Out: HTML and attachments (multipart), ~~Cc, Bcc, Reply-To and display names,
+AUTH LOGIN,~~ CRAM-MD5 and XOAUTH2, SMTPUTF8 and internationalised addresses,
+delivery status notifications, ~~connection reuse,~~ and pipelining.
+*(Amended 2026-11-21: AUTH LOGIN (§3), connection reuse (§3a), and Cc,
+Bcc, Reply-To and display names (§2a) moved in.)*
 
 ## Alternatives considered
 
@@ -237,9 +295,10 @@ delivery status notifications, connection reuse, and pipelining.
    CRAM-MD5 remain. XOAUTH2 needs an access token, not a password, which is
    a different configuration.
 3. **SMTPUTF8 and internationalised addresses** (RFC 6531), and IDN domains.
-4. **Multipart: HTML and attachments**, and Cc, Bcc, Reply-To and display
+4. **Multipart: HTML and attachments**, ~~and Cc, Bcc, Reply-To and display
    names. A `Mail` model grows fields, or a second `send` takes a richer
-   one.
+   one.~~ Cc, Bcc, Reply-To and display names done 2026-11-21 (§2a), as
+   optional `Mail` fields; multipart remains.
 5. ~~**A time type.** `Date` needed a calendar written in fiig
    (`rfc5322Date`); an S3 library needs another for SigV4 (`20261120T135958Z`).
    A `time` type (known-limitations) would end the duplication.~~ Done by ADR

@@ -9,6 +9,8 @@ model Dialogue {
     data: bytes
     phase: SmtpPhase
     secure: bool
+    // Everyone RCPT TO names (recipientsOf), and which is next.
+    recipients: List<string>
     recipient: int
     startTls: bool
     authPlain: bool

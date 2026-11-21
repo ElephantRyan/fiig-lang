@@ -158,6 +158,30 @@ test aRefusedRecipientEndsTheSend {
     expect message.contains("No such user")
 }
 
+test everyRecipientInToCcAndBccIsSentToOnce {
+    m = Mail(
+        from: "a@x.org",
+        to: ["b@y.org"],
+        subject: "s",
+        body: "x",
+        cc: ["c@y.org", "b@y.org"],
+        bcc: ["d@y.org"],
+    )
+    expect recipientsOf(m) == ["b@y.org", "c@y.org", "d@y.org"]
+    d = go(
+        go(go(startDialogue(plain(None, None), m, "client.test", "the message".utf8()), 220, ["hi"]), 250, ["Hello"]),
+        250,
+        ["OK"],
+    )
+    expect sent(d) == "RCPT TO:<b@y.org>\r\n"
+    expect sent(go(d, 250, ["OK"])) == "RCPT TO:<c@y.org>\r\n"
+    // A refused Bcc recipient ends the send like any other.
+    last = go(go(d, 250, ["OK"]), 250, ["OK"])
+    expect sent(last) == "RCPT TO:<d@y.org>\r\n"
+    expect advance(last, reply(550, ["No such user"])) is Err(SmtpError.Refused(code, message))
+    expect sent(go(last, 250, ["OK"])) == "DATA\r\n"
+}
+
 test aTemporaryRefusalKeepsItsCode {
     greeting = begin(plain(None, None), ["b@y.org"])
     expect advance(greeting, reply(421, ["Service not available"])) is Err(SmtpError.Refused(code, message))
