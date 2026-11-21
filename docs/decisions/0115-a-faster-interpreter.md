@@ -1,6 +1,6 @@
 # ADR 0115: A Faster Interpreter, Without a Build Step
 
-Status: Proposed (2026-11-20)
+Status: Accepted (2026-11-20, by the owner)
 Date: 2026-11-20
 Answers: Milestone 7's "interpreter performance work for byte-stream
 workloads".
@@ -184,4 +184,20 @@ Each step is its own commit, with its benchmark numbers in the message.
 
 ## Results
 
-To be filled in by each step of §7.
+Each step's numbers, from `go test ./compiler/runtime -run '^$' -bench
+. -benchmem -count 3` (median of three, AMD Ryzen 9 7950X). The suite is
+`compiler/runtime/bench_test.go`.
+
+### Baseline (2026-11-20, before step 2)
+
+| Workload | Time per run | Allocations per run |
+|---|---|---|
+| bytes (1 MiB) | 222 ms (4.7 MB/s) | 6,285,000 |
+| build (10,000 each) | 4.09 ms | 79,861 |
+| records (10,000) | 8.05 ms | 119,399 |
+| murmur2 (10,000 keys) | 366 ms | 4,952,500 |
+| calls (100,000) | 186 ms | 2,399,450 |
+| parse (10,000 DataRows, 459 KB) | 47.3 ms (9.7 MB/s) | 459,975 |
+
+The calls workload puts one fiig call at about 900 ns and 12
+allocations.
