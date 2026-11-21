@@ -105,7 +105,8 @@ lock: each replica needs to know that it can reach the bucket. Consequence: a
 startup route that *changes* something (a migration, a seed) runs once per
 replica, concurrently, so it must be safe to run several at once. The hook
 gives no lock, and "run once per deploy" is the platform's job (a release
-phase, an init container), as Rails does it. See open question 2.
+phase, an init container), as Rails does it. §6 adds `once` for a route that
+asks.
 
 ### 4. Not health
 
@@ -127,6 +128,42 @@ had an I10 for a mapping that uses another kind's disposition (`done`,
 `ack`, `retry`), or an adapter that mixes route kinds. The parser refuses
 both outright, as it does for a schedule, so there is nothing left for the
 checker to class.)
+
+### 6. `-check`, `once`, and `within` (added 2026-11-20)
+
+The first three open questions, decided and built.
+
+```ebnf
+startup-route ::= 'run' [ 'once' ] [ 'within' string-literal ] '->' route-call startup-mapping
+```
+
+- **`fiig serve -check`** runs the startup routes of the adapters it is
+  named with, then exits 0 (the program could start) or 1 (one error naming
+  every refusal). Nothing listens, and **no migration is applied**: a
+  check that only asks a question must not change the database. It reads and
+  checks config as `fiig serve` does, so a missing variable fails it too. A
+  `once` route runs without claiming, since one process is asking whether it
+  could start.
+- **`within "10s"`** is a route's own deadline, in place of 30 s, written as
+  a Go duration above zero (I10 otherwise). The fault-or-deadline rule is
+  unchanged: running out of time halts.
+- **`once`** claims the route with the `ScheduleLock` bound for its package
+  (ADR 0112 §4), under the route's name, with a fixed key and a 10-minute
+  hold. The replica that wins runs the route. A replica that loses logs that
+  another has claimed it, and **starts without waiting**. A claim that can't
+  be made, whether it faults or the lock is unavailable, **halts**, since
+  whether the route has run is unknown. A `once` route with no lock bound is
+  refused at load, as a schedule is.
+
+**What `once` does not promise.** The lock has one operation, claim, so a
+loser can't learn that the winner has finished, and a replica can start
+serving while the winner is still running (a migration the others need is
+the case that hurts). Nor is "a deploy" something the lock can name: the
+hold is 10 minutes, so a replica that starts after it runs the route again.
+`once` stops a rolling deploy from running a route N times at once, and a
+route that must not run twice, or must finish before anything serves, still
+belongs in a release phase. A lock that reported completion, and a way to
+name a deploy, would make both promises, and are the open questions below.
 
 ## Alternatives considered
 
@@ -187,20 +224,27 @@ checker to class.)
   the tolerated cache failure, refused, named the storage check, and exit
   code 1 came before any listener; with `STORAGE_READY=true
   CACHE_READY=false` it started and served.
+- **§6 (2026-11-20):** `Route.Once` and `Route.Within` in the syntax, parsed
+  and formatted between `run` and `->`; I10 in the checker; the runner reads
+  `within`, claims a `once` route in `Check` (`StartupRunners` now takes the
+  holder, and fails at load for a `once` route with no `ScheduleLock`), and
+  `StartupRunner.IgnoreOnce` is what `-check` sets; `migrate.Skip` is the
+  mode `-check` loads with. Dogfooded on the scratch application: `-check`
+  exited 1 naming the storage check and 0 when it passed, and a `once` route
+  was refused without a lock and passed with `{"type": "local"}`.
 - **Not needed:** no IntelliJ or LSP change. The contextual words aren't in
   their keyword lists (`every` and `done` aren't either).
 
 ## Open questions
 
-1. **A way to run the checks alone**, `fiig serve -check`, which runs the
-   startup routes and exits with a status. A CI job or a Kubernetes init
-   container wants it, and it costs a flag.
-2. **Once per deploy.** Reuse `ScheduleLock` (ADR 0112 §4) for a route that
-   says `once`, so a migration runs on one replica while the others wait for
-   it. It couples startup to a lock provider, which is why it waits for a
-   program that asks.
-3. **A per-route deadline** (`run within "10s"`), for a check that is slow on
-   purpose. 30 s is fixed until one asks.
+1. ~~A way to run the checks alone~~, done: `fiig serve -check` (§6).
+2. **Once per deploy, with the others waiting.** `once` (§6) says who runs
+   a route, not when it has finished, and its hold is a fixed 10 minutes.
+   Waiting needs a lock that reports completion (a second gateway beside
+   `claim`, in every lock package), and "per deploy" needs something that
+   names a deploy: a config value, or a hash of the program. It waits for a
+   program that needs a migration to finish before its other replicas serve.
+3. ~~A per-route deadline~~, done: `within` (§6).
 4. **Starting degraded.** `proceed` lets the process start with a check
    failed, and nothing tells the program afterwards. A health endpoint can
    report it only if the workflow recorded it somewhere.

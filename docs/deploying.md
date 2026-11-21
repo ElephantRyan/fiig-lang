@@ -261,11 +261,31 @@ at most 30 s.
   mapping says, since a check that crashed hasn't said the thing is fine.
 - When any check refuses, nothing starts, and the one error names every
   check that did.
-- Every replica runs its own checks, with no lock. A check that changes
-  something, such as a migration, runs on each replica at once, so it must
-  be safe to repeat; "once per deploy" is your platform's release phase.
+- Every replica runs its own checks, with no lock, unless the route says
+  `once` (below). A check that changes something, such as a seed, runs on
+  each replica at once, so it must be safe to repeat.
 - It runs once. For whether the process is still healthy later, use a
   health route, which a readiness probe can call.
+
+**A route's own deadline.** `run within "2m" -> slowCheck() { ... }` gives
+that route 2 minutes in place of 30 s (a Go duration, above zero).
+
+**One replica runs it.** `run once -> seed() { ... }` is claimed with the
+`ScheduleLock` the capabilities file binds, as a schedule's firings are
+(`{"ScheduleLock": {"type": "lock", "lock": "fiig.redis"}}`). The replica
+that wins the claim runs the route; one that loses it logs that and starts
+without running it, and **does not wait**: a claim says who runs the route,
+not that it has finished. The claim is held for 10 minutes, so a replica
+that starts later than that, in a slow rollout, runs it again. Write a
+`once` route so that running it twice is harmless. A claim that can't be
+made refuses to start.
+
+**Checking without serving.** `fiig serve -check . app.Preflight` runs only
+the startup routes, then exits 0 when the program could start and 1 when it
+could not, naming every check that refused. Nothing listens, no migration
+is applied, and a `once` route runs here without claiming, so a CI job or a
+Kubernetes init container can call it. It reads the same config, so a
+variable that is missing fails it as it would fail `fiig serve`.
 
 ## Kafka
 

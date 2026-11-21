@@ -491,7 +491,12 @@ type Route struct {
 	// group starts reading, "earliest" or "latest" (ADR 0111 §3a); ""
 	// otherwise or when omitted.
 	Group    string
-	From     string
+	From string
+	// Once and Within are a startup route's `once` (one replica runs it,
+	// claimed with the ScheduleLock) and `within "10s"` (its own deadline),
+	// ADR 0124 §6; false and "" otherwise or when omitted.
+	Once     bool
+	Within   string
 	Workflow *Ident // the workflow the route calls
 	Args     []RouteArg
 	Consumes *MediaType    // nil if the route has no `consumes` clause (ADR 0069 §5)

@@ -75,6 +75,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	maxRequests := fs.Int("max-requests", 0, "how many requests may run at once, with as many waiting up to 5 s, else 503 (ADR 0076 §2); default $MAX_REQUESTS, else 256")
 	migrateFlag := fs.String("migrate", "apply", "apply pending migrations before serving, or check: refuse to start while any are pending (ADR 0096 §2)")
 	requestTimeout := fs.Duration("request-timeout", 0, "how long a request may run, else 503 (ADR 0076 §3); default $REQUEST_TIMEOUT, else 30s")
+	checkOnly := fs.Bool("check", false, "run only the startup routes (ADR 0124), then exit 0 if the program could start and 1 if not; nothing listens, no migration is applied, and `once` is ignored")
 	fs.Parse(args)
 	if fs.NArg() < 2 {
 		fmt.Fprintln(os.Stderr, "usage: "+name+" [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-max-body N] [-max-requests N] [-request-timeout D] [-workspace DIR]... <root> <adapterName>...")
@@ -109,6 +110,9 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(2)
 	}
+	if *checkOnly {
+		mode = migrate.Skip
+	}
 	handler, loops, bindings, caps, err := load(fs.Arg(0), fs.Args()[1:], *capsPath, workspaces, factories, cors, limits, env, originProblems, mode)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -131,12 +135,21 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 			continue
 		}
 		l.setLog(log.Printf)
+		if *checkOnly {
+			l.ignoreOnce()
+		}
 		log.Printf("fiig: %s", l.describe)
 		if err := l.run(ctx); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			caps.Close()
 			os.Exit(1)
 		}
+	}
+	if *checkOnly {
+		// ADR 0124 §6: the program could start, which is all -check says.
+		caps.Close()
+		log.Print("fiig: the startup checks passed, so the program could start")
+		return
 	}
 	loops = background
 	// ADR 0111 §4-§5, ADR 0112 §2: each stream and schedule route runs
@@ -248,11 +261,17 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	}
 	// A source or lock reads its own config (ADR 0111 §2, ADR 0112 §4),
 	// which no workflow reaches, so its gateways are entries too.
-	checks, err := adapter.StartupRunners(startups, universe, in)
+	checks, err := adapter.StartupRunners(startups, universe, in, consumerName())
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 	var loops []loop
+	for _, r := range checks {
+		if p, isFiig := r.Lock().(*runtime.LockProvider); isFiig {
+			pkg, group, _ := p.Resolve()
+			entries = append(entries, runprogram.Entry{Package: pkg, Name: group})
+		}
+	}
 	if len(checks) > 0 {
 		loops = append(loops, loop{
 			startup: true,
@@ -260,6 +279,11 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 			setLog: func(f func(string, ...any)) {
 				for _, r := range checks {
 					r.Logf = f
+				}
+			},
+			ignoreOnce: func() {
+				for _, r := range checks {
+					r.IgnoreOnce = true
 				}
 			},
 			describe: fmt.Sprintf("checking %d startup route(s) before serving", len(checks)),
@@ -304,6 +328,9 @@ type loop struct {
 	// startup marks the one loop that checks the program before anything
 	// else starts, and ends when it has (ADR 0124 §2).
 	startup bool
+	// ignoreOnce, on the startup loop, makes `-check` run a `once` route
+	// without claiming it.
+	ignoreOnce func()
 }
 
 // checked is a program loaded and checked, with the adapters it was asked

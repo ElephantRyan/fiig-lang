@@ -26,6 +26,9 @@ const (
 	Apply Mode = "apply"
 	// Check refuses to start while any are pending (-migrate=check).
 	Check Mode = "check"
+	// Skip leaves the database alone, for `fiig serve -check` (ADR 0124
+	// §6); no flag sets it.
+	Skip Mode = "skip"
 )
 
 // ParseMode reads the -migrate flag.

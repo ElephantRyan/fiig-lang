@@ -40,10 +40,31 @@ func TestStartupRoutesCheck(t *testing.T) {
 	}
 }
 
+func TestStartupRouteOnceAndWithinCheck(t *testing.T) {
+	src := `adapter startup Preflight {
+    run once within "2m" -> verifyStorage() {
+        Ok(_) -> proceed
+        Err(_) -> halt
+    }
+    run within "500ms" -> verifyStorage() {
+        _ -> proceed
+    }
+    run once -> verifyStorage() {
+        _ -> proceed
+    }
+}`
+	if diags := checkStartup(t, src); len(diags) > 0 {
+		t.Errorf("diags = %v", diags)
+	}
+}
+
 func TestStartupRouteBugClasses(t *testing.T) {
 	cases := []struct{ name, route, rule, fragment string }{
 		{"workflow takes an argument", `run -> verifyNamed(bucket: string) { _ -> halt }`, "I9", "takes nothing"},
 		{"no mapping", `run -> verifyStorage()`, "I7", "has no mapping"},
+		{"deadline is not a duration", `run within "soon" -> verifyStorage() { _ -> halt }`, "I10", "positive duration"},
+		{"deadline is zero", `run once within "0s" -> verifyStorage() { _ -> halt }`, "I10", "positive duration"},
+		{"deadline is negative", `run within "-5s" -> verifyStorage() { _ -> halt }`, "I10", "positive duration"},
 		{"missing variant", `run -> verifyStorage() {
             Ok(_) -> proceed
             Err(StorageError.Missing) -> halt

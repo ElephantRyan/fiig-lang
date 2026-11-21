@@ -22,3 +22,22 @@ func TestFormatStartupAdapter(t *testing.T) {
 		t.Errorf("formatting isn't stable: %v\n%s", errs, again)
 	}
 }
+
+// ADR 0124 §6: `once` and `within` sit between `run` and the arrow.
+func TestFormatStartupOnceAndWithin(t *testing.T) {
+	want := "adapter startup Preflight {\n" +
+		"    run once within \"2m\" -> migrate() {\n" +
+		"        _ -> halt\n" +
+		"    }\n" +
+		"    run within \"500ms\" -> verifyStorage() {\n" +
+		"        _ -> proceed\n" +
+		"    }\n" +
+		"}\n"
+	got, errs := Format("adapter startup Preflight {\n run  once   within \"2m\"->migrate() {\n _->halt\n }\n run within \"500ms\" -> verifyStorage() {\n _->proceed\n }\n}")
+	if len(errs) > 0 {
+		t.Fatalf("format errors: %v", errs)
+	}
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

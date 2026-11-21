@@ -194,6 +194,9 @@ func ParseArgs(argsJSON string) (map[string]any, error) {
 // (ADR 0096 §2), logging each migration it applies, or refuses with
 // every problem at once, as a configuration problem does.
 func Migrate(ctx context.Context, root string, packages types.Packages, caps *runtime.CapabilityRegistry, mode migrate.Mode) error {
+	if mode == migrate.Skip {
+		return nil
+	}
 	pkgs, errs := migrate.Collect(root, packages)
 	if len(errs) > 0 {
 		return errors.Join(errs...)
