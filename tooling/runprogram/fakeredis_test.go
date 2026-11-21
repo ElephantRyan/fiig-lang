@@ -234,6 +234,8 @@ func (r *fakeRedis) command(name string, args []string) string {
 		return "$-1\r\n"
 	case "XADD":
 		return bulk(r.addLocked(args[0], args[2:]))
+	case "XLEN":
+		return fmt.Sprintf(":%d\r\n", len(r.stream(args[0]).entries))
 	case "XGROUP":
 		s := r.stream(args[1])
 		if s.groups[args[2]] != nil {

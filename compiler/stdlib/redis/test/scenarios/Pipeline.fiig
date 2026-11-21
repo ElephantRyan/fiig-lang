@@ -1,0 +1,33 @@
+// ADR 0110 open question 1, as amended 2026-11-21: a pipeline's write and
+// what it keeps.
+test aPipelineIsItsCommandsInOrder {
+    request = pipelineRequest([["INCR".utf8(), "a".utf8()], ["GET".utf8(), "a".utf8()]])
+    expect request.replies == 2
+    expect request.data == "*2\r\n$4\r\nINCR\r\n$1\r\na\r\n*2\r\n$3\r\nGET\r\n$1\r\na\r\n".utf8()
+}
+
+test anEmptyPipelineWritesNothing {
+    request = pipelineRequest([])
+    expect request.replies == 0
+    expect request.data.length() == 0
+}
+
+test aPipelineKeepsItsConnectionUnlessACommandChangesIt {
+    expect pipelineKeeps([["INCR".utf8(), "a".utf8()], ["xadd".utf8(), "s".utf8()]])
+    expect not pipelineKeeps([["INCR".utf8(), "a".utf8()], ["multi".utf8()]])
+    expect not pipelineKeeps([["SELECT".utf8(), "1".utf8()]])
+    // A name that isn't UTF-8 isn't a command Redis has.
+    expect not pipelineKeeps([[<<255: u8>>]])
+}
+
+test aRefusalAmongRepliesIsReadInItsPlace {
+    // What three pipelined commands bring back when the second is refused.
+    buffer = "+OK\r\n-WRONGTYPE wrong kind of value\r\n:3\r\n".utf8()
+    expect readResp(buffer) is RespRead.Done(first, rest)
+    expect first == RespValue.Simple(text: "OK")
+    expect readResp(rest) is RespRead.Done(second, rest2)
+    expect second == RespValue.Error(text: "WRONGTYPE wrong kind of value")
+    expect readResp(rest2) is RespRead.Done(third, rest3)
+    expect third == RespValue.Integer(value: 3)
+    expect rest3.length() == 0
+}

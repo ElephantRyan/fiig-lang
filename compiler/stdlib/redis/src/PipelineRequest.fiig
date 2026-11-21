@@ -1,0 +1,9 @@
+// ADR 0110 open question 1, as amended 2026-11-21: commands pipelined,
+// every one in one write, and as many replies back, in the same order.
+conversion pipelineRequest(commands: List<List<bytes>>) -> RedisRequest {
+    data: bytes = <<>>
+    for words in commands {
+        data = <<data: bytes, encodeCommand(words): bytes>>
+    }
+    return RedisRequest(data: data, replies: commands.length())
+}

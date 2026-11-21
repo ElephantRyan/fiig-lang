@@ -138,7 +138,8 @@ user, Redis 6 ACLs), `SELECT`, RESP2 replies.
 
 Out: pipelining, `MULTI`/`EXEC` across calls, pub/sub (a connection that
 carries a session, ADR 0109 §7), RESP3, Sentinel, Cluster redirects
-(`MOVED`, `ASK`). *(`bytes` arguments were out too, until §1a.)*
+(`MOVED`, `ASK`). *(`bytes` arguments were out too, until §1a. Pipelining
+is in since open question 1's amendment, 2026-11-21.)*
 
 ## Alternatives considered
 
@@ -183,8 +184,40 @@ carries a session, ADR 0109 §7), RESP3, Sentinel, Cluster redirects
 
 ## Open questions
 
-1. **Pipelining.** Sending several commands before reading their replies
+1. ~~**Pipelining.** Sending several commands before reading their replies
    needs a `List<List<string>>` form. That's worth adding when a program
-   shows the round trips.
+   shows the round trips.~~ Done 2026-11-21, as amended below.
+
+   *(Amended 2026-11-21: `Redis` gains two gateways.*
+
+   ```fiig
+   gateway sendAll(commands: List<List<string>>) -> Result<List<RespValue>, RedisError>
+   gateway sendAllBytes(commands: List<List<bytes>>) -> Result<List<RespValue>, RedisError>
+   ```
+
+   *All the commands go out in one write on one connection, a kept one
+   when there is one, after §3's setup on a new one, and their replies
+   are read back in order: one round trip for the lot. **A command the
+   server refuses is `RespValue.Error` in its place**, not an `Err` for
+   the whole call. By the time its reply is read, the commands around it
+   have run, and an `Err` would hide what they did. This is the form the
+   alternatives below rejected for `send`, and the reason differs: `send`
+   has one reply, and `Ok` around an error reads as success, while here
+   `Ok` only says the pipeline went out and came back, and each element
+   is the reply as the server gave it, which a caller matching
+   `RespValue` must handle. A socket failure or a malformed reply fails
+   the whole call, since the replies after it can't be told apart. An
+   empty list sends nothing and is `Ok([])`; a command with no name fails
+   the call before anything is sent. The connection is kept only when
+   every command's name passes `keepsConnection`, so a pipeline holding
+   `MULTI` or `SELECT` closes it. A pipeline isn't a transaction: Redis
+   may run another client's command between two of them, and `MULTI` and
+   `EXEC` across the list are the caller's to send. The four gateways
+   repeat one body, because a gateway can't call another.
+   `pipelineRequest` and `pipelineKeeps` in `compiler/stdlib/redis/src`;
+   tests in `test/scenarios/Pipeline.fiig` and `tooling/runprogram`'s
+   `TestPipelinedCommandsShareOneRoundTrip`, which runs against the
+   in-memory Redis, or a real one named by `FIIG_REDIS_URL`; it passed
+   against Redis 7.4 with a password and database 1.)*
 2. **Sentinel and Cluster.** Both discover servers at run time, so they
    are a second client shape, not a setting on this one.
