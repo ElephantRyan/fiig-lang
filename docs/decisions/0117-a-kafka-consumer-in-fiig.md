@@ -1,8 +1,8 @@
 # ADR 0117: A Kafka Consumer in fiig, over Sessions, in Order
 
-Status: Proposed (2026-11-21). The owner decided §1 (the KIP-848 group
-protocol only) and §5 (Retry seeks back, so order holds) before it was
-written.
+Status: Accepted (2026-11-21, by the owner). Implemented 2026-11-21.
+The owner decided §1 (the KIP-848 group protocol only) and §5 (Retry
+seeks back, so order holds) before it was written.
 Date: 2026-11-21
 Builds: ADR 0114 (sessions), amending §2 and §3 and adding to §1 (§2 here).
 Amends: ADR 0111 §1 (a delivery names its order, §6 here).

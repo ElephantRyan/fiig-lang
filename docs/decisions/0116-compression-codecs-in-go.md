@@ -1,6 +1,6 @@
 # ADR 0116: Compression Codecs in Go, the Prelude compress Group
 
-Status: Proposed, implemented (2026-11-20)
+Status: Accepted (2026-11-21, by the owner). Implemented 2026-11-20.
 Date: 2026-11-20
 Related: ADR 0042 (the socket floor), ADR 0049 (prelude groups), ADR
 0075 (the crypto group, and CRC-32C's admission in ADR 0113 §2), ADR
