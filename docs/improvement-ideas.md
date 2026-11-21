@@ -121,6 +121,11 @@ the checker for a file that didn't parse is a small follow-up.
 | C1 | **Check queries against the schema.** Migrations are plain SQL files (ADR 0096) and every query is a literal (Q1), and a test already applies a package's migrations to an in-memory SQLite database. `fiig check -schema` would apply them there and prepare each query, finding a misspelt column or table before run time. Postgres-only SQL would use `-caps`, as `fiig test` does. ADR 0096's consequences say this "is its own ADR". | M | ADR |
 | C2 | **Data-dependent SQL by enum.** An enum whose variants carry constant SQL text (ADR 0046 §4a) can be spliced into a query, since only its constants can appear, so a dynamic `ORDER BY` needs no builder and stays injection-safe. ADR 0082 open question 1 names this candidate. | M | ADR |
 
+**Status (2026-11-21): C1 is done (ADR 0131, Proposed):** `fiig check -schema`.
+It found 0 problems in abs-recommendations' 19 queries, and both of two
+mistakes put into a copy, which plain `fiig check` passes. It leaves Postgres-only
+SQL unchecked, with a note. C2 is not started.
+
 ### D. Security
 
 | # | Idea | Size | Needs |

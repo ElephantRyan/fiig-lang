@@ -213,6 +213,8 @@ A `Secret` is a config value that must never be shown.
 | Q2 | A value bound to a `Database` call that SQL can't bind (§4): a model, list, map, payload enum, `Connection`, or `Secret` (a gateway that means to store one calls `.reveal()`). Bindable: `int`, `float`, `string`, `bool`, `decimal` (as TEXT), `bytes` (as a BLOB), a payload-free enum (its text form), and `None` | Attested — `database_error.fiig` (`removeBySql`); `TestDatabaseBindsScalarsEnumsAndNone` |
 | Q3 | A query's row type that SQL can't fill (§5): a model with a field one column can't hold (a list, a nested model, a union other than `T \| None`), or a `queryOne` read as two types beside `None`, or a model with two fields that would read one column, since a column matches a field ignoring case and underscores (ADR 0094 §3: `userId` and `user_id`). A row's mismatch with the stored values is a fault at the query instead (§6-§8), since the checker doesn't know the schema | Attested — `database_error.fiig` (`readLedgers`); `TestDatabaseMisuse` |
 
+| Q4 | A literal `Database` query that doesn't fit the schema the program's migrations make: a table or column the schema lacks, or an ambiguous column. Found by `fiig check -schema`, which applies the migrations to an in-memory SQLite database and prepares each query (ADR 0131). SQL that SQLite can't prepare is counted and not reported, since it may be Postgres's | `libraries/sql`'s `TestACheckFindsWhatTheSchemaLacks` |
+
 ## T. Test errors (ADR 0091)
 
 A test lives under its package's `tests/` directory, and its fakes are

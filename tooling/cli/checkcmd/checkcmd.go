@@ -19,6 +19,7 @@
 package checkcmd
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -29,8 +30,10 @@ import (
 	"fiig-lang/compiler/loader"
 	"fiig-lang/compiler/lockfile"
 	"fiig-lang/compiler/migration"
+	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/types"
 	"fiig-lang/tooling/runprogram"
+	"fiig-lang/tooling/schemacheck"
 )
 
 // stringList collects every occurrence of a repeatable flag, rather
@@ -40,14 +43,17 @@ type stringList []string
 func (s *stringList) String() string     { return strings.Join(*s, ",") }
 func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
 
-func Main(name string, args []string) {
+// Main runs the command. factories are the capability factories this binary
+// has, for -schema (the "sql" one); the separate check-cli passes none.
+func Main(name string, args []string, factories ...runtime.FactoryRegistry) {
 	fs := flag.NewFlagSet(name, flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "print diagnostics as a JSON array instead of one line each")
+	schema := fs.Bool("schema", false, "also apply the migrations to an in-memory SQLite database and prepare every literal Database query against it, so a table or column the schema lacks is found now (ADR 0131)")
 	var workspaces stringList
 	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable. Omitted, only the packages fiig ships are searched (ADR 0074)")
 	fs.Parse(args)
 	if fs.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-workspace <dir>]... <root>")
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-schema] [-workspace <dir>]... <root>")
 		os.Exit(2)
 	}
 	root := fs.Arg(0)
@@ -70,7 +76,7 @@ func Main(name string, args []string) {
 		}
 	}
 
-	diags, err := checker.CheckDir(root, packages)
+	diags, paths, files, err := checker.CheckDirFiles(root, packages)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -78,12 +84,33 @@ func Main(name string, args []string) {
 	if loaded != nil {
 		// ADR 0105: each folder package's tests (its sources the loader
 		// already checked).
-		more, _, err := runprogram.CheckModulePackages(root, loaded)
+		more, checked, err := runprogram.CheckModulePackages(root, loaded)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
 		diags = append(diags, more...)
+		for _, c := range checked {
+			files = append(files, c.Files...)
+			paths = append(paths, c.Paths...)
+		}
+	}
+	if *schema && len(diags) == 0 {
+		// ADR 0131: only a program that checks clean has queries worth
+		// preparing; the rest would be noise on top of the errors.
+		var sql runtime.FactoryRegistry
+		if len(factories) > 0 {
+			sql = factories[0]
+		}
+		res, err := schemacheck.Check(context.Background(), root, packages, schemacheck.Queries(files, paths), sql)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error: -schema:", err)
+			os.Exit(1)
+		}
+		diags = append(diags, res.Diagnostics...)
+		if res.Note != "" {
+			fmt.Fprintln(os.Stderr, "note:", res.Note)
+		}
 	}
 	// ADR 0096 §1: a migration file that doesn't fit is reported here too,
 	// not first at startup. A dependency's were reported by its load.

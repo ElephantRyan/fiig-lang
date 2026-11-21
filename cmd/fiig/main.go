@@ -68,7 +68,7 @@ func main() {
 	sql := runtime.FactoryRegistry{"sql": fiigsql.Factory}
 	switch cmd {
 	case "check":
-		checkcmd.Main("fiig check", args)
+		checkcmd.Main("fiig check", args, sql)
 	case "run":
 		runcmd.Main("fiig run", args, sql)
 	case "serve":

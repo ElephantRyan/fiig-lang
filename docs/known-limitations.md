@@ -32,10 +32,14 @@ doesn't have to discover them.
   open questions); isolation levels and retrying a whole transaction are
   `transaction Database serializable retry(attempts: N)`. Two packages
   bound to one database get a pool each (ADR 0084 open question 4).
-- **Queries aren't checked against the schema.** A query's rows read into
-  the row type its context gives (ADR 0082), but whether the columns fit is
-  found at the query, as a fault naming the column, not by `fiig check`:
-  that needs tables declared in fiig (ADR 0082 open question 3).
+- **Queries are checked against the schema only on request.** A query's rows
+  read into the row type its context gives (ADR 0082), and `fiig check
+  -schema` (ADR 0131) applies the migrations to an in-memory SQLite database
+  and prepares each literal query, finding a misspelt table or column. It
+  checks what SQLite can prepare, so Postgres-only SQL is counted and not
+  checked, migrations SQLite can't run leave every query unchecked, and a
+  program that makes its tables in a gateway has no migrations to check
+  against. It doesn't compare a query's columns with the row type.
 - **Only conflicts are values.** A `Database` call that opts in (ADR 0087)
   gets a unique, foreign-key, not-null, or check violation, a
   serialization failure, or a deadlock as `Err(DatabaseConflict...)`; bad

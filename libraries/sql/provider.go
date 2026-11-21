@@ -57,6 +57,19 @@ func (p *Provider) Call(ctx context.Context, method string, args []runtime.Value
 	return dispatch(ctx, p.db, method, args)
 }
 
+// Close closes the database the provider wraps.
+func (p *Provider) Close() { _ = p.db.Close() }
+
+// Validate prepares query against the database without running it, so a table
+// or column the schema doesn't have is found (`fiig check -schema`, ADR 0131).
+func (p *Provider) Validate(ctx context.Context, query string) error {
+	stmt, err := p.db.PrepareContext(ctx, query)
+	if err != nil {
+		return err
+	}
+	return stmt.Close()
+}
+
 // Begin opens a real database/sql transaction — compiler/runtime/
 // transaction.go's evalTransaction calls this for `transaction Database {
 // ... }`, then routes every capability call made inside the block to the
