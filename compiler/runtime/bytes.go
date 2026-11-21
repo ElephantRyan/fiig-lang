@@ -70,6 +70,20 @@ func (w *bitWriter) writeInt(v int64, enc syntax.Encoding) {
 	if enc.Bits < 64 {
 		u &= 1<<uint(enc.Bits) - 1
 	}
+	if w.nbits%8 == 0 && enc.Bits%8 == 0 {
+		// Whole bytes on a byte boundary, as nearly every field is
+		// (ADR 0115 §4).
+		n := enc.Bits / 8
+		for i := range n {
+			shift := 8 * (n - 1 - i)
+			if enc.Little {
+				shift = 8 * i
+			}
+			w.buf = append(w.buf, byte(u>>uint(shift)))
+		}
+		w.nbits += enc.Bits
+		return
+	}
 	if !enc.Little {
 		w.writeBits(u, enc.Bits)
 		return
@@ -194,7 +208,18 @@ func (r *bitReader) readBits(n int) uint64 {
 
 func (r *bitReader) readInt(enc syntax.Encoding) int64 {
 	var u uint64
-	if enc.Little {
+	if r.pos%8 == 0 && enc.Bits%8 == 0 {
+		// Whole bytes on a byte boundary (ADR 0115 §4).
+		n, at := enc.Bits/8, r.pos/8
+		for i := range n {
+			if enc.Little {
+				u |= uint64(r.data[at+i]) << uint(8*i)
+			} else {
+				u = u<<8 | uint64(r.data[at+i])
+			}
+		}
+		r.pos += enc.Bits
+	} else if enc.Little {
 		for i := 0; i < enc.Bits/8; i++ {
 			u |= r.readBits(8) << uint(8*i)
 		}
@@ -217,7 +242,10 @@ func matchBytesPattern(p *syntax.BytesPattern, v Value, env *Env) bool {
 		return false
 	}
 	r := bitReader{data: b.B}
-	bound := map[string]Value{}
+	// The names bound so far, in segment order, so a size can read them
+	// and env binds them in the same order on every match (ADR 0115 §3).
+	var inline [8]patternBinding
+	bound := patternBindings(inline[:0])
 	for _, seg := range p.Segments {
 		enc := seg.Encoding
 		var val Value
@@ -262,16 +290,34 @@ func matchBytesPattern(p *syntax.BytesPattern, v Value, env *Env) bool {
 			continue
 		}
 		if seg.Name != "_" {
-			bound[seg.Name] = val
+			bound = append(bound, patternBinding{seg.Name, val})
 		}
 	}
 	if r.remaining() != 0 {
 		return false
 	}
-	for name, val := range bound {
-		env.Bind(name, val)
+	for _, b := range bound {
+		env.Bind(b.name, b.v)
 	}
 	return true
+}
+
+type patternBinding struct {
+	name string
+	v    Value
+}
+
+// patternBindings is a pattern's names bound so far.
+type patternBindings []patternBinding
+
+// get is name's value, the latest when a name is bound twice.
+func (p patternBindings) get(name string) (Value, bool) {
+	for i := len(p) - 1; i >= 0; i-- {
+		if p[i].name == name {
+			return p[i].v, true
+		}
+	}
+	return nil, false
 }
 
 func literalText(e syntax.Expr) string {
@@ -303,7 +349,7 @@ func literalMatches(e syntax.Expr, v Value) bool {
 // evalSize evaluates a segment size: literals, earlier segment names, and
 // integer arithmetic. Division by zero is a non-match, like any other bad
 // size.
-func evalSize(e syntax.Expr, bound map[string]Value) (int64, bool) {
+func evalSize(e syntax.Expr, bound patternBindings) (int64, bool) {
 	if v, ok := constValue(e); ok {
 		n, isInt := v.(Int)
 		return int64(n), isInt
@@ -313,7 +359,8 @@ func evalSize(e syntax.Expr, bound map[string]Value) (int64, bool) {
 		n, err := syntax.IntValue(e.Text)
 		return n, err == nil
 	case *syntax.Ident:
-		n, ok := bound[e.Name].(Int)
+		v, _ := bound.get(e.Name)
+		n, ok := v.(Int)
 		return int64(n), ok
 	case *syntax.ParenExpr:
 		return evalSize(e.Inner, bound)

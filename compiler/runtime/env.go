@@ -22,6 +22,8 @@ type Env struct {
 	// index is vars by name, built once vars passes envIndexed.
 	index  map[string]int
 	parent *Env
+	// spare is the child scope scratch hands out, kept for reuse.
+	spare *Env
 }
 
 // binding is one name in a scope. reassignable marks one declared with a
@@ -60,6 +62,22 @@ func NewEnv() *Env {
 func (e *Env) Child() *Env {
 	c := &Env{parent: e}
 	c.vars = c.inline[:0]
+	return c
+}
+
+// scratch is a child scope of e for a nested block of compiled code: the
+// same one each time, emptied (ADR 0115 §3). A scope's nested blocks run
+// one after another, never two at once, and nothing outlives its block:
+// fiig has no closures, and compiled code runs only in a call's own
+// frame, which no other goroutine runs in.
+func (e *Env) scratch() *Env {
+	c := e.spare
+	if c == nil {
+		c = e.Child()
+		e.spare = c
+		return c
+	}
+	c.reset()
 	return c
 }
 

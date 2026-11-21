@@ -179,6 +179,61 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
     b = a
     return a * b
 }`}, "f", map[string]Value{"a": Int(1 << 40)}},
+		{"bytes literals", []string{`rule f(n: int, s: string, tail: bytes) -> List<bytes> {
+    framed = <<68: u8, n + 4: i32be, s: utf8, tail: bytes>>
+    grown = <<framed: bytes, n: u16le, n % 256: u8>>
+    bits = <<1: u1, 5: u3, n % 16: u4, n: i64le>>
+    return [framed, grown, bits, <<>>, <<grown: bytes>>]
+}`}, "f", map[string]Value{"n": Int(300), "s": Str("héllo"), "tail": Bytes{B: []byte{1, 2, 3}}}},
+		{"a value that does not fit", []string{`rule f(n: int) -> bytes {
+    return <<1: u8, n: u8>>
+}`}, "f", map[string]Value{"n": Int(256)}},
+		{"growing bytes in a loop", []string{`rule f(n: int) -> bytes {
+    data: bytes = <<>>
+    i: int = 0
+    while i < n {
+        data = <<data: bytes, i: u16be, (i * 7) % 256: u8>>
+        i = i + 1
+    }
+    return data
+}`}, "f", map[string]Value{"n": Int(40)}},
+		{"binary patterns", []string{`rule f(stream: bytes) -> List<int> {
+    out: List<int> = []
+    rest: bytes = stream
+    while rest.length() > 0 {
+        match rest {
+            <<68: u8, length: i32be, body: bytes(length - 4), more: bytes>> -> {
+                match body {
+                    <<a: u16le, b: i8, "ok": utf8, c: u1, d: u7>> -> {
+                        out = append(out, a + b + c + d)
+                    }
+                    _ -> {
+                        out = append(out, body.length())
+                    }
+                }
+                rest = more
+            }
+            _ -> {
+                return [0 - 1]
+            }
+        }
+    }
+    return out
+}`}, "f", map[string]Value{"stream": Bytes{B: []byte{
+			'D', 0, 0, 0, 10, 0x34, 0x12, 0xff, 'o', 'k', 0x85,
+			'D', 0, 0, 0, 6, 9, 9,
+			'D', 0, 0, 0, 3}}}},
+		{"methods on values", []string{`rule f(a: int, b: int, data: bytes) -> List<int> {
+    x = 0
+    match <<a: u32be>>.xor(<<b: u32be>>) {
+        <<v: u32be>> -> {
+            return [v, data.slice(1, 3).length(), [1, 2, 3].length(), (data).at(0), "four".length()]
+        }
+        _ -> {
+            return [x]
+        }
+    }
+}`}, "f", map[string]Value{"a": Int(0xF0F0F0F0), "b": Int(0x12345678), "data": Bytes{B: []byte{5, 6, 7, 8}}}},
 		{"many locals", []string{`rule f(n: int) -> int {
     a1 = n + 1
     a2 = a1 + 1

@@ -39,11 +39,18 @@ func compileCall(e *syntax.CallExpr) cexpr {
 		}
 		return compileDeclCall(e, callee.Name, args, fallback)
 	case *syntax.FieldAccess:
-		target, ok := callee.Target.(*syntax.Ident)
-		if !ok || target.Name == types.JsonGroup || e.HandlesConflicts || e.DecodeInto != nil {
+		if e.HandlesConflicts || e.DecodeInto != nil {
 			return nil
 		}
-		return compileMethodCall(e, target.Name, callee.Field, args, fallback)
+		switch target := callee.Target.(type) {
+		case *syntax.Ident:
+			if target.Name == types.JsonGroup {
+				return nil
+			}
+			return compileMethodCall(e, target.Name, callee.Field, args, fallback)
+		case *syntax.BytesLit, *syntax.CallExpr, *syntax.ListLit, *syntax.ParenExpr, *syntax.StringLit:
+			return compileValueMethodCall(e, compileExpr(target), callee.Field, args)
+		}
 	}
 	return nil
 }
@@ -109,7 +116,7 @@ func compileDeclCall(e *syntax.CallExpr, name string, args []cexpr, fallback cex
 // value. A target that isn't a local, or holds a capability group, goes to
 // evalCall, which reads a capability, a group, or a prelude group by name.
 func compileMethodCall(e *syntax.CallExpr, target, method string, args []cexpr, fallback cexpr) cexpr {
-	at := new(slot)
+	at, named := new(slot), hasNamedArg(e.Args)
 	return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
 		b := env.lookup(target, at)
 		if b == nil {
@@ -119,27 +126,65 @@ func compileMethodCall(e *syntax.CallExpr, target, method string, args []cexpr, 
 		if _, isProvider := t.(Provider); isProvider {
 			return fallback(in, ctx, env)
 		}
-		argVals := make([]Value, len(args))
-		for i, a := range args {
-			v, earlyReturn, fault := a(in, ctx, env)
-			if fault != nil || earlyReturn {
-				return v, earlyReturn, fault
-			}
-			argVals[i] = v
+		return builtinCall(in, ctx, env, e, t, method, args, named)
+	}
+}
+
+// compileValueMethodCall is evalQualifiedCall's built-in method on a value
+// that isn't a name: `<<a: u32be>>.xor(m)`, `data.slice(0, 4).length()`.
+func compileValueMethodCall(e *syntax.CallExpr, target cexpr, method string, args []cexpr) cexpr {
+	named := hasNamedArg(e.Args)
+	return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
+		t, earlyReturn, fault := target(in, ctx, env)
+		if fault != nil || earlyReturn {
+			return t, earlyReturn, fault
 		}
-		kind := methodKind(t)
-		if sigs, ok := types.MethodsOfKind(kind); ok {
-			if m, found := sigs[method]; found {
+		if p, isProvider := t.(Provider); isProvider {
+			return in.callProvider(ctx, p, method, e.Args, env)
+		}
+		return builtinCall(in, ctx, env, e, t, method, args, named)
+	}
+}
+
+// builtinCall evaluates a built-in method's arguments, places them as
+// placeArgs does, and calls it on t.
+func builtinCall(in *Interp, ctx context.Context, env *Env, e *syntax.CallExpr, t Value, method string, args []cexpr, named bool) (Value, bool, *Fault) {
+	argVals := make([]Value, len(args))
+	for i, a := range args {
+		v, earlyReturn, fault := a(in, ctx, env)
+		if fault != nil || earlyReturn {
+			return v, earlyReturn, fault
+		}
+		argVals[i] = v
+	}
+	kind := methodKind(t)
+	if sigs, ok := types.MethodsOfKind(kind); ok {
+		if m, found := sigs[method]; found {
+			if named {
 				var fault *Fault
 				if argVals, fault = placeArgs(kind+"."+method, m.ParamNames(), m.Required(), e.Args, argVals); fault != nil {
 					return nil, false, fault
 				}
+			} else {
+				// placeArgs without names: missing optional arguments are None.
+				for len(argVals) < len(m.Params) && len(argVals) >= m.Required() {
+					argVals = append(argVals, None{})
+				}
 			}
 		}
-		v, f := evalBuiltinMethod(t, method, argVals)
-		if f != nil {
-			return nil, false, f
-		}
-		return v, false, nil
 	}
+	v, f := evalBuiltinMethod(t, method, argVals)
+	if f != nil {
+		return nil, false, f
+	}
+	return v, false, nil
+}
+
+func hasNamedArg(args []syntax.Arg) bool {
+	for _, a := range args {
+		if a.Name != "" {
+			return true
+		}
+	}
+	return false
 }
