@@ -132,7 +132,51 @@ test aDisplayNameCantCarryAHeader {
     }
 }
 
+test anAttachmentWithANameAndATypePasses {
+    for media in ["application/pdf", "image/svg+xml", "application/vnd.ms-excel", "text/csv"] {
+        expect checkMail(withFile("Résumé (final).pdf", media)) is Ok(_)
+    }
+}
+
+test anAttachmentsTypeCantCarryAHeader {
+    for bad in ["text/plain\r\nBcc: z@z.org", "text/plain; charset=utf-8", "textplain", "text/", "/plain", "a/b/c", "", "text/pla in"] {
+        expect checkMail(withFile("a.txt", bad)) is Err(SmtpError.InvalidMail(reason))
+        expect reason.contains("attachment 1")
+        expect not reason.contains("plain")
+    }
+}
+
+test anAttachmentsNameCantCarryAHeader {
+    for bad in ["", "a\r\nBcc: z@z.org", "a\tb", repeatedA(201)] {
+        expect checkMail(withFile(bad, "text/plain")) is Err(SmtpError.InvalidMail(reason))
+        expect reason.contains("attachment 1")
+    }
+}
+
+test theRefusedAttachmentIsNamedByPosition {
+    good = Attachment(name: "a.txt", contentType: "text/plain", data: <<>>)
+    bad = Attachment(name: "b.txt", contentType: "text", data: <<>>)
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "x", attachments: [good, bad])
+    expect checkMail(mail) is Err(SmtpError.InvalidMail(reason))
+    expect reason.contains("attachment 2")
+}
+
 private {
+    withFile(name: string, media: string) -> Mail {
+        file = Attachment(name: name, contentType: media, data: "x".utf8())
+        return Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "x", attachments: [file])
+    }
+
+    repeatedA(times: int) -> string {
+        out: string = ""
+        n: int = 0
+        while n < times {
+            out = "${out}a"
+            n = n + 1
+        }
+        return out
+    }
+
     mailTo(to: List<string>) -> Mail {
         return Mail(from: "a@x.org", to: to, subject: "Hello", body: "Hi")
     }

@@ -125,6 +125,99 @@ test aLongAddressListIsFolded {
     expect text.contains("recipient19@example.org\r\nSubject: s")
 }
 
+test htmlMakesTheMailMultipartAlternative {
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "Hi", html: "<p>Hi</p>\n.end")
+    head = "From: a@x.org\r\nTo: b@y.org\r\nSubject: s\r\nDate: D\r\nMessage-ID: <t@x.org>\r\nMIME-Version: 1.0\r\n"
+    top = "Content-Type: multipart/alternative;\r\n boundary=\"=_a.t\"\r\n\r\n"
+    text = "--=_a.t\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\nHi\r\n"
+    // The HTML's line starting with a dot is stuffed like any other.
+    html = "--=_a.t\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\n<p>Hi</p>\r\n..end\r\n"
+    expect textOf(mailData(mail, "D", "t@x.org")) == "${head}${top}${text}${html}--=_a.t--\r\n.\r\n"
+}
+
+test attachmentsWrapTheBodyInMultipartMixed {
+    mail = Mail(
+        from: "a@x.org",
+        to: ["b@y.org"],
+        subject: "s",
+        body: "Hi",
+        html: "<p>Hi</p>",
+        attachments: [Attachment(name: "a \"1\".txt", contentType: "text/plain", data: "abc".utf8())],
+    )
+    head = "From: a@x.org\r\nTo: b@y.org\r\nSubject: s\r\nDate: D\r\nMessage-ID: <t@x.org>\r\nMIME-Version: 1.0\r\n"
+    top = "Content-Type: multipart/mixed;\r\n boundary=\"=_m.t\"\r\n\r\n"
+    alternative = "--=_m.t\r\nContent-Type: multipart/alternative;\r\n boundary=\"=_a.t\"\r\n\r\n"
+    text = "--=_a.t\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\nHi\r\n"
+    html = "--=_a.t\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\n<p>Hi</p>\r\n--=_a.t--\r\n"
+    file = "--=_m.t\r\nContent-Type: text/plain;\r\n name=\"a \\\"1\\\".txt\"\r\nContent-Disposition: attachment;\r\n filename=\"a \\\"1\\\".txt\"\r\nContent-Transfer-Encoding: base64\r\n\r\nYWJj\r\n"
+    expect textOf(mailData(mail, "D", "t@x.org")) == "${head}${top}${alternative}${text}${html}${file}--=_m.t--\r\n.\r\n"
+}
+
+test attachmentsWithoutHtmlHoldTheTextPartAlone {
+    file = Attachment(name: "empty.bin", contentType: "application/octet-stream", data: <<>>)
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "Hi", attachments: [file])
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    expect text.contains(
+        "MIME-Version: 1.0\r\nContent-Type: multipart/mixed;\r\n boundary=\"=_m.t\"\r\n\r\n--=_m.t\r\nContent-Type: text/plain; charset=utf-8\r\n",
+    )
+    expect not text.contains("alternative")
+    // An empty file is an empty line of base64.
+    expect text.endsWith("Content-Transfer-Encoding: base64\r\n\r\n\r\n--=_m.t--\r\n.\r\n")
+}
+
+test noAttachmentsAndNoHtmlIsPlainText {
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "Hi", attachments: [])
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    expect text.endsWith(
+        "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\nHi\r\n.\r\n",
+    )
+}
+
+test aTextPartHoldingABoundaryGoesAsBase64 {
+    mail = Mail(
+        from: "a@x.org",
+        to: ["b@y.org"],
+        subject: "s",
+        body: "Hi\n--=_a.t",
+        html: "<p>Hi</p>",
+    )
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    // "Hi", CRLF, "--=_a.t", CRLF, in base64.
+    expect text.contains(
+        "Content-Transfer-Encoding: base64\r\n\r\nSGkNCi0tPV9hLnQNCg==\r\n--=_a.t\r\n",
+    )
+    expect text.contains("text/html; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n")
+}
+
+test aNonAsciiFileNameIsEncodedBothWays {
+    file = Attachment(name: "Grüße.pdf", contentType: "application/pdf", data: "x".utf8())
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "Hi", attachments: [file])
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    // RFC 2047 for readers that look at name, RFC 2231 for the rest.
+    expect text.contains(
+        "Content-Type: application/pdf;\r\n name=\"=?UTF-8?B?R3LDvMOfZS5wZGY=?=\"\r\n",
+    )
+    expect text.contains(
+        "Content-Disposition: attachment;\r\n filename*=utf-8''Gr%C3%BC%C3%9Fe.pdf\r\n",
+    )
+}
+
+test aLargeAttachmentIsWrappedAt76 {
+    big: bytes = <<>>
+    n: int = 0
+    while n < 1000 {
+        big = <<big: bytes, n % 256: u8>>
+        n = n + 1
+    }
+    file = Attachment(name: "data.bin", contentType: "application/octet-stream", data: big)
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "Hi", attachments: [file])
+    text = textOf(mailData(mail, "D", "t@x.org"))
+    expect longestLine(text) <= 78
+    lines = text.split("\r\n\r\n").last().split("\r\n")
+    expect lines.first().length() == 76
+    expect lines.slice(0, lines.length() - 3).join("").fromBase64() == big
+}
+
 private {
     textOf(data: bytes) -> string {
         match data.utf8() {

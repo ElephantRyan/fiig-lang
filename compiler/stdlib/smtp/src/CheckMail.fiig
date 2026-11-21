@@ -1,8 +1,9 @@
 // A mail that can be sent as written (ADR 0120 §2, §2a). Addresses go into
 // protocol lines and headers, so a line break or a space in one could write
 // a command or a header of the caller's choosing; they're refused instead,
-// and so is a display name with a line break. The reasons say which address,
-// never what it said.
+// and so is a display name with a line break, and an attachment whose name
+// or type could end a header (§2b). The reasons say which address or
+// attachment, never what it said.
 conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
     if not validAddress(mail.from) {
         return Err(
@@ -58,10 +59,64 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
     if mail.subject.utf8().length() > 900 {
         return Err(SmtpError.InvalidMail(reason: "the subject is longer than 900 bytes"))
     }
+    match mail.attachments {
+        None -> None
+        attachments -> {
+            number: int = 1
+            for attachment in attachments {
+                checkAttachment(attachment, number)?
+                number = number + 1
+            }
+        }
+    }
     return Ok(None)
 }
 
 private {
+    // An attachment's name and type go into its part's headers (§2b): a name
+    // is any text but a control character, of at most 200 bytes, and a type
+    // is type/subtype in MIME's token characters, with no parameters, so
+    // neither can end a header line or add one.
+    checkAttachment(attachment: Attachment, number: int) -> Result<None, SmtpError> {
+        raw = attachment.name.utf8()
+        if raw.length() == 0 or raw.length() > 200 {
+            return Err(
+                SmtpError.InvalidMail(reason: "attachment ${number}'s name is empty or longer than 200 bytes"),
+            )
+        }
+        for b in raw {
+            if b < 32 or b == 127 {
+                return Err(
+                    SmtpError.InvalidMail(reason: "attachment ${number}'s name has a line break or another control character"),
+                )
+            }
+        }
+        halves = attachment.contentType.split("/")
+        if halves.length() != 2 or not mimeToken(halves.first()) or not mimeToken(halves.last()) {
+            return Err(
+                SmtpError.InvalidMail(reason: "attachment ${number}'s content type isn't type/subtype, such as application/pdf"),
+            )
+        }
+        return Ok(None)
+    }
+
+    // RFC 2045 §5.1's token: printable ASCII but space and ( ) < > @ , ; : \ " / [ ] ? =.
+    mimeToken(text: string) -> bool {
+        raw = text.utf8()
+        if raw.length() == 0 or raw.length() > 127 {
+            return false
+        }
+        for b in raw {
+            if b <= 32 or b >= 127 {
+                return false
+            }
+            if b == 34 or b == 40 or b == 41 or b == 44 or b == 47 or b == 58 or b == 59 or b == 60 or b == 61 or b == 62 or b == 63 or b == 64 or b == 91 or b == 92 or b == 93 {
+                return false
+            }
+        }
+        return true
+    }
+
     listOf(addresses: List<string> | None) -> List<string> {
         match addresses {
             None -> []

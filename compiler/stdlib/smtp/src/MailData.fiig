@@ -4,20 +4,9 @@
 // of plain ASCII goes as it is (7bit); anything else, and any line over the
 // 998 bytes SMTP allows, goes as base64 (ADR 0120 §2). A subject that isn't
 // plain ASCII is written as RFC 2047 encoded words, and so is a display name;
-// Bcc is never written (§2a).
+// Bcc is never written (§2a). A mail with HTML or attachments is multipart
+// (§2b), its boundaries made from the Message-ID's random token.
 conversion mailData(mail: Mail, date: string, messageId: string) -> bytes {
-    plain = mail.body.replaceAll("\r\n", "\n").replaceAll("\r", "\n")
-    rows: List<string> = plain.split("\n")
-    if rows.length() > 1 and rows.last() == "" {
-        rows = rows.slice(0, rows.length() - 1)
-    }
-    encoded = needsBase64(plain, rows)
-    encoding: string = "7bit"
-    body: string = plainLines(rows)
-    if encoded {
-        encoding = "base64"
-        body = base64Lines(rows)
-    }
     names: Map<string, string> = [:]
     match mail.names {
         None -> None
@@ -47,14 +36,144 @@ conversion mailData(mail: Mail, date: string, messageId: string) -> bytes {
     headers = append(headers, "Date: ${date}")
     headers = append(headers, "Message-ID: <${messageId}>")
     headers = append(headers, "MIME-Version: 1.0")
-    headers = append(headers, "Content-Type: text/plain; charset=utf-8")
-    headers = append(headers, "Content-Transfer-Encoding: ${encoding}")
     head = headers.join("\r\n")
-    text = "${head}\r\n\r\n${body}.\r\n"
+    text = "${head}\r\n${entityOf(mail, messageId)}.\r\n"
     return text.utf8()
 }
 
 private {
+    // The body as MIME writes it: its Content-Type and encoding header
+    // lines, a blank line, and the content, every line ending in CRLF. Plain
+    // text alone is one text/plain part; HTML makes it multipart/alternative,
+    // text first and HTML second (RFC 2046 §5.1.4, the reader shows the last
+    // it can); attachments wrap that in multipart/mixed, the body first. The
+    // two boundaries are the Message-ID's token, neither a prefix of the
+    // other, and a text part that holds either goes as base64, which can't
+    // hold `=_`.
+    entityOf(mail: Mail, messageId: string) -> string {
+        html: string = ""
+        hasHtml: bool = false
+        match mail.html {
+            None -> None
+            given -> {
+                html = given
+                hasHtml = true
+            }
+        }
+        attachments: List<Attachment> = []
+        match mail.attachments {
+            None -> None
+            given -> {
+                attachments = given
+            }
+        }
+        if not hasHtml and attachments.length() == 0 {
+            return textEntity(mail.body, "plain", [])
+        }
+        token = messageId.split("@").first()
+        mixed = "=_m.${token}"
+        alternative = "=_a.${token}"
+        avoid = [mixed, alternative]
+        body: string = textEntity(mail.body, "plain", avoid)
+        if hasHtml {
+            body = multipart("alternative", alternative, [body, textEntity(html, "html", avoid)])
+        }
+        if attachments.length() == 0 {
+            return body
+        }
+        parts: List<string> = [body]
+        for attachment in attachments {
+            parts = append(parts, attachmentEntity(attachment))
+        }
+        return multipart("mixed", mixed, parts)
+    }
+
+    // A text part: 7bit when it can go so, base64 when it can't or when it
+    // holds a boundary.
+    textEntity(text: string, subtype: string, boundaries: List<string>) -> string {
+        plain = text.replaceAll("\r\n", "\n").replaceAll("\r", "\n")
+        rows: List<string> = plain.split("\n")
+        if rows.length() > 1 and rows.last() == "" {
+            rows = rows.slice(0, rows.length() - 1)
+        }
+        encoded: bool = needsBase64(plain, rows)
+        for boundary in boundaries {
+            if plain.contains(boundary) {
+                encoded = true
+            }
+        }
+        encoding: string = "7bit"
+        body: string = plainLines(rows)
+        if encoded {
+            encoding = "base64"
+            body = base64Lines(rows)
+        }
+        return "Content-Type: text/${subtype}; charset=utf-8\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n${body}"
+    }
+
+    // Parts between boundary lines, each part ending in CRLF so the next
+    // line starts with the boundary (RFC 2046 §5.1.1).
+    multipart(kind: string, boundary: string, parts: List<string>) -> string {
+        out: string = "Content-Type: multipart/${kind};\r\n boundary=\"${boundary}\"\r\n\r\n"
+        for part in parts {
+            out = "${out}--${boundary}\r\n${part}"
+        }
+        return "${out}--${boundary}--\r\n"
+    }
+
+    // A file as an attachment, in base64. Its name goes twice, as mail
+    // readers look for it in either place: a name of printable ASCII quoted
+    // in both; any other as RFC 2231's filename*= in Content-Disposition, and
+    // as RFC 2047 encoded words in Content-Type's name, which is what older
+    // readers (Outlook among them) understand.
+    attachmentEntity(attachment: Attachment) -> string {
+        name = attachment.name
+        typeName: string = quotedString(name)
+        fileName: string = "filename=${typeName}"
+        if not printableAscii(name) {
+            typeName = "\"${encodedWords(name)}\""
+            fileName = "filename*=utf-8''${percentEncoded(name)}"
+        }
+        typeLine = "Content-Type: ${attachment.contentType};\r\n name=${typeName}\r\n"
+        disposition = "Content-Disposition: attachment;\r\n ${fileName}\r\n"
+        return "${typeLine}${disposition}Content-Transfer-Encoding: base64\r\n\r\n${wrapped(attachment.data.toBase64())}"
+    }
+
+    printableAscii(text: string) -> bool {
+        for b in text.utf8() {
+            if b < 32 or b > 126 {
+                return false
+            }
+        }
+        return true
+    }
+
+    quotedString(text: string) -> string {
+        escaped = text.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")
+        return "\"${escaped}\""
+    }
+
+    // RFC 2231 §7's value: UTF-8 bytes, each but its attribute characters
+    // (letters, digits, and ! # $ & + - . ^ _ ` | ~) as %XX.
+    percentEncoded(text: string) -> string {
+        out: string = ""
+        for b in text.utf8() {
+            if b >= 48 and b <= 57 or b >= 65 and b <= 90 or b >= 97 and b <= 122 or b == 33 or b == 35 or b == 36 or b == 38 or b == 43 or b == 45 or b == 46 or b == 94 or b == 95 or b == 96 or b == 124 or b == 126 {
+                one: bytes = <<b: u8>>
+                match one.utf8() {
+                    None -> None
+                    c -> {
+                        out = "${out}${c}"
+                    }
+                }
+            } else {
+                one: bytes = <<b: u8>>
+                out = "${out}%${one.toHex().uppercase()}"
+            }
+        }
+        return out
+    }
+
     // Whether the body can't go as 7bit text: a byte outside printable ASCII
     // and the usual controls, or a line SMTP won't carry.
     needsBase64(plain: string, rows: List<string>) -> bool {
@@ -88,15 +207,28 @@ private {
     base64Lines(rows: List<string>) -> string {
         joined = rows.join("\r\n")
         text = "${joined}\r\n"
-        encoded = text.utf8().toBase64()
+        return wrapped(text.utf8().toBase64())
+    }
+
+    // Base64 in lines of 76 characters (RFC 2045 §6.8), each ending in CRLF.
+    // It is cut as bytes, which slice in constant time, where a string's
+    // length and slice count characters from its start, so an attachment of
+    // megabytes doesn't take time in the square of its size.
+    wrapped(encoded: string) -> string {
+        raw = encoded.utf8()
         lines: List<string> = []
         start: int = 0
-        while start < encoded.length() {
+        while start < raw.length() {
             stop: int = start + 76
-            if stop > encoded.length() {
-                stop = encoded.length()
+            if stop > raw.length() {
+                stop = raw.length()
             }
-            lines = append(lines, encoded.slice(start, stop))
+            match raw.slice(start, stop).utf8() {
+                None -> None
+                line -> {
+                    lines = append(lines, line)
+                }
+            }
             start = stop
         }
         wrapped = lines.join("\r\n")

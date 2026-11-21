@@ -172,6 +172,73 @@ Smtp.send(Mail(from: "reports@shop.example", to: ["ann@y.org"], cc: ["bob@y.org"
   line past 78 characters, so 100 recipients can't make a line SMTP won't
   carry.
 
+### 2b. HTML and attachments
+
+*(Amended 2026-11-21: the second half of open question 4 decided.)* `Mail`
+grows two more fields, each of which may be left out as §2a's are, and a
+model for a file:
+
+```fiig
+model Mail {
+    ...
+    html: string | None                    // the same mail as HTML
+    attachments: List<Attachment> | None
+}
+
+model Attachment { name: string, contentType: string, data: bytes }
+
+Smtp.send(Mail(from: "billing@shop.example", to: [email], subject: "Invoice",
+    body: text, html: page,
+    attachments: [Attachment(name: "invoice.pdf", contentType: "application/pdf", data: pdf)]))
+```
+
+- **The structure is the one every mail reader expects.** A mail with
+  neither is the plain-text message of §2, byte for byte. `html` makes it
+  `multipart/alternative`, `body` first and HTML second (RFC 2046 §5.1.4: a
+  reader shows the last part it can, so the HTML, and the text where it
+  can't). Attachments wrap that, or the text part alone, in
+  `multipart/mixed`, the body first and each file after it. `body` stays
+  required: the text alternative is what a reader without HTML shows, and
+  spam filters count HTML without a text part against a mail.
+- **A text part, plain or HTML, is encoded as §2's body is**: `7bit` when it
+  is ASCII with every line within 998 bytes, dot-stuffed and CRLF; `base64`,
+  wrapped at 76, otherwise. Not quoted-printable: it keeps mostly-ASCII text
+  readable in the raw message, which no one reads, at the cost of a second
+  encoder with its own rules (soft breaks, `=` escapes, trailing space), and
+  a reader decodes either. Minified HTML, whose lines run past 998, goes as
+  base64 by the same rule.
+- **A file goes as `base64`**, wrapped at 76, under `Content-Disposition:
+  attachment`. Its name is written twice, since readers look in one place
+  or the other: a name of printable ASCII is quoted (`\` and `"` escaped) as
+  both `Content-Type`'s `name` and the disposition's `filename`; any other is
+  RFC 2231's `filename*=utf-8''Rechnung%20M%C3%A4rz.pdf` in the disposition
+  and RFC 2047 encoded words in `name`, which RFC 2047 doesn't strictly
+  allow inside a parameter but which older readers (Outlook among them)
+  understand and Thunderbird writes too. No RFC 2231 continuations: the
+  200-byte limit below keeps the longest `filename*=` line near 620
+  characters, within SMTP's 998.
+- **Boundaries come from the Message-ID's random token**: `=_m.<token>`
+  for mixed and `=_a.<token>` for alternative, neither a prefix of the other.
+  The token is random (`Random.bytes(12)`), so no content written before the
+  send can hold it, and that is also checked rather than trusted: a text
+  part that holds either boundary goes as base64, whose alphabet has no `_`
+  after `=`, so no part can contain a line that ends it. Base64 lines never
+  start with a dot either, so dot-stuffing only ever touches `7bit` text.
+  `mailData` stays a conversion with the same arguments, and the bytes a
+  test expects follow from the Message-ID it passes.
+- **Checked before anything is sent.** A file's name is 1 to 200 bytes of
+  anything but a control character (so no line break); its content type is
+  `type/subtype` in RFC 2045's token characters, with no parameters, so it
+  can't end the header line or add one. Either refused is
+  `Err(InvalidMail)` naming the attachment by position, and the reason never
+  repeats the name. There is no limit on the number or size of files beyond
+  the server's: SIZE (§2) is checked against the message as encoded,
+  attachments and all, so a server that offers it refuses nothing it would
+  have taken.
+- **Inline images (`multipart/related`, `cid:`) are out**, as are
+  attachment content-type parameters (`text/csv; charset=...`) and a
+  caller's own Content-ID; each waits for a use.
+
 ### 3. The dialogue is a state machine of conversions
 
 A gateway can't call another gateway, and every Socket call must be in one,
@@ -313,12 +380,13 @@ In: one plain-text mail to one or more recipients, over STARTTLS, implicit
 TLS, or plain, with AUTH PLAIN or none; SIZE respected when the server
 offers it (a message over its limit is `Err(InvalidMail)` before it is sent).
 
-Out: HTML and attachments (multipart), ~~Cc, Bcc, Reply-To and display names,
+Out: ~~HTML and attachments (multipart),~~ ~~Cc, Bcc, Reply-To and display names,
 AUTH LOGIN,~~ CRAM-MD5 ~~and XOAUTH2~~, SMTPUTF8 and internationalised addresses,
 delivery status notifications, ~~connection reuse,~~ and pipelining.
 *(Amended 2026-11-21: AUTH LOGIN (§3), connection reuse (§3a), and Cc,
 Bcc, Reply-To and display names (§2a) moved in.)* *(Amended 2026-11-21:
-XOAUTH2 (§3b) moved in; refreshing its token stays out.)*
+XOAUTH2 (§3b) moved in; refreshing its token stays out.)* *(Amended
+2026-11-21: HTML and attachments (§2b) moved in; inline images stay out.)*
 
 ## Alternatives considered
 
@@ -358,10 +426,11 @@ XOAUTH2 (§3b) moved in; refreshing its token stays out.)*
    2026-11-21 (§3b), with the token a setting the deployment refreshes.
    CRAM-MD5 remains.
 3. **SMTPUTF8 and internationalised addresses** (RFC 6531), and IDN domains.
-4. **Multipart: HTML and attachments**, ~~and Cc, Bcc, Reply-To and display
+4. ~~**Multipart: HTML and attachments**, and Cc, Bcc, Reply-To and display
    names. A `Mail` model grows fields, or a second `send` takes a richer
    one.~~ Cc, Bcc, Reply-To and display names done 2026-11-21 (§2a), as
-   optional `Mail` fields; multipart remains.
+   optional `Mail` fields; HTML and attachments done 2026-11-21 (§2b), the
+   same way.
 5. ~~**A time type.** `Date` needed a calendar written in fiig
    (`rfc5322Date`); an S3 library needs another for SigV4 (`20261120T135958Z`).
    A `time` type (known-limitations) would end the duplication.~~ Done by ADR

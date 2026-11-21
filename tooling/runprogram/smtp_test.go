@@ -2,6 +2,7 @@ package runprogram
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -50,6 +51,23 @@ gateway sendReport() -> Result<None, smtp.SmtpError>
             bcc: ["audit@shop.example"],
             replyTo: "help@shop.example",
             names: ["reports@shop.example": "Shop Reports", "ann@y.org": "Ann Smith", "bob@y.org": "Bob Ünal"],
+        ),
+    )
+}`,
+	"send_invoice.fiig": `use fiig.smtp
+use fiig.smtp.Smtp
+
+gateway sendInvoice(pdf: bytes) -> Result<None, smtp.SmtpError>
+    requires Smtp
+{
+    return Smtp.send(
+        smtp.Mail(
+            from: "billing@shop.example",
+            to: ["ann@y.org"],
+            subject: "Invoice",
+            body: "Your invoice is attached.",
+            html: "<p>Your invoice is <b>attached</b>.</p>",
+            attachments: [smtp.Attachment(name: "Rechnung März.pdf", contentType: "application/pdf", data: pdf)],
         ),
     )
 }`,
@@ -521,6 +539,76 @@ func TestSmtpLogsInWithXOAuth2(t *testing.T) {
 		}
 		if strings.Contains(got, "ya29") {
 			t.Errorf("the error repeats the token: %s", got)
+		}
+	})
+}
+
+// ADR 0120 §2b: a mail with HTML and an attachment goes as multipart/mixed
+// holding multipart/alternative (text, then HTML) and the file in base64,
+// its boundaries made from the Message-ID's token, and its non-ASCII name
+// written both as RFC 2047 encoded words and as RFC 2231's filename*=.
+func TestSmtpSendsHtmlAndAnAttachment(t *testing.T) {
+	pdf := make([]byte, 200)
+	for i := range pdf {
+		pdf[i] = byte(i * 7)
+	}
+	encoded := base64.StdEncoding.EncodeToString(pdf)
+	var lines []string
+	for len(encoded) > 76 {
+		lines = append(lines, encoded[:76])
+		encoded = encoded[76:]
+	}
+	lines = append(lines, encoded)
+	token := smtpToken(t)
+	mixed, alternative := "=_m."+token, "=_a."+token
+	name := base64.StdEncoding.EncodeToString([]byte("Rechnung März.pdf"))
+	message := "From: billing@shop.example\r\nTo: ann@y.org\r\nSubject: Invoice\r\nDate: " + smtpDate +
+		"\r\nMessage-ID: <" + token + "@shop.example>\r\nMIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/mixed;\r\n boundary=\"" + mixed + "\"\r\n\r\n" +
+		"--" + mixed + "\r\nContent-Type: multipart/alternative;\r\n boundary=\"" + alternative + "\"\r\n\r\n" +
+		"--" + alternative + "\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\n" +
+		"Your invoice is attached.\r\n" +
+		"--" + alternative + "\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\n" +
+		"<p>Your invoice is <b>attached</b>.</p>\r\n" +
+		"--" + alternative + "--\r\n" +
+		"--" + mixed + "\r\nContent-Type: application/pdf;\r\n name=\"=?UTF-8?B?" + name + "?=\"\r\n" +
+		"Content-Disposition: attachment;\r\n filename*=utf-8''Rechnung%20M%C3%A4rz.pdf\r\n" +
+		"Content-Transfer-Encoding: base64\r\n\r\n" + strings.Join(lines, "\r\n") + "\r\n" +
+		"--" + mixed + "--\r\n.\r\n"
+	run := func(t *testing.T, hello string, steps ...runtime.SocketStep) string {
+		t.Helper()
+		script := &runtime.ScriptedSocket{Peers: []*runtime.SocketPeer{peer("localhost", 1025,
+			append([]runtime.SocketStep{
+				send("220 localhost ESMTP\r\n"),
+				expect("EHLO client.test\r\n"),
+				send(hello),
+			}, steps...)...)}}
+		v, fault := smtpInterp(t, script, "smtp+plain://localhost:1025").Call(context.Background(), "sendInvoice",
+			map[string]runtime.Value{"pdf": runtime.Bytes{B: pdf}})
+		if fault != nil {
+			t.Fatalf("fault: %v", fault)
+		}
+		if err := script.Done(); err != nil {
+			t.Errorf("script: %v", err)
+		}
+		return fmt.Sprint(v)
+	}
+	t.Run("sent", func(t *testing.T) {
+		got := run(t, "250-localhost\r\n250 SIZE 10000\r\n",
+			expect("MAIL FROM:<billing@shop.example>\r\n"), send("250 OK\r\n"),
+			expect("RCPT TO:<ann@y.org>\r\n"), send("250 OK\r\n"),
+			expect("DATA\r\n"), send("354 go\r\n"),
+			expect(message), send("250 OK\r\n"))
+		if got != "Ok(None)" {
+			t.Errorf("sendInvoice = %s, want Ok(None)", got)
+		}
+	})
+	// SIZE is checked against the message as encoded, attachment and all:
+	// the script ends after EHLO, so nothing more may be written.
+	t.Run("over the server's SIZE", func(t *testing.T) {
+		got := run(t, fmt.Sprintf("250-localhost\r\n250 SIZE %d\r\n", len(message)-1))
+		if !strings.Contains(got, "InvalidMail") || !strings.Contains(got, "limit") {
+			t.Errorf("sendInvoice = %s, want InvalidMail over the limit", got)
 		}
 	})
 }
