@@ -1,0 +1,48 @@
+// ADR 0116 §4: a fetched batch's records section, decompressed by the
+// codec its attributes name, at most maxSize bytes. Snappy comes either
+// xerial-framed, as Java's client writes it, or as one raw block, as some
+// other clients write it; both are read.
+conversion unpackedRecords(compression: Compression, data: bytes, maxSize: int) -> Result<bytes, KafkaError> {
+    match compression {
+        Compression.None -> {
+            return Ok(data)
+        }
+        Compression.Gzip -> {
+            return Ok(mapErr(e in compress.gunzip(data, maxSize)): KafkaError.Decompress(failure: e)?)
+        }
+        Compression.Lz4 -> {
+            return Ok(mapErr(e in compress.unlz4(data, maxSize)): KafkaError.Decompress(failure: e)?)
+        }
+        Compression.Zstd -> {
+            return Ok(mapErr(e in compress.unzstd(data, maxSize)): KafkaError.Decompress(failure: e)?)
+        }
+        Compression.Snappy -> {
+            if data.length() < 16 or data.slice(0, 8) != xerialMagic() {
+                return Ok(mapErr(e in compress.unsnappy(data, maxSize)): KafkaError.Decompress(failure: e)?)
+            }
+            return unxerial(data.slice(16, data.length()), maxSize)
+        }
+    }
+}
+
+private {
+    // Each chunk after xerial's header, unsnapped, while the whole stays
+    // within maxSize.
+    unxerial(chunks: bytes, maxSize: int) -> Result<bytes, KafkaError> {
+        out: bytes = <<>>
+        rest: bytes = chunks
+        while rest.length() > 0 {
+            match rest {
+                <<length: i32be, block: bytes(length), more: bytes>> -> {
+                    chunk = mapErr(e in compress.unsnappy(block, maxSize - out.length())): KafkaError.Decompress(failure: e)?
+                    out = <<out: bytes, chunk: bytes>>
+                    rest = more
+                }
+                _ -> {
+                    return Err(KafkaError.Decompress(failure: DecompressError.Corrupt(reason: "a xerial chunk runs past the end of the data")))
+                }
+            }
+        }
+        return Ok(out)
+    }
+}

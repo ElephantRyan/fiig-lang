@@ -14,6 +14,13 @@ capability Kafka {
         }
         servers = bootstrapOf(KafkaServer.bootstrap)?
         clientId = KafkaServer.clientId
+        compression: Compression = Compression.None
+        match KafkaServer.compression {
+            None -> None
+            chosen -> {
+                compression = chosen
+            }
+        }
         now = Clock.now()
         until: int = now + KafkaServer.timeoutMillis
         pending: List<Exchange> = [
@@ -98,7 +105,7 @@ capability Kafka {
                     match exchange.purpose {
                         Purpose.Metadata -> {
                             layout = readMetadata(reply, 2, topic)?
-                            for call in producePlan(layout, records, now)? {
+                            for call in producePlan(layout, records, now, compression)? {
                                 pending = append(
                                     pending,
                                     Exchange(broker: call.broker, request: produceRequest(clientId, 2, topic, KafkaServer.timeoutMillis, call.batches), purpose: Purpose.Produce(call: call)),

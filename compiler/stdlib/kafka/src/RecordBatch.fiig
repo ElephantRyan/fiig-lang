@@ -2,7 +2,9 @@
 // broker since 0.11 stores. Its CRC is CRC-32C over everything after the
 // CRC field (§2). There is no producer id, epoch, or sequence (-1 each),
 // since the producer isn't idempotent (§1), and every record's timestamp
-// is the batch's own.
+// is the batch's own. ADR 0116 §4: with a codec, the records section is
+// compressed and the attributes name the codec; the CRC covers the
+// compressed bytes.
 conversion recordBatch(records: List<KafkaRecord>, timestamp: int, compression: Compression) -> Result<bytes, KafkaError> {
     if records.length() == 0 {
         return Err(KafkaError.InvalidRecord(reason: "a batch has at least one record"))
@@ -13,9 +15,8 @@ conversion recordBatch(records: List<KafkaRecord>, timestamp: int, compression: 
         body = <<body: bytes, encodedRecord(record, i): bytes>>
         i = i + 1
     }
-    attributes = codecBits(compression)?
     afterCrc = <<
-        attributes: i16be,
+        codecBits(compression): i16be,
         records.length() - 1: i32be,
         timestamp: i64be,
         timestamp: i64be,
@@ -23,7 +24,7 @@ conversion recordBatch(records: List<KafkaRecord>, timestamp: int, compression: 
         0 - 1: i16be,
         0 - 1: i32be,
         records.length(): i32be,
-        body: bytes,
+        packed(compression, body): bytes,
     >>
     crc = crypto.crc32c(afterCrc)
     // batchLength counts from the leader epoch on: 4 + 1 + 4 bytes, then
@@ -34,17 +35,25 @@ conversion recordBatch(records: List<KafkaRecord>, timestamp: int, compression: 
 }
 
 private {
-    // Bits 0-2 of the attributes. Only None is sent yet (§5).
-    codecBits(compression: Compression) -> Result<int, KafkaError> {
+    // Bits 0-2 of the attributes.
+    codecBits(compression: Compression) -> int {
         match compression {
-            Compression.None -> {
-                return Ok(0)
-            }
-            _ -> {
-                return Err(
-                    KafkaError.InvalidRecord(reason: "fiig.kafka sends uncompressed batches only so far (ADR 0113 §5)"),
-                )
-            }
+            Compression.None -> 0
+            Compression.Gzip -> 1
+            Compression.Snappy -> 2
+            Compression.Lz4 -> 3
+            Compression.Zstd -> 4
+        }
+    }
+
+    // The records section as the codec writes it.
+    packed(compression: Compression, body: bytes) -> bytes {
+        match compression {
+            Compression.None -> body
+            Compression.Gzip -> compress.gzip(body)
+            Compression.Snappy -> xerialFramed(body)
+            Compression.Lz4 -> compress.lz4(body)
+            Compression.Zstd -> compress.zstd(body)
         }
     }
 

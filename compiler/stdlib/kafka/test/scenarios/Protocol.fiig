@@ -13,8 +13,6 @@ test aBatchCarriesItsCrcAndLength {
             expect false
         }
     }
-    expect recordBatch([record], 1000, Compression.Snappy) is Err(KafkaError.InvalidRecord(reason))
-    expect reason.contains("uncompressed")
     expect recordBatch([], 1000, Compression.None) is Err(KafkaError.InvalidRecord(empty))
 }
 
@@ -69,7 +67,7 @@ test keysGoWhereJavaPutsThem {
     ]
     // order-1 is partition 1 and order-2 partition 0 of 3, as the Java
     // client computes; the keyless record goes to 1000 % 3, partition 1.
-    expect producePlan(layout, records, 1000) is Ok(calls)
+    expect producePlan(layout, records, 1000, Compression.None) is Ok(calls)
     expect calls.length() == 1
     batches = calls.first().batches
     expect batches.length() == 2
@@ -86,7 +84,7 @@ test produceRepliesGiveEachRecordItsOffset {
         KafkaRecord(key: "order-2".utf8(), value: "b".utf8(), headers: None),
         KafkaRecord(key: None, value: "c".utf8(), headers: None),
     ]
-    expect producePlan(layout, records, 1000) is Ok(calls)
+    expect producePlan(layout, records, 1000, Compression.None) is Ok(calls)
     call = calls.first()
     reply = <<
         2: i32be,

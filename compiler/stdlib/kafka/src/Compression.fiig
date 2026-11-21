@@ -1,9 +1,10 @@
-// ADR 0113 §5: a record batch's codec, bits 0-2 of its attributes. This
-// version sends None only.
+// ADR 0113 §5, ADR 0116 §4: a record batch's codec, bits 0-2 of its
+// attributes. Its text form is Kafka's own compression.type spelling, so
+// KAFKA_COMPRESSION=lz4 reads as a Java client's setting does.
 enum Compression {
-    None
-    Gzip
-    Snappy
-    Lz4
-    Zstd
+    None from json "none"
+    Gzip from json "gzip"
+    Snappy from json "snappy"
+    Lz4 from json "lz4"
+    Zstd from json "zstd"
 }
