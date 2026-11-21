@@ -4,6 +4,11 @@ use fiig.schedule
 // key named by the job and the firing time, only if nobody has, for as long
 // as the claim should last: SET key holder NX PX holdMillis answers OK to
 // the one caller that set it, and a null to everyone after.
+//
+// ADR 0124 §6: a startup route that says once is also completed. The claimant
+// sets a second key, `<claim key>:done`, for retainMillis; EXISTS on it says
+// whether anyone has finished. A claimant that dies leaves no done key, so
+// its claim expires and a waiting replica claims it next.
 capability RedisScheduleLock provides schedule.ScheduleLock {
     gateway claim(job: string, firedAt: int, holder: string, holdMillis: int) -> Result<bool, schedule.LockError>
         requires Redis
@@ -12,6 +17,40 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
         match Redis.send(["SET", key, holder, "NX", "PX", "${holdMillis}"]) {
             Ok(RespValue.Simple(_)) -> {
                 return Ok(true)
+            }
+            Ok(_) -> {
+                return Ok(false)
+            }
+            Err(failure) -> {
+                return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"))
+            }
+        }
+    }
+
+    gateway complete(job: string, firedAt: int, holder: string, retainMillis: int) -> Result<bool, schedule.LockError>
+        requires Redis
+    {
+        key = "fiig:schedule:${job}:${firedAt}:done"
+        match Redis.send(["SET", key, holder, "PX", "${retainMillis}"]) {
+            Ok(RespValue.Simple(_)) -> {
+                return Ok(true)
+            }
+            Ok(_) -> {
+                return Ok(false)
+            }
+            Err(failure) -> {
+                return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"))
+            }
+        }
+    }
+
+    gateway completed(job: string, firedAt: int) -> Result<bool, schedule.LockError>
+        requires Redis
+    {
+        key = "fiig:schedule:${job}:${firedAt}:done"
+        match Redis.send(["EXISTS", key]) {
+            Ok(RespValue.Integer(count)) -> {
+                return Ok(count > 0)
             }
             Ok(_) -> {
                 return Ok(false)

@@ -125,6 +125,11 @@ minute *(added after review, 2026-11-20)*: an `every "2s"` claim held 2 s
 would let a replica whose clock runs 3 s late claim a firing that already
 ran.
 
+*(Amended 2026-11-20, ADR 0124 §6: the interface gained `complete(job,
+firedAt, holder, retainMillis)` and `completed(job, firedAt)`, each
+`Result<bool, LockError>`, for a startup route that runs once per deploy. A
+schedule never calls them.)*
+
 The capabilities file binds it, and **a schedule adapter with no lock
 bound doesn't start**:
 

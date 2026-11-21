@@ -147,23 +147,49 @@ startup-route ::= 'run' [ 'once' ] [ 'within' string-literal ] '->' route-call s
 - **`within "10s"`** is a route's own deadline, in place of 30 s, written as
   a Go duration above zero (I10 otherwise). The fault-or-deadline rule is
   unchanged: running out of time halts.
-- **`once`** claims the route with the `ScheduleLock` bound for its package
-  (ADR 0112 §4), under the route's name, with a fixed key and a 10-minute
-  hold. The replica that wins runs the route. A replica that loses logs that
-  another has claimed it, and **starts without waiting**. A claim that can't
-  be made, whether it faults or the lock is unavailable, **halts**, since
-  whether the route has run is unknown. A `once` route with no lock bound is
-  refused at load, as a schedule is.
+- **`once`** runs the route on one replica per deploy, and holds every other
+  replica until it has finished. The route is claimed with the
+  `ScheduleLock` bound for its package (ADR 0112 §4), under the route's name
+  and the deploy's id (below):
+  - The replica that wins the claim runs the route. If its mapping says
+    `proceed`, it **completes** the route, which the lock remembers for 7
+    days. If it halts, faults or runs out of time, it records nothing and
+    refuses to start.
+  - A replica that loses the claim **waits**, asking once a second whether the
+    route has been completed, and starts without running it when it has.
+  - The claim is held for the route's deadline plus 30 s. A winner that dies
+    leaves nothing completed, so its claim lapses, and a waiting replica's
+    next claim wins and runs the route itself. A replica gives up after twice
+    that long, and refuses to start.
+  - A claim or a question that can't be answered, whether it faults or the
+    lock is unavailable, **halts**, since whether the route has run is
+    unknown. A `once` route with no lock bound is refused at load, as a
+    schedule is.
+  - A failure to record the completion is logged and doesn't stop this
+    replica, which passed; the others wait out their time and run it.
+- **The deploy's id.** `once` means once per deploy, so a deploy needs a name
+  every replica of it agrees on and no other deploy shares. `fiig serve`
+  takes `$FIIG_DEPLOY` when it is set, as a release tag or commit would be
+  for a team that wants a redeploy of unchanged code to run its routes
+  again. Otherwise it is a hash of the program's `.fiig`, `.sql` and `.json`
+  files under the root, with line endings normalised: the same code is the
+  same deploy, and changed code, which is what a migration ships with, is a
+  new one. A timestamp or a process id would be different on every replica.
+- **`ScheduleLock` grows two gateways**, beside `claim`:
+  `complete(job, firedAt, holder, retainMillis)` and `completed(job,
+  firedAt)`, each `Result<bool, LockError>`, with the deploy's id as
+  `firedAt`. A schedule never calls them. `fiig.redis`'s lock sets a second
+  key, `<claim key>:done`, with `SET key holder PX retain`, and `EXISTS` asks.
+  A lock package written before this has no such gateways and is refused when
+  a `once` route calls it (there is one such package, and it is this repo's).
 
-**What `once` does not promise.** The lock has one operation, claim, so a
-loser can't learn that the winner has finished, and a replica can start
-serving while the winner is still running (a migration the others need is
-the case that hurts). Nor is "a deploy" something the lock can name: the
-hold is 10 minutes, so a replica that starts after it runs the route again.
-`once` stops a rolling deploy from running a route N times at once, and a
-route that must not run twice, or must finish before anything serves, still
-belongs in a release phase. A lock that reported completion, and a way to
-name a deploy, would make both promises, and are the open questions below.
+**What `once` still does not promise.** It is once per deploy, and a replica
+of a deploy that the lock has forgotten (after the seven days) runs it again.
+A route that fails halts the winner, and the others wait until its claim
+lapses (the deadline and slack) before one of them tries, so a route that
+always fails takes the replicas down one at a time, an interval apart, where
+running on every replica would have taken them down together. And the wait is
+a poll, so a replica starts up to a second after the winner is done.
 
 ## Alternatives considered
 
@@ -226,24 +252,35 @@ name a deploy, would make both promises, and are the open questions below.
   CACHE_READY=false` it started and served.
 - **§6 (2026-11-20):** `Route.Once` and `Route.Within` in the syntax, parsed
   and formatted between `run` and `->`; I10 in the checker; the runner reads
-  `within`, claims a `once` route in `Check` (`StartupRunners` now takes the
-  holder, and fails at load for a `once` route with no `ScheduleLock`), and
-  `StartupRunner.IgnoreOnce` is what `-check` sets; `migrate.Skip` is the
-  mode `-check` loads with. Dogfooded on the scratch application: `-check`
-  exited 1 naming the storage check and 0 when it passed, and a `once` route
-  was refused without a lock and passed with `{"type": "local"}`.
+  `within`, and runs a `once` route through claim, wait, run and complete in
+  `Check` (`StartupRunners` takes the holder and the deploy id, and fails at
+  load for a `once` route with no `ScheduleLock`); `StartupRunner.IgnoreOnce`
+  is what `-check` sets; `migrate.Skip` is the mode `-check` loads with.
+  `runtime.ScheduleLock` gained `Complete` and `Completed`, `LockProvider`
+  calls any of its gateways through one `gatewayBool`, and
+  `fiig.schedule.ScheduleLock` and `fiig.redis`'s lock gained the two
+  gateways. `servecmd`'s `deployID` is `$FIIG_DEPLOY` or the program's hash.
+- **Tests for §6:** the runner against a scripted lock (a loser that finds the
+  route done, one that waits and then does, a winner that died and is taken
+  over from, a winner that never finishes, a claim that fails, a route that
+  halts and so isn't recorded); one end to end through `fiig.redis`'s real
+  lock and a fake Redis, in which two replicas of a deploy run a route once
+  and a new deploy runs it again, and which, with the `completed` lookup
+  deliberately broken, fails; and the deploy id.
+- **Dogfooded** on the scratch application: `-check` exited 1 naming the
+  storage check and 0 when it passed, and a `once` route was refused without a
+  lock and passed with `{"type": "local"}`.
 - **Not needed:** no IntelliJ or LSP change. The contextual words aren't in
   their keyword lists (`every` and `done` aren't either).
 
 ## Open questions
 
 1. ~~A way to run the checks alone~~, done: `fiig serve -check` (§6).
-2. **Once per deploy, with the others waiting.** `once` (§6) says who runs
-   a route, not when it has finished, and its hold is a fixed 10 minutes.
-   Waiting needs a lock that reports completion (a second gateway beside
-   `claim`, in every lock package), and "per deploy" needs something that
-   names a deploy: a config value, or a hash of the program. It waits for a
-   program that needs a migration to finish before its other replicas serve.
+2. ~~Once per deploy, with the others waiting~~, done: `once` (§6) is run by
+   one replica per deploy and awaited by the rest, with `complete` and
+   `completed` on the lock. Still open: a lock other than Redis (the
+   Postgres advisory lock a sql program would want), and a deploy id that a
+   platform supplies without an environment variable.
 3. ~~A per-route deadline~~, done: `within` (§6).
 4. **Starting degraded.** `proceed` lets the process start with a check
    failed, and nothing tells the program afterwards. A health endpoint can
