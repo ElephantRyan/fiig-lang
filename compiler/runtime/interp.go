@@ -50,6 +50,12 @@ type Interp struct {
 	Clock        Clock
 	Rand         *rand.Rand
 	randMu       sync.Mutex
+	// compiled is each declaration body run so far, compiled (ADR 0115
+	// §4), by *syntax.Block.
+	compiled sync.Map
+	// walkOnly runs bodies with evalBlock instead, for tests that compare
+	// the two.
+	walkOnly bool
 
 	// Tracer receives one Span per completed Call (and one per `concurrent`
 	// block — concurrent.go) when non-nil; nil (the default) means
@@ -198,7 +204,7 @@ func (in *Interp) callDeclValues(ctx context.Context, sc scope, displayName stri
 	}
 	// The frame's context layer carries both the depth and the scope, and
 	// its root scope is the body's (ADR 0115 §3, §5).
-	fr.callCtx = callCtx{Context: ctx, info: callInfo{sc: sc, depth: depth}}
+	fr.callCtx = callCtx{Context: ctx, info: callInfo{sc: sc, depth: depth}, done: ctx.Done()}
 	ctx = &fr.callCtx
 	env := &fr.env
 	for i, p := range params {
@@ -212,7 +218,13 @@ func (in *Interp) callDeclValues(ctx context.Context, sc scope, displayName stri
 		}
 		env.Bind(p.Name, v)
 	}
-	val, _, fault := in.evalBlock(ctx, body, env, true)
+	var val Value
+	var fault *Fault
+	if in.walkOnly {
+		val, _, fault = in.evalBlock(ctx, body, env, true)
+	} else {
+		val, _, fault = in.compiledBody(body).run(in, ctx, env)
+	}
 	if fault != nil {
 		fault = fault.withFrame(displayName)
 	}
@@ -289,8 +301,13 @@ func (in *Interp) runProducingBody(ctx context.Context, body syntax.Body, env *E
 }
 
 func checkCancelled(ctx context.Context) *Fault {
+	done := ctx.Done()
+	if done == nil {
+		// A context that can never be cancelled (ADR 0115 §5).
+		return nil
+	}
 	select {
-	case <-ctx.Done():
+	case <-done:
 		return Faultf("cancelled: %v", ctx.Err())
 	default:
 		return nil

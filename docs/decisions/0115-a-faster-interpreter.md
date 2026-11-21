@@ -247,3 +247,65 @@ Bytes allocates 25 MB per run, down from 419 MB. What's left is mostly
 boxing: an `int` above 255 is a heap allocation each time it becomes a
 `Value`, three times a byte here. That, and the tree walk itself, are
 step 4.
+
+### Step 4: bodies compiled to closures
+
+A declaration's body is compiled to Go closures the first time it is
+called, cached per `Interp` (`compile.go`, `compile_call.go`). Compiled:
+- **Statements:** bindings, expression statements, `return`, `if`,
+  `while`, `for`, `match`, `break` and `continue`.
+- **Expressions:** names, constants (boxed once, when compiled), strings,
+  parentheses, `not`, `?`, list literals, field reads on local records,
+  `Ok` and `Err`, calls to declarations by name, and built-in methods on
+  local values.
+- **Arithmetic and comparisons:** these run in `int64` while both
+  operands are ints, with `applyBinary`'s fault messages, so an
+  expression boxes only its final value.
+
+Everything else (bytes literals and patterns, capability calls, list
+forms, `concurrent`, `retry`, transactions) is handed to the tree walk.
+
+This differs from §3 and §4 in one way: **compiled code uses the same
+`Env` as the tree walk, not numbered slots.** That keeps the two
+paths in step by construction, since a fallback node sees exactly the
+scopes compiled code does. A block that binds no names runs in its
+parent's scope. Slots remain possible as a later step, and are what's
+left between this and §6's bytes target.
+
+Three smaller changes go with it:
+- **Cancellation.** A call reads its context's `Done` channel once, and a
+  check is a nil test when the context can't be cancelled.
+- **Small ints.** Ints from -1024 to 65535 are boxed once at start-up,
+  as CPython and the JVM cache theirs. That's about 1 MB, and best-of-eight
+  timings show no cost to the garbage collector.
+- **Loop variables.** A loop binds its variable without first searching
+  the scope it has just emptied.
+
+`TestCompiledBodiesMatchTheTreeWalk` runs 16 programs both ways,
+covering overflow and division faults, labelled loops, `match`, `?`,
+named arguments, recursion and method faults. It compares values and
+fault messages.
+
+The machine was shared while these ran, so these are each workload's
+fastest of eight runs, not medians:
+
+| Workload | Time | vs baseline | Allocations |
+|---|---|---|---|
+| bytes | 39.8 ms (26 MB/s, 38 ns a byte) | 5.6x | 5 |
+| build | 2.56 ms | 1.6x | 50,109 |
+| records | 5.11 ms | 1.6x | 59,750 |
+| murmur2 | 149 ms | 2.5x | 1,608,030 |
+| calls | 44.8 ms | 4.2x | 462,167 |
+| parse | 25.5 ms (18 MB/s) | 1.9x | 282,596 |
+
+Bytes allocates nothing per byte. §6's target of 20 ns a byte isn't met
+yet: what's left is name lookups in `Env` and the closures' own calls.
+murmur2 and parse are held back by what still goes to the tree walk:
+bytes literals, binary patterns, and murmur2's XOR, which fiig spells as
+bytes since it has no bit operators.
+
+Writing the compiled `if` and call paths turned up two existing bugs,
+which this step reproduces so it changes no behaviour: a `?` that fails
+inside an `if` or `while` condition, or inside a call's arguments,
+returns no value, so the declaration returns `None`, not the `Err`. They
+are fixed separately.
