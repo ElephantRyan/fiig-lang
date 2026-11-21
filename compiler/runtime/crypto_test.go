@@ -94,6 +94,77 @@ func TestShaAndHmacVectors(t *testing.T) {
 	}
 }
 
+// ADR 0075 §6 (amended 2026-11-21): SHA-1 and SHA-512 and their HMACs,
+// against FIPS 180-2's "abc", RFC 2202's test case 2 (HMAC-SHA-1), and
+// RFC 4231's test case 2 (HMAC-SHA-512).
+func TestSha1AndSha512Vectors(t *testing.T) {
+	in := checkedInterp(t,
+		`rule digest1(data: bytes) -> string {
+    return crypto.sha1(data).toHex()
+}`,
+		`rule digest512(data: bytes) -> string {
+    return crypto.sha512(data).toHex()
+}`,
+		`rule sign1(key: Secret, data: bytes) -> string {
+    return crypto.hmacSha1(key: key, data: data).toHex()
+}`,
+		`rule sign512(key: bytes, data: bytes) -> string {
+    return crypto.hmacSha512(key, data).toHex()
+}`)
+	b := func(s string) Value { return Bytes{B: []byte(s)} }
+	jefe := "what do ya want for nothing?"
+	cases := []struct {
+		name string
+		args map[string]Value
+		want string
+	}{
+		{"digest1", map[string]Value{"data": b("abc")}, "a9993e364706816aba3e25717850c26c9cd0d89d"},
+		{"digest512", map[string]Value{"data": b("abc")}, "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"},
+		{"sign1", map[string]Value{"key": NewSecret("K", "Jefe"), "data": b(jefe)}, "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79"},
+		{"sign512", map[string]Value{"key": b("Jefe"), "data": b(jefe)}, "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"},
+	}
+	for _, c := range cases {
+		if got := callOK(t, in, c.name, c.args); got != Str(c.want) {
+			t.Errorf("%s(%v) = %v, want %s", c.name, c.args, got, c.want)
+		}
+	}
+}
+
+// ADR 0075 §6 (amended 2026-11-21): HKDF-SHA-256 against RFC 5869's test
+// case 1, and the length bounds.
+func TestHkdfSha256(t *testing.T) {
+	in := checkedInterp(t, `rule derive(key: bytes, salt: bytes, info: bytes, length: int) -> string {
+    return crypto.hkdfSha256(key, salt: salt, info: info, length: length).toHex()
+}`, `rule deriveFromSecret(key: Secret, length: int) -> bytes {
+    return crypto.hkdfSha256(key, salt: "".utf8(), info: "".utf8(), length: length)
+}`)
+	run := func(n int, f func(i int) byte) Value {
+		out := make([]byte, n)
+		for i := range out {
+			out[i] = f(i)
+		}
+		return Bytes{B: out}
+	}
+	args := map[string]Value{
+		"key":    run(22, func(int) byte { return 0x0b }),
+		"salt":   run(13, func(i int) byte { return byte(i) }),
+		"info":   run(10, func(i int) byte { return byte(0xf0 + i) }),
+		"length": Int(42),
+	}
+	if got := callOK(t, in, "derive", args); got != Value(Str("3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865")) {
+		t.Errorf("hkdfSha256 = %v", got)
+	}
+	if got := callOK(t, in, "deriveFromSecret", map[string]Value{"key": NewSecret("K", "k"), "length": Int(255 * 32)}); len(got.(Bytes).B) != 255*32 {
+		t.Errorf("the longest output is %d bytes", len(got.(Bytes).B))
+	}
+	for _, n := range []int64{0, -1, 255*32 + 1} {
+		args["length"] = Int(n)
+		if _, f := in.Call(context.Background(), "derive", args); f == nil || !strings.Contains(f.Message, "outside 1 to 8160") {
+			t.Errorf("length %d: fault = %v", n, f)
+		}
+	}
+}
+
 func TestSignatureCheck(t *testing.T) {
 	in := cryptoInterp(t, 1)
 	secret := NewSecret("GITHUB_WEBHOOK_SECRET", "It's a Secret to Everybody")

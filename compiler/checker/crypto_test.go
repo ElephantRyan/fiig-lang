@@ -16,6 +16,17 @@ func TestCryptoChecksClean(t *testing.T) {
     formula sign(key: bytes, data: bytes) -> bytes {
         return crypto.hmacSha256(key, data)
     }
+}`, `rule twilioValid(token: Secret, signed: bytes, sent: bytes) -> bool {
+    return crypto.equal(crypto.hmacSha1(key: token, data: signed), sent)
+}`, `conversion digests(data: bytes) -> bytes {
+    return crypto.sha512(crypto.sha1(data))
+}`, `formulas keys {
+    formula sign512(key: bytes, data: bytes) -> bytes {
+        return crypto.hmacSha512(key, data)
+    }
+    formula derive(key: Secret, salt: bytes) -> bytes {
+        return crypto.hkdfSha256(key, salt: salt, info: "session".utf8(), length: 32)
+    }
 }`, `activity register(password: string) -> string {
     return crypto.hashPassword(password)
 }`, `rule check(password: string, stored: string) -> bool {
@@ -36,6 +47,15 @@ func TestCryptoRefusals(t *testing.T) {
 		{"string key", `rule r(k: string, d: bytes) -> bytes {
     return crypto.hmacSha256(key: k, data: d)
 }`, "A1", "expected Secret | bytes"},
+		{"string sha1 key", `rule r(k: string, d: bytes) -> bytes {
+    return crypto.hmacSha1(key: k, data: d)
+}`, "A1", "expected Secret | bytes"},
+		{"string hkdf info", `rule r(k: bytes, s: bytes) -> bytes {
+    return crypto.hkdfSha256(k, salt: s, info: "x", length: 32)
+}`, "A1", "expected bytes"},
+		{"hkdf without length", `rule r(k: bytes, s: bytes) -> bytes {
+    return crypto.hkdfSha256(k, s, s)
+}`, "", "crypto.hkdfSha256 takes 4 argument(s), got 3"},
 		{"bytes password", `rule r(p: bytes, s: string) -> bool {
     return crypto.passwordMatches(p, s)
 }`, "A1", "expected string"},

@@ -21,6 +21,16 @@ var cryptoFormulas = map[string]Method{
 	"sha256":     {[]Param{p("data", bytesType)}, bytesType},
 	"hmacSha256": {[]Param{p("key", Union{Members: []Type{SecretType, bytesType}}), p("data", bytesType)}, bytesType},
 	"equal":      {[]Param{p("a", bytesType), p("b", bytesType)}, boolType},
+	// ADR 0075 §6 (amended 2026-11-21): SHA-1 is for checking signatures
+	// a third party already makes with it, such as Twilio's, not for new
+	// designs.
+	"sha1":       {[]Param{p("data", bytesType)}, bytesType},
+	"hmacSha1":   {[]Param{p("key", Union{Members: []Type{SecretType, bytesType}}), p("data", bytesType)}, bytesType},
+	"sha512":     {[]Param{p("data", bytesType)}, bytesType},
+	"hmacSha512": {[]Param{p("key", Union{Members: []Type{SecretType, bytesType}}), p("data", bytesType)}, bytesType},
+	// ADR 0075 §6 (amended 2026-11-21): RFC 5869 HKDF-SHA-256, `length`
+	// bytes out.
+	"hkdfSha256": {[]Param{p("key", Union{Members: []Type{SecretType, bytesType}}), p("salt", bytesType), p("info", bytesType), p("length", intType)}, bytesType},
 	// ADR 0085 §7: for protocols that specify PBKDF2, such as SCRAM.
 	"pbkdf2Sha256": {[]Param{p("password", Union{Members: []Type{SecretType, bytesType}}), p("salt", bytesType), p("iterations", intType)}, bytesType},
 	// ADR 0113 §2: CRC-32C (Castagnoli), the checksum Kafka record batches

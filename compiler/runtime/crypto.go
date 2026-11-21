@@ -2,12 +2,16 @@ package runtime
 
 import (
 	"context"
+	"crypto/hkdf"
 	"crypto/hmac"
 	"crypto/pbkdf2"
+	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"hash"
 	"hash/crc32"
 	goruntime "runtime"
 	"strconv"
@@ -60,6 +64,10 @@ func argonKey(ctx context.Context, password string, salt []byte, passes, memory 
 // maxPbkdf2Iterations bounds one PBKDF2 call (ADR 0085 §7).
 const maxPbkdf2Iterations = 10_000_000
 
+// maxHkdfLength is the most HKDF-SHA-256 can make: 255 blocks of 32 bytes
+// (RFC 5869 §2.3).
+const maxHkdfLength = 255 * sha256.Size
+
 type cryptoFunc func(ctx context.Context, in *Interp, args []Value) (Value, *Fault)
 
 // castagnoli is CRC-32C's table (ADR 0113 §2).
@@ -73,30 +81,40 @@ var cryptoFormulas = map[string]cryptoFunc{
 		sum := sha256.Sum256(args[0].(Bytes).B)
 		return Bytes{B: sum[:]}, nil
 	},
-	"hmacSha256": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
-		var key []byte
-		switch k := args[0].(type) {
-		case Secret:
-			key = []byte(k.value)
-		case Bytes:
-			key = k.B
-		default:
-			return nil, Faultf("crypto.hmacSha256's key is a %T, not a Secret or bytes", args[0])
+	"hmacSha256": hmacWith("hmacSha256", sha256.New),
+	// ADR 0075 §6 (amended 2026-11-21): SHA-1 and SHA-512, and their HMACs.
+	"sha1": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
+		sum := sha1.Sum(args[0].(Bytes).B)
+		return Bytes{B: sum[:]}, nil
+	},
+	"hmacSha1": hmacWith("hmacSha1", sha1.New),
+	"sha512": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
+		sum := sha512.Sum512(args[0].(Bytes).B)
+		return Bytes{B: sum[:]}, nil
+	},
+	"hmacSha512": hmacWith("hmacSha512", sha512.New),
+	// ADR 0075 §6 (amended 2026-11-21): RFC 5869 HKDF-SHA-256, extract
+	// then expand, `length` bytes out.
+	"hkdfSha256": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
+		key, f := keyBytes("hkdfSha256", "key", args[0])
+		if f != nil {
+			return nil, f
 		}
-		mac := hmac.New(sha256.New, key)
-		mac.Write(args[1].(Bytes).B)
-		return Bytes{B: mac.Sum(nil)}, nil
+		n := int64(args[3].(Int))
+		if n < 1 || n > maxHkdfLength {
+			return nil, Faultf("crypto.hkdfSha256: a length of %d is outside 1 to %d", n, maxHkdfLength)
+		}
+		out, err := hkdf.Key(sha256.New, key, args[1].(Bytes).B, string(args[2].(Bytes).B), int(n))
+		if err != nil {
+			return nil, Faultf("crypto.hkdfSha256: %v", err)
+		}
+		return Bytes{B: out}, nil
 	},
 	// ADR 0085 §7: RFC 8018 PBKDF2-HMAC-SHA-256, 32 bytes out.
 	"pbkdf2Sha256": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
-		var password []byte
-		switch k := args[0].(type) {
-		case Secret:
-			password = []byte(k.value)
-		case Bytes:
-			password = k.B
-		default:
-			return nil, Faultf("crypto.pbkdf2Sha256's password is a %T, not a Secret or bytes", args[0])
+		password, f := keyBytes("pbkdf2Sha256", "password", args[0])
+		if f != nil {
+			return nil, f
 		}
 		n := int64(args[2].(Int))
 		if n < 1 || n > maxPbkdf2Iterations {
@@ -136,6 +154,31 @@ var cryptoFormulas = map[string]cryptoFunc{
 		}
 		return Bool(subtle.ConstantTimeCompare(got, stored.hash) == 1), nil
 	},
+}
+
+// keyBytes is a `Secret | bytes` argument's bytes: a Secret's value's
+// UTF-8 (§2), or the bytes themselves.
+func keyBytes(member, param string, v Value) ([]byte, *Fault) {
+	switch k := v.(type) {
+	case Secret:
+		return []byte(k.value), nil
+	case Bytes:
+		return k.B, nil
+	}
+	return nil, Faultf("crypto.%s's %s is a %T, not a Secret or bytes", member, param, v)
+}
+
+// hmacWith is the body of an HMAC member over newHash (RFC 2104).
+func hmacWith(member string, newHash func() hash.Hash) cryptoFunc {
+	return func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
+		key, f := keyBytes(member, "key", args[0])
+		if f != nil {
+			return nil, f
+		}
+		mac := hmac.New(newHash, key)
+		mac.Write(args[1].(Bytes).B)
+		return Bytes{B: mac.Sum(nil)}, nil
+	}
 }
 
 // callCrypto evaluates `crypto.member(args)`.

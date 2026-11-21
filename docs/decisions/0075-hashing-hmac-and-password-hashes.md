@@ -122,7 +122,8 @@ rule signatureValid(secret: Secret, body: bytes, header: string) -> bool {
   A `bytes` key is for keys the program derives or generates
   (`Random.bytes(count: 32)`, or AWS Signature V4's chained HMACs).
 - **Nothing else for now:** no SHA-1, SHA-512, or SHA-3 (open question
-  1). Adding one is a member, not a design.
+  1). Adding one is a member, not a design. *(Amended 2026-11-21: SHA-1
+  and SHA-512 and their HMACs are added; see §6.)*
 
 ### 3. A constant-time comparison: `crypto.equal`
 
@@ -203,6 +204,26 @@ RSA, so no RS256 JWT checks); key derivation (HKDF); JWT itself; a `Secret`
 read as base64 or hex (open question 3); rehashing on login when the
 parameters change (open question 4).
 
+*(Amended 2026-11-21: SHA-1, SHA-512, and HKDF are in. This closes open
+question 1.)* Each has §2's shape: bytes in, bytes out, and a `key` that
+is `Secret | bytes`.
+
+- `crypto.sha1(data) -> bytes`, 20 bytes, and `crypto.hmacSha1(key,
+  data) -> bytes`. **SHA-1 is admitted to check signatures a third party
+  already makes with it**, such as Twilio's `X-Twilio-Signature`. It is
+  not for new designs: SHA-1 collisions are practical, so a new
+  signature or digest should use SHA-256. HMAC-SHA-1 itself is still
+  sound, which is why providers keep it.
+- `crypto.sha512(data) -> bytes`, 64 bytes, and `crypto.hmacSha512(key,
+  data) -> bytes`, for HS512 tokens and providers that sign with it.
+- `crypto.hkdfSha256(key, salt, info, length: int) -> bytes`, RFC 5869
+  extract then expand. `key` is the input keying material. `length` is 1
+  to 8,160 bytes (255 blocks of 32, RFC 5869 §2.3); outside that it
+  faults, like `pbkdf2Sha256`'s iterations. An empty `salt` is RFC 5869's
+  default of zero bytes.
+
+Encryption, public-key signatures, and SHA-3 stay out.
+
 ## Alternatives considered
 
 **A. Methods on `bytes` (`body.sha256()`, `body.hmacSha256(key:)`).** ADR
@@ -246,8 +267,9 @@ Rejected (§5).
 
 ## Open questions
 
-1. SHA-1 and SHA-512 HMACs, for providers that still sign with them
-   (Twilio: SHA-1) and for HS512 tokens.
+1. ~~SHA-1 and SHA-512 HMACs, for providers that still sign with them
+   (Twilio: SHA-1) and for HS512 tokens.~~ Done 2026-11-21 (§6
+   amendment).
 2. A typed digest that refuses `==`, so §3 becomes a check.
 3. Reading a `Secret` as base64 or hex outside a gateway (Standard
    Webhooks' `whsec_<base64>` secrets), without making it a `string`.

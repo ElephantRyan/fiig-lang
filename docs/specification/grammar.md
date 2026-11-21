@@ -331,7 +331,10 @@ compile error.
 The prelude `crypto` group (ADR 0075) is listed in
 `compiler/types/crypto.go`. It takes and returns `bytes`, never `string`:
 `sha256(data)`; `hmacSha256(key: Secret | bytes, data)`, whose `Secret` key
-is its value's UTF-8; `pbkdf2Sha256(password: Secret | bytes, salt,
+is its value's UTF-8; `sha1`, `hmacSha1`, `sha512`, and `hmacSha512` in the
+same shape, SHA-1 only to check third-party signatures such as Twilio's
+(ADR 0075 §6); `hkdfSha256(key: Secret | bytes, salt, info, length: int)`,
+RFC 5869 HKDF, faulting outside 1 to 8,160 bytes; `pbkdf2Sha256(password: Secret | bytes, salt,
 iterations)`, 32 bytes of RFC 8018 PBKDF2 for protocols that specify it,
 such as SCRAM (ADR 0085 §7), faulting outside 1 to 10,000,000 iterations;
 `crc32c(data) -> int`, CRC-32C (Castagnoli) as an unsigned 32-bit value,
