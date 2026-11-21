@@ -730,6 +730,10 @@ type checker struct {
 	// safe here rather than threading a parameter through every function).
 	// Used by checkEffect (Category B).
 	callerKind declKind
+	// tryTarget is the return type a `?` returns its Err into (F2): the
+	// enclosing declaration's, or nil where a `?` doesn't return from it (a
+	// test, a concurrent body, whose Err becomes that item's outcome).
+	tryTarget types.Type
 	// activeTransaction is the capability named by the transaction block currently in
 	// scope, or "" when there isn't one. Used by Category C.
 	activeTransaction string
@@ -1232,8 +1236,10 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 	}
 	if c.callerKind == kindRule && (calleeKind == kindConversion || calleeKind == kindRule) && c.entry != nil && callee != c.entry {
 		// abs-recommendations GAPS G18: a rule calls only formulas; a
-		// conversion may call rules and conversions.
-		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "rule may not call %s %q; a rule calls only formulas and methods, so make %s a conversion, which may call rules and conversions (fiig-lang.md §3.2)", calleeKind, calleeName, syntax.DeclName(c.entry))
+		// conversion may call rules and conversions. Hearsay G58: a small
+		// pure helper (a match over an enum) is a formula, which keeps the
+		// caller a rule.
+		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "rule may not call %s %q; a rule calls only formulas and methods, so make %s a conversion, which may call rules and conversions, or, if %q is a small pure helper, make it a formula in a `formulas` group (fiig-lang.md §3.2, ADR 0049)", calleeKind, calleeName, syntax.DeclName(c.entry), calleeName)
 		return
 	}
 	c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s may not call %s %q", c.callerKind, calleeKind, calleeName)
@@ -1330,7 +1336,10 @@ func (c *checker) checkCallable(params []syntax.Param, retType syntax.Type, body
 	}
 	ret := c.checkPublicType(retType)
 	if body != nil {
+		saved := c.tryTarget
+		c.tryTarget = ret
 		c.checkBlock(body, ret, env, true)
+		c.tryTarget = saved
 	}
 	return ret
 }

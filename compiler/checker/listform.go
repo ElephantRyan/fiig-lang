@@ -71,8 +71,8 @@ func (c *checker) pureKind() declKind {
 // whether e was such a form.
 func (c *checker) checkExpectedMapErr(e syntax.Expr, expected types.Type, env map[string]types.Type) bool {
 	form, _ := e.(*syntax.ListForm)
-	viaTry := false
-	if try, ok := e.(*syntax.TryExpr); ok {
+	try, viaTry := e.(*syntax.TryExpr)
+	if viaTry {
 		form, viaTry = try.Operand.(*syntax.ListForm)
 	}
 	if form == nil || form.Form != "mapErr" || expected == nil {
@@ -80,6 +80,7 @@ func (c *checker) checkExpectedMapErr(e syntax.Expr, expected types.Type, env ma
 	}
 	if viaTry {
 		got := c.inferMapErr(form, expected, env)
+		c.checkTryError(try, got)
 		if g, ok := got.(types.Generic); ok && len(g.Args) == 2 && !isUnknown(g.Args[0]) && !types.AssignableTo(g.Args[0], expected) {
 			start, _ := form.Bounds()
 			c.report(start, "A1", "type mismatch: got %s, expected %s", g.Args[0], expected)

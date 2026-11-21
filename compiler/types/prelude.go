@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 
 	"fiig-lang/compiler/parser"
 	"fiig-lang/compiler/syntax"
@@ -254,6 +255,22 @@ func holds(t Type, leaf func(Type) bool, resolveField func(*syntax.ModelDecl, sy
 		}
 	}
 	return false
+}
+
+// PreludeTypeNames is every type name the prelude binds in every file
+// besides the primitives, sorted: the names a declaration may not take
+// (K2). docs/terminology.md lists them, and a test keeps the two together
+// (Hearsay GAPS G59).
+func PreludeTypeNames() []string {
+	names := []string{"None", "Connection", "Secret"}
+	for n := range preludeGenerics {
+		names = append(names, n)
+	}
+	for n := range preludeDecls {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // PreludeName reports what the prelude binds name to in every file, if

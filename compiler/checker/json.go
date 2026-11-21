@@ -48,6 +48,7 @@ func (c *checker) checkExpectedJson(e syntax.Expr, expected types.Type, env map[
 			return false
 		}
 		c.checkJsonDecode(call, expected, env)
+		c.checkTryError(try, types.Generic{Name: "Result", Args: []types.Type{expected, types.JsonErrorType}})
 		return true
 	}
 	call, member, ok := jsonCall(e, env)

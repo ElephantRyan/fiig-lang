@@ -74,6 +74,17 @@ gateways; only applications define workflows and adapters.
 - **`None`** — The explicit absence of a value, expressed as a union member
   (`Customer | None`), never as an implicit null. Distinct from an empty
   string, list, map, or domain collection.
+- **Prelude** — What every file sees without a `use`, so no declaration may
+  take one of its names (K2). The primitives `string`, `int`, `float`,
+  `decimal`, `bool` and `bytes`; `Ok` and `Err`; the groups `math`, `json`,
+  `crypto` and `compress`; and these types:
+
+  <!-- prelude-types: kept in step with types.PreludeTypeNames by a test -->
+  `BatchResult`, `Connection`, `Cookie`, `DatabaseConflict`,
+  `DecompressError`, `HttpResponse`, `JsonError`, `JsonValue`, `List`, `Map`,
+  `None`, `Result`, `Rounding`, `SameSite`, `Secret`, `SessionError`,
+  `SocketError`.
+  <!-- /prelude-types -->
 
 ## Concurrency
 

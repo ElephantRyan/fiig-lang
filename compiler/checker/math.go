@@ -285,5 +285,5 @@ func (c *checker) preludeNameTaken(d syntax.Decl) {
 		return
 	}
 	start, _ := d.(syntax.Spanned).Bounds()
-	c.report(start, "K2", "%s %q has the name of %s, which every file sees without `use`; rename it", types.DeclKindName(d), name, what)
+	c.report(start, "K2", "%s %q has the name of %s, which every file sees without `use`; rename it (docs/terminology.md lists the prelude)", types.DeclKindName(d), name, what)
 }

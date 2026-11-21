@@ -390,10 +390,34 @@ func (c *checker) inferBinary(e *syntax.BinaryExpr, env map[string]types.Type) t
 
 func (c *checker) inferTry(e *syntax.TryExpr, env map[string]types.Type) types.Type {
 	t := c.inferExpr(e.Operand, env)
+	c.checkTryError(e, t)
 	if g, ok := t.(types.Generic); ok && g.Name == "Result" && len(g.Args) == 2 {
 		return g.Args[0]
 	}
 	return types.Unknown{}
+}
+
+// checkTryError is F2: a `?` returns its operand's Err from the enclosing
+// declaration unchanged (ADR 0006), so the declaration must return a Result
+// with that same error type. got is the operand's type.
+func (c *checker) checkTryError(e *syntax.TryExpr, got types.Type) {
+	if c.tryTarget == nil || isUnknown(c.tryTarget) {
+		return
+	}
+	g, ok := got.(types.Generic)
+	if !ok || g.Name != "Result" || len(g.Args) != 2 || isUnknown(g.Args[1]) {
+		return
+	}
+	start, _ := e.Bounds()
+	want, ok := c.tryTarget.(types.Generic)
+	if !ok || want.Name != "Result" || len(want.Args) != 2 {
+		c.report(start, "F2", "`?` returns its Err (%s) from the declaration, but the declaration returns %s, not a Result; match the Result instead", g.Args[1], c.tryTarget)
+		return
+	}
+	if isUnknown(want.Args[1]) || types.AssignableTo(g.Args[1], want.Args[1]) {
+		return
+	}
+	c.report(start, "F2", "`?` returns its Err unchanged (ADR 0006): the Err here is %s, but the declaration's error is %s; convert it first with mapErr(e in ...): <the %s it means here>", g.Args[1], want.Args[1], want.Args[1])
 }
 
 // admitsNone reports whether t is a union with None in it: `T | None`.
@@ -442,10 +466,10 @@ func (c *checker) inferConcurrent(e *syntax.ConcurrentExpr, env map[string]types
 	if thisLimit != nil {
 		c.concurrencyBudget = thisLimit
 	}
-	savedLoops, savedInConcurrent := c.loops, c.inConcurrent
-	c.loops, c.inConcurrent = nil, true
+	savedLoops, savedInConcurrent, savedTry := c.loops, c.inConcurrent, c.tryTarget
+	c.loops, c.inConcurrent, c.tryTarget = nil, true, nil
 	bodyType := c.inferBody(e.Body, bodyEnv)
-	c.loops, c.inConcurrent = savedLoops, savedInConcurrent
+	c.loops, c.inConcurrent, c.tryTarget = savedLoops, savedInConcurrent, savedTry
 	c.concurrencyBudget = savedBudget
 
 	// Concurrency result typing (fiig-lang.md §3.7/§4): a concurrent block

@@ -136,6 +136,7 @@ func (c *checker) checkTestDecl(d *syntax.TestDecl) {
 		c.checkFake(f, targets[i])
 	}
 	c.callerKind = kindTest
+	c.tryTarget = nil
 	c.checkBlock(d.Body, types.Unknown{}, map[string]types.Type{}, false)
 }
 
