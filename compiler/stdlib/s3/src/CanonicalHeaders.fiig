@@ -1,0 +1,37 @@
+use fiig.http
+
+// The headers a request is signed over, as SigV4 canonicalises them: the
+// ones every request signs (host, x-amz-content-sha256, x-amz-date and, with
+// a session token, x-amz-security-token) and an operation's own (a
+// checksum, metadata, a copy source, a range), each name in lower case and
+// each value trimmed with its runs of spaces made one, sorted by name. Two
+// of one name are refused, since a server joins them into one value the
+// signature didn't cover.
+conversion canonicalHeaders(host: string, payloadHash: string, stamp: string, token: string, extra: List<http.Header>) -> Result<List<http.Header>, S3Error> {
+    byName: Map<string, string> = ["host": host, "x-amz-content-sha256": payloadHash, "x-amz-date": stamp]
+    if token != "" {
+        byName = byName.put("x-amz-security-token", token)
+    }
+    for header in extra {
+        name = header.name.lowercase()
+        if byName.containsKey(name) {
+            return Err(S3Error.InvalidRequest(reason: "a request can't sign two ${name} headers"))
+        }
+        byName = byName.put(name, header.value)
+    }
+    headers: List<http.Header> = []
+    for name in byName.keys().sorted() {
+        headers = append(headers, http.Header(name: name, value: canonicalValue(byName.at(name))))
+    }
+    return Ok(headers)
+}
+
+private {
+    canonicalValue(value: string) -> string {
+        out: string = value.trim()
+        while out.contains("  ") {
+            out = out.replaceAll("  ", " ")
+        }
+        return out
+    }
+}

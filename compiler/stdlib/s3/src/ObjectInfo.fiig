@@ -1,7 +1,9 @@
 // What HEAD says about an object without fetching it: its size in bytes,
-// its content type, and its ETag as the server wrote it (usually quoted).
+// its content type, its ETag as the server wrote it (usually quoted), and
+// the metadata it was stored with, keyed in lower case.
 model ObjectInfo {
     size: int
     contentType: string
     etag: string
+    metadata: Map<string, string>
 }

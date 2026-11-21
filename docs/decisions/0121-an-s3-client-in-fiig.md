@@ -144,6 +144,52 @@ Out: listing, multipart upload, presigned URLs, ranges, copy, bucket
 operations, custom metadata, server-side encryption, and streaming bodies
 (`fiig.http` reads and writes a whole body in memory).
 
+*(Amended 2026-11-21: metadata, checksums, ranges and copy are in, as four
+more gateways beside the first four, whose signatures don't change:*
+
+```fiig
+gateway putWithMetadata(bucket: string, key: string, body: bytes, contentType: string, metadata: Map<string, string>) -> Result<None, S3Error>
+gateway getObject(bucket: string, key: string) -> Result<S3Object, S3Error>
+gateway getRange(bucket: string, key: string, first: int, last: int | None) -> Result<bytes, S3Error>
+gateway copy(fromBucket: string, fromKey: string, toBucket: string, toKey: string) -> Result<None, S3Error>
+```
+
+*- **Every PUT sends `x-amz-checksum-sha256`**, the body's SHA-256 in
+  base64, so S3 refuses an upload whose bytes differ and stores the checksum
+  with the object. `x-amz-content-sha256` already lets the signature catch a
+  changed body; the checksum is what the object keeps. `Content-MD5` isn't
+  sent: SHA-256 covers what it would.
+- **Metadata** is a `Map<string, string>`; each key is sent as
+  `x-amz-meta-<key>` in lower case, which is how S3 keeps it, so two keys
+  that differ only in case are refused instead of one replacing the other. A
+  key must be a header name and a value printable ASCII: S3 hands a value
+  back byte for byte, and a line break would add a header of the caller's
+  choosing. `ObjectInfo` gains `metadata`, read from a reply's
+  `x-amz-meta-*` headers in any case, so `head` returns it; `get` keeps
+  returning bytes and `getObject` returns `S3Object(body, info)`. A gateway
+  can't have an optional parameter (only builtins can, ADR 0074), which is
+  why these are new gateways and not a parameter on `put` and `get`.
+- **A range** is bytes `first` to `last`, both included, or to the end when
+  `last` is `None`. A negative start or a backward range is
+  `InvalidRequest`; a 206's body is the part; a 416, a start past the end,
+  is the new variant `S3Error.OutOfRange`. A server that ignores `Range` and
+  answers 200 with the whole object has the part cut from it, the same bytes
+  a 206 would have held.
+- **Copy** is a PUT of the destination with `x-amz-copy-source`, the
+  source's path-style path (`/bucket/key`, each key segment percent-encoded
+  once), within a bucket or across two; the source is checked like any
+  object. S3 can answer a copy 200 and fail it in the body, so a 200 whose
+  body holds `<Error>` is `Refused(200, code, message)`, found by a substring
+  check since fiig has no XML reader. Metadata and content type are copied
+  with the object (S3's default `COPY` directive).
+- **Signing is over every header an operation adds**, `Range` included,
+  which needed the header list to stop being fixed: `canonicalHeaders`
+  lower-cases names, trims values and makes their runs of spaces one (as
+  SigV4 canonicalises them), sorts, and refuses two of one name;
+  `canonicalRequestOf` and `signedHeaderList` build the canonical request
+  and `SignedHeaders` from it. `S3Call` gains `headers`. `canonicalRequest`
+  and `signedHeaderNames` stay, for the four headers every request signs.)*
+
 ## Alternatives considered
 
 - **The whole S3 API.** Hundreds of operations, most of which no program
@@ -178,9 +224,12 @@ operations, custom metadata, server-side encryption, and streaming bodies
    to retry a part, and **streaming**, which needs `fiig.http` to send and
    read a body in pieces (ADR 0074 §9). The whole object is in memory now.
 3. **Presigned URLs**, to give a browser a time-limited link.
-4. **Ranges** (`Range: bytes=0-99`), for reading part of an object.
-5. **Custom metadata and checksums** (`x-amz-meta-*`, `Content-MD5`,
-   `x-amz-checksum-sha256`), and server-side encryption headers.
+4. ~~**Ranges** (`Range: bytes=0-99`), for reading part of an object.~~
+   Done 2026-11-21 as `S3.getRange` (§5's amendment).
+5. ~~**Custom metadata and checksums** (`x-amz-meta-*`, `Content-MD5`,
+   `x-amz-checksum-sha256`)~~ Done 2026-11-21: `putWithMetadata`,
+   `getObject`, `ObjectInfo.metadata`, and a SHA-256 checksum on every PUT
+   (§5's amendment). Server-side encryption headers are still open.
 6. ~~**A time type**, to retire this package's `amzDate` and `fiig.smtp`'s
    `rfc5322Date`.~~ Done by ADR 0123, as the library `fiig.time`.
 7. **A wrong region on AWS.** AWS answers a request signed for the wrong
@@ -235,3 +284,17 @@ quay.io): a PUT of a key
   must be unique across a package's files, not just its own file, which
   makes `test getExample` in two files an error. (4) `amzDate` duplicated
   `fiig.smtp`'s calendar code (§3); both moved to `fiig.time` (ADR 0123).
+- *(Amended 2026-11-21: metadata, checksums, ranges and copy.)* New files
+  `CanonicalHeaders`, `CanonicalRequestOf`, `SignedHeaderList`,
+  `ChecksumHeader`, `MetadataHeaders`, `MetadataOf`, `ObjectInfoOf`,
+  `S3Object`, `ObjectResult`, `RangeHeader`, `RangeResult`, `CopySource` and
+  `CopyResult`. The same Python reference signed the new requests, and it
+  still reproduces the old vectors. 84 fiig tests now (AWS's example
+  credentials over a PUT with metadata and a checksum among them) and 16 Go
+  tests: the checksum on a plain PUT, a PUT with metadata, metadata with a
+  CR LF that never connects, `getObject` and `head` reading metadata back, a
+  206 and a 416, and a copy that succeeds and one that fails after 200.
+  **Not dogfooded against a real server**: no S3-compatible container was
+  running and none is kept, so the new signatures are checked only against
+  the reference. The four gateways' repeated settings block (friction 1)
+  is now eight.

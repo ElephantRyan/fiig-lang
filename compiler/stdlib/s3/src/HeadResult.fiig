@@ -1,7 +1,7 @@
 use fiig.http
 
-// What a HEAD says about an object, from its reply's headers, when the
-// server says 200. A reply with no Content-Length is malformed: the size is
+// What a HEAD says about an object, from its reply's headers (its
+// metadata included), when the server says 200. A reply with no Content-Length is malformed: the size is
 // the point of asking.
 conversion headResult(reply: http.Reply) -> Result<ObjectInfo, S3Error> {
     if reply.status != 200 {
@@ -14,9 +14,7 @@ conversion headResult(reply: http.Reply) -> Result<ObjectInfo, S3Error> {
             )
         }
         size -> {
-            return Ok(
-                ObjectInfo(size: size, contentType: headerValue(reply, "Content-Type"), etag: headerValue(reply, "ETag")),
-            )
+            return Ok(objectInfoOf(reply, size))
         }
     }
 }

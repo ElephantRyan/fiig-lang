@@ -7,7 +7,7 @@ test aHeadReplyIsTheObjectsInfo {
         body: <<>>,
     )
     expect headResult(reply) is Ok(info)
-    expect info == ObjectInfo(size: 1234, contentType: "image/png", etag: "\"abc123\"")
+    expect info == ObjectInfo(size: 1234, contentType: "image/png", etag: "\"abc123\"", metadata: [:])
 }
 
 test headerNamesAreReadInAnyCase {
@@ -17,7 +17,17 @@ test headerNamesAreReadInAnyCase {
         body: <<>>,
     )
     expect headResult(reply) is Ok(info)
-    expect info == ObjectInfo(size: 7, contentType: "text/plain", etag: "e")
+    expect info == ObjectInfo(size: 7, contentType: "text/plain", etag: "e", metadata: [:])
+}
+
+test theMetadataComesBackKeyedInLowerCase {
+    reply = http.Reply(
+        status: 200,
+        headers: [http.Header(name: "Content-Length", value: "5"), http.Header(name: "X-Amz-Meta-Author", value: "Ada")],
+        body: <<>>,
+    )
+    expect headResult(reply) is Ok(info)
+    expect info.metadata == ["author": "Ada"]
 }
 
 test noLengthIsMalformed {

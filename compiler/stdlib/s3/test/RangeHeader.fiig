@@ -1,0 +1,21 @@
+use fiig.http
+
+test aClosedRangeIncludesBothEnds {
+    expect rangeHeader(0, 99) is Ok(header)
+    expect header == http.Header(name: "Range", value: "bytes=0-99")
+}
+
+test anOpenRangeRunsToTheEnd {
+    expect rangeHeader(100, None) is Ok(header)
+    expect header.value == "bytes=100-"
+}
+
+test oneByteIsARange {
+    expect rangeHeader(7, 7) is Ok(header)
+    expect header.value == "bytes=7-7"
+}
+
+test aNegativeStartOrABackwardRangeIsRefused {
+    expect rangeHeader(-1, 5) is Err(S3Error.InvalidRequest(reason))
+    expect rangeHeader(5, 4) is Err(S3Error.InvalidRequest(reason))
+}

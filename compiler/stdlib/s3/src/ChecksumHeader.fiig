@@ -1,0 +1,8 @@
+use fiig.http
+
+// The x-amz-checksum-sha256 header of a PUT: the body's SHA-256 in base64.
+// S3 checks it against the bytes it receives, refusing the upload when they
+// differ, and stores it with the object.
+conversion checksumHeader(body: bytes) -> http.Header {
+    return http.Header(name: "x-amz-checksum-sha256", value: crypto.sha256(body).toBase64())
+}

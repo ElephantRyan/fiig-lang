@@ -1,0 +1,20 @@
+use fiig.http
+
+test metadataHeadersInAnyCaseAreKeyedWithoutThePrefix {
+    headers = [
+        http.Header(name: "X-Amz-Meta-Author", value: "Ada"),
+        http.Header(name: "x-amz-meta-run", value: "7"),
+        http.Header(name: "x-amz-request-id", value: "r"),
+        http.Header(name: "Content-Type", value: "text/plain"),
+    ]
+    expect metadataOf(headers) == ["author": "Ada", "run": "7"]
+}
+
+test thePrefixAloneAndARepeatAreIgnored {
+    headers = [
+        http.Header(name: "x-amz-meta-", value: "x"),
+        http.Header(name: "x-amz-meta-a", value: "1"),
+        http.Header(name: "x-amz-meta-a", value: "2"),
+    ]
+    expect metadataOf(headers) == ["a": "1"]
+}

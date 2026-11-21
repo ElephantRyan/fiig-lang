@@ -1,0 +1,32 @@
+use fiig.http
+
+// A ranged GET's bytes: the body of a 206, which is the part asked for (cut
+// short when the object ends first). A 416 is OutOfRange, a range that
+// starts past the object's end. A server that ignores Range answers 200 with
+// the whole object, so the part is cut from it here, the same bytes a 206
+// would have held.
+conversion rangeResult(reply: http.Reply, first: int, last: int | None) -> Result<bytes, S3Error> {
+    if reply.status == 206 {
+        return Ok(reply.body)
+    }
+    if reply.status == 416 {
+        return Err(S3Error.OutOfRange)
+    }
+    if reply.status != 200 {
+        return Err(errorOf(reply))
+    }
+    size = reply.body.length()
+    if first >= size {
+        return Err(S3Error.OutOfRange)
+    }
+    end: int = size
+    match last {
+        None -> None
+        given -> {
+            if given < size - 1 {
+                end = given + 1
+            }
+        }
+    }
+    return Ok(reply.body.slice(first, end))
+}

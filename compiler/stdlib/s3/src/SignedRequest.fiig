@@ -3,8 +3,8 @@ use fiig.time
 
 // An operation as a signed HTTP request (ADR 0121 §3): AWS Signature
 // Version 4 over the headers host, x-amz-content-sha256 and x-amz-date (and
-// x-amz-security-token with temporary credentials), sent in the
-// Authorization header. millis is the signing time, Unix milliseconds. The
+// x-amz-security-token with temporary credentials) and every header the
+// call adds, sent in the Authorization header. millis is the signing time, Unix milliseconds. The
 // body's SHA-256 is signed, so a body altered in transit fails the check.
 conversion signedRequest(call: S3Call, account: S3Account, millis: int) -> Result<http.Request, S3Error> {
     verb = verbOf(call.method)?
@@ -13,19 +13,13 @@ conversion signedRequest(call: S3Call, account: S3Account, millis: int) -> Resul
     stamp = mapErr(e in time.formatBasic(millis)): S3Error.InvalidRequest(reason: "the signing time is outside the years 0000 to 9999")?
     day = stamp.slice(0, 8)
     payload = crypto.sha256(call.body).toHex()
-    canonical = canonicalRequest(
-        call.method,
-        target.path,
-        target.host,
-        payload,
-        stamp,
-        account.token,
-    )
+    signed = canonicalHeaders(target.host, payload, stamp, account.token, call.headers)?
+    canonical = canonicalRequestOf(call.method, target.path, signed, payload)
     scope = "${day}/${account.region}/s3/aws4_request"
     key = signingKey(account.secret, day, account.region, "s3")
     signature = signatureOf(key, stringToSign(stamp, scope, canonical))
     credential = "Credential=${account.accessKeyId}/${scope}"
-    authorization = "AWS4-HMAC-SHA256 ${credential}, SignedHeaders=${signedHeaderNames(account.token)}, Signature=${signature}"
+    authorization = "AWS4-HMAC-SHA256 ${credential}, SignedHeaders=${signedHeaderList(signed)}, Signature=${signature}"
     headers: List<http.Header> = [
         http.Header(name: "x-amz-content-sha256", value: payload),
         http.Header(name: "x-amz-date", value: stamp),
@@ -33,6 +27,9 @@ conversion signedRequest(call: S3Call, account: S3Account, millis: int) -> Resul
     ]
     if account.token != "" {
         headers = append(headers, http.Header(name: "x-amz-security-token", value: account.token))
+    }
+    for header in call.headers {
+        headers = append(headers, header)
     }
     if call.contentType != "" {
         headers = append(headers, http.Header(name: "Content-Type", value: call.contentType))

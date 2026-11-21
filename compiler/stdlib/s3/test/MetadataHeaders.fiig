@@ -1,0 +1,25 @@
+use fiig.http
+
+test eachKeyIsAnXAmzMetaHeaderInLowerCase {
+    expect metadataHeaders(["Run": "7", "author": "Ada Lovelace"]) is Ok(headers)
+    expect headers == [http.Header(name: "x-amz-meta-author", value: "Ada Lovelace"), http.Header(name: "x-amz-meta-run", value: "7")]
+}
+
+test noMetadataIsNoHeaders {
+    expect metadataHeaders([:]) is Ok(headers)
+    expect headers.length() == 0
+}
+
+test keysThatDifferOnlyInCaseAreRefused {
+    expect metadataHeaders(["Run": "7", "run": "8"]) is Err(S3Error.InvalidRequest(reason))
+}
+
+test aKeyThatIsntAHeaderNameIsRefused {
+    expect metadataHeaders(["a b": "1"]) is Err(S3Error.InvalidRequest(reason))
+    expect metadataHeaders(["": "1"]) is Err(S3Error.InvalidRequest(reason))
+}
+
+test aValueWithALineBreakOrOutsideAsciiIsRefused {
+    expect metadataHeaders(["a": "one\ntwo"]) is Err(S3Error.InvalidRequest(reason))
+    expect metadataHeaders(["a": "café"]) is Err(S3Error.InvalidRequest(reason))
+}

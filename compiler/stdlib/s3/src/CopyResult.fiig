@@ -1,0 +1,22 @@
+use fiig.http
+
+// A copy is done when the server says 200 and its body is a
+// CopyObjectResult. S3 may answer 200 and then fail the copy, putting an
+// error document in the body instead (its documentation says to read the
+// body), so a 200 whose body holds `<Error>` is Refused with that
+// document's code and message. A missing source key is NotFound.
+conversion copyResult(reply: http.Reply) -> Result<None, S3Error> {
+    if reply.status == 200 and not textOf(reply.body).contains("<Error>") {
+        return Ok(None)
+    }
+    return Err(errorOf(reply))
+}
+
+private {
+    textOf(body: bytes) -> string {
+        match body.utf8() {
+            None -> ""
+            text -> text
+        }
+    }
+}

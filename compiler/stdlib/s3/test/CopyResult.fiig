@@ -1,0 +1,18 @@
+use fiig.http
+
+test a200WithACopyResultIsDone {
+    body = "<CopyObjectResult><ETag>\"e\"</ETag></CopyObjectResult>".utf8()
+    expect copyResult(http.Reply(status: 200, headers: [], body: body)) is Ok(None)
+}
+
+test a200WithAnErrorDocumentIsRefused {
+    body = "<Error><Code>InternalError</Code><Message>Try again.</Message></Error>".utf8()
+    expect copyResult(http.Reply(status: 200, headers: [], body: body)) is Err(S3Error.Refused(status, code, message))
+    expect status == 200
+    expect code == "InternalError"
+}
+
+test aMissingSourceIsNotFound {
+    body = "<Error><Code>NoSuchKey</Code></Error>".utf8()
+    expect copyResult(http.Reply(status: 404, headers: [], body: body)) is Err(S3Error.NotFound)
+}
