@@ -98,7 +98,8 @@ type consumerProcess struct {
 	caps   *runtime.CapabilityRegistry
 }
 
-func startConsumer(t *testing.T, root, bootstrap string, redis *fakeRedis) *consumerProcess {
+// extra adds to the process's environment, such as a SASL login.
+func startConsumer(t *testing.T, root, bootstrap string, redis *fakeRedis, extra map[string]string) *consumerProcess {
 	t.Helper()
 	loaded, errs := loader.Load(root, nil)
 	if len(errs) > 0 {
@@ -133,6 +134,9 @@ func startConsumer(t *testing.T, root, bootstrap string, redis *fakeRedis) *cons
 	env := map[string]string{
 		"REDIS_URL": redis.url(), "KAFKA_BOOTSTRAP": bootstrap,
 		"KAFKA_RETRY_AFTER_MS": "200", "KAFKA_COMMIT_INTERVAL_MS": "200",
+	}
+	for k, v := range extra {
+		env[k] = v
 	}
 	lookup := func(name string) (string, bool) { v, ok := env[name]; return v, ok }
 	sources := ReachableConfigFrom(reach, []Entry{{Name: "OrderIntake"}, {Name: "publish"}, {Package: pkg, Name: group}})
@@ -214,7 +218,7 @@ func TestStreamAdapterOverAKafkaConsumerGroup(t *testing.T) {
 
 	// o2 is out of stock: retried twice, after 200 ms each, then dead-
 	// lettered on its third attempt; o3 and o4 wait for it, in order (§5).
-	first := startConsumer(t, root, bootstrap, redis)
+	first := startConsumer(t, root, bootstrap, redis, nil)
 	first.publish(t, topic,
 		`{"orderId":"o1","quantity":3}`, `{"orderId":"o2","quantity":500}`,
 		`{"orderId":"o3","quantity":0}`, `{"orderId":"o4","quantity":7}`)
@@ -237,7 +241,7 @@ func TestStreamAdapterOverAKafkaConsumerGroup(t *testing.T) {
 	// A second process starts where the first committed: o5 is the only
 	// record it handles, and it gets the partition at once, since the
 	// first left the group rather than timing out of it.
-	second := startConsumer(t, root, bootstrap, redis)
+	second := startConsumer(t, root, bootstrap, redis, nil)
 	defer second.caps.Close()
 	second.publish(t, topic, `{"orderId":"o5","quantity":1}`)
 	start := time.Now()

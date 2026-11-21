@@ -1,0 +1,18 @@
+// ADR 0113 §6, as amended 2026-11-21: s once its SASL login has failed
+// for reason. A group session is "refused", and every poll is answered
+// with why, so the route halts as misconfigured (ADR 0117 §1); a broker
+// session answers every Layout with Authentication, so a send returns it.
+// Neither tries again on this connection: a login that failed once fails
+// the same way until the settings change.
+conversion saslRefused(s: KafkaSessionState, reason: string) -> KafkaSessionState {
+    why = "SASL authentication failed: ${reason}"
+    if s.role == "group" {
+        return copy(s, phase: "refused", fatal: why, scramSignature: <<>>)
+    }
+    return copy(
+        s,
+        phase: "broker",
+        refused: KafkaError.Authentication(reason: why),
+        scramSignature: <<>>,
+    )
+}

@@ -336,7 +336,9 @@ same shape, SHA-1 only to check third-party signatures such as Twilio's
 (ADR 0075 §6); `hkdfSha256(key: Secret | bytes, salt, info, length: int)`,
 RFC 5869 HKDF, faulting outside 1 to 8,160 bytes; `pbkdf2Sha256(password: Secret | bytes, salt,
 iterations)`, 32 bytes of RFC 8018 PBKDF2 for protocols that specify it,
-such as SCRAM (ADR 0085 §7), faulting outside 1 to 10,000,000 iterations;
+such as SCRAM (ADR 0085 §7), faulting outside 1 to 10,000,000 iterations,
+and `pbkdf2Sha512` in the same shape, 64 bytes, for SCRAM-SHA-512 (ADR
+0113 §6, amended 2026-11-21);
 `crc32c(data) -> int`, CRC-32C (Castagnoli) as an unsigned 32-bit value,
 the checksum Kafka record batches carry and not a cryptographic hash (ADR
 0113 §2); `equal(a, b)`, which compares in time that depends

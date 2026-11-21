@@ -302,6 +302,34 @@ func TestCrc32cVectors(t *testing.T) {
 	}
 }
 
+// ADR 0113 §6 (amended 2026-11-21): PBKDF2-HMAC-SHA-512 for SCRAM-SHA-512,
+// against the widely published vectors for P "password", S "salt", c 1,
+// and the long password and salt at c 4096 (RFC 6070's inputs, 64 bytes
+// out), which Python's hashlib.pbkdf2_hmac gives too.
+func TestPbkdf2Sha512(t *testing.T) {
+	in := checkedInterp(t,
+		`rule derive(password: bytes, salt: bytes, iterations: int) -> string {
+    return crypto.pbkdf2Sha512(password, salt, iterations).toHex()
+}`)
+	cases := []struct {
+		password, salt string
+		iterations     int
+		want           string
+	}{
+		{"password", "salt", 1, "867f70cf1ade02cff3752599a3a53dc4af34c7a669815ae5d513554e1c8cf252c02d470a285a0501bad999bfe943c08f050235d7d68b1da55e63f73b60a57fce"},
+		{"passwordPASSWORDpassword", "saltSALTsaltSALTsaltSALTsaltSALTsalt", 4096, "8c0511f4c6e597c6ac6315d8f0362e225f3c501495ba23b868c005174dc4ee71115b59f9e60cd9532fa33e0f75aefe30225c583a186cd82bd4daea9724a3d3b8"},
+	}
+	for _, c := range cases {
+		got := callOK(t, in, "derive", map[string]Value{"password": Bytes{B: []byte(c.password)}, "salt": Bytes{B: []byte(c.salt)}, "iterations": Int(c.iterations)})
+		if got != Value(Str(c.want)) {
+			t.Errorf("pbkdf2Sha512(%q, %q, %d) = %v", c.password, c.salt, c.iterations, got)
+		}
+	}
+	if _, f := in.Call(context.Background(), "derive", map[string]Value{"password": Bytes{}, "salt": Bytes{}, "iterations": Int(0)}); f == nil || !strings.Contains(f.Message, "outside 1 to") {
+		t.Errorf("0 iterations: fault = %v", f)
+	}
+}
+
 // ADR 0085 §7: PBKDF2-HMAC-SHA-256 against RFC 7914 §11's first vector
 // (P "passwd", S "salt", c 1; its first 32 bytes), and xor.
 func TestPbkdf2AndXor(t *testing.T) {

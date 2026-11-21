@@ -31,7 +31,7 @@ conversion sessionAsked(state: bytes, message: bytes, now: int) -> session.Step 
 
 private {
     askedOf(s: KafkaSessionState, ask: KafkaAsk, now: int) -> session.Step {
-        if s.phase == "opening" {
+        if s.phase == "opening" or s.phase == "authenticating" {
             // Not accepted: the runtime asks again after the next step.
             return sessionStep(SessionTurn(state: s, write: <<>>, replies: [], close: None), None)
         }

@@ -1,0 +1,69 @@
+// ADR 0113, as amended 2026-11-21: SCRAM-SHA-256's or SCRAM-SHA-512's
+// client proof (RFC 5802 §3, RFC 7677), from the broker's first message:
+// the nonce it extended, the salt, and the iteration count, which Kafka
+// keeps at 4096 or more and fiig allows up to 1,000,000, as fiig.postgres
+// does (ADR 0085 §6). The same steps as fiig.postgres's, with the hash
+// the mechanism names.
+conversion computeScramFinal(mechanism: SaslMechanism, password: bytes, clientFirstBare: string, clientNonce: string, serverFirst: string) -> Result<ScramFinal, string> {
+    nonce: string = ""
+    salt: bytes = <<>>
+    iterations: int = 0
+    for part in serverFirst.split(",") {
+        if part.startsWith("r=") {
+            nonce = part.removePrefix("r=")
+        } else if part.startsWith("s=") {
+            match part.removePrefix("s=").fromBase64() {
+                None -> {
+                    return Err("the broker's SCRAM salt isn't base64")
+                }
+                decoded -> {
+                    salt = decoded
+                }
+            }
+        } else if part.startsWith("i=") {
+            match part.removePrefix("i=").toIntOrNone() {
+                None -> {
+                    return Err("the broker's SCRAM iteration count isn't a number")
+                }
+                count -> {
+                    iterations = count
+                }
+            }
+        } else if part.startsWith("m=") {
+            return Err("the broker asks for a SCRAM extension fiig.kafka doesn't know")
+        }
+    }
+    if not nonce.startsWith(clientNonce) or nonce.length() == clientNonce.length() {
+        return Err("the broker's SCRAM nonce doesn't extend the client's")
+    }
+    if salt.length() == 0 {
+        return Err("the broker sent no SCRAM salt")
+    }
+    if iterations < 4096 or iterations > 1000000 {
+        return Err(
+            "the broker asks for ${iterations} SCRAM iterations; fiig.kafka allows 4096 to 1000000",
+        )
+    }
+    withoutProof = "c=biws,r=${nonce}"
+    authMessage = "${clientFirstBare},${serverFirst},${withoutProof}".utf8()
+    match mechanism {
+        SaslMechanism.ScramSha512 -> {
+            salted = crypto.pbkdf2Sha512(password, salt, iterations)
+            clientKey = crypto.hmacSha512(salted, "Client Key".utf8())
+            clientSignature = crypto.hmacSha512(crypto.sha512(clientKey), authMessage)
+            serverKey = crypto.hmacSha512(salted, "Server Key".utf8())
+            return Ok(
+                ScramFinal(message: "${withoutProof},p=${clientKey.xor(clientSignature).toBase64()}", serverSignature: crypto.hmacSha512(serverKey, authMessage)),
+            )
+        }
+        _ -> {
+            salted = crypto.pbkdf2Sha256(password, salt, iterations)
+            clientKey = crypto.hmacSha256(salted, "Client Key".utf8())
+            clientSignature = crypto.hmacSha256(crypto.sha256(clientKey), authMessage)
+            serverKey = crypto.hmacSha256(salted, "Server Key".utf8())
+            return Ok(
+                ScramFinal(message: "${withoutProof},p=${clientKey.xor(clientSignature).toBase64()}", serverSignature: crypto.hmacSha256(serverKey, authMessage)),
+            )
+        }
+    }
+}

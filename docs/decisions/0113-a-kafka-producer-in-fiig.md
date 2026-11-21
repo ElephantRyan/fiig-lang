@@ -187,6 +187,61 @@ config KafkaServer {
 `timeoutMillis` bounds a whole `send` and is the produce request's
 `timeout_ms`.
 
+*(Amended 2026-11-21: **SASL**, PLAIN, SCRAM-SHA-256 and SCRAM-SHA-512,
+for every connection the package makes, the producer's and the
+consumer's alike, since both now run over sessions (§4, as amended):*
+
+```fiig
+    saslMechanism: SaslMechanism | None from env "KAFKA_SASL_MECHANISM"   // PLAIN, SCRAM-SHA-256, SCRAM-SHA-512
+    saslUsername: string from env "KAFKA_SASL_USERNAME" = ""
+    saslPassword: Secret | None from env "KAFKA_SASL_PASSWORD"
+```
+
+*Unset is no SASL. A session logs in as it opens, before anything else,
+as states of its state machine (ADR 0117 §3): `opened` writes
+ApiVersions and SaslHandshake v1 (API 17), the two requests a broker
+takes before a login, and the session is `"authenticating"`, holding
+every ask, until SaslAuthenticate v2 (API 36, KIP-152; flexible) is
+done. PLAIN is one message, `\0user\0password`; SCRAM is RFC 5802's two,
+over SHA-256 or SHA-512 (RFC 7677), and the broker's final message must
+carry the signature the password gives, compared with `crypto.equal`, or
+the login is refused: a broker that doesn't know the password isn't the
+broker. The client nonce is 24 bytes of `Random`, fresh per connection.
+A group session asks for its coordinator after the login, and logs in
+again on the coordinator it moves to.*
+
+*The password stays out of the session's settings (each distinct
+settings map is a session, and the runtime keeps them) and out of its
+state (JSON the runtime holds between operations): the protocol's
+`opened` and `received` gateways read it from `KafkaServer`, reveal it,
+and hand it to the conversions as a `SaslLogin`, the first gateways of a
+session protocol to read config. Only SCRAM's nonce, its first message,
+and the server signature it expects are in the state, the last cleared
+once checked. A refused login, by the broker (SASL_AUTHENTICATION_FAILED
+and its message), by fiig (a forged signature, a nonce that doesn't
+extend the client's, fewer than 4096 or more than 1,000,000 iterations, a
+SCRAM extension), or a mechanism the broker doesn't offer (with the ones
+it does), is the new `KafkaError.Authentication(reason)` from `send` and
+`SourceError.Misconfigured` from the consumer, which halts the route
+rather than trying the same login forever. `KAFKA_SASL_MECHANISM` without
+`KAFKA_SASL_USERNAME` is refused the same way without connecting further.
+SCRAM-SHA-512 needed PBKDF2-HMAC-SHA-512, so the prelude crypto group
+gains `crypto.pbkdf2Sha512(password: Secret | bytes, salt, iterations)`,
+64 bytes, beside `pbkdf2Sha256` (ADR 0085 §7) and in its shape.*
+
+*Out still: OAUTHBEARER and GSSAPI, and KIP-368's re-authentication: a
+broker with `connections.max.reauth.ms` set closes a connection whose
+login has expired, and the session opens again and logs in again, so a
+call in flight then sees `Session(Broken)`. `SaslMechanism`, `SaslLogin`,
+`computeScramFinal`, `saslAnswered`, and `saslRefused`; tested by
+`test/scenarios/Sasl.fiig` (RFC 7677's SCRAM-SHA-256 example, a
+SHA-512 exchange checked against Python's hashlib, each refusal, and
+both kinds of session's states) and `TestKafkaOverSasl`, against a Kafka
+4.0 broker with a SASL_PLAINTEXT listener: each mechanism sends, a
+wrong password is the broker's SASL_AUTHENTICATION_FAILED, and a
+consumer group logs in on its group and leader sessions and handles what
+was sent.)*
+
 ### 7. Scope
 
 In: Produce to any number of partitions in one call, keys, headers,
@@ -222,8 +277,11 @@ old versions will need.
    ADR 0117, can hold a producer id, sequence numbers, and metadata.
    Neither is built yet.)* ~~The metadata cache.~~ Done 2026-11-21 (§4,
    as amended). Idempotence stays open.
-2. **SASL**, which most hosted Kafka needs: SCRAM can reuse
-   `crypto.pbkdf2Sha256` (ADR 0085), PLAIN is a handshake.
+2. ~~**SASL**, which most hosted Kafka needs: SCRAM can reuse
+   `crypto.pbkdf2Sha256` (ADR 0085), PLAIN is a handshake.~~ Done
+   2026-11-21: PLAIN, SCRAM-SHA-256 and SCRAM-SHA-512 for producer and
+   consumer (§6, as amended), with `crypto.pbkdf2Sha512`. OAUTHBEARER
+   stays out.
 3. ~~**Flexible versions**, before a broker that drops the non-flexible
    ones ships.~~ Done 2026-11-21 for the producer: Metadata v12 and
    Produce v9 (§4, as amended).

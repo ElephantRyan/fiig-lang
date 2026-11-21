@@ -5,6 +5,9 @@
 // buffer is what has arrived of a response not yet whole. layouts are the
 // topics' layouts a broker session keeps for the producer, and refused
 // why it can't send the producer's versions (ADR 0113 §4, as amended
+// 2026-11-21). With SASL, either is "authenticating" first, and the scram
+// fields carry SCRAM's exchange between its messages; a group session
+// whose login was refused is "refused" (ADR 0113 §6, as amended
 // 2026-11-21).
 model KafkaSessionState {
     role: string
@@ -30,4 +33,7 @@ model KafkaSessionState {
     polls: List<WaitingPoll>
     layouts: List<CachedLayout>
     refused: KafkaError | None
+    scramNonce: string
+    scramFirstBare: string
+    scramSignature: bytes
 }

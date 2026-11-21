@@ -132,6 +132,14 @@ connection. It also answers two asks of the producer's,
 `KafkaAsk.Layout(topic, maxAgeMillis)` and `KafkaAsk.Forget(topic)`,
 from the layouts it keeps in its state.)*
 
+*(Amended 2026-11-21: with `KAFKA_SASL_MECHANISM` set, either kind of
+session logs in first (ADR 0113 §6, as amended): `opened` writes
+ApiVersions and SaslHandshake, the session is `"authenticating"` and
+holds every ask until SaslAuthenticate is done, and a group session asks
+FindCoordinator only then. A refused login leaves a group session
+`"refused"`, and its polls answer with why, so the route halts as
+Misconfigured (§1).)*
+
 The state of a group session is the member's epoch, its partitions, and
 for each the next offset to fetch, the offset to commit, and a retried
 offset's attempts and the time it may be fetched again.

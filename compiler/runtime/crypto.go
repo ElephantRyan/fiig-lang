@@ -126,6 +126,23 @@ var cryptoFormulas = map[string]cryptoFunc{
 		}
 		return Bytes{B: key}, nil
 	},
+	// ADR 0113 §6 (amended 2026-11-21): PBKDF2-HMAC-SHA-512, 64 bytes out,
+	// for SCRAM-SHA-512.
+	"pbkdf2Sha512": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
+		password, f := keyBytes("pbkdf2Sha512", "password", args[0])
+		if f != nil {
+			return nil, f
+		}
+		n := int64(args[2].(Int))
+		if n < 1 || n > maxPbkdf2Iterations {
+			return nil, Faultf("crypto.pbkdf2Sha512: %d iterations is outside 1 to %d", n, maxPbkdf2Iterations)
+		}
+		key, err := pbkdf2.Key(sha512.New, string(password), args[1].(Bytes).B, int(n), sha512.Size)
+		if err != nil {
+			return nil, Faultf("crypto.pbkdf2Sha512: %v", err)
+		}
+		return Bytes{B: key}, nil
+	},
 	// Time depends only on the lengths; different lengths answer false at
 	// once, like hmac.Equal.
 	"equal": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {

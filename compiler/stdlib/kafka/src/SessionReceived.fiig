@@ -3,9 +3,10 @@ use fiig.session
 // ADR 0117 §3: bytes the broker sent. Each whole response answers the
 // oldest request still waiting: a call's Request gets it back, and the
 // group's own, and a broker session's ApiVersions and Layouts (ADR 0113
-// §4, as amended 2026-11-21), are read here. Then whatever became due is written, and held
+// §4, as amended 2026-11-21), are read here, as is a SASL login's, with
+// login (§6, as amended). Then whatever became due is written, and held
 // polls are answered.
-conversion sessionReceived(state: bytes, data: bytes, now: int) -> session.Step {
+conversion sessionReceived(state: bytes, data: bytes, now: int, login: SaslLogin) -> session.Step {
     decoded: Result<KafkaSessionState, JsonError> = json.decode(state)
     match decoded {
         Err(_) -> {
@@ -23,7 +24,7 @@ conversion sessionReceived(state: bytes, data: bytes, now: int) -> session.Step 
             while reading {
                 match nextFrame(rest) {
                     FrameRead.Done(frame, more) -> {
-                        turn = answered(turn, frame, now)
+                        turn = answered(turn, frame, now, login)
                         rest = more
                         reading = turn.close == None
                     }
@@ -46,7 +47,7 @@ conversion sessionReceived(state: bytes, data: bytes, now: int) -> session.Step 
 }
 
 private {
-    answered(turn: SessionTurn, frame: bytes, now: int) -> SessionTurn {
+    answered(turn: SessionTurn, frame: bytes, now: int, login: SaslLogin) -> SessionTurn {
         s = turn.state
         if s.inflight.length() == 0 {
             return failed(turn, "the broker sent a response no request asked for")
@@ -78,6 +79,9 @@ private {
                     }
                     return versionsAnswered(next, frame, head.correlation)
                 }
+                if head.kind.startsWith("sasl") {
+                    return saslAnswered(next, head.kind, frame, login)
+                }
                 if head.kind == "metadata" {
                     return layoutAnswered(next, head, frame, now)
                 }
@@ -102,12 +106,18 @@ private {
     // A broker session is open once ApiVersions answers; one that can't
     // take the producer's versions answers every Layout with why.
     versionsAnswered(turn: SessionTurn, frame: bytes, correlation: int) -> SessionTurn {
-        s = copy(turn.state, phase: "broker")
+        s: KafkaSessionState = turn.state
+        if s.phase == "opening" {
+            s = copy(s, phase: "broker")
+        }
         match checkApiVersions(frame, correlation) {
             Ok(_) -> {
                 return copy(turn, state: s)
             }
             Err(refusal) -> {
+                if s.refused != None {
+                    return copy(turn, state: s)
+                }
                 return copy(turn, state: copy(s, refused: refusal))
             }
         }

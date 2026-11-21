@@ -33,6 +33,9 @@ var cryptoFormulas = map[string]Method{
 	"hkdfSha256": {[]Param{p("key", Union{Members: []Type{SecretType, bytesType}}), p("salt", bytesType), p("info", bytesType), p("length", intType)}, bytesType},
 	// ADR 0085 §7: for protocols that specify PBKDF2, such as SCRAM.
 	"pbkdf2Sha256": {[]Param{p("password", Union{Members: []Type{SecretType, bytesType}}), p("salt", bytesType), p("iterations", intType)}, bytesType},
+	// ADR 0113 §6 (amended 2026-11-21): the same with HMAC-SHA-512 and 64
+	// bytes out, for SCRAM-SHA-512.
+	"pbkdf2Sha512": {[]Param{p("password", Union{Members: []Type{SecretType, bytesType}}), p("salt", bytesType), p("iterations", intType)}, bytesType},
 	// ADR 0113 §2: CRC-32C (Castagnoli), the checksum Kafka record batches
 	// carry. A checksum for catching corruption, not a cryptographic hash:
 	// anyone can make data with any CRC.

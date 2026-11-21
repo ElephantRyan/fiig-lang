@@ -1,0 +1,7 @@
+// ADR 0113, as amended 2026-11-21: SaslAuthenticate v2 (API key 36,
+// KIP-152), a flexible version: one message of the mechanism's exchange,
+// as COMPACT_BYTES.
+conversion saslAuthenticateRequest(clientId: string, correlation: int, message: bytes) -> bytes {
+    body = <<uvarint(message.length() + 1): bytes, message: bytes, 0: u8>>
+    return kafkaFlexRequest(36, 2, correlation, clientId, body)
+}

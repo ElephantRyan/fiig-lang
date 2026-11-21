@@ -4,14 +4,14 @@ use fiig.session
 // which check ApiVersions, keep each topic's layout for its max age, and
 // drop it when asked to.
 test aBrokerSessionKeepsATopicsLayout {
-    opened = sessionOpened(brokerAt("a", 9092), 1000)
-    ready = sessionReceived(opened.state, producerVersionsOf(1, 12), 1000)
+    opened = sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1")
+    ready = sessionReceived(opened.state, producerVersionsOf(1, 12), 1000, noLogin())
     // The first Layout asks the broker ...
     first = sessionAsked(ready.state, layoutAsk("orders", 60000), 1000)
     expect first.accepted == 2
     expect first.write == metadataV12Request("fiig", 2, "orders")
     expect first.replies.length() == 0
-    described = sessionReceived(first.state, metadataOf(2, "orders", 3), 1001)
+    described = sessionReceived(first.state, metadataOf(2, "orders", 3), 1001, noLogin())
     expect described.replies.length() == 1
     expect layoutReplyOf(described.replies.first()) is Ok(layout)
     expect layout.leaders == [1, 1, 1]
@@ -33,10 +33,10 @@ test aBrokerSessionKeepsATopicsLayout {
 }
 
 test aForgottenLayoutIsReadAgain {
-    opened = sessionOpened(brokerAt("a", 9092), 1000)
-    ready = sessionReceived(opened.state, producerVersionsOf(1, 12), 1000)
+    opened = sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1")
+    ready = sessionReceived(opened.state, producerVersionsOf(1, 12), 1000, noLogin())
     first = sessionAsked(ready.state, layoutAsk("orders", 60000), 1000)
-    described = sessionReceived(first.state, metadataOf(2, "orders", 3), 1001)
+    described = sessionReceived(first.state, metadataOf(2, "orders", 3), 1001, noLogin())
     forgot = sessionAsked(described.state, json.encode(KafkaAsk.Forget(topic: "orders")), 1002)
     expect forgot.replies == [session.SessionReply(key: 3, message: <<>>, last: true)]
     asked = sessionAsked(forgot.state, layoutAsk("orders", 60000), 1003)
@@ -44,10 +44,10 @@ test aForgottenLayoutIsReadAgain {
 }
 
 test aLayoutsErrorIsGivenAndNotKept {
-    opened = sessionOpened(brokerAt("a", 9092), 1000)
-    ready = sessionReceived(opened.state, producerVersionsOf(1, 12), 1000)
+    opened = sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1")
+    ready = sessionReceived(opened.state, producerVersionsOf(1, 12), 1000, noLogin())
     first = sessionAsked(ready.state, layoutAsk("missing", 60000), 1000)
-    unknown = sessionReceived(first.state, metadataOf(2, "missing", 0), 1001)
+    unknown = sessionReceived(first.state, metadataOf(2, "missing", 0), 1001, noLogin())
     expect layoutReplyOf(unknown.replies.first()) is Err(KafkaError.UnknownTopic(topic))
     expect topic == "missing"
     again = sessionAsked(unknown.state, layoutAsk("missing", 60000), 1002)
@@ -55,8 +55,8 @@ test aLayoutsErrorIsGivenAndNotKept {
 }
 
 test aBrokerWithoutTheFlexibleVersionsIsRefusedByName {
-    opened = sessionOpened(brokerAt("a", 9092), 1000)
-    old = sessionReceived(opened.state, producerVersionsOf(1, 8), 1000)
+    opened = sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1")
+    old = sessionReceived(opened.state, producerVersionsOf(1, 8), 1000, noLogin())
     asked = sessionAsked(old.state, layoutAsk("orders", 60000), 1001)
     expect asked.write == <<>>
     expect layoutReplyOf(asked.replies.first()) is Err(KafkaError.Unsupported(reason))
@@ -83,6 +83,10 @@ test aProduceThatSaysTheLeadersMovedDropsTheLayout {
 }
 
 private {
+    noLogin() -> SaslLogin {
+        return SaslLogin(mechanism: None, username: "", password: <<>>)
+    }
+
     brokerAt(host: string, port: int) -> Map<string, string> {
         return ["role": "broker", "host": host, "port": "${port}", "clientId": "fiig", "sessionId": "s1"]
     }

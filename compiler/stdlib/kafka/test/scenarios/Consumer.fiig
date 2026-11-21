@@ -25,14 +25,14 @@ test aBrokerSessionPassesRequestsThrough {
     settings: Map<string, string> = ["role": "broker", "host": "b", "port": "9092", "clientId": "fiig"]
     // ApiVersions goes first, and asks wait for its answer (ADR 0113 §4,
     // as amended 2026-11-21).
-    opened = sessionOpened(settings, 1000)
+    opened = sessionOpened(settings, 1000, noLogin(), "n1")
     expect opened.write == apiVersionsRequest("fiig", 1)
     expect opened.nextTickAt == None
     request = metadataRequest("fiig", 77, "orders")
     held = sessionAsked(opened.state, requestAsk(request), 1000)
     expect held.accepted == None
     expect held.write == <<>>
-    ready = sessionReceived(held.state, versionsOf(1), 1000)
+    ready = sessionReceived(held.state, versionsOf(1), 1000, noLogin())
     asked = sessionAsked(ready.state, requestAsk(request), 1000)
     expect asked.accepted == 2
     // It goes out with the session's correlation id ...
@@ -40,30 +40,32 @@ test aBrokerSessionPassesRequestsThrough {
     // ... and its response, arriving in two pieces, back with the caller's.
     response = <<2: i32be, "body".utf8(): bytes>>
     framed = <<response.length(): i32be, response: bytes>>
-    partial = sessionReceived(asked.state, framed.slice(0, 5), 1001)
+    partial = sessionReceived(asked.state, framed.slice(0, 5), 1001, noLogin())
     expect partial.replies.length() == 0
-    whole = sessionReceived(partial.state, framed.slice(5, framed.length()), 1002)
+    whole = sessionReceived(partial.state, framed.slice(5, framed.length()), 1002, noLogin())
     expect whole.replies == [session.SessionReply(key: 2, message: <<77: i32be, "body".utf8(): bytes>>, last: true)]
 }
 
 test aGroupSessionMovesToItsCoordinator {
-    opened = sessionOpened(groupSettingsAt("a", 9092), 1000)
+    opened = sessionOpened(groupSettingsAt("a", 9092), 1000, noLogin(), "n1")
     expect opened.write == <<apiVersionsRequest("fiig", 1): bytes, findCoordinatorRequest("fiig", 2, "g"): bytes>>
     moved = sessionReceived(
         opened.state,
         <<versionsOf(1): bytes, coordinatorOf(2, "b", 9093): bytes>>,
         1001,
+        noLogin(),
     )
     expect moved.close == session.SessionClose.MoveTo(host: "b", port: 9093)
 }
 
 test anOldBrokerIsRefusedByName {
-    opened = sessionOpened(groupSettingsAt("a", 9092), 1000)
+    opened = sessionOpened(groupSettingsAt("a", 9092), 1000, noLogin(), "n1")
     old = framed(<<1: i32be, 0: i16be, 1: i32be, 0: i16be, 0: i16be, 12: i16be>>)
     refused = sessionReceived(
         opened.state,
         <<old: bytes, coordinatorOf(2, "a", 9092): bytes>>,
         1001,
+        noLogin(),
     )
     polled = sessionAsked(refused.state, json.encode(KafkaAsk.Poll(waitMillis: 500)), 1002)
     expect polled.replies.length() == 1
@@ -72,11 +74,12 @@ test anOldBrokerIsRefusedByName {
 
 test aMemberIsAssignedRetriesAndCommits {
     topicId = "0123456789abcdef".utf8()
-    opened = sessionOpened(groupSettingsAt("a", 9092), 1000)
+    opened = sessionOpened(groupSettingsAt("a", 9092), 1000, noLogin(), "n1")
     joined = sessionReceived(
         opened.state,
         <<versionsOf(1): bytes, coordinatorOf(2, "a", 9092): bytes>>,
         1001,
+        noLogin(),
     )
     // On the coordinator, the member joins at once with epoch 0.
     expect joined.close == None
@@ -87,11 +90,16 @@ test aMemberIsAssignedRetriesAndCommits {
     expect waiting.nextTickAt == 6002
     // Assigned partitions 0 and 1: their committed offsets are asked for,
     // and the next heartbeat says the member owns them.
-    assigned = sessionReceived(waiting.state, heartbeatAnswerOf(3, 1, topicId, [0, 1]), 1003)
+    assigned = sessionReceived(
+        waiting.state,
+        heartbeatAnswerOf(3, 1, topicId, [0, 1]),
+        1003,
+        noLogin(),
+    )
     expect assigned.write == <<offsetFetchRequest("fiig", 5, "g", "t", [0, 1]): bytes, heartbeatRequest("fiig", 6, "g", "m1", 1, "t", topicId, [0, 1]): bytes>>
     // Partition 0 committed 42; 1 has nothing, so it starts where `from`
     // says (-1). The waiting poll is answered.
-    placed = sessionReceived(assigned.state, offsetsOf(5, [42, 0 - 1]), 1004)
+    placed = sessionReceived(assigned.state, offsetsOf(5, [42, 0 - 1]), 1004, noLogin())
     expect placed.replies.length() == 1
     expect pollOf(placed.replies.first().message).partitions == [AssignedPartition(partition: 0, position: 42, retryOffset: 0 - 1, attempt: 1), AssignedPartition(partition: 1, position: 0 - 1, retryOffset: 0 - 1, attempt: 1)]
     // A retry of 0/42 pauses partition 0 until 3000, then brings 42 back
@@ -116,7 +124,7 @@ test aMemberIsAssignedRetriesAndCommits {
     expect s.partitions.first().retryOffset == 0 - 1
     expect s.commitAt == 0
     // A member the broker fenced joins again, owning nothing.
-    fenced = sessionReceived(committed.state, heartbeatErrorOf(6, 110), 4002)
+    fenced = sessionReceived(committed.state, heartbeatErrorOf(6, 110), 4002, noLogin())
     expect stateOf(fenced.state) is Ok(rejoining)
     expect rejoining.epoch == 0
     expect rejoining.partitions.length() == 0
@@ -179,6 +187,10 @@ test aGroupSessionFailsOverAcrossTheBootstrapServers {
 }
 
 private {
+    noLogin() -> SaslLogin {
+        return SaslLogin(mechanism: None, username: "", password: <<>>)
+    }
+
     groupSettingsAt(host: string, port: int) -> Map<string, string> {
         return ["role": "group", "host": host, "port": "${port}", "clientId": "fiig", "group": "g", "topic": "t", "sessionId": "m1", "commitMillis": "1000"]
     }

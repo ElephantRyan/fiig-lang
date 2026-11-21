@@ -1,0 +1,9 @@
+// ADR 0113 §6, as amended 2026-11-21: the SASL login the session
+// protocol's gateways read from KafkaServer and hand to its conversions,
+// so the password is never part of the session's settings or its state.
+// No mechanism is no SASL.
+model SaslLogin {
+    mechanism: SaslMechanism | None
+    username: string
+    password: bytes
+}

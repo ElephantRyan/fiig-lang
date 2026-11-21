@@ -3,7 +3,9 @@
 // 0116 §4: how batches are compressed, in Kafka's compression.type
 // spelling; unset sends them uncompressed. ADR 0113 §4, as amended
 // 2026-11-21: how long a topic's layout is kept, as Java's
-// metadata.max.age.ms; 0 reads it on every send.
+// metadata.max.age.ms; 0 reads it on every send. §6, as amended
+// 2026-11-21: the SASL login every connection makes, producer's and
+// consumer's alike, in Kafka's sasl.mechanism spelling; unset is none.
 config KafkaServer {
     bootstrap: string from env "KAFKA_BOOTSTRAP"
     tls: bool from env "KAFKA_TLS" = false
@@ -11,4 +13,7 @@ config KafkaServer {
     timeoutMillis: int from env "KAFKA_TIMEOUT_MS" = 30000
     compression: Compression | None from env "KAFKA_COMPRESSION"
     metadataMaxAgeMillis: int from env "KAFKA_METADATA_MAX_AGE_MS" = 300000
+    saslMechanism: SaslMechanism | None from env "KAFKA_SASL_MECHANISM"
+    saslUsername: string from env "KAFKA_SASL_USERNAME" = ""
+    saslPassword: Secret | None from env "KAFKA_SASL_PASSWORD"
 }

@@ -1,0 +1,35 @@
+// A SaslHandshake v1 response: why the broker won't take the mechanism,
+// with the ones it would, or Ok when it will.
+conversion readSaslHandshake(frame: bytes, mechanism: string) -> Result<None, string> {
+    match frame {
+        <<_: i32be, code: i16be, count: i32be, rest: bytes>> -> {
+            if code == 0 {
+                return Ok(None)
+            }
+            offered: List<string> = []
+            pos: int = 0
+            i: int = 0
+            while i < count {
+                match stringAt(rest, pos) {
+                    None -> {
+                        return Err("a SaslHandshake response ends early")
+                    }
+                    name -> {
+                        offered = append(offered, name.text)
+                        pos = name.next
+                    }
+                }
+                i = i + 1
+            }
+            if code == 33 {
+                return Err(
+                    "the broker doesn't take SASL ${mechanism}; it offers ${offered.join(", ")}",
+                )
+            }
+            return Err("SaslHandshake: ${errorName(code)}")
+        }
+        _ -> {
+            return Err("a SaslHandshake response is shorter than its header")
+        }
+    }
+}
