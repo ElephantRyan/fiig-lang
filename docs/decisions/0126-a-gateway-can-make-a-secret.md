@@ -1,6 +1,6 @@
 # ADR 0126: A Gateway Can Make a Secret
 
-Status: Proposed
+Status: Accepted (2026-11-21; the owner approved it). Implemented 2026-11-21.
 Date: 2026-11-21
 Related: ADR 0071 §4 (`Secret`), abs-recommendations GAPS.md G52.
 

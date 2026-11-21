@@ -1,6 +1,6 @@
 # ADR 0127: Starting Degraded
 
-Status: Proposed
+Status: Accepted (2026-11-21; the owner approved it). Implemented 2026-11-21.
 Date: 2026-11-21
 Answers: ADR 0124 open question 4.
 Related: ADR 0071 (config), ADR 0122 (`config ... when`), ADR 0124 (startup

@@ -1,6 +1,6 @@
 # ADR 0125: A Schedule Lock in the Program's SQL Database
 
-Status: Proposed
+Status: Accepted (2026-11-21; the owner approved it). Implemented 2026-11-21.
 Date: 2026-11-21
 Related: ADR 0112 §4 (`ScheduleLock`), ADR 0124 §6 (`once`, `complete`,
 `completed`), ADR 0085 (`fiig.postgres`), ADR 0082 (`Database`).
