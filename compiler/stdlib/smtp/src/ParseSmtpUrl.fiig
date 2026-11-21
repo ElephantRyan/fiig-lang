@@ -84,7 +84,9 @@ conversion parseSmtpUrl(url: string) -> Result<SmtpTarget, SmtpError> {
     if password != None and user == None {
         return Err(invalid("it has a password but no user"))
     }
-    return Ok(SmtpTarget(host: host, port: port, security: security, user: user, password: password))
+    return Ok(
+        SmtpTarget(host: host, port: port, security: security, user: user, password: password),
+    )
 }
 
 private {

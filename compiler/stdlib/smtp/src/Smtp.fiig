@@ -1,3 +1,5 @@
+use fiig.time
+
 // ADR 0120: sending mail by SMTP, written in fiig over Socket. One mail is
 // one connection: connect, greet, upgrade with STARTTLS when the URL says
 // to, log in, MAIL FROM, RCPT TO each recipient, DATA, QUIT. Every decision
@@ -11,7 +13,8 @@ capability Smtp {
         target = parseSmtpUrl(SmtpServer.url.reveal())?
         now = Clock.now()
         token = Random.bytes(12).toHex()
-        data = mailData(mail, rfc5322Date(now), messageIdFor(mail, token))
+        date = mapErr(e in time.formatRfc5322(now)): SmtpError.Protocol(reason: "the clock reads a year outside 0000 to 9999")?
+        data = mailData(mail, date, messageIdFor(mail, token))
         until: int = now + SmtpServer.timeoutMillis
         opened: Result<Connection, SocketError> = Err(SocketError.Closed)
         match target.security {

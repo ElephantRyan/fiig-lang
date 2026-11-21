@@ -99,7 +99,7 @@ may be an attempt to write a command: `"b@y.org>\r\nDATA"` fails, and
 `RCPT TO:<...>` never carries it.
 
 **The message.** Headers `From`, `To` (every recipient, so there's no hidden
-one), `Subject`, `Date` (UTC, written by hand because fiig has no time type),
+one), `Subject`, `Date` (UTC, from `fiig.time`'s `formatRfc5322`, ADR 0123),
 `Message-ID` (a random token at the sender's domain), `MIME-Version`,
 `Content-Type: text/plain; charset=utf-8`, and `Content-Transfer-Encoding`.
 
@@ -200,9 +200,10 @@ delivery status notifications, connection reuse, and pipelining.
 4. **Multipart: HTML and attachments**, and Cc, Bcc, Reply-To and display
    names. A `Mail` model grows fields, or a second `send` takes a richer
    one.
-5. **A time type.** `Date` needed a calendar written in fiig
+5. ~~**A time type.** `Date` needed a calendar written in fiig
    (`rfc5322Date`); an S3 library needs another for SigV4 (`20261120T135958Z`).
-   A `time` type (known-limitations) would end the duplication.
+   A `time` type (known-limitations) would end the duplication.~~ Done by ADR
+   0123, as the library `fiig.time` over `int` milliseconds.
 
 ## Implementation notes (2026-11-20)
 
@@ -237,8 +238,8 @@ delivery status notifications, connection reuse, and pipelining.
 - **Language friction.** (1) `command` is a keyword, so a helper named for
   what it writes had to be `crlfLine`. (2) A gateway can't call a gateway, so
   the dialogue is one loop (§3); that turned out well, since every decision
-  is a testable conversion. (3) No time type: `rfc5322Date` is Hinnant's
-  civil-from-days in fiig. (4) The percent-decoding in `ParseSmtpUrl` is
+  is a testable conversion. (3) No time type: `rfc5322Date` was Hinnant's
+  civil-from-days in fiig, and moved to `fiig.time` (ADR 0123). (4) The percent-decoding in `ParseSmtpUrl` is
   copied from `fiig.redis`'s; a shared helper has no home, because a built-in
   package can't import a private one. (5) `Some(x)` isn't a pattern: a
   `string | None` is matched with a bare name, which a test helper does.

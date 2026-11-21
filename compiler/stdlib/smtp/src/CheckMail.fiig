@@ -4,7 +4,9 @@
 // The reasons say which address, never what it said.
 conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
     if not validAddress(mail.from) {
-        return Err(SmtpError.InvalidMail(reason: "the sender isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"))
+        return Err(
+            SmtpError.InvalidMail(reason: "the sender isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"),
+        )
     }
     if mail.to.length() == 0 {
         return Err(SmtpError.InvalidMail(reason: "a mail has at least one recipient"))
@@ -15,7 +17,9 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
     number: int = 1
     for recipient in mail.to {
         if not validAddress(recipient) {
-            return Err(SmtpError.InvalidMail(reason: "recipient ${number} isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"))
+            return Err(
+                SmtpError.InvalidMail(reason: "recipient ${number} isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"),
+            )
         }
         number = number + 1
     }

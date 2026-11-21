@@ -63,7 +63,12 @@ private {
                 SmtpError.InvalidMail(reason: "the message is ${d.data.length()} bytes, over the server's limit of ${size}"),
             )
         }
-        learned = copy(d, startTls: offers.contains("STARTTLS"), authPlain: offersPlain(offers), sizeLimit: size)
+        learned = copy(
+            d,
+            startTls: offers.contains("STARTTLS"),
+            authPlain: offersPlain(offers),
+            sizeLimit: size,
+        )
         if not d.secure and d.target.security == SmtpSecurity.StartTls {
             if learned.startTls {
                 return Ok(copy(learned, phase: SmtpPhase.StartTls))
@@ -80,7 +85,9 @@ private {
                 if learned.authPlain {
                     return Ok(copy(learned, phase: SmtpPhase.Auth))
                 }
-                return Err(SmtpError.Protocol(reason: "the server offers no AUTH PLAIN, which is what fiig.smtp logs in with"))
+                return Err(
+                    SmtpError.Protocol(reason: "the server offers no AUTH PLAIN, which is what fiig.smtp logs in with"),
+                )
             }
         }
     }

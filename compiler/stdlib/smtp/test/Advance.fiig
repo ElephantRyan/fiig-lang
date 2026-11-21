@@ -35,7 +35,11 @@ test smtpWithoutStartTlsIsRefusedBeforeAnythingIsSent {
 }
 
 test smtpsIsSecureFromTheStartAndNeverAsksForStartTls {
-    d = go(go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]), 250, ["mail.example Hello", "STARTTLS", "AUTH PLAIN"])
+    d = go(
+        go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]),
+        250,
+        ["mail.example Hello", "STARTTLS", "AUTH PLAIN"],
+    )
     expect d.secure
     expect sent(d) == "AUTH PLAIN AHVzZXIAcGFzcw==\r\n"
 }
@@ -54,12 +58,20 @@ test aLoginNeedsAuthPlain {
 }
 
 test theOlderAuthEqualsFormIsRead {
-    d = go(go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]), 250, ["mail.example Hello", "AUTH=PLAIN LOGIN"])
+    d = go(
+        go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]),
+        250,
+        ["mail.example Hello", "AUTH=PLAIN LOGIN"],
+    )
     expect sent(d) == "AUTH PLAIN AHVzZXIAcGFzcw==\r\n"
 }
 
 test aRefusedRecipientEndsTheSend {
-    d = go(go(go(go(begin(plain(None, None), ["b@y.org", "c@y.org"]), 220, ["hi"]), 250, ["Hello"]), 250, ["OK"]), 250, ["OK"])
+    d = go(
+        go(go(go(begin(plain(None, None), ["b@y.org", "c@y.org"]), 220, ["hi"]), 250, ["Hello"]), 250, ["OK"]),
+        250,
+        ["OK"],
+    )
     expect sent(d) == "RCPT TO:<c@y.org>\r\n"
     expect advance(d, reply(550, ["No such user here"])) is Err(SmtpError.Refused(code, message))
     expect code == 550
@@ -89,7 +101,11 @@ test aMessageOverTheServersSizeIsRefusedBeforeItIsSent {
 }
 
 test aServerThatSaysNoToTheBodyRefuses {
-    d = go(go(go(go(go(begin(plain(None, None), ["b@y.org"]), 220, ["hi"]), 250, ["Hello"]), 250, ["OK"]), 250, ["OK"]), 354, ["go ahead"])
+    d = go(
+        go(go(go(go(begin(plain(None, None), ["b@y.org"]), 220, ["hi"]), 250, ["Hello"]), 250, ["OK"]), 250, ["OK"]),
+        354,
+        ["go ahead"],
+    )
     expect sent(d) == "the message"
     expect advance(d, reply(552, ["Message size exceeds limit"])) is Err(SmtpError.Refused(code, message))
     expect code == 552
@@ -101,15 +117,33 @@ private {
     }
 
     startTls(user: string, password: string) -> SmtpTarget {
-        return SmtpTarget(host: "mail.example", port: 587, security: SmtpSecurity.StartTls, user: user, password: password)
+        return SmtpTarget(
+            host: "mail.example",
+            port: 587,
+            security: SmtpSecurity.StartTls,
+            user: user,
+            password: password,
+        )
     }
 
     implicit(user: string, password: string) -> SmtpTarget {
-        return SmtpTarget(host: "mail.example", port: 465, security: SmtpSecurity.Implicit, user: user, password: password)
+        return SmtpTarget(
+            host: "mail.example",
+            port: 465,
+            security: SmtpSecurity.Implicit,
+            user: user,
+            password: password,
+        )
     }
 
     plain(user: string | None, password: string | None) -> SmtpTarget {
-        return SmtpTarget(host: "localhost", port: 1025, security: SmtpSecurity.Plain, user: user, password: password)
+        return SmtpTarget(
+            host: "localhost",
+            port: 1025,
+            security: SmtpSecurity.Plain,
+            user: user,
+            password: password,
+        )
     }
 
     begin(target: SmtpTarget, to: List<string>) -> Dialogue {

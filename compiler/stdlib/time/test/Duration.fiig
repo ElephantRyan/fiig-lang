@@ -1,0 +1,13 @@
+use fiig.time.duration
+
+test durationUnitsAreMilliseconds {
+    expect duration.seconds(1) == 1000
+    expect duration.minutes(1) == 60000
+    expect duration.hours(1) == 3600000
+    expect duration.days(1) == 86400000
+}
+
+test durationDaysArithmetic {
+    expect duration.days(7) == 604800000
+    expect duration.hours(36) == duration.days(1) + duration.hours(12)
+}

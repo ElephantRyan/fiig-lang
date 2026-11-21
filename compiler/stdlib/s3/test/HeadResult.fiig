@@ -1,13 +1,21 @@
 use fiig.http
 
 test aHeadReplyIsTheObjectsInfo {
-    reply = http.Reply(status: 200, headers: [http.Header(name: "content-length", value: "1234"), http.Header(name: "Content-Type", value: "image/png"), http.Header(name: "ETag", value: "\"abc123\"")], body: <<>>)
+    reply = http.Reply(
+        status: 200,
+        headers: [http.Header(name: "content-length", value: "1234"), http.Header(name: "Content-Type", value: "image/png"), http.Header(name: "ETag", value: "\"abc123\"")],
+        body: <<>>,
+    )
     expect headResult(reply) is Ok(info)
     expect info == ObjectInfo(size: 1234, contentType: "image/png", etag: "\"abc123\"")
 }
 
 test headerNamesAreReadInAnyCase {
-    reply = http.Reply(status: 200, headers: [http.Header(name: "CONTENT-LENGTH", value: "7"), http.Header(name: "content-type", value: "text/plain"), http.Header(name: "etag", value: "e")], body: <<>>)
+    reply = http.Reply(
+        status: 200,
+        headers: [http.Header(name: "CONTENT-LENGTH", value: "7"), http.Header(name: "content-type", value: "text/plain"), http.Header(name: "etag", value: "e")],
+        body: <<>>,
+    )
     expect headResult(reply) is Ok(info)
     expect info == ObjectInfo(size: 7, contentType: "text/plain", etag: "e")
 }
@@ -18,7 +26,11 @@ test noLengthIsMalformed {
 }
 
 test aLengthThatIsntANumberIsMalformed {
-    reply = http.Reply(status: 200, headers: [http.Header(name: "Content-Length", value: "lots")], body: <<>>)
+    reply = http.Reply(
+        status: 200,
+        headers: [http.Header(name: "Content-Length", value: "lots")],
+        body: <<>>,
+    )
     expect headResult(reply) is Err(S3Error.Http(failure))
 }
 

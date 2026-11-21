@@ -1,5 +1,10 @@
 test aPlainMailGoesAs7bit {
-    mail = Mail(from: "a@x.org", to: ["b@y.org", "c@y.org"], subject: "Hello", body: "Hi\r\n.a dot line\r\nbye")
+    mail = Mail(
+        from: "a@x.org",
+        to: ["b@y.org", "c@y.org"],
+        subject: "Hello",
+        body: "Hi\r\n.a dot line\r\nbye",
+    )
     head = "From: a@x.org\r\nTo: b@y.org, c@y.org\r\nSubject: Hello\r\nDate: D\r\nMessage-ID: <t@x.org>\r\n"
     head2 = "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n"
     expect textOf(mailData(mail, "D", "t@x.org")) == "${head}${head2}\r\nHi\r\n..a dot line\r\nbye\r\n.\r\n"
@@ -7,7 +12,9 @@ test aPlainMailGoesAs7bit {
 
 test lineEndingsAreAllCrlf {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "one\ntwo\rthree\r\nfour\n")
-    expect textOf(mailData(mail, "D", "t@x.org")).endsWith("\r\none\r\ntwo\r\nthree\r\nfour\r\n.\r\n")
+    expect textOf(mailData(mail, "D", "t@x.org")).endsWith(
+        "\r\none\r\ntwo\r\nthree\r\nfour\r\n.\r\n",
+    )
 }
 
 test anEmptyBodyIsOneEmptyLine {

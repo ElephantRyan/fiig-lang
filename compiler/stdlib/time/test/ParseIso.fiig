@@ -1,0 +1,234 @@
+test parseIsoReadsWhatFormatIsoWritesat1970_1_1_0_0_0 {
+    expect parseIso("1970-01-01T00:00:00.000Z") is Ok(ms)
+    expect ms == 0
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1969_12_31_23_59_59_999 {
+    expect parseIso("1969-12-31T23:59:59.999Z") is Ok(ms)
+    expect ms == -1
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1969_12_31_0_0_0 {
+    expect parseIso("1969-12-31T00:00:00.000Z") is Ok(ms)
+    expect ms == -86400000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1900_1_1_0_0_0 {
+    expect parseIso("1900-01-01T00:00:00.000Z") is Ok(ms)
+    expect ms == -2208988800000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1900_2_28_12_0_0 {
+    expect parseIso("1900-02-28T12:00:00.000Z") is Ok(ms)
+    expect ms == -2203934400000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1900_3_1_0_0_0 {
+    expect parseIso("1900-03-01T00:00:00.000Z") is Ok(ms)
+    expect ms == -2203891200000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2000_2_29_23_59_59_999 {
+    expect parseIso("2000-02-29T23:59:59.999Z") is Ok(ms)
+    expect ms == 951868799999
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2000_3_1_0_0_0 {
+    expect parseIso("2000-03-01T00:00:00.000Z") is Ok(ms)
+    expect ms == 951868800000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2024_2_29_6_7_8_9 {
+    expect parseIso("2024-02-29T06:07:08.009Z") is Ok(ms)
+    expect ms == 1709186828009
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2026_11_20_13_59_58 {
+    expect parseIso("2026-11-20T13:59:58.000Z") is Ok(ms)
+    expect ms == 1795183198000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2026_12_31_23_59_59_999 {
+    expect parseIso("2026-12-31T23:59:59.999Z") is Ok(ms)
+    expect ms == 1798761599999
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2027_1_1_0_0_0 {
+    expect parseIso("2027-01-01T00:00:00.000Z") is Ok(ms)
+    expect ms == 1798761600000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2100_2_28_0_0_0 {
+    expect parseIso("2100-02-28T00:00:00.000Z") is Ok(ms)
+    expect ms == 4107456000000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2100_3_1_0_0_0 {
+    expect parseIso("2100-03-01T00:00:00.000Z") is Ok(ms)
+    expect ms == 4107542400000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2400_2_29_0_0_0 {
+    expect parseIso("2400-02-29T00:00:00.000Z") is Ok(ms)
+    expect ms == 13574563200000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1600_2_29_0_0_0 {
+    expect parseIso("1600-02-29T00:00:00.000Z") is Ok(ms)
+    expect ms == -11670998400000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1582_10_15_0_0_0 {
+    expect parseIso("1582-10-15T00:00:00.000Z") is Ok(ms)
+    expect ms == -12219292800000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1000_1_1_0_0_0 {
+    expect parseIso("1000-01-01T00:00:00.000Z") is Ok(ms)
+    expect ms == -30610224000000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1_1_1_0_0_0 {
+    expect parseIso("0001-01-01T00:00:00.000Z") is Ok(ms)
+    expect ms == -62135596800000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat9999_12_31_23_59_59_999 {
+    expect parseIso("9999-12-31T23:59:59.999Z") is Ok(ms)
+    expect ms == 253402300799999
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2038_1_19_3_14_7 {
+    expect parseIso("2038-01-19T03:14:07.000Z") is Ok(ms)
+    expect ms == 2147483647000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2001_9_9_1_46_40 {
+    expect parseIso("2001-09-09T01:46:40.000Z") is Ok(ms)
+    expect ms == 1000000000000
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1923_7_4_5_6_7_8 {
+    expect parseIso("1923-07-04T05:06:07.008Z") is Ok(ms)
+    expect ms == -1467312832992
+}
+
+test parseIsoReadsWhatFormatIsoWritesat8000_6_15_12_30_0_500 {
+    expect parseIso("8000-06-15T12:30:00.500Z") is Ok(ms)
+    expect ms == 190302784200500
+}
+
+test parseIsoAnOffsetIsFoldedIntoUtc {
+    expect parseIso("2026-11-20T15:59:58+02:00") is Ok(ms)
+    expect ms == 1795183198000
+}
+
+test parseIsoANegativeOffset {
+    expect parseIso("2026-11-20T08:29:58-05:30") is Ok(ms)
+    expect ms == 1795183198000
+}
+
+test parseIsoAFractionIsKept {
+    expect parseIso("2026-11-20T13:59:58.5Z") is Ok(ms)
+    expect ms == 1795183198500
+}
+
+test parseIsoAFractionPastMillisecondsIsCut {
+    expect parseIso("2026-11-20T13:59:58.123456789Z") is Ok(ms)
+    expect ms == 1795183198123
+}
+
+test parseIsoAShortFraction {
+    expect parseIso("2026-11-20T13:59:58.07Z") is Ok(ms)
+    expect ms == 1795183198070
+}
+
+test parseIsoLowerCaseTAndZ {
+    expect parseIso("2026-11-20t13:59:58z") is Ok(ms)
+    expect ms == 1795183198000
+}
+
+test parseIsoASpaceForTheT {
+    expect parseIso("2026-11-20 13:59:58Z") is Ok(ms)
+    expect ms == 1795183198000
+}
+
+test parseIsoAnOffsetAcrossMidnight {
+    expect parseIso("2026-11-21T01:59:58+12:00") is Ok(ms)
+    expect ms == 1795183198000
+}
+
+test parseIsoAnOffsetIntoThePreviousYear {
+    expect parseIso("2027-01-01T00:30:00+01:00") is Ok(ms)
+    expect ms == 1798759800000
+}
+
+test parseIsoZeroOffset {
+    expect parseIso("2026-11-20T13:59:58+00:00") is Ok(ms)
+    expect ms == 1795183198000
+}
+
+test parseIsoRefusesAnEmptyString {
+    expect parseIso("") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesADateAlone {
+    expect parseIso("2026-11-20") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesNoZone {
+    expect parseIso("2026-11-20T13:59:58") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesAZoneWithoutAColon {
+    expect parseIso("2026-11-20T13:59:58+0200") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesAWordForAZone {
+    expect parseIso("2026-11-20T13:59:58UTC") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesALeapSecond {
+    expect parseIso("2016-12-31T23:59:60Z") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesADayThatDoesNotExist {
+    expect parseIso("2026-02-29T00:00:00Z") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesAMonthThatDoesNotExist {
+    expect parseIso("2026-13-01T00:00:00Z") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesASignInAField {
+    expect parseIso("2026-11-+0T13:59:58Z") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesALetterInAField {
+    expect parseIso("2026-1a-20T13:59:58Z") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesAFractionWithNoDigits {
+    expect parseIso("2026-11-20T13:59:58.Z") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesAWrongSeparator {
+    expect parseIso("2026/11/20T13:59:58Z") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesAnOffsetHourOfTwentyFour {
+    expect parseIso("2026-11-20T13:59:58+24:00") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesAnOffsetMinuteOfSixty {
+    expect parseIso("2026-11-20T13:59:58+01:60") is Err(TimeError.Invalid(reason))
+}
+
+test parseIsoRefusesAnOffsetThatLeavesTheRange {
+    expect parseIso("0000-01-01T00:00:00+05:00") is Err(TimeError.OutOfRange(reason))
+}
+
+test parseIsoNeverRepeatsTheText {
+    expect parseIso("secret-9999") is Err(TimeError.Invalid(reason))
+    expect reason.contains("secret") == false
+}
