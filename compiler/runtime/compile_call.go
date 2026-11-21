@@ -75,8 +75,7 @@ func compileDeclCall(e *syntax.CallExpr, name string, args []cexpr, fallback cex
 		for i, a := range e.Args {
 			v, earlyReturn, fault := args[i](in, ctx, env)
 			if fault != nil || earlyReturn {
-				// As evalParamArgs: the early return carries no value.
-				return nil, earlyReturn, fault
+				return v, earlyReturn, fault
 			}
 			if a.Name != "" {
 				j := 0
@@ -122,8 +121,7 @@ func compileMethodCall(e *syntax.CallExpr, target, method string, args []cexpr, 
 		for i, a := range args {
 			v, earlyReturn, fault := a(in, ctx, env)
 			if fault != nil || earlyReturn {
-				// As evalArgsPositional: the early return carries no value.
-				return nil, earlyReturn, fault
+				return v, earlyReturn, fault
 			}
 			argVals[i] = v
 		}

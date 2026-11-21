@@ -145,9 +145,9 @@ func (in *Interp) callCrypto(ctx context.Context, fa *syntax.FieldAccess, args [
 	if !ok || body == nil {
 		return nil, false, Faultf("the prelude crypto group has no formula %q", fa.Field)
 	}
-	vals, earlyReturn, fault := in.evalArgsPositional(ctx, args, env)
+	vals, early, earlyReturn, fault := in.evalArgsPositional(ctx, args, env)
 	if fault != nil || earlyReturn {
-		return nil, earlyReturn, fault
+		return early, earlyReturn, fault
 	}
 	if vals, fault = placeArgs("crypto."+fa.Field, m.ParamNames(), m.Required(), args, vals); fault != nil {
 		return nil, false, fault

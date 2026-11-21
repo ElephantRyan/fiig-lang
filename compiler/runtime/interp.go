@@ -557,7 +557,7 @@ type condResult struct {
 func (in *Interp) evalCond(ctx context.Context, e syntax.Expr, env *Env) (condResult, bool, *Fault) {
 	val, earlyReturn, fault := in.evalExpr(ctx, e, env)
 	if fault != nil || earlyReturn {
-		return condResult{}, earlyReturn, fault
+		return condResult{value: val}, earlyReturn, fault
 	}
 	b, ok := val.(Bool)
 	if !ok {
