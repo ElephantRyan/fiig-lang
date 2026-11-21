@@ -33,6 +33,10 @@ type Lexer struct {
 	stack    []context
 	errors   []Error
 	comments []Comment
+	// names holds each identifier once, so every use of a name shares one
+	// string, and the interpreter's name checks compare pointers (ADR 0115
+	// §3).
+	names map[string]string
 }
 
 // Error is a lexical error with the source span it occurred at.
@@ -223,6 +227,14 @@ func (l *Lexer) scanIdentOrKeyword(start Pos) Token {
 	text := sb.String()
 	if kind, ok := keywords[text]; ok {
 		return Token{Kind: kind, Text: text, Start: start, End: l.here()}
+	}
+	if name, ok := l.names[text]; ok {
+		text = name
+	} else {
+		if l.names == nil {
+			l.names = make(map[string]string)
+		}
+		l.names[text] = text
 	}
 	return Token{Kind: Ident, Text: text, Start: start, End: l.here()}
 }
