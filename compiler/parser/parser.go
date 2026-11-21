@@ -58,7 +58,7 @@ func Parse(src string) (*syntax.File, []Error) {
 		errs = append(errs, Error{Msg: e.Msg, At: e.At})
 	}
 	errs = append(errs, p.errors...)
-	return f, errs
+	return f, withHint(toks, errs)
 }
 
 func (p *Parser) Errors() []Error { return p.errors }
@@ -78,7 +78,7 @@ func ParseWithComments(src string) (*syntax.File, []lexer.Comment, []Error) {
 		errs = append(errs, Error{Msg: e.Msg, At: e.At})
 	}
 	errs = append(errs, p.errors...)
-	return f, comments, errs
+	return f, comments, withHint(toks, errs)
 }
 
 // ---- token stream helpers -----------------------------------------------

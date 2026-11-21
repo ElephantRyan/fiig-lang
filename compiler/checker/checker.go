@@ -1213,6 +1213,13 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 		c.inForm = form
 		return
 	}
+	// A declaration calling itself: a rule, gateway or workflow may not, and
+	// the way out is the one ADR 0054 §6 gives, which the plain message
+	// doesn't say.
+	if c.entry != nil && callee == c.entry {
+		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "%s %q may not call itself, even through its own helpers; recursion belongs in a private helper that calls only itself (ADR 0054 §6)", c.callerKind, calleeName)
+		return
+	}
 	if c.callerKind == kindWorkflow && calleeKind == kindGateway {
 		c.report(at, "B12", "workflow may not call gateway %q; call it from an activity, and the activity from the workflow, so the workflow doesn't depend on how the step is done (ADR 0107)", calleeName)
 		return

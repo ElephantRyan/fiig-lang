@@ -427,6 +427,10 @@ rule largeOrderIds(orders: List<Order>, threshold: int) -> List<string> {
 best = scores.sortedDescending()   // stable; sorted() ascends
 top = best.firstOrNone()           // int | None; first() faults when empty
 seen = best.contains(10)           // ==, so floats use math.containsClose
+where = best.indexOfOrNone(10)     // int | None (ADR 0129)
+page = best.drop(20).take(10)      // clamped to the length; reverse() and distinct() too
+label = "${n}".padLeft(5, "0")     // "00007": width in grapheme clusters (ADR 0129)
+levels = Level.values()            // an enum's variants in order, when none carries data
 // Sorting records needs a key: evaluated once per element, stable, and
 // limited to calls with no effect (ADR 0100). Ties keep their order.
 ranked = sorted(book in books): book.score descending

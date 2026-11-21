@@ -275,6 +275,18 @@ func (in *Interp) evalQualifiedCall(ctx context.Context, fa *syntax.FieldAccess,
 					return in.constructEnum(ctx, enumDecl, v, args, env)
 				}
 			}
+			// ADR 0129: `Level.values()`, every variant in order.
+			if fa.Field == "values" && len(args) == 0 {
+				all := make([]Value, 0, len(enumDecl.Variants))
+				for _, v := range enumDecl.Variants {
+					ev, _, fault := in.constructEnum(ctx, enumDecl, v, nil, env)
+					if fault != nil {
+						return nil, false, fault
+					}
+					all = append(all, ev)
+				}
+				return List{Elems: all}, false, nil
+			}
 			return nil, false, Faultf("%s has no variant %q", targetIdent.Name, fa.Field)
 		}
 		// targetIdent.Name is a package alias (Milestone 6, ADR 0032/

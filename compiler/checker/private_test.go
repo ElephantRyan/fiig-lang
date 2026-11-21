@@ -117,6 +117,19 @@ func TestSelfCallFollowsTheMatrix(t *testing.T) {
 	}
 }
 
+// The refusal of a self-call says where the recursion goes (docs/improvement-
+// ideas.md B2), for each kind that can't call itself.
+func TestSelfCallMessageSaysWhereRecursionGoes(t *testing.T) {
+	cases := []struct{ src, rule string }{
+		{"rule fact(n: int) -> int {\n    return fact(n - 1)\n}", "B7"},
+		{"gateway poll(n: int) -> int\n    requires Database\n{\n    return poll(n)\n}", "B3"},
+		{"workflow again(n: int) -> int {\n    return again(n)\n}", "B8"},
+	}
+	for _, c := range cases {
+		wantDiag(t, checkSrc(t, c.src), c.rule, "recursion belongs in a private helper that calls only itself")
+	}
+}
+
 // TestHelperInheritsItsFilesCompositionRules is §4/§5: a rule's helper is
 // held to the rule's matrix for calls that leave the file.
 func TestHelperInheritsItsFilesCompositionRules(t *testing.T) {

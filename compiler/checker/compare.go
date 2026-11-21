@@ -66,16 +66,16 @@ func (c *checker) checkComparable(e *syntax.BinaryExpr, left, right types.Type) 
 // the sorts order elements, so theirs must be ordered (M3).
 func (c *checker) checkListElement(elem types.Type, method string, start lexer.Pos) {
 	switch method {
-	case "contains":
+	case "contains", "distinct", "indexOfOrNone":
 		if what := c.handle(elem); what != "" {
-			c.report(start, "M1", "List<%s>.contains compares elements with ==, and %s is not comparable; it is a handle, not a value", elem, what)
+			c.report(start, "M1", "List<%s>.%s compares elements with ==, and %s is not comparable; it is a handle, not a value", elem, method, what)
 		} else if types.HoldsResult(elem, c.resolveField) {
-			c.report(start, "M1", "List<%s>.contains compares elements with ==, and %s holds a Result; loop over the list and match each one", elem, elem)
+			c.report(start, "M1", "List<%s>.%s compares elements with ==, and %s holds a Result; loop over the list and match each one", elem, method, elem)
 		} else if path, ok := c.floatPath(elem, elem.String(), map[syntax.Decl]bool{}); ok {
 			if path == elem.String() {
-				c.report(start, "M1", "List<float>.contains would compare floats with ==, and two floats that should agree can differ in the last bit (use math.containsClose)")
+				c.report(start, "M1", "List<float>.%s would compare floats with ==, and two floats that should agree can differ in the last bit (use math.containsClose)", method)
 			} else {
-				c.report(start, "M1", "List<%s>.contains compares elements with ==, and %s is float; loop over the list and compare with math.closeTo", elem, path)
+				c.report(start, "M1", "List<%s>.%s compares elements with ==, and %s is float; loop over the list and compare with math.closeTo", elem, method, path)
 			}
 		}
 	case "sorted", "sortedDescending":

@@ -628,6 +628,17 @@ func (c *checker) inferQualifiedCall(fa *syntax.FieldAccess, args []syntax.Arg, 
 					return types.Named{Name: enumDecl.Name, Decl: enumDecl}
 				}
 			}
+			// ADR 0129: `Level.values()` is every variant, in order, for an
+			// enum none of whose variants carries data.
+			if fa.Field == "values" && len(args) == 0 {
+				for _, v := range enumDecl.Variants {
+					if len(v.Fields) > 0 {
+						c.report(start, "", "%s.values() lists variants that carry no data, and %s has a variant %s that does (ADR 0129)", enumDecl.Name, enumDecl.Name, v.Name)
+						return types.Unknown{}
+					}
+				}
+				return types.Generic{Name: "List", Args: []types.Type{types.Named{Name: enumDecl.Name, Decl: enumDecl}}}
+			}
 			c.report(start, "", "%s has no variant %q", targetIdent.Name, fa.Field)
 			return types.Unknown{}
 		}

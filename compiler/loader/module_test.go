@@ -100,6 +100,34 @@ func TestTheLayoutsRules(t *testing.T) {
 	}
 }
 
+// One run reports every failing package that can be built, not only the first
+// (docs/improvement-ideas.md B4): two independent packages that both fail are
+// both reported, and a package that imports a failed one waits for the next run.
+func TestEveryFailingPackageIsReportedInOneRun(t *testing.T) {
+	ws := writeTree(t, map[string]string{
+		"app/fiig.pkg.json":        `{"path": "t.app", "kind": "library", "version": "1.0.0"}`,
+		"app/src/aaa/Broken.fiig":  "rule broken() -> int {\n    return missing\n}\n",
+		"app/src/bbb/Broken.fiig":  "rule broken() -> int {\n    return alsoMissing\n}\n",
+		"app/src/ccc/Fine.fiig":    "rule fine() -> int {\n    return 1\n}\n",
+		"app/src/ddd/Needs.fiig":   "use t.app.aaa\n\nconversion needs() -> int {\n    return aaa.broken()\n}\n",
+		"app/src/ddd/Another.fiig": "rule another() -> int {\n    return stillMissing\n}\n",
+	})
+	_, errs := Load(filepath.Join(ws, "app"), nil)
+	var all []string
+	for _, e := range errs {
+		all = append(all, e.Error())
+	}
+	got := strings.Join(all, "\n")
+	for _, want := range []string{`undefined name "missing"`, `undefined name "alsoMissing"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("errors = %v\nwant one containing %q", all, want)
+		}
+	}
+	if strings.Contains(got, "stillMissing") {
+		t.Errorf("errors = %v\na package that imports a failed one was checked anyway", all)
+	}
+}
+
 // ADR 0108: an application declares nothing at the top level; a library's
 // top-level package is its public face.
 func TestAnApplicationHasNoTopLevelDeclarations(t *testing.T) {

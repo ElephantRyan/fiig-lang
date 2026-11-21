@@ -101,6 +101,8 @@ var builtinMethods = map[string]map[string]builtinFunc{
 			}
 			return Str(strings.ReplaceAll(string(recv.(Str)), old, string(args[1].(Str)))), nil
 		},
+		"padLeft":  pad(true),
+		"padRight": pad(false),
 		// ADR 0126: the text as a Secret that prints as Secret(name).
 		"toSecret": func(recv Value, args []Value) (Value, *Fault) {
 			return NewSecret(string(args[0].(Str)), string(recv.(Str))), nil
@@ -232,6 +234,54 @@ var builtinMethods = map[string]map[string]builtinFunc{
 				}
 			}
 			return Bool(false), nil
+		},
+		// ADR 0129: new lists. take and drop clamp to the length, share the
+		// receiver's storage as slice does, and fault on a negative count.
+		"reverse": func(recv Value, _ []Value) (Value, *Fault) {
+			elems := recv.(List).Elems
+			out := make([]Value, len(elems))
+			for i, e := range elems {
+				out[len(elems)-1-i] = e
+			}
+			return List{Elems: out}, nil
+		},
+		"take": func(recv Value, args []Value) (Value, *Fault) {
+			elems := recv.(List).Elems
+			n, f := countArg("take", args[0], len(elems))
+			if f != nil {
+				return nil, f
+			}
+			return List{Elems: elems[:n:n]}, nil
+		},
+		"drop": func(recv Value, args []Value) (Value, *Fault) {
+			elems := recv.(List).Elems
+			n, f := countArg("drop", args[0], len(elems))
+			if f != nil {
+				return nil, f
+			}
+			return List{Elems: elems[n:len(elems):len(elems)]}, nil
+		},
+		// The first of each run of equal elements, in order, by == (a Map
+		// keys by it, so a decimal matches by value).
+		"distinct": func(recv Value, _ []Value) (Value, *Fault) {
+			var seen Map
+			var out []Value
+			for _, e := range recv.(List).Elems {
+				if _, dup := seen.Get(e); dup {
+					continue
+				}
+				seen = seen.Put(e, Bool(true))
+				out = append(out, e)
+			}
+			return List{Elems: out}, nil
+		},
+		"indexOfOrNone": func(recv Value, args []Value) (Value, *Fault) {
+			for i, e := range recv.(List).Elems {
+				if Equal(e, args[0]) {
+					return Int(i), nil
+				}
+			}
+			return None{}, nil
 		},
 		// ADR 0065 §2: a new list, sorted stably. Descending is its own
 		// stable sort, not the ascending one reversed, which would reverse
@@ -405,6 +455,52 @@ func indexArg(kind, method string, arg Value, length int) (int, *Fault) {
 		return 0, Faultf("index %d out of range for %s of length %d", n, kind, length)
 	}
 	return int(n), nil
+}
+
+// countArg is take's and drop's count, clamped to length.
+func countArg(method string, v Value, length int) (int, *Fault) {
+	n, ok := v.(Int)
+	if !ok {
+		return 0, Faultf("List.%s argument must be an int (got %s)", method, v)
+	}
+	if n < 0 {
+		return 0, Faultf("%s(%d): the count is negative", method, n)
+	}
+	if int64(n) > int64(length) {
+		return length, nil
+	}
+	return int(n), nil
+}
+
+// pad is s padded to width grapheme clusters with fill, repeated and its last
+// copy cut to fit (ADR 0129); s as it is when it is already that wide.
+func pad(left bool) builtinFunc {
+	return func(recv Value, args []Value) (Value, *Fault) {
+		s := string(recv.(Str))
+		width, ok := args[0].(Int)
+		if !ok {
+			return nil, Faultf("padLeft/padRight width must be an int (got %s)", args[0])
+		}
+		fill := string(args[1].(Str))
+		if fill == "" {
+			return nil, Faultf("padLeft/padRight: the fill is empty")
+		}
+		have := len(text.GraphemeOffsets(s)) - 1
+		need := int64(width) - int64(have)
+		if need <= 0 {
+			return Str(s), nil
+		}
+		fo := text.GraphemeOffsets(fill)
+		var b strings.Builder
+		for i := int64(0); i < need; i++ {
+			k := int(i % int64(len(fo)-1))
+			b.WriteString(fill[fo[k]:fo[k+1]])
+		}
+		if left {
+			return Str(b.String() + s), nil
+		}
+		return Str(s + b.String()), nil
+	}
 }
 
 func sliceArgs(kind string, args []Value, length int) (int, int, *Fault) {

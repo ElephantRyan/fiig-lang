@@ -100,6 +100,10 @@ var primitiveMethods = map[string]map[string]Method{
 		"replaceAll":         {[]Param{p("old", stringType), p("new", stringType)}, stringType},
 		"toIntOrNone":        {nil, Union{Members: []Type{intType, NoneType{}}}},
 		"toFloatOrNone":      {nil, Union{Members: []Type{Primitive{Name: "float"}, NoneType{}}}},
+		// ADR 0129: width counts grapheme clusters, as length does; the fill
+		// repeats and its last copy is cut to fit.
+		"padLeft":  {[]Param{p("width", intType), p("fill", stringType)}, stringType},
+		"padRight": {[]Param{p("width", intType), p("fill", stringType)}, stringType},
 		// ADR 0126: a value a gateway reads from outside, such as a stored
 		// token, marked as a Secret from there on; legal only in a gateway (S3).
 		"toSecret": {[]Param{p("name", stringType)}, SecretType},
@@ -191,6 +195,14 @@ func listMethods(elem Type) map[string]Method {
 		"contains":         {[]Param{p("element", elem)}, boolType},
 		"sorted":           {nil, list},
 		"sortedDescending": {nil, list},
+		// ADR 0129: a new list, never the receiver changed. take and drop
+		// clamp to the length; distinct keeps the first of equal elements
+		// and, like contains, compares with ==.
+		"reverse":       {nil, list},
+		"take":          {[]Param{p("count", intType)}, list},
+		"drop":          {[]Param{p("count", intType)}, list},
+		"distinct":      {nil, list},
+		"indexOfOrNone": {[]Param{p("element", elem)}, Union{Members: []Type{intType, NoneType{}}}},
 		// ADR 0067 §5: on List<string> only, which the checker enforces.
 		"join": {[]Param{p("separator", stringType)}, stringType},
 	}

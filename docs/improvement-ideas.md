@@ -19,7 +19,7 @@ Sizes: **S** a day or less, **M** a few days, **L** a week or more.
 | `Set<string>` | no such type |
 | list `distinct`, `reverse`, `take`, `indexOf`; `zip` | none exist |
 | listing an enum's variants (`Level.values()`) | no such operation |
-| a map literal `{"a": 1}` | a 7-line parse cascade that never says maps have no literal |
+| a map literal `{"a": 1}` | a 7-line parse cascade. Maps do have a literal, `["a": 1]` and `[:]` (ADR 0065), so I had the syntax wrong; the cascade never said so |
 | a public rule calling itself | refused (B7), by design: see question 1 |
 | a 12-package app with errors in several | `fiig check` reports one failing package per run |
 | a route whose workflow faults, under `fiig serve` | the client gets `{"fault":"division by zero (in boom)"}` and **the server log has no line about it** |
@@ -96,6 +96,18 @@ waits on a tracer that can be scoped to one request (ADR 0128 open question
 | B4 | **`fiig check` reports every failing package** in one run. | S | none |
 | B5 | **A batch of small methods**: string `padLeft`, `padRight`; list `distinct`, `reverse`, `take`, `drop`, `indexOf`; a way to list an enum's variants. Each is a table row and a runtime body, as ADR 0093 did. `Set` and `zip` need a type (a set, a pair) and are their own questions. | M | ADR (one, listing them) |
 | B6 | **Collect time evidence**: when a real program mixes a moment and a span, or a unit, record it against ADR 0123's trigger. | S | none |
+
+**Status (2026-11-21): B2 to B5 are done.** B2: a self-call is refused with
+"recursion belongs in a private helper that calls only itself". B3
+(`compiler/parser/hints.go`): 17 constructs, each one error, and the errors
+before it kept: `&&`, `||`, `!`, `;`, `++`, `--`, `+=` and its kin, `=>`, a
+ternary, a brace map literal (it says `["a": 1]`), a C-style `for`, `elif`,
+`switch`, `const`, `import`, `function`, `try`. B4: `fiig check` reports every
+failing package, and leaves one that imports a failed package for the next
+run. B5 is ADR 0129 (Proposed), with `Set` and `zip` left out as their own
+questions. A parse error still lets the checker run on the partial tree, which
+adds a follow-on line (a type mismatch after the map-literal hint); skipping
+the checker for a file that didn't parse is a small follow-up.
 
 ### C. Data
 

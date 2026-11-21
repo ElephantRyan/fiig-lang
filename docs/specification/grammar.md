@@ -736,7 +736,10 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
   `toBase64Url`; and ADR 0085's `xor`, which faults on two lengths), and `List<T>` (`length`, `at`,
   `atOrNone`, `slice`, and ADR 0065's `first`, `firstOrNone`, `last`,
   `lastOrNone`, `contains`, `sorted`, `sortedDescending`, and `join` on a
-  `List<string>`). Anything else is K1. A string's `length` and `slice`
+  `List<string>`; ADR 0129's `reverse`, `take`, `drop`, `distinct`,
+  `indexOfOrNone`, and a string's `padLeft` and `padRight`). `Level.values()`
+  is the variants of an enum that carries no data, in order (ADR 0129).
+  Anything else is K1. A string's `length` and `slice`
   count grapheme clusters, `codePointCount` code points, and its bytes are
   `utf8().length()`; searching matches code points (ADR 0067 §1, §5). Models and enums have no methods. `contains` needs a comparable
   element (M1; floats use `math.containsClose`) and the sorts an ordered one

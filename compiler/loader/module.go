@@ -101,10 +101,26 @@ func buildModule(fsys fs.FS, modulePath, where string, deps types.Packages, prov
 		return nil, errs
 	}
 
+	// A package that fails is reported and the others still checked, so one
+	// run shows every package's errors. A package that imports a failed one is
+	// left for the next run, since its imports can't be built (B4 in
+	// docs/improvement-ideas.md).
+	failed := map[*layout.Package]bool{}
+	var allErrs []error
 	for _, p := range order {
 		path := layout.PathOf(modulePath, p.Folder)
 		if p.Folder == "" && skipRoot {
 			continue
+		}
+		if !lenient {
+			blocked := false
+			for _, sib := range imports[p] {
+				blocked = blocked || failed[sib]
+			}
+			if blocked {
+				failed[p] = true
+				continue
+			}
 		}
 		pkgDeps := types.Packages{}
 		for k, v := range deps {
@@ -134,7 +150,10 @@ func buildModule(fsys fs.FS, modulePath, where string, deps types.Packages, prov
 			errs = append(errs, prefix(fmt.Errorf("%s", d)))
 		}
 		if len(errs) > 0 && !lenient {
-			return nil, errs
+			allErrs = append(allErrs, errs...)
+			errs = nil
+			failed[p] = true
+			continue
 		}
 		// Lenient (an editor's load): build it anyway, so its dependents
 		// still resolve; the editor checks each package itself.
@@ -147,6 +166,9 @@ func buildModule(fsys fs.FS, modulePath, where string, deps types.Packages, prov
 		if p.Folder != "" {
 			b.ordered = append(b.ordered, ModulePackage{Package: pkg, Layout: p})
 		}
+	}
+	if len(allErrs) > 0 {
+		return nil, allErrs
 	}
 	if skipRoot {
 		// The top-level package's files still count for the allowlist.
