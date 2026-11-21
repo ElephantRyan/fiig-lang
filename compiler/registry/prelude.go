@@ -59,6 +59,16 @@ func Prelude() []*Card {
 		}
 		cards = append(cards, c)
 	}
+	// ADR 0116: every compress member is pure.
+	for _, name := range types.CompressFormulaNames() {
+		m, _ := types.CompressFormula(name)
+		c := &Card{Name: "compress." + name, Kind: "formula", Group: types.CompressGroup, Catalog: Default, Source: PreludeSource,
+			Pure: true, Returns: m.Result.String()}
+		for _, p := range m.Params {
+			c.Params = append(c.Params, Param{Name: p.Name, Type: p.Type.String()})
+		}
+		cards = append(cards, c)
+	}
 	return cards
 }
 

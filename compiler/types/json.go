@@ -22,8 +22,8 @@ var JsonErrorDecl = preludeDecls["JsonError"].(*syntax.EnumDecl)
 // JsonErrorType is `JsonError` as a type.
 var JsonErrorType = Named{Name: "JsonError", Decl: JsonErrorDecl}
 
-// IsPreludeGroup reports whether name is a prelude group, math, json, or
-// crypto: the names every file sees without a `use`.
+// IsPreludeGroup reports whether name is a prelude group, math, json,
+// crypto, or compress: the names every file sees without a `use`.
 func IsPreludeGroup(name string) bool {
-	return name == MathGroup || name == JsonGroup || name == CryptoGroup
+	return name == MathGroup || name == JsonGroup || name == CryptoGroup || name == CompressGroup
 }

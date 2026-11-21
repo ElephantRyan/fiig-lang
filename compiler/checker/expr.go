@@ -238,7 +238,7 @@ func (c *checker) inferFieldAccess(e *syntax.FieldAccess, env map[string]types.T
 				c.mathMember(e)
 				return types.Unknown{}
 			}
-			if targetIdent.Name == types.JsonGroup || targetIdent.Name == types.CryptoGroup {
+			if targetIdent.Name == types.JsonGroup || targetIdent.Name == types.CryptoGroup || targetIdent.Name == types.CompressGroup {
 				start, _ := e.Bounds()
 				c.report(start, "", "%s.%s is a formula of the prelude %s group; call it, e.g. %s.%s(...)", targetIdent.Name, e.Field, targetIdent.Name, targetIdent.Name, e.Field)
 				return types.Unknown{}
@@ -605,6 +605,9 @@ func (c *checker) inferQualifiedCall(fa *syntax.FieldAccess, args []syntax.Arg, 
 		}
 		if targetIdent.Name == types.CryptoGroup {
 			return c.callCrypto(fa.Field, args, start, env)
+		}
+		if targetIdent.Name == types.CompressGroup {
+			return c.callCompress(fa.Field, args, start, env)
 		}
 		if g, found := c.formulasImport(targetIdent.Name); found {
 			return c.callFormula(g, targetIdent.Name, fa.Field, args, start, env)
