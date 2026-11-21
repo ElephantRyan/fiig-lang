@@ -71,10 +71,13 @@ doesn't have to discover them.
 - **One content type per route**, and no `Accept` negotiation (ADR 0069
   open question 4). A non-JSON body is a `string` or `bytes` the program
   parses or writes itself; there's no XML library (open question 5).
-- **SHA-256 is the only hash** (ADR 0075 §6): no SHA-1 or SHA-512 HMACs
-  (Twilio signs with SHA-1), no encryption, no public-key signatures (so
-  no RS256 JWTs), and no HKDF. A `Secret` can't be read as base64 or hex
-  outside a gateway, as Standard Webhooks' `whsec_` secrets need.
+- **No encryption and no public-key signatures** (ADR 0075 §6): `crypto`
+  has SHA-1, SHA-256 and SHA-512 with their HMACs, and HKDF-SHA-256, but
+  no encryption (AES-GCM) and no public-key signatures (Ed25519, RSA, so
+  no RS256 JWTs). SHA-1 is only for checking signatures a third party
+  already makes with it, such as Twilio's. A `Secret` can't be read as
+  base64 or hex outside a gateway, as Standard Webhooks' `whsec_` secrets
+  need.
 - **`crypto.equal` isn't enforced:** comparing a signature with `==` checks
   clean and leaks timing (ADR 0075 §3).
 - **Two models, or `int | decimal`, in one union** decode by the order
@@ -93,10 +96,10 @@ doesn't have to discover them.
   one object. No listing (it needs an XML reader), multipart upload,
   presigned URLs, ranges, or copy, and the whole object is held in memory,
   so a very large one isn't practical until `fiig.http` can stream.
-- **No connection outlives every call** (ADR 0109 open question 2): a
-  connection is kept idle between calls, but nothing can hold a
-  subscription, Postgres `LISTEN`, or an HTTP/2 connection shared by
-  concurrent requests.
+- **Only Kafka uses a session** (ADR 0114, built by ADR 0117): the
+  runtime can own a connection past every call and run a protocol written
+  in fiig over it, but no Redis subscription, Postgres `LISTEN`, or HTTP/2
+  connection is built on one yet.
 - **No limit on a reply's size** (ADR 0074 open question 2): the timeout
   bounds how long a reply takes, not how much memory it uses.
 - **Request limits are per service, not per route** (ADR 0076 open
@@ -109,8 +112,9 @@ doesn't have to discover them.
 - **A `bytes` field is always written as standard base64** (ADR 0078
   open question 1): an API that demands base64url for a field (Gmail's
   `raw`) needs a `string` field filled with `toBase64Url()`.
-- **No streaming JSON and no pretty printing** (ADR 0073 §9): a decode reads
-  the whole input, and `json.encode` writes no whitespace.
+- **No streaming JSON** (ADR 0073 §9): a decode reads the whole input,
+  and `json.encode` and `json.encodePretty` build the whole output in
+  memory.
 
 ## Configuration
 
@@ -164,7 +168,9 @@ doesn't have to discover them.
 
 ## Tooling
 
-- **The interpreter walks the tree.** It isn't tuned for throughput.
+- **The interpreter isn't a compiler** (ADR 0115): bodies are compiled to
+  closures with unboxed ints, a few times faster than walking the tree,
+  but there is no native build; a byte loop costs about 24 ns a byte.
 - **IntelliJ IDEA 2026.2 and 2026.3 only** (ADR 0090 §1a): the plugin
   ([docs/intellij.md](intellij.md)) adds each IntelliJ release as it
   ships, and supports none before 2026.2. Other editors can use `fiig
