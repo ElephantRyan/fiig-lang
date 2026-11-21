@@ -384,27 +384,25 @@ func (in *Interp) evalFor(ctx context.Context, s *syntax.ForStmt, env *Env) (Val
 	if fault != nil || earlyReturn {
 		return iterVal, earlyReturn, fault
 	}
-	var elems []Value
+	var count int
+	var elem func(i int) Value
 	switch it := iterVal.(type) {
 	case Map:
 		return in.evalMapFor(ctx, s, it, env)
 	case List:
-		elems = it.Elems
+		count, elem = len(it.Elems), func(i int) Value { return it.Elems[i] }
 	case Bytes:
-		// ADR 0058 §1: each byte as an int.
-		elems = make([]Value, len(it.B))
-		for i, x := range it.B {
-			elems[i] = Int(x)
-		}
+		// ADR 0058 §1: each byte as an int, read in place (ADR 0115 §4).
+		count, elem = len(it.B), func(i int) Value { return Int(it.B[i]) }
 	default:
 		return nil, false, Faultf("for ... in iterable is not a List or bytes (got %s)", iterVal)
 	}
-	for _, elem := range elems {
+	for i := range count {
 		if f := checkCancelled(ctx); f != nil {
 			return nil, false, f
 		}
 		bodyEnv := env.Child()
-		bodyEnv.Bind(s.Var, elem)
+		bodyEnv.Bind(s.Var, elem(i))
 		val, jumped, fault := in.evalBlock(ctx, s.Body, bodyEnv, false)
 		if exit, out, outJumped, outFault := loopExit(val, jumped, fault, s.Label); exit {
 			return out, outJumped, outFault
