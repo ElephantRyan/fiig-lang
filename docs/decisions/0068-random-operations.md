@@ -220,6 +220,9 @@ read the clock or draw.
 `Random`'s four signatures join a compiler-known table beside `Socket`'s
 (ADR 0060 §3), so `Random.int("a", 2)` is A1 and `Random.choose(xs)` is K1
 with the four names listed. `Clock` stays the one untyped primitive.
+*(Amended 2026-11-20, with ADR 0123: `Clock.now()` is typed `int`, Unix
+milliseconds, and any other `Clock` operation is K1. `Clock` was left
+untyped when it had no corpus call; the standard library now has nine.)*
 
 **Every builtin takes named arguments.** Until now a builtin method or
 primitive operation took positional arguments only (`checkMethodArgs`

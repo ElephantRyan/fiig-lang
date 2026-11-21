@@ -44,6 +44,22 @@ func TestRequiringALocalEffectIsP8(t *testing.T) {
 	}
 }
 
+// ADR 0068 §5 (amended): Clock.now() is an int of Unix milliseconds, so the checker
+// sees what a program does with it.
+func TestClockNowIsAnInt(t *testing.T) {
+	if diags := checkSrc(t, "activity a(timeoutMillis: int) -> int {\n    return Clock.now() + timeoutMillis\n}"); len(diags) != 0 {
+		t.Fatalf("diags = %v, want none", diags)
+	}
+	wantDiag(t, checkSrc(t, "activity a() -> string {\n    return Clock.now()\n}"), "A1", "")
+	wantDiag(t, checkSrc(t, "activity a() -> int {\n    return Clock.now() + \"x\"\n}"), "A1", "doesn't join strings")
+	wantDiag(t, checkSrc(t, "activity a() -> int {\n    return Clock.today()\n}"),
+		"K1", `Clock has no operation "today"; its operations are now()`)
+	diags := checkSrc(t, "activity a() -> int {\n    return Clock.now(1)\n}")
+	if len(diags) != 1 || !strings.Contains(diags[0].Msg, "Clock.now takes 0 argument(s), got 1") {
+		t.Fatalf("diags = %v", diags)
+	}
+}
+
 func TestRandomOperationsAreTyped(t *testing.T) {
 	wantDiag(t, checkSrc(t, "activity a(xs: List<int>) -> int {\n    return Random.choose(xs)\n}"),
 		"K1", `Random has no operation "choose"; its operations are bytes(), float(), int(), uuid()`)

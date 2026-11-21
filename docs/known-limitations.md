@@ -50,8 +50,8 @@ doesn't have to discover them.
 - **`FileSystem` has no runtime provider.** `Socket`, `Clock`, and
   `Random` do; `Clock` and `Random` need no capabilities-file entry (ADR
   0068 §4, §6).
-- **`Clock` is untyped:** `Clock.now()` is Unix milliseconds as an `int`,
-  and the checker doesn't type its calls (ADR 0068 §5). A moment stays an
+- **A moment is an `int`:** `Clock.now()` is Unix milliseconds as an `int`
+  (ADR 0068 §5, typed since ADR 0123). A moment stays an
   `int`; `fiig.time` (ADR 0123) formats and parses it and reads it as a
   calendar date, in UTC only. There are no time zones, no date-only or
   time-only types, no pattern strings, and a span is an `int` of
