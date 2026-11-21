@@ -1,0 +1,41 @@
+use fiig.stream
+
+test aPendingEntryIsOnTheAttemptItWasLastDeliveredOn {
+    found = RespValue.Array(items: [entry("7-0", "{}")])
+    pending = RespValue.Array(
+        items: [RespValue.Array(items: [RespValue.Bulk(data: "7-0".utf8()), RespValue.Bulk(data: "c1".utf8()), RespValue.Integer(value: 50), RespValue.Integer(value: 3)])],
+    )
+    expect fetchedEntry("7-0", found, pending) is Ok(delivery)
+    expect delivery == stream.Delivery(id: "7-0", payload: "{}".utf8(), attempt: 3, order: "")
+}
+
+test anEntryNotPendingIsOnItsFirstAttempt {
+    found = RespValue.Array(items: [entry("7-0", "{}")])
+    expect fetchedEntry("7-0", found, RespValue.Array(items: [])) is Ok(delivery)
+    expect delivery == stream.Delivery(id: "7-0", payload: "{}".utf8(), attempt: 1, order: "")
+    // Nor is anything pending in a group that doesn't exist yet.
+    noGroup = RespValue.Error(text: "NOGROUP No such key 'orders' or consumer group 'intake'")
+    expect fetchedEntry("7-0", found, noGroup) is Ok(again)
+    expect again == delivery
+}
+
+test anEntryTheStreamNoLongerHoldsIsNone {
+    expect fetchedEntry("7-0", RespValue.Array(items: []), RespValue.Array(items: [])) is Ok(None)
+    // XRANGE 7 7 is every entry of millisecond 7; only the very id is it.
+    found = RespValue.Array(items: [entry("7-1", "{}")])
+    expect fetchedEntry("7", found, RespValue.Array(items: [])) is Ok(None)
+}
+
+test aRefusalIsAProtocolError {
+    refused = RespValue.Error(text: "ERR Invalid stream ID specified as stream command argument")
+    expect fetchedEntry("x", refused, refused) is Err(stream.SourceError.Protocol(reason))
+    expect reason.startsWith("ERR Invalid stream ID")
+}
+
+private {
+    entry(id: string, payload: string) -> RespValue {
+        return RespValue.Array(
+            items: [RespValue.Bulk(data: id.utf8()), RespValue.Array(items: [RespValue.Bulk(data: "payload".utf8()), RespValue.Bulk(data: payload.utf8())])],
+        )
+    }
+}

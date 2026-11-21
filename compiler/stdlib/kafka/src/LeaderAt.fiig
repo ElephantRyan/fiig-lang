@@ -1,0 +1,17 @@
+// The broker that leads one partition of a topic, or None when the topic
+// has no such partition, for fetching one record by its id (ADR 0111 open
+// question 1, as amended 2026-11-21).
+conversion leaderAt(layout: TopicLayout, partition: int) -> Result<BrokerNode | None, KafkaError> {
+    if partition < 0 or partition >= layout.leaders.length() {
+        return Ok(None)
+    }
+    leader = layout.leaders.at(partition)
+    for broker in layout.brokers {
+        if broker.id == leader {
+            return Ok(broker)
+        }
+    }
+    return Err(
+        KafkaError.MalformedReply(reason: "Metadata names leader ${leader}, which isn't among its brokers"),
+    )
+}

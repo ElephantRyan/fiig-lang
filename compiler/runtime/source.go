@@ -12,8 +12,8 @@ import (
 // ADR 0111: a stream source written in fiig. The capabilities file binds
 // StreamSource to a package that provides fiig.stream.StreamSource, and
 // a stream adapter's loop (compiler/adapter) calls its receive and settle
-// gateways through this provider, as the driver pool calls a driver's
-// (ADR 0084).
+// gateways, and `fiig run -replay` its fetch, through this provider, as
+// the driver pool calls a driver's (ADR 0084).
 
 const (
 	// StreamSourceInterface is the interface a source package provides.
@@ -185,17 +185,49 @@ func (p *SourceProvider) Receive(ctx context.Context, s Subscription, limit int)
 	}
 	deliveries := make([]Delivery, 0, len(l.Elems))
 	for _, e := range l.Elems {
-		rec, ok := e.(Record)
-		id, okID := rec.Fields["id"].(Str)
-		payload, okPayload := rec.Fields["payload"].(Bytes)
-		attempt, okAttempt := rec.Fields["attempt"].(Int)
-		order, okOrder := rec.Fields["order"].(Str)
-		if !ok || !okID || !okPayload || !okAttempt || !okOrder {
-			return nil, nil, Faultf("StreamSource: %s's receive returned %s, not a Delivery", p.path, e)
+		d, f := p.readDelivery("receive", e)
+		if f != nil {
+			return nil, nil, f
 		}
-		deliveries = append(deliveries, Delivery{ID: string(id), Payload: payload.B, Attempt: int(attempt), Order: string(order), value: rec})
+		deliveries = append(deliveries, d)
 	}
 	return deliveries, nil, nil
+}
+
+// Fetch calls the source's fetch (open question 1, as amended
+// 2026-11-21): one element by its id, or nil when the source no longer
+// has it. Nothing is received or settled, so `fiig run -replay` can run
+// the route's workflow on it and only report what the mapping chose.
+func (p *SourceProvider) Fetch(ctx context.Context, s Subscription, id string) (*Delivery, error, *Fault) {
+	out, f := p.gateway(ctx, "fetch", p.subscription(s), Str(id))
+	if f != nil {
+		return nil, nil, f
+	}
+	v, failure, f := p.result("fetch", out)
+	if f != nil || failure != nil {
+		return nil, failure, f
+	}
+	if _, none := v.(None); none {
+		return nil, nil, nil
+	}
+	d, f := p.readDelivery("fetch", v)
+	if f != nil {
+		return nil, nil, f
+	}
+	return &d, nil, nil
+}
+
+// readDelivery reads one fiig.stream.Delivery a gateway returned.
+func (p *SourceProvider) readDelivery(op string, e Value) (Delivery, *Fault) {
+	rec, ok := e.(Record)
+	id, okID := rec.Fields["id"].(Str)
+	payload, okPayload := rec.Fields["payload"].(Bytes)
+	attempt, okAttempt := rec.Fields["attempt"].(Int)
+	order, okOrder := rec.Fields["order"].(Str)
+	if !ok || !okID || !okPayload || !okAttempt || !okOrder {
+		return Delivery{}, Faultf("StreamSource: %s's %s returned %s, not a Delivery", p.path, op, e)
+	}
+	return Delivery{ID: string(id), Payload: payload.B, Attempt: int(attempt), Order: string(order), value: rec}, nil
 }
 
 // Settle reports one element's outcome (§1): "Ack", "Retry", or

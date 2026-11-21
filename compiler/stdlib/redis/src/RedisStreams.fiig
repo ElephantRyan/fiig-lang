@@ -96,6 +96,19 @@ capability RedisStreams provides stream.StreamSource {
         }
     }
 
+    // One entry by its id, for replay (ADR 0111 open question 1, as
+    // amended 2026-11-21): XRANGE for the entry and XPENDING for how often
+    // the group has had it, pipelined. It neither claims nor acks it.
+    gateway fetch(subscription: stream.Subscription, id: string) -> Result<stream.Delivery | None, stream.SourceError>
+        requires Redis
+    {
+        asked = Redis.sendAll(
+            [["XRANGE", subscription.source, id, id], ["XPENDING", subscription.source, subscription.group, "IDLE", "0", id, id, "1"]],
+        )
+        replies = mapErr(e in asked): sourceErrorOf(e)?
+        return fetchedEntry(id, replies.first(), replies.last())
+    }
+
     gateway settle(subscription: stream.Subscription, delivery: stream.Delivery, outcome: stream.Outcome) -> Result<None, stream.SourceError>
         requires Redis
     {

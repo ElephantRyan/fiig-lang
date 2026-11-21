@@ -26,9 +26,18 @@
 // real resolved dependency (compiler/runtime's own package-aware
 // execution, ADR 0038), not just type-checks.
 //
+// -replay <id> runs a stream adapter's route on one element instead (ADR
+// 0111 open question 1, as amended 2026-11-21; ADR 0047 §6): the element
+// is fetched from the route's source by its id, the route's workflow runs
+// on it, and what the mapping chose (ack, retry, deadLetter and its
+// target, or halt and why) is printed. Nothing is settled: replay is for
+// investigating, and an operator settles the element by other means.
+// -source names the route when the adapter reads more than one source.
+//
 // Usage:
 //
 //	run-cli [-json] [-args '{"id":"c1"}'] [-caps caps.json] [-trace] [-workspace <dir>]... <root> <declName>
+//	run-cli -replay <id> [-source <name>] [-json] [-caps caps.json] [-trace] [-workspace <dir>]... <root> <streamAdapter>
 package runcmd
 
 import (
@@ -40,11 +49,13 @@ import (
 	"os"
 	"strings"
 
+	"fiig-lang/compiler/adapter"
 	"fiig-lang/compiler/loader"
 	"fiig-lang/compiler/lockfile"
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
+	"fiig-lang/tooling/cli/servecmd"
 	"fiig-lang/tooling/migrate"
 	"fiig-lang/tooling/runprogram"
 )
@@ -65,11 +76,14 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	migrateFlag := fs.String("migrate", "apply", "apply pending migrations before running, or check: refuse to run while any are pending (ADR 0096 §2)")
 	trace := fs.Bool("trace", false, "print the call tree (compiler/runtime.Span) to stderr after running")
 	envFile := fs.String("env-file", "", "a file of NAME=value lines that sets environment variables the process doesn't (ADR 0071 §3a)")
+	replay := fs.String("replay", "", "the id of one element of a stream adapter's source: run the route's workflow on it and print what its mapping chose, settling nothing (ADR 0111)")
+	replaySource := fs.String("source", "", "with -replay, the source of the route to replay, when the adapter reads more than one")
 	var workspaces stringList
 	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable. Omitted, only the packages fiig ships are searched (ADR 0074)")
 	fs.Parse(argv)
 	if fs.NArg() != 2 {
 		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-args JSON | -args-file FILE] [-caps FILE] [-env-file FILE] [-migrate apply|check] [-trace] [-workspace DIR]... <root> <declName>")
+		fmt.Fprintln(os.Stderr, "       "+name+" -replay ID [-source NAME] [-json] [-caps FILE] [-env-file FILE] [-migrate apply|check] [-trace] [-workspace DIR]... <root> <streamAdapter>")
 		os.Exit(2)
 	}
 	root, name := fs.Arg(0), fs.Arg(1)
@@ -82,6 +96,23 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: -env-file:", err)
 		os.Exit(1)
+	}
+
+	if *replay != "" {
+		if *argsJSON != "{}" || *argsFile != "" {
+			fmt.Fprintln(os.Stderr, "error: -replay takes its argument from the element; -args and -args-file don't apply")
+			os.Exit(2)
+		}
+		runReplay(servecmd.ReplayOptions{
+			Root: root, Adapter: name, ID: *replay, Source: *replaySource,
+			CapsPath: *capsPath, Workspaces: workspaces, Factories: factories, Env: env, Migrate: mode,
+			Timeout: adapter.DefaultRequestTimeout,
+		}, *jsonOut, *trace)
+		return
+	}
+	if *replaySource != "" {
+		fmt.Fprintln(os.Stderr, "error: -source names a route to -replay")
+		os.Exit(2)
 	}
 
 	files, diags, err := runprogram.LoadFiles(root)
@@ -235,6 +266,35 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	} else {
 		fmt.Println(val.String())
 	}
+}
+
+// runReplay is -replay: it prints the disposition, and says nothing was
+// settled. A halt is a disposition like the others, so it exits 0; an
+// element the source can't give is 1.
+func runReplay(o servecmd.ReplayOptions, jsonOut, trace bool) {
+	var rec *runtime.Recorder
+	if trace {
+		rec = &runtime.Recorder{}
+		o.Tracer = rec
+	}
+	replayed, err := servecmd.Replay(context.Background(), o)
+	if rec != nil {
+		printTrace(rec.Spans())
+	}
+	if err != nil {
+		if jsonOut {
+			printJSON(map[string]any{"error": err.Error()})
+		} else {
+			fmt.Fprintln(os.Stderr, "error:", err)
+		}
+		os.Exit(1)
+	}
+	if jsonOut {
+		printJSON(replayed.JSON())
+		return
+	}
+	fmt.Println(replayed.Describe())
+	fmt.Println("not settled: replay only investigates; settle the element by other means")
 }
 
 // printTrace renders a Recorder's spans as an indented call tree to

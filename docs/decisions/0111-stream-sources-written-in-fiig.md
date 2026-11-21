@@ -98,6 +98,8 @@ does: `"provides": {"fiig.stream.StreamSource": "RedisStreams"}`.
 - **`settle`** reports one element's outcome. `Retry` makes the element
   come back from a later `receive`, after a delay the source chooses, with
   `attempt` one higher. `DeadLetter` moves it to `target`.
+- *(Added 2026-11-21.)* **`fetch`** returns one element by its id, for
+  replay, and changes nothing; see open question 1.
 
 ### 2. The capabilities file names the source
 
@@ -335,8 +337,55 @@ said so; this is where it happens.
 
 ## Open questions
 
-1. **Replay by id** (ADR 0047 §6): `fiig run` feeding one element fetched
-   from the source, which needs a `fetch(subscription, id)` operation.
+1. ~~**Replay by id** (ADR 0047 §6): `fiig run` feeding one element fetched
+   from the source, which needs a `fetch(subscription, id)` operation.~~
+   Done 2026-11-21, as amended below.
+
+   *(Amended 2026-11-21: `StreamSource` gains a third gateway,*
+
+   ```fiig
+   fetch(subscription: Subscription, id: string) -> Result<Delivery | None, SourceError>
+   ```
+
+   *one element by its id, or `None` when the source no longer has it.
+   It changes nothing at the source. Redis Streams pipelines `XRANGE
+   source id id` with `XPENDING source group IDLE 0 id id 1` (ADR 0110's
+   `sendAll`): the entry with exactly that id, on the attempt the group
+   last delivered it on, else 1. Kafka asks the first bootstrap server
+   for the topic's layout and fetches that offset from the partition's
+   leader, both over broker sessions, never the group's, so a replay
+   joins no group and moves no member's partitions; the record with
+   exactly that offset is the element, on attempt 1, since only a member
+   counts retries. A partition the topic doesn't have, an offset the log
+   no longer reaches, or one compaction removed is `None`.*
+
+   *`fiig run -caps caps.json -replay <id> <root> <StreamAdapter>` loads
+   the program as `fiig serve` does, fetches the element from the
+   route's source, runs the route's workflow on it, and prints what the
+   mapping chose: `ack`, `retry` with the attempt and the attempts,
+   `deadLetter` and its target, or `halt` and why, with the workflow's
+   result. `-source <name>` picks the route when the adapter reads more
+   than one source; `-json` prints the same as an object. **Replay
+   settles nothing.** It is for investigating: an element that halted a
+   route can be run again, with `-trace`, against the code as it now
+   is. An operator who wants it acked, retried, or moved settles it by
+   other means, such as `XACK` or the dead-letter stream written by hand,
+   or by fixing the program and letting `fiig serve` receive it again.
+   The workflow's own effects do happen, as they would under `fiig
+   serve`, so replaying an element that writes is writing again. A halt
+   is a disposition like the others and exits 0; an id the source
+   doesn't have, or a source that can't be read, exits 1.
+   `SourceProvider.Fetch` in `compiler/runtime/source.go`;
+   `StreamRunner.Fetch` and `Decide`, which shares `handle`'s matching,
+   in `compiler/adapter/stream.go`; `servecmd.Replay` and `fiig run`'s
+   `-replay` and `-source`. Tests: `test/FetchedEntry.fiig` in
+   `fiig.redis`, `test/RecordAt.fiig` and `test/LeaderAt.fiig` in
+   `fiig.kafka`; `TestReplayDecidesWithoutSettling` against the
+   in-memory Redis, `TestReplayOfAKafkaRecord` against Kafka 4.0, where
+   the group joining after three replays still began at the first
+   record; and by hand with `fiig run -replay` against Redis 7.4, where
+   an entry `fiig serve` had retried twice replayed as attempt 2, and
+   Kafka with two partitions.)*
 2. **`StateStore`** (ADR 0047 §7), still downstream of capability
    contracts saying which operations mutate.
 3. **Structured registry fields** for a route's source and dispositions,

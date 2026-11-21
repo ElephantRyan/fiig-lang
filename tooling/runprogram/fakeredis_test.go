@@ -16,7 +16,8 @@ import (
 
 // fakeRedis is a Redis server in memory speaking RESP2, with the commands
 // fiig.redis's client and stream source send (ADRs 0110, 0111): AUTH,
-// SELECT, INCR, GET, and the consumer-group stream commands.
+// SELECT, INCR, GET, the consumer-group stream commands, and XRANGE and
+// XLEN. Pipelined commands are answered in order, as Redis does.
 type fakeRedis struct {
 	ln       net.Listener
 	password string
@@ -236,6 +237,16 @@ func (r *fakeRedis) command(name string, args []string) string {
 		return bulk(r.addLocked(args[0], args[2:]))
 	case "XLEN":
 		return fmt.Sprintf(":%d\r\n", len(r.stream(args[0]).entries))
+	case "XRANGE":
+		// XRANGE key start end, as a replay's fetch sends (ADR 0111 open
+		// question 1, as amended 2026-11-21).
+		var items []string
+		for _, e := range r.stream(args[0]).entries {
+			if inRange(e.id, args[1], args[2]) {
+				items = append(items, e.reply())
+			}
+		}
+		return array(items)
 	case "XGROUP":
 		s := r.stream(args[1])
 		if s.groups[args[2]] != nil {
@@ -258,7 +269,7 @@ func (r *fakeRedis) command(name string, args []string) string {
 		var items []string
 		for _, e := range r.streams[args[0]].entries {
 			p := g.pending[e.id]
-			if p == nil || time.Since(p.at) < time.Duration(idle)*time.Millisecond || len(items) == count {
+			if p == nil || !inRange(e.id, args[4], args[5]) || time.Since(p.at) < time.Duration(idle)*time.Millisecond || len(items) == count {
 				continue
 			}
 			items = append(items, array([]string{bulk(e.id), bulk(p.consumer), fmt.Sprintf(":%d\r\n", time.Since(p.at).Milliseconds()), fmt.Sprintf(":%d\r\n", p.count)}))
@@ -291,6 +302,33 @@ func (r *fakeRedis) command(name string, args []string) string {
 		return ":1\r\n"
 	}
 	return fmt.Sprintf("-ERR unknown command '%s'\r\n", name)
+}
+
+// inRange is whether a stream id is within start and end, as XRANGE and
+// XPENDING read them: - and + for either end, and an id without its
+// sequence number covering the whole millisecond.
+func inRange(id, start, end string) bool {
+	at := func(s string, upper bool) [2]uint64 {
+		switch s {
+		case "-":
+			return [2]uint64{0, 0}
+		case "+":
+			return [2]uint64{^uint64(0), ^uint64(0)}
+		}
+		ms, seq, whole := strings.Cut(s, "-")
+		m, _ := strconv.ParseUint(ms, 10, 64)
+		if !whole {
+			if upper {
+				return [2]uint64{m, ^uint64(0)}
+			}
+			return [2]uint64{m, 0}
+		}
+		n, _ := strconv.ParseUint(seq, 10, 64)
+		return [2]uint64{m, n}
+	}
+	less := func(a, b [2]uint64) bool { return a[0] < b[0] || a[0] == b[0] && a[1] < b[1] }
+	v := at(id, false)
+	return !less(v, at(start, false)) && !less(at(end, true), v)
 }
 
 func (r *fakeRedis) group(key, name string) *fakeGroup {

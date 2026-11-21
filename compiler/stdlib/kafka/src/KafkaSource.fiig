@@ -151,4 +151,36 @@ capability KafkaSource provides stream.StreamSource {
         mapErr(e in Session.call(group, json.encode(ack), deadline: until)): unavailable(e)?
         return Ok(None)
     }
+
+    // One record by its id, "partition/offset", for replay (ADR 0111 open
+    // question 1, as amended 2026-11-21): the topic's layout from the first
+    // bootstrap server, then a Fetch at that offset from the partition's
+    // leader, both over broker sessions. The group session isn't used, so
+    // replaying joins no group and moves no member's partitions, and the
+    // record is on attempt 1, since only a member knows its retries.
+    gateway fetch(subscription: stream.Subscription, id: string) -> Result<stream.Delivery | None, stream.SourceError>
+        requires Session
+    {
+        at = deliveryAt(id)?
+        servers = mapErr(e in bootstrapOf(KafkaServer.bootstrap)): consumerError(e)?
+        clientId = KafkaServer.clientId
+        topic = subscription.source
+        until = Clock.now() + KafkaServer.timeoutMillis
+        bootstrap = brokerSettings(servers.first(), KafkaServer.tls, clientId)
+        described = mapErr(e in Session.call(bootstrap, requestAsk(metadataRequest(clientId, 1, topic)), deadline: until)): unavailable(e)?
+        layout = mapErr(e in readMetadata(described.first(), 1, topic)): consumerError(e)?
+        leader = mapErr(e in leaderAt(layout, at.partition)): consumerError(e)?
+        match leader {
+            None -> {
+                return Ok(None)
+            }
+            broker -> {
+                maxBytes = KafkaConsumer.fetchMaxBytes
+                request = fetchRequest(clientId, 1, topic, 0, maxBytes, [at])
+                fetched = mapErr(e in Session.call(brokerSettings(broker, KafkaServer.tls, clientId), requestAsk(request), deadline: until)): unavailable(e)?
+                parts = mapErr(e in readFetch(fetched.first(), maxBytes)): consumerError(e)?
+                return mapErr(e in recordAt(parts, at)): consumerError(e)
+            }
+        }
+    }
 }

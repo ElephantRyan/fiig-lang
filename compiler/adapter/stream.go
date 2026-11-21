@@ -111,6 +111,10 @@ type StreamRunner struct {
 // Name is the route as logs and a Halt name it.
 func (r *StreamRunner) Name() string { return r.name }
 
+// SourceName is the route's `source` string, which `fiig run -replay
+// -source` names it by.
+func (r *StreamRunner) SourceName() string { return r.route.Path }
+
 // Source is the route's source, so the caller can read the config its
 // gateways use (ADR 0071 §3).
 func (r *StreamRunner) Source() *runtime.SourceProvider { return r.source }
@@ -173,8 +177,7 @@ func StreamRunners(adapters []Served, u *types.Universe, in *runtime.Interp, con
 // until the route halts, returning the *Halt. An element already being
 // handled when ctx ends is finished and settled first (§5).
 func (r *StreamRunner) Run(ctx context.Context) error {
-	r.sub.HandleMillis = int((r.timeout + r.SettleTimeout) / time.Millisecond)
-	r.sub.WaitMillis = int(r.Settings.Wait / time.Millisecond)
+	r.prepare()
 	backoff := firstBackoff
 	for ctx.Err() == nil {
 		rctx, cancel := context.WithTimeout(r.enter(ctx), sourceTimeout+r.Settings.Wait)
@@ -239,12 +242,67 @@ func (r *StreamRunner) Run(ctx context.Context) error {
 	return nil
 }
 
+// prepare tells the subscription the timing Settings and the timeouts
+// give (ADR 0111 §5a).
+func (r *StreamRunner) prepare() {
+	r.sub.HandleMillis = int((r.timeout + r.SettleTimeout) / time.Millisecond)
+	r.sub.WaitMillis = int(r.Settings.Wait / time.Millisecond)
+}
+
+// Disposition is what a route's mapping chose for one element (ADR 0111
+// §4): Outcome "Ack", "Retry", or "DeadLetter" with Target, or Halt set
+// with why.
+type Disposition struct {
+	Outcome string
+	Target  string
+	Halt    *Halt
+	// Result is the workflow's result the mapping matched, or nil when
+	// the workflow never ran or faulted.
+	Result runtime.Value
+	// Attempts is the attempts of the retry arm that matched, else 0.
+	Attempts int
+}
+
+// Fetch is the element with id, from the route's source, or an error when
+// the source can't be read or no longer has it (ADR 0111 open question 1,
+// as amended 2026-11-21). The element is neither received nor settled.
+func (r *StreamRunner) Fetch(ctx context.Context, id string) (runtime.Delivery, error) {
+	r.prepare()
+	fctx, cancel := context.WithTimeout(r.enter(ctx), sourceTimeout)
+	defer cancel()
+	d, failure, fault := r.source.Fetch(fctx, r.sub, id)
+	switch {
+	case fault != nil:
+		return runtime.Delivery{}, fmt.Errorf("stream %s: fetching id %s faulted: %s", r.name, id, fault.Message)
+	case failure != nil:
+		return runtime.Delivery{}, fmt.Errorf("stream %s: fetching id %s failed: %w", r.name, id, failure)
+	case d == nil:
+		return runtime.Delivery{}, fmt.Errorf("stream %s: %s has no element with id %s", r.name, r.source.Path(), id)
+	}
+	return *d, nil
+}
+
+// Decide runs the workflow on one element and returns what the mapping
+// chose, without settling it: `fiig run -replay` reports it, and the
+// operator settles the element by other means (ADR 0111 open question 1,
+// as amended 2026-11-21). The workflow's own effects still happen.
+func (r *StreamRunner) Decide(ctx context.Context, d runtime.Delivery) Disposition {
+	return r.decide(ctx, d)
+}
+
 // handle runs the workflow on one element and decides its outcome:
 // "Ack", "Retry", or "DeadLetter" with its target; or halts.
 func (r *StreamRunner) handle(ctx context.Context, d runtime.Delivery) (string, string, *Halt) {
+	disp := r.decide(ctx, d)
+	return disp.Outcome, disp.Target, disp.Halt
+}
+
+// decide is handle, with the result the mapping matched.
+func (r *StreamRunner) decide(ctx context.Context, d runtime.Delivery) Disposition {
 	element := "id " + d.ID
-	halt := func(format string, args ...any) (string, string, *Halt) {
-		return "", "", &Halt{Route: r.name, Element: element, Reason: fmt.Sprintf(format, args...)}
+	var result runtime.Value
+	halt := func(format string, args ...any) Disposition {
+		return Disposition{Result: result, Halt: &Halt{Route: r.name, Element: element, Reason: fmt.Sprintf(format, args...)}}
 	}
 	var arg runtime.Value = runtime.Bytes{B: d.Payload}
 	if !isBytes(r.argType) {
@@ -265,10 +323,11 @@ func (r *StreamRunner) handle(ctx context.Context, d runtime.Delivery) (string, 
 	}
 	wctx, cancel := context.WithTimeout(r.enter(ctx), r.timeout)
 	defer cancel()
-	result, fault := r.in.Call(wctx, workflowName(r.route), map[string]runtime.Value{r.argName: arg})
+	out, fault := r.in.Call(wctx, workflowName(r.route), map[string]runtime.Value{r.argName: arg})
 	if fault != nil {
 		return halt("the workflow faulted: %s", fault.Message)
 	}
+	result = out
 	for _, arm := range r.route.Mapping {
 		if !runtime.MatchPattern(arm.Pattern, result, runtime.NewEnv()) {
 			continue
@@ -277,20 +336,24 @@ func (r *StreamRunner) handle(ctx context.Context, d runtime.Delivery) (string, 
 		if !ok {
 			return halt("its mapping arm isn't a disposition")
 		}
+		attempts := 0
 		if disp.Kind == "retry" {
+			attempts = disp.Attempts
 			if d.Attempt < disp.Attempts {
-				return "Retry", "", nil
+				return Disposition{Outcome: "Retry", Result: result, Attempts: attempts}
 			}
 			if disp.Else == nil || disp.Else.Kind == "halt" {
-				return halt("it still failed after %d attempts, with %s", disp.Attempts, result)
+				h := halt("it still failed after %d attempts, with %s", disp.Attempts, result)
+				h.Attempts = attempts
+				return h
 			}
 			disp = disp.Else
 		}
 		switch disp.Kind {
 		case "ack":
-			return "Ack", "", nil
+			return Disposition{Outcome: "Ack", Result: result, Attempts: attempts}
 		case "deadLetter":
-			return "DeadLetter", disp.Target, nil
+			return Disposition{Outcome: "DeadLetter", Target: disp.Target, Result: result, Attempts: attempts}
 		}
 		return halt("its mapping says halt, for %s", result)
 	}
