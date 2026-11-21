@@ -8,9 +8,9 @@ import (
 )
 
 // ADR 0060: the primitives' operations, typed from types.PrimitiveOps:
-// Socket's (ADR 0060 §3) and Random's (ADR 0068 §2). Clock and FileSystem
-// aren't typed yet, so their arguments are checked and the result is
-// Unknown.
+// Socket's (ADR 0060 §3), Random's (ADR 0068 §2) and Clock's (ADR 0068 §5, amended).
+// FileSystem isn't typed yet, so its arguments are checked and the result
+// is Unknown.
 
 // callPrimitive types `Primitive.op(args)` against its table, after
 // checking that the caller may use the primitive at all.

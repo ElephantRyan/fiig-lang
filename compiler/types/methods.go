@@ -109,7 +109,7 @@ var AppendParams = []string{"list", "element"}
 
 // primitiveOps is the operations of each primitive whose calls the checker
 // types (ADR 0060 §3, ADR 0068 §5). They come from this table, not from
-// fiig source. Clock and FileSystem aren't typed yet.
+// fiig source. FileSystem isn't typed yet.
 var primitiveOps = map[string]map[string]Method{
 	"Socket": {
 		"connect":    {[]Param{p("host", stringType), p("port", intType), deadline}, socketResult(ConnectionType)},
@@ -121,6 +121,11 @@ var primitiveOps = map[string]map[string]Method{
 		// ADR 0109: connections kept between calls.
 		"reuse": {[]Param{p("host", stringType), p("port", intType), p("tls", boolType), p("session", stringType)}, Union{Members: []Type{ConnectionType, NoneType{}}}},
 		"keep":  {[]Param{p("connection", ConnectionType), p("session", stringType)}, NoneType{}},
+	},
+	// ADR 0068 §5 (amended 2026-11-20): Clock.now() is Unix milliseconds as an int, so a moment
+	// can't be added to a string or returned as one.
+	"Clock": {
+		"now": {nil, intType},
 	},
 	"Random": { // ADR 0068 §2
 		"bytes": {[]Param{p("count", intType)}, bytesType},
