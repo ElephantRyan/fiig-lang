@@ -139,3 +139,17 @@ func TestABadStreamSettingRefusesToServe(t *testing.T) {
 		t.Errorf("err = %v, want a problem naming STREAM_BATCH_SIZE", err)
 	}
 }
+
+// ADR 0112 open question 3, as amended 2026-11-21: so does a jitter out of
+// bounds.
+func TestABadScheduleJitterRefusesToServe(t *testing.T) {
+	t.Setenv("STORAGE_READY", "true")
+	t.Setenv("SCHEDULE_JITTER_MS", "1h")
+	root := t.TempDir()
+	writeTree(t, root, startupApp)
+	env, _ := runprogram.NewEnvironment("")
+	_, _, _, _, err := load(filepath.Join(root, "app"), []string{"api"}, "", nil, nil, nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
+	if err == nil || !strings.Contains(err.Error(), "SCHEDULE_JITTER_MS") {
+		t.Errorf("err = %v, want a problem naming SCHEDULE_JITTER_MS", err)
+	}
+}

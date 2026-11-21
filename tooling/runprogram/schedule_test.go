@@ -303,20 +303,28 @@ func TestScheduleFaultSkipsTheFiring(t *testing.T) {
 	}
 }
 
-// recordingLock claims every firing and remembers how long each was held.
+// recordingLock claims every firing and remembers how long each was held,
+// and, with a clock, which firing it claimed when.
 type recordingLock struct {
-	mu    sync.Mutex
-	holds []int64
+	mu      sync.Mutex
+	holds   []int64
+	clock   *fakeClock
+	firings []int64
+	at      []time.Time
 }
 
 func (l *recordingLock) Call(context.Context, string, []runtime.Value) (runtime.Value, *runtime.Fault) {
 	return nil, nil
 }
 
-func (l *recordingLock) Claim(_ context.Context, _ string, _ int64, _ string, holdMillis int64) (bool, error, *runtime.Fault) {
+func (l *recordingLock) Claim(_ context.Context, _ string, firing int64, _ string, holdMillis int64) (bool, error, *runtime.Fault) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.holds = append(l.holds, holdMillis)
+	l.firings = append(l.firings, firing)
+	if l.clock != nil {
+		l.at = append(l.at, l.clock.Now())
+	}
 	return true, nil, nil
 }
 
@@ -363,5 +371,60 @@ func TestScheduleNeedsALock(t *testing.T) {
 	_, err := adapter.ScheduleRunners([]adapter.Served{{Decl: d.(*syntax.AdapterDecl)}}, u, in, "x")
 	if err == nil || !strings.Contains(err.Error(), "binds no ScheduleLock, so every replica would run each job") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// ADR 0112 open question 3, as amended 2026-11-21: a firing waits its
+// jitter before it is claimed, the workflow is still given the scheduled
+// time, and shutdown during the jitter runs nothing.
+func TestScheduleJitterDelaysTheClaimNotTheFiringTime(t *testing.T) {
+	redis := startFakeRedis(t, "pw")
+	start := time.Date(2026, 11, 20, 10, 50, 0, 0, time.UTC)
+	// 10:50 -> 11:00, the jitter to 11:07, then 11:15, whose jitter is cut
+	// short by shutdown.
+	clock := &fakeClock{now: start, stops: 3}
+	lock := &recordingLock{clock: clock}
+	var logs logLines
+	r := on(scheduleRunnerWithLock(t, redis, lock, "Jobs", "only"), clock, &logs)
+	var asked []int64
+	r.Jitter = 10 * time.Minute
+	r.Rand = func(n int64) int64 { asked = append(asked, n); return int64(7 * time.Minute) }
+	if err := r.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	eleven := time.Date(2026, 11, 20, 11, 0, 0, 0, time.UTC)
+	if len(lock.firings) != 1 || lock.firings[0] != eleven.UnixMilli() || !lock.at[0].Equal(eleven.Add(7*time.Minute)) {
+		t.Errorf("claims: firings %v at %v, want 11:00 claimed at 11:07 only", lock.firings, lock.at)
+	}
+	// The 11:00 firing is Busy only when firedAt is on the hour.
+	if got := logs.all(); !strings.Contains(got, "11:00:00Z failed with JobError.Busy") {
+		t.Errorf("logs = %q, want firedAt to stay 11:00", got)
+	}
+	if n := redis.counter("ticks"); n != 1 {
+		t.Errorf("ran %d firings, want 1", n)
+	}
+	if len(asked) != 2 || asked[0] != int64(10*time.Minute) {
+		t.Errorf("Rand asked for %v, want 10m twice", asked)
+	}
+}
+
+// A jitter longer than the schedule's interval is cut to the interval, so
+// every firing still runs.
+func TestScheduleJitterFitsTheInterval(t *testing.T) {
+	redis := startFakeRedis(t, "pw")
+	clock := &fakeClock{now: time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC), stops: 2}
+	lock := &recordingLock{}
+	r := on(scheduleRunnerWithLock(t, redis, lock, "Spinner", "only"), clock, &logLines{})
+	var asked []int64
+	r.Jitter = time.Minute
+	r.Rand = func(n int64) int64 { asked = append(asked, n); return n / 2 }
+	if err := r.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(asked) == 0 || asked[0] != int64(time.Second) {
+		t.Errorf("Rand asked for %v, want 1s (the interval)", asked)
+	}
+	if len(lock.firings) != 1 {
+		t.Errorf("claimed %d firings, want 1", len(lock.firings))
 	}
 }

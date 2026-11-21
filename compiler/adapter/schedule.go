@@ -3,6 +3,8 @@ package adapter
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
+	"strconv"
 	"time"
 
 	"fiig-lang/compiler/runtime"
@@ -19,7 +21,25 @@ import (
 const (
 	lockTimeout  = 10 * time.Second
 	minClaimHold = time.Minute
+	// MaxScheduleJitter is the most SCHEDULE_JITTER_MS may be: five
+	// minutes.
+	MaxScheduleJitter = 5 * time.Minute
 )
+
+// ParseScheduleJitter reads SCHEDULE_JITTER_MS through lookup (ADR 0112
+// open question 3, as amended 2026-11-21): 0, the default, for none, up
+// to 300000. A bad value is a problem for ADR 0071 §3's one report.
+func ParseScheduleJitter(lookup func(string) (string, bool)) (time.Duration, []string) {
+	v, ok := lookup("SCHEDULE_JITTER_MS")
+	if !ok || v == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 || n > int(MaxScheduleJitter/time.Millisecond) {
+		return 0, []string{fmt.Sprintf("SCHEDULE_JITTER_MS: %q isn't a whole number of milliseconds from 0 to %d", v, MaxScheduleJitter/time.Millisecond)}
+	}
+	return time.Duration(n) * time.Millisecond, nil
+}
 
 // ScheduleRunner runs one schedule route.
 type ScheduleRunner struct {
@@ -35,6 +55,12 @@ type ScheduleRunner struct {
 	// Wait returns false when ctx ends first.
 	Now  func() time.Time
 	Wait func(ctx context.Context, d time.Duration) bool
+	// Jitter is the most each firing waits, at random, before it is
+	// claimed, so replicas and services firing at the same moment spread
+	// out (ADR 0112 open question 3, as amended 2026-11-21); 0 is none.
+	// Rand(n) picks the wait in [0, n): math/rand unless a test sets it.
+	Jitter time.Duration
+	Rand   func(n int64) int64
 	// Logf reports a failed job, an overrun, and a claim that failed.
 	Logf func(format string, args ...any)
 }
@@ -95,6 +121,7 @@ func ScheduleRunners(adapters []Served, u *types.Universe, in *runtime.Interp, h
 				enter:   enter,
 				Now:     time.Now,
 				Wait:    realWait,
+				Rand:    rand.Int64N,
 				Logf:    func(string, ...any) {},
 			})
 		}
@@ -125,6 +152,10 @@ func (r *ScheduleRunner) Run(ctx context.Context) error {
 		if !r.Wait(ctx, fire.Sub(r.Now())) {
 			return nil
 		}
+		// Shutdown during the jitter runs nothing.
+		if d := r.jitter(fire); d > 0 && !r.Wait(ctx, d) {
+			return nil
+		}
 		if halt := r.fire(ctx, fire); halt != nil {
 			return halt
 		}
@@ -132,7 +163,22 @@ func (r *ScheduleRunner) Run(ctx context.Context) error {
 	return nil
 }
 
-// fire claims and runs the firing at fire.
+// jitter is how long the firing at fire waits before it is claimed: a
+// random part of Jitter, but never as long as the time to the next
+// firing, so a short schedule still runs every firing.
+func (r *ScheduleRunner) jitter(fire time.Time) time.Duration {
+	limit := r.Jitter
+	if after := r.sched.Next(fire); !after.IsZero() {
+		limit = min(limit, after.Sub(fire))
+	}
+	if limit <= 0 {
+		return 0
+	}
+	return time.Duration(r.Rand(int64(limit)))
+}
+
+// fire claims and runs the firing at fire. The workflow's firing time is
+// fire, the scheduled time, however long the jitter waited.
 func (r *ScheduleRunner) fire(ctx context.Context, fire time.Time) *Halt {
 	after := r.sched.Next(fire)
 	element := "the firing at " + fire.UTC().Format(time.RFC3339)

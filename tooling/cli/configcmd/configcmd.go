@@ -151,6 +151,7 @@ func Main(name string, args []string) {
 			runprogram.Variable{Name: "MAX_BODY_BYTES", Type: "int", Requirement: "= 2097152", Where: "fiig serve: the most bytes a request body may have (ADR 0076)"},
 			runprogram.Variable{Name: "MAX_REQUESTS", Type: "int", Requirement: "= 256", Where: "fiig serve: requests run at once, as many more waiting (ADR 0076)"},
 			runprogram.Variable{Name: "REQUEST_TIMEOUT", Type: "duration", Requirement: "= 30s", Where: "fiig serve: how long a request may run (ADR 0076)"},
+			runprogram.Variable{Name: "SCHEDULE_JITTER_MS", Type: "int", Requirement: "= 0", Where: "fiig serve: the most a schedule's firing waits, at random, before it is claimed, 0 to 300000 (ADR 0112)"},
 			runprogram.Variable{Name: "STREAM_BATCH_SIZE", Type: "int", Requirement: "= 16", Where: "fiig serve: the most elements a stream route receives at a time, 1 to 1000 (ADR 0111)"},
 			runprogram.Variable{Name: "STREAM_WAIT_MS", Type: "int", Requirement: "= 2000", Where: "fiig serve: how long a stream receive waits for a first element, 1 to 60000 (ADR 0111)"},
 		)

@@ -199,6 +199,19 @@ I becomes "Stream and schedule adapter errors":
 2. **Running a job now**, by hand: a `fiig run` of the route's workflow
    already does it, with `firedAt` passed in `-args`.
 3. **Jitter**, for many services all firing at :00 against one database.
+
+   *(Amended 2026-11-21: `fiig serve` reads `SCHEDULE_JITTER_MS`, 0 to
+   300000, default 0, which is none. Each firing then waits a random
+   time in [0, jitter) before it is claimed and run, so replicas and
+   services spread out. The wait is cut to the time to the next firing,
+   so a short schedule still runs every firing. `firedAt` stays the
+   scheduled time, and the claim is still keyed by it (§4), so replicas
+   with different waits still run a firing once between them. Shutdown
+   during the wait runs nothing. The jitter is process-wide, the same
+   for every route; one per route waits for a program that needs it. A
+   bad value is a problem in ADR 0071 §3's one report.
+   `adapter.ParseScheduleJitter` and `ScheduleRunner.Jitter` in
+   `compiler/adapter/schedule.go`.)*
 4. **`fiig config <root> <entry>` finds only root declarations**, so an
    adapter in a folder package (ADR 0105), of any kind, isn't found by
    name. Found while dogfooding this; it belongs to the folder-package

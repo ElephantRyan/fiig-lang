@@ -20,7 +20,8 @@
 //
 // A stream route receives up to STREAM_BATCH_SIZE elements at a time (16),
 // waiting up to STREAM_WAIT_MS for the first (2000), as amended in ADR
-// 0111.
+// 0111. A schedule's firing waits a random part of SCHEDULE_JITTER_MS (0,
+// none) before it is claimed, as amended in ADR 0112.
 //
 // A modular monolith serves several adapters at once (ADR 0079 §6): a
 // bare name is an adapter in root, and a dotted one is a dependency's,
@@ -269,6 +270,13 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	jobs, err := adapter.ScheduleRunners(scheduled, universe, in, consumerName())
 	if err != nil {
 		return nil, nil, nil, nil, err
+	}
+	// ADR 0112 open question 3, as amended 2026-11-21: every firing waits
+	// a random part of the same jitter.
+	jitter, jitterProblems := adapter.ParseScheduleJitter(env.Lookup)
+	problems = append(problems, jitterProblems...)
+	for _, r := range jobs {
+		r.Jitter = jitter
 	}
 	// A source or lock reads its own config (ADR 0111 §2, ADR 0112 §4),
 	// which no workflow reaches, so its gateways are entries too.

@@ -206,3 +206,22 @@ func TestParseStreamSettings(t *testing.T) {
 		}
 	}
 }
+
+// ADR 0112 open question 3, as amended 2026-11-21: SCHEDULE_JITTER_MS is 0
+// unless set, and a value out of bounds is a problem naming it.
+func TestParseScheduleJitter(t *testing.T) {
+	lookup := func(v string) func(string) (string, bool) {
+		return func(name string) (string, bool) { return v, name == "SCHEDULE_JITTER_MS" && v != "" }
+	}
+	if d, problems := ParseScheduleJitter(lookup("")); d != 0 || len(problems) > 0 {
+		t.Errorf("default: got %s %v", d, problems)
+	}
+	if d, problems := ParseScheduleJitter(lookup("30000")); d != 30*time.Second || len(problems) > 0 {
+		t.Errorf("set: got %s %v", d, problems)
+	}
+	for _, v := range []string{"-1", "300001", "30s"} {
+		if _, problems := ParseScheduleJitter(lookup(v)); len(problems) != 1 || !strings.Contains(problems[0], "SCHEDULE_JITTER_MS") {
+			t.Errorf("%q: problems = %v", v, problems)
+		}
+	}
+}
