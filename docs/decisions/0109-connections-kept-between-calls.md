@@ -204,6 +204,39 @@ concurrent calls bound them, and capping them would add a wait that ADR
 closes when the runtime stops (`CapabilityRegistry.Close`), as ADR 0084's
 does.
 
+### 5a. A maximum lifetime
+
+*(Amended 2026-11-21: closes open question 1.)* `idle` gains
+**`maxLifetime`** (default `"10m"`; `"0s"` is no limit): a connection
+older than this, counted from when `connect` opened it, not from when it
+was last kept, is not handed out by `Socket.reuse`, not taken by
+`Socket.keep`, and is closed while idle when its lifetime ends, or at the
+idle timeout if that comes first. Reuse doesn't reset its age, and
+neither does `startTls`.
+
+```json
+{"Socket": {"type": "socket",
+  "idle": {"perKey": 10, "total": 100, "timeout": "90s", "maxLifetime": "10m"}}}
+```
+
+- **Why it's needed after all.** Open question 1 left it out because the
+  idle timeout covers DNS moves for HTTP. It covers them only for a
+  connection that goes quiet: a service calling one API several times a
+  minute never leaves its connection idle for 90 s, so it would talk to
+  the address it first resolved until that host goes away. Cloud load
+  balancers change their addresses as they scale, with DNS TTLs of about
+  60 s, and expect clients to follow within minutes.
+- **Ten minutes**, not ADR 0084's 30, because these are connections to
+  load-balanced services rather than to one database server, whose
+  address changes only on failover. Ending a connection costs one TCP and
+  TLS handshake, a few milliseconds every ten minutes per connection,
+  which is nothing beside following a move. Go's `Transport` has no such
+  limit; HikariCP's is 30 minutes and pgx's an hour, both for databases.
+- **Measured from opening, not from keeping**, so a connection reused
+  without a pause still ends, which is the case the idle timeout misses.
+- **Checked on `reuse` as well as by a timer**, so a connection is never
+  handed out late however the timer is scheduled.
+
 ### 6. `fiig.http` keeps connections (amends ADR 0074 §8)
 
 - **No more `Connection: close`.** `send` calls `reuse(host, port, tls:
@@ -306,7 +339,8 @@ would be inconsistent.
 
 ## Open questions
 
-1. **A `maxLifetime` for kept connections**, like ADR 0084's. It's useful
+1. **A `maxLifetime` for kept connections**, like ADR 0084's. *(Closed by
+   §5a, 2026-11-21: `idle.maxLifetime`, 10 minutes by default.)* It's useful
    when DNS moves a host to a new address. The idle timeout covers most of
    that for HTTP, so it's left out until a protocol needs it.
 2. **A connection owned by something that outlives every call.** HTTP/2,

@@ -89,6 +89,9 @@ type connHandle struct {
 	// once Socket.keep gave the connection to the pool (ADR 0109 §3).
 	failed bool
 	kept   bool
+	// opened is when connect opened the connection, kept across startTls
+	// and Socket.keep, for the pool's MaxLifetime (ADR 0109 §5a).
+	opened time.Time
 }
 
 // usable returns the handle's transport, or the fault for using it after
@@ -335,7 +338,7 @@ func (p SocketProvider) connect(ctx context.Context, host string, port int, secu
 		}
 		t = tt
 	}
-	h := &connHandle{addr: addrOf(host, port), host: host, port: port, owner: owner, t: t}
+	h := &connHandle{addr: addrOf(host, port), host: host, port: port, owner: owner, t: t, opened: p.openedAt()}
 	if secure {
 		h.tlsName = host
 	}
@@ -363,7 +366,7 @@ func (p SocketProvider) startTls(ctx context.Context, h *connHandle, serverName 
 	h.stateMu.Lock()
 	h.superseded = true
 	h.stateMu.Unlock()
-	next := &connHandle{addr: h.addr, host: h.host, port: h.port, tlsName: serverName, owner: h.owner, t: tt}
+	next := &connHandle{addr: h.addr, host: h.host, port: h.port, tlsName: serverName, owner: h.owner, t: tt, opened: h.opened}
 	if !h.owner.track(next) {
 		_ = tt.Close()
 		return nil, Faultf("Socket.startTls: the owning call has already ended")

@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"math"
 	"net"
 	"strconv"
 	"sync"
@@ -16,15 +17,21 @@ import (
 // call of the same package, to the same place, set up the same way.
 
 // IdleLimits bounds the connections a SocketPool keeps (ADR 0109 §5).
+// MaxLifetime is measured from when a connection was opened, not from when
+// it was kept: one older is neither handed out nor kept (§5a). 0 is no
+// limit.
 type IdleLimits struct {
-	PerKey  int
-	Total   int
-	Timeout time.Duration
+	PerKey      int
+	Total       int
+	Timeout     time.Duration
+	MaxLifetime time.Duration
 }
 
 // DefaultIdleLimits is §5's defaults: requests' pool_maxsize per key, and
-// Go's MaxIdleConns and IdleConnTimeout.
-var DefaultIdleLimits = IdleLimits{PerKey: 10, Total: 100, Timeout: 90 * time.Second}
+// Go's MaxIdleConns and IdleConnTimeout; and §5a's ten minutes, so a busy
+// connection, which the idle timeout never closes, still follows a DNS
+// change or a load balancer's new members within that.
+var DefaultIdleLimits = IdleLimits{PerKey: 10, Total: 100, Timeout: 90 * time.Second, MaxLifetime: 10 * time.Minute}
 
 // keptKey is what a reused connection must match (§2). pkg is the root
 // Universe of the package whose gateway called keep.
@@ -38,10 +45,12 @@ type keptKey struct {
 
 // keptConn is one idle connection the pool owns.
 type keptConn struct {
-	key   keptKey
-	t     Transport
-	addr  string
-	timer *time.Timer
+	key  keptKey
+	t    Transport
+	addr string
+	// opened is when the connection was opened, for MaxLifetime (§5a).
+	opened time.Time
+	timer  *time.Timer
 	// watch is the read that notices the peer closing or sending while
 	// the connection is idle; nil when the transport reports that itself
 	// (staleReporter).
@@ -60,6 +69,9 @@ type staleReporter interface{ staleWhileIdle() bool }
 // per-package binding has its own).
 type SocketPool struct {
 	limits IdleLimits
+	// now is the clock MaxLifetime is measured by; time.Now unless a test
+	// sets it.
+	now func() time.Time
 
 	mu     sync.Mutex
 	idle   []*keptConn // oldest first
@@ -68,7 +80,25 @@ type SocketPool struct {
 
 // NewSocketPool is a pool keeping at most limits.
 func NewSocketPool(limits IdleLimits) *SocketPool {
-	return &SocketPool{limits: limits}
+	return &SocketPool{limits: limits, now: time.Now}
+}
+
+// openedAt is the time a connection opened now is stamped with: the
+// pool's clock, or the real one without a pool.
+func (p SocketProvider) openedAt() time.Time {
+	if p.Pool != nil {
+		return p.Pool.now()
+	}
+	return time.Now()
+}
+
+// lifeLeft is how long a connection opened at opened may still be kept,
+// or handed out (§5a); math.MaxInt64 with no MaxLifetime.
+func (pl *SocketPool) lifeLeft(opened time.Time) time.Duration {
+	if pl.limits.MaxLifetime <= 0 {
+		return time.Duration(math.MaxInt64)
+	}
+	return pl.limits.MaxLifetime - pl.now().Sub(opened)
 }
 
 // callingPackage is the package whose code is running: the root of its
@@ -112,7 +142,7 @@ func (p SocketProvider) keep(ctx context.Context, h *connHandle, session string)
 		return None{}, nil
 	}
 	key := keptKey{pkg: callingPackage(ctx), host: h.host, port: h.port, tls: h.tlsName != "", session: session}
-	p.Pool.put(&keptConn{key: key, t: t, addr: h.addr})
+	p.Pool.put(&keptConn{key: key, t: t, addr: h.addr, opened: h.opened})
 	return None{}, nil
 }
 
@@ -131,11 +161,13 @@ func (p SocketProvider) reuse(ctx context.Context, host string, port int, secure
 		if kc == nil {
 			return None{}, nil
 		}
-		if !kc.stillClean() {
+		// Past its lifetime is checked first: its timer may not have
+		// fired yet, and the clock may be a test's (§5a).
+		if p.Pool.lifeLeft(kc.opened) <= 0 || !kc.stillClean() {
 			_ = kc.t.Close()
 			continue
 		}
-		h := &connHandle{addr: kc.addr, host: host, port: port, owner: owner, t: kc.t}
+		h := &connHandle{addr: kc.addr, host: host, port: port, owner: owner, t: kc.t, opened: kc.opened}
 		if secure {
 			h.tlsName = host
 		}
@@ -147,8 +179,10 @@ func (p SocketProvider) reuse(ctx context.Context, host string, port int, secure
 	}
 }
 
-// put keeps kc, unless the pool is closed or its key is full; past the
-// total, the connection idle longest is closed (§5).
+// put keeps kc, unless the pool is closed, its key is full, or it is past
+// its lifetime; past the total, the connection idle longest is closed
+// (§5). It is closed at the idle timeout or at the end of its lifetime,
+// whichever comes first (§5a).
 func (pl *SocketPool) put(kc *keptConn) {
 	pl.mu.Lock()
 	defer pl.mu.Unlock()
@@ -158,7 +192,8 @@ func (pl *SocketPool) put(kc *keptConn) {
 			same++
 		}
 	}
-	if pl.closed || same >= pl.limits.PerKey {
+	left := pl.lifeLeft(kc.opened)
+	if pl.closed || same >= pl.limits.PerKey || left <= 0 {
 		_ = kc.t.Close()
 		return
 	}
@@ -169,7 +204,7 @@ func (pl *SocketPool) put(kc *keptConn) {
 		_ = oldest.t.Close()
 	}
 	pl.idle = append(pl.idle, kc)
-	kc.timer = time.AfterFunc(pl.limits.Timeout, func() { pl.discard(kc) })
+	kc.timer = time.AfterFunc(min(pl.limits.Timeout, left), func() { pl.discard(kc) })
 	if _, reports := kc.t.(staleReporter); !reports {
 		kc.watch = make(chan error, 1)
 		go pl.watch(kc)

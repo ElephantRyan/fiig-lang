@@ -76,15 +76,24 @@ func TestFiigHttpKeepsConnectionsToARealServer(t *testing.T) {
 
 // ADR 0109 §5: Socket's "idle" entry.
 func TestSocketIdleSettings(t *testing.T) {
-	good := map[string]any{"type": "socket", "idle": map[string]any{"perKey": float64(4), "total": float64(50), "timeout": "30s"}}
+	good := map[string]any{"type": "socket", "idle": map[string]any{"perKey": float64(4), "total": float64(50), "timeout": "30s", "maxLifetime": "5m"}}
 	if p, err := SocketFactory(good); err != nil || p.(runtime.SocketProvider).Pool == nil {
 		t.Errorf("good settings: %v, %v", p, err)
+	}
+	// §5a: "0s" turns the lifetime off.
+	if _, err := idleLimits(map[string]any{"idle": map[string]any{"maxLifetime": "0s"}}); err != nil {
+		t.Errorf("maxLifetime 0s: %v", err)
+	}
+	if l, _ := idleLimits(map[string]any{"idle": map[string]any{"maxLifetime": "5m"}}); l.MaxLifetime != 5*time.Minute || l.Timeout != runtime.DefaultIdleLimits.Timeout {
+		t.Errorf("maxLifetime 5m read as %+v", l)
 	}
 	for _, idle := range []any{
 		"90s",
 		map[string]any{"perKey": "ten"},
 		map[string]any{"total": float64(-1)},
 		map[string]any{"timeout": "soon"},
+		map[string]any{"maxLifetime": "-1m"},
+		map[string]any{"maxLifetime": float64(600)},
 	} {
 		if _, err := SocketFactory(map[string]any{"type": "socket", "idle": idle}); err == nil {
 			t.Errorf("idle %v was accepted", idle)

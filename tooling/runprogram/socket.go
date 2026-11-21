@@ -76,7 +76,8 @@ func SocketScriptFactory(config map[string]any) (runtime.CapabilityProvider, err
 }
 
 // idleLimits reads a Socket entry's "idle" object (ADR 0109 §5):
-// {"perKey": 10, "total": 100, "timeout": "90s"}, each optional.
+// {"perKey": 10, "total": 100, "timeout": "90s", "maxLifetime": "10m"},
+// each optional.
 func idleLimits(cfg map[string]any) (runtime.IdleLimits, error) {
 	limits := runtime.DefaultIdleLimits
 	raw, ok := cfg["idle"]
@@ -85,7 +86,7 @@ func idleLimits(cfg map[string]any) (runtime.IdleLimits, error) {
 	}
 	m, ok := raw.(map[string]any)
 	if !ok {
-		return limits, errors.New(`"idle" must be an object: {"perKey": 10, "total": 100, "timeout": "90s"}`)
+		return limits, errors.New(`"idle" must be an object: {"perKey": 10, "total": 100, "timeout": "90s", "maxLifetime": "10m"}`)
 	}
 	count := func(name string, into *int) error {
 		v, ok := m[name]
@@ -121,6 +122,15 @@ func idleLimits(cfg map[string]any) (runtime.IdleLimits, error) {
 			return limits, fmt.Errorf(`idle "timeout" must be a positive duration such as "90s"`)
 		}
 		limits.Timeout = d
+	}
+	// §5a: "0s" keeps a connection however old it is.
+	if v, ok := m["maxLifetime"]; ok {
+		s, isString := v.(string)
+		d, err := time.ParseDuration(s)
+		if !isString || err != nil || d < 0 {
+			return limits, fmt.Errorf(`idle "maxLifetime" must be a duration such as "10m", or "0s" for no limit`)
+		}
+		limits.MaxLifetime = d
 	}
 	return limits, nil
 }

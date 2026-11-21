@@ -253,6 +253,83 @@ func TestIdleLimits(t *testing.T) {
 	}
 }
 
+// §5a: a connection older than MaxLifetime, counted from when it was
+// opened however often it was reused, is not handed out, not kept, and is
+// closed when its lifetime ends while idle.
+func TestMaxLifetime(t *testing.T) {
+	s := startServer(t, echoEach)
+	var clock atomic.Int64
+	clock.Store(time.Unix(1700000000, 0).UnixNano())
+	advance := func(d time.Duration) { clock.Add(int64(d)) }
+	withClock := func(limits IdleLimits) SocketProvider {
+		p := SocketProvider{Backend: NetBackend{}, Pool: NewSocketPool(limits)}
+		p.Pool.now = func() time.Time { return time.Unix(0, clock.Load()) }
+		return p
+	}
+	limits := IdleLimits{PerKey: 10, Total: 100, Timeout: time.Hour, MaxLifetime: 10 * time.Minute}
+
+	p := withClock(limits)
+	in := keepInterp(t, p)
+	exchange(t, in, s, "one", "")
+	advance(9 * time.Minute)
+	exchange(t, in, s, "two", "")
+	if n := s.accepted.Load(); n != 1 {
+		t.Fatalf("at 9 minutes old the connection wasn't reused: %d opened", n)
+	}
+	// Reuse didn't reset its age: at 11 minutes it is closed and a new
+	// one opened.
+	advance(2 * time.Minute)
+	if got := exchange(t, in, s, "three", ""); got != "three" {
+		t.Fatalf("reply %q", got)
+	}
+	if n := s.accepted.Load(); n != 2 {
+		t.Errorf("past its lifetime: %d connections opened in all, want 2", n)
+	}
+	if n := p.Pool.Idle(); n != 1 {
+		t.Errorf("pool holds %d, want only the new connection", n)
+	}
+
+	// Past its lifetime by the time it is kept: closed, not kept.
+	p = withClock(limits)
+	t.Cleanup(p.Close)
+	ctx, end := withResourceOwner(context.Background())
+	opened, f := p.Call(ctx, "connect", []Value{Str("127.0.0.1"), localPort(t, s.ln.Addr())})
+	if f != nil {
+		t.Fatal(f)
+	}
+	advance(10 * time.Minute)
+	if _, f := p.Call(ctx, "keep", []Value{opened.(Result).Value, Str("")}); f != nil {
+		t.Fatal(f)
+	}
+	end()
+	if n := p.Pool.Idle(); n != 0 {
+		t.Errorf("kept a connection past its lifetime: pool holds %d", n)
+	}
+
+	// Swept: an idle connection is closed when its lifetime ends, before
+	// the idle timeout.
+	pool := SocketProvider{Backend: NetBackend{}, Pool: NewSocketPool(IdleLimits{PerKey: 10, Total: 10, Timeout: time.Hour, MaxLifetime: 50 * time.Millisecond})}
+	exchange(t, keepInterp(t, pool), s, "four", "")
+	deadline := time.Now().Add(2 * time.Second)
+	for pool.Pool.Idle() > 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n := pool.Pool.Idle(); n != 0 {
+		t.Errorf("after its lifetime the pool holds %d", n)
+	}
+
+	// 0 is no limit.
+	p = withClock(IdleLimits{PerKey: 10, Total: 100, Timeout: time.Hour})
+	in = keepInterp(t, p)
+	before := s.accepted.Load()
+	exchange(t, in, s, "five", "")
+	advance(24 * time.Hour)
+	exchange(t, in, s, "six", "")
+	if n := s.accepted.Load() - before; n != 1 {
+		t.Errorf("with no MaxLifetime: %d connections opened, want 1", n)
+	}
+}
+
 // §2, §3: a connection is reused only by the package that kept it, and a
 // database driver's connection can't be kept.
 func TestKeepIsPerPackageAndNotForDrivers(t *testing.T) {
