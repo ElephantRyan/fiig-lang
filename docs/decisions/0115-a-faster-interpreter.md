@@ -200,4 +200,25 @@ Each step's numbers, from `go test ./compiler/runtime -run '^$' -bench
 | parse (10,000 DataRows, 459 KB) | 47.3 ms (9.7 MB/s) | 459,975 |
 
 The calls workload puts one fiig call at about 900 ns and 12
-allocations.
+allocations. The profile in Context skipped the checker, which folds
+constants onto the syntax tree; the suite runs it, so parsing literals
+isn't among its costs.
+
+### Step 2: `for` over bytes in place
+
+16 MB less allocated per MiB looped over; time within noise.
+
+### Step 3a: scopes as short lists, not hash maps
+
+A scope is one allocation, its first four bindings held inside it, and
+a lookup compares strings from the newest binding; a scope past 16 names
+gets an index. Every caller of `Env` is unchanged.
+
+| Workload | Time | vs baseline | Allocations |
+|---|---|---|---|
+| bytes | 137 ms (7.6 MB/s) | 1.6x | 4,188,000 |
+| build | 3.54 ms | 1.2x | 69,857 |
+| records | 6.02 ms | 1.3x | 99,395 |
+| murmur2 | 243 ms | 1.5x | 4,099,860 |
+| calls | 126 ms | 1.5x | 1,899,442 |
+| parse | 37.3 ms (12.3 MB/s) | 1.3x | 319,971 |

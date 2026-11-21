@@ -8,30 +8,69 @@ package runtime
 // mirroring checker.childEnv's scoping rule but via parent-chained lookup
 // instead of a copy. The only name a scope may change is a reassignable
 // local (ADR 0053), and Reassign walks up to the scope that owns it.
+//
+// ADR 0115 §3: a scope's bindings are a short list, searched from the
+// newest, not a hash map. Most scopes hold a few names, so a new scope is
+// one allocation, with its first envInline bindings inside the Env itself,
+// and a lookup compares a few strings rather than hashing one. A scope
+// that grows past envIndexed names gets an index.
 type Env struct {
-	vars   map[string]Value
+	vars   []binding
+	inline [envInline]binding
+	// index is vars by name, built once vars passes envIndexed.
+	index  map[string]int
 	parent *Env
-	// reassignable marks the names in vars declared with a type (ADR 0053).
-	// Allocated on first use; a nil map reads as "none reassignable".
-	reassignable map[string]bool
 }
+
+// binding is one name in a scope. reassignable marks one declared with a
+// type (ADR 0053).
+type binding struct {
+	name         string
+	v            Value
+	reassignable bool
+}
+
+const (
+	envInline  = 4
+	envIndexed = 16
+)
 
 // NewEnv creates a fresh root scope.
 func NewEnv() *Env {
-	return &Env{vars: map[string]Value{}}
+	e := &Env{}
+	e.vars = e.inline[:0]
+	return e
 }
 
 // Child creates a nested scope — bindings made in it don't leak back out
-// once the block ends, since the parent's own map is never written to.
+// once the block ends, since the parent's own bindings are never written to.
 func (e *Env) Child() *Env {
-	return &Env{vars: map[string]Value{}, parent: e}
+	c := &Env{parent: e}
+	c.vars = c.inline[:0]
+	return c
+}
+
+// find is name's position in e's own bindings, or -1.
+func (e *Env) find(name string) int {
+	if e.index != nil {
+		if i, ok := e.index[name]; ok {
+			return i
+		}
+		return -1
+	}
+	for i := len(e.vars) - 1; i >= 0; i-- {
+		if e.vars[i].name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // Get looks up name in e or any enclosing scope.
 func (e *Env) Get(name string) (Value, bool) {
 	for cur := e; cur != nil; cur = cur.parent {
-		if v, ok := cur.vars[name]; ok {
-			return v, true
+		if i := cur.find(name); i >= 0 {
+			return cur.vars[i].v, true
 		}
 	}
 	return nil, false
@@ -40,24 +79,35 @@ func (e *Env) Get(name string) (Value, bool) {
 // Bind introduces or overwrites name in e's own scope (never an enclosing
 // one) — what a `Binding` statement does.
 func (e *Env) Bind(name string, v Value) {
-	e.vars[name] = v
-	delete(e.reassignable, name)
+	e.set(name, v, false)
 }
 
 // BindReassignable introduces name in e's own scope as a reassignable local,
 // the `name: Type = expr` form (ADR 0053).
 func (e *Env) BindReassignable(name string, v Value) {
-	e.Bind(name, v)
-	if e.reassignable == nil {
-		e.reassignable = map[string]bool{}
+	e.set(name, v, true)
+}
+
+func (e *Env) set(name string, v Value, reassignable bool) {
+	if i := e.find(name); i >= 0 {
+		e.vars[i] = binding{name, v, reassignable}
+		return
 	}
-	e.reassignable[name] = true
+	e.vars = append(e.vars, binding{name, v, reassignable})
+	if e.index != nil {
+		e.index[name] = len(e.vars) - 1
+	} else if len(e.vars) > envIndexed {
+		e.index = make(map[string]int, 2*len(e.vars))
+		for i, b := range e.vars {
+			e.index[b.name] = i
+		}
+	}
 }
 
 // envSnapshot is the reassignable locals visible from an Env, by scope.
 type envSnapshot []struct {
 	scope *Env
-	vars  map[string]Value
+	vars  []binding
 }
 
 // snapshot records every reassignable local visible from e, so a rerun
@@ -66,14 +116,16 @@ type envSnapshot []struct {
 func (e *Env) snapshot() envSnapshot {
 	var out envSnapshot
 	for cur := e; cur != nil; cur = cur.parent {
-		vars := map[string]Value{}
-		for name := range cur.reassignable {
-			vars[name] = cur.vars[name]
+		var vars []binding
+		for _, b := range cur.vars {
+			if b.reassignable {
+				vars = append(vars, b)
+			}
 		}
 		if len(vars) > 0 {
 			out = append(out, struct {
 				scope *Env
-				vars  map[string]Value
+				vars  []binding
 			}{cur, vars})
 		}
 	}
@@ -83,8 +135,8 @@ func (e *Env) snapshot() envSnapshot {
 // restore puts back what snapshot recorded.
 func (e *Env) restore(s envSnapshot) {
 	for _, scope := range s {
-		for name, v := range scope.vars {
-			scope.scope.vars[name] = v
+		for _, b := range scope.vars {
+			scope.scope.set(b.name, b.v, true)
 		}
 	}
 }
@@ -95,11 +147,11 @@ func (e *Env) restore(s envSnapshot) {
 // a false here means the caller should bind the name instead.
 func (e *Env) Reassign(name string, v Value) bool {
 	for cur := e; cur != nil; cur = cur.parent {
-		if _, ok := cur.vars[name]; ok {
-			if !cur.reassignable[name] {
+		if i := cur.find(name); i >= 0 {
+			if !cur.vars[i].reassignable {
 				return false
 			}
-			cur.vars[name] = v
+			cur.vars[i].v = v
 			return true
 		}
 	}
