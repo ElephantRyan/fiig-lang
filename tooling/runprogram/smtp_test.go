@@ -45,18 +45,34 @@ const smtpDate = "Fri, 20 Nov 2026 13:59:58 +0000"
 // random source the test gives the program, in hex.
 func smtpToken(t *testing.T) string {
 	t.Helper()
-	v, fault := runtime.NewSeededRandomProvider(7).Call(context.Background(), "bytes", []runtime.Value{runtime.Int(12)})
-	if fault != nil {
-		t.Fatal(fault)
+	return smtpTokenOf(t, 1)
+}
+
+// smtpTokenOf is the token of the program's nth mail, from the nth 12 bytes.
+func smtpTokenOf(t *testing.T, n int) string {
+	t.Helper()
+	random := runtime.NewSeededRandomProvider(7)
+	var token string
+	for range n {
+		v, fault := random.Call(context.Background(), "bytes", []runtime.Value{runtime.Int(12)})
+		if fault != nil {
+			t.Fatal(fault)
+		}
+		b, ok := v.(runtime.Bytes)
+		if !ok {
+			t.Fatalf("Random.bytes gave %T", v)
+		}
+		token = fmt.Sprintf("%x", b.B)
 	}
-	b, ok := v.(runtime.Bytes)
-	if !ok {
-		t.Fatalf("Random.bytes gave %T", v)
-	}
-	return fmt.Sprintf("%x", b.B)
+	return token
 }
 
 func smtpInterp(t *testing.T, script *runtime.ScriptedSocket, url string) *runtime.Interp {
+	t.Helper()
+	return smtpInterpWith(t, runtime.SocketProvider{Backend: script}, url)
+}
+
+func smtpInterpWith(t *testing.T, socket runtime.SocketProvider, url string) *runtime.Interp {
 	t.Helper()
 	root := t.TempDir()
 	for name, src := range fixture.Module(smtpProgram) {
@@ -78,7 +94,7 @@ func smtpInterp(t *testing.T, script *runtime.ScriptedSocket, url string) *runti
 	}
 	u, _ := types.BuildUniverse(files)
 	caps := runtime.NewCapabilityRegistry()
-	caps.Register("Socket", runtime.SocketProvider{Backend: script})
+	caps.Register("Socket", socket)
 	caps.Register("Clock", runtime.ClockProvider{Clock: runtime.NewManualClock(smtpNow)})
 	caps.Register("Random", runtime.NewSeededRandomProvider(7))
 	RegisterDefaults(caps)
@@ -112,8 +128,13 @@ func sendWelcome(t *testing.T, url, subject string, peers ...*runtime.SocketPeer
 }
 
 func welcomeMessage(t *testing.T, subject string) string {
+	return welcomeMessageOf(t, subject, 1)
+}
+
+// welcomeMessageOf is the message of the program's nth mail.
+func welcomeMessageOf(t *testing.T, subject string, n int) string {
 	return "From: noreply@shop.example\r\nTo: ann@y.org\r\nSubject: " + subject + "\r\nDate: " + smtpDate +
-		"\r\nMessage-ID: <" + smtpToken(t) + "@shop.example>\r\nMIME-Version: 1.0\r\n" +
+		"\r\nMessage-ID: <" + smtpTokenOf(t, n) + "@shop.example>\r\nMIME-Version: 1.0\r\n" +
 		"Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\nThanks for signing up.\r\n.\r\n"
 }
 
@@ -139,8 +160,7 @@ func TestSmtpSendsThroughStartTlsAndALogin(t *testing.T) {
 			expect("DATA\r\n"),
 			send("354 End data with <CR><LF>.<CR><LF>\r\n"),
 			expect(welcomeMessage(t, "Welcome")),
-			send("250 OK queued as 12345\r\n"),
-			expect("QUIT\r\n")))
+			send("250 OK queued as 12345\r\n")))
 	if got != "Ok(None)" {
 		t.Errorf("sendWelcome = %s, want Ok(None)", got)
 	}
@@ -168,8 +188,7 @@ func TestSmtpLogsInWithAuthLoginWhenPlainIsNotOffered(t *testing.T) {
 			expect("DATA\r\n"),
 			send("354 go\r\n"),
 			expect(welcomeMessage(t, "Welcome")),
-			send("250 OK\r\n"),
-			expect("QUIT\r\n")))
+			send("250 OK\r\n")))
 	if got != "Ok(None)" {
 		t.Errorf("sendWelcome = %s, want Ok(None)", got)
 	}
@@ -189,8 +208,7 @@ func TestSmtpPlainToALocalServer(t *testing.T) {
 			expect("DATA\r\n"),
 			send("354 go\r\n"),
 			expect(welcomeMessage(t, "Welcome")),
-			send("250 OK\r\n"),
-			expect("QUIT\r\n")))
+			send("250 OK\r\n")))
 	if got != "Ok(None)" {
 		t.Errorf("sendWelcome = %s, want Ok(None)", got)
 	}
@@ -270,5 +288,121 @@ func TestSmtpRefusesAUrlItCantRead(t *testing.T) {
 	got := sendWelcome(t, "mailto:hunter2@mail.example", "Welcome")
 	if !strings.Contains(got, "InvalidUrl") || strings.Contains(got, "hunter2") {
 		t.Errorf("sendWelcome = %s, want InvalidUrl without the URL's text", got)
+	}
+}
+
+// ADR 0120 §3a: a mail accepted leaves its connection kept, and the next
+// mail goes on it after RSET. A kept connection found dead before the
+// message is written is replaced, once; one that dies after it is not, since
+// the server may have the mail already.
+func TestSmtpKeepsConnectionsBetweenMails(t *testing.T) {
+	steps := func(parts ...[]runtime.SocketStep) []runtime.SocketStep {
+		var all []runtime.SocketStep
+		for _, p := range parts {
+			all = append(all, p...)
+		}
+		return all
+	}
+	// The nth mail from MAIL FROM to the server accepting it.
+	mailSteps := func(t *testing.T, subject string, n int) []runtime.SocketStep {
+		return []runtime.SocketStep{
+			expect("MAIL FROM:<noreply@shop.example>\r\n"), send("250 OK\r\n"),
+			expect("RCPT TO:<ann@y.org>\r\n"), send("250 OK\r\n"),
+			expect("DATA\r\n"), send("354 go\r\n"),
+			expect(welcomeMessageOf(t, subject, n)), send("250 OK\r\n"),
+		}
+	}
+	// The nth mail on a new connection to a local server, without a login.
+	fresh := func(t *testing.T, subject string, n int) []runtime.SocketStep {
+		return steps([]runtime.SocketStep{
+			send("220 localhost ESMTP\r\n"),
+			expect("EHLO client.test\r\n"), send("250 localhost\r\n"),
+		}, mailSteps(t, subject, n))
+	}
+	rset := []runtime.SocketStep{expect("RSET\r\n"), send("250 2.0.0 OK\r\n")}
+	local := func(s []runtime.SocketStep) *runtime.SocketPeer {
+		return &runtime.SocketPeer{Host: "localhost", Port: 1025, Steps: s}
+	}
+	cases := []struct {
+		name   string
+		url    string
+		peers  func(t *testing.T) []*runtime.SocketPeer
+		want   string // the second mail's outcome
+		kept   int    // connections the pool holds at the end
+		closed []bool // which peers end closed
+	}{
+		{"the next mail goes on the same connection", "smtp+plain://localhost:1025",
+			func(t *testing.T) []*runtime.SocketPeer {
+				return []*runtime.SocketPeer{local(steps(fresh(t, "One", 1), rset, mailSteps(t, "Two", 2)))}
+			}, "Ok(None)", 1, []bool{false}},
+		{"after STARTTLS and a login too", "smtp://user:pass@mail.example",
+			func(t *testing.T) []*runtime.SocketPeer {
+				login := []runtime.SocketStep{
+					send("220 mail.example ESMTP\r\n"),
+					expect("EHLO client.test\r\n"), send("250-mail.example\r\n250 STARTTLS\r\n"),
+					expect("STARTTLS\r\n"), send("220 Ready\r\n"), tlsStep,
+					expect("EHLO client.test\r\n"), send("250-mail.example\r\n250 AUTH PLAIN\r\n"),
+					expect("AUTH PLAIN AHVzZXIAcGFzcw==\r\n"), send("235 OK\r\n"),
+				}
+				return []*runtime.SocketPeer{{Host: "mail.example", Port: 587,
+					Steps: steps(login, mailSteps(t, "One", 1), rset, mailSteps(t, "Two", 2))}}
+			}, "Ok(None)", 1, []bool{false}},
+		{"closed while idle, so sent on a new connection", "smtp+plain://localhost:1025",
+			func(t *testing.T) []*runtime.SocketPeer {
+				return []*runtime.SocketPeer{
+					local(steps(fresh(t, "One", 1), []runtime.SocketStep{expect("RSET\r\n"), hangup})),
+					local(fresh(t, "Two", 2)),
+				}
+			}, "Ok(None)", 1, []bool{true, false}},
+		{"421 to RSET, so sent on a new connection", "smtp+plain://localhost:1025",
+			func(t *testing.T) []*runtime.SocketPeer {
+				return []*runtime.SocketPeer{
+					local(steps(fresh(t, "One", 1), []runtime.SocketStep{expect("RSET\r\n"), send("421 4.4.2 Idle too long\r\n")})),
+					local(fresh(t, "Two", 2)),
+				}
+			}, "Ok(None)", 1, []bool{true, false}},
+		{"never sent twice once the message is written", "smtp+plain://localhost:1025",
+			func(t *testing.T) []*runtime.SocketPeer {
+				two := mailSteps(t, "Two", 2)
+				return []*runtime.SocketPeer{local(steps(fresh(t, "One", 1), rset, two[:len(two)-1], []runtime.SocketStep{hangup}))}
+			}, "Err(SmtpError.Socket(", 0, []bool{true}},
+		{"a refusal closes the connection rather than keep it", "smtp+plain://localhost:1025",
+			func(t *testing.T) []*runtime.SocketPeer {
+				return []*runtime.SocketPeer{local(steps(fresh(t, "One", 1), rset, []runtime.SocketStep{
+					expect("MAIL FROM:<noreply@shop.example>\r\n"), send("550 5.7.1 Not today\r\n"),
+				}))}
+			}, "Err(SmtpError.Refused(550", 0, []bool{true}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			peers := c.peers(t)
+			script := &runtime.ScriptedSocket{Peers: peers}
+			socket := runtime.SocketProvider{Backend: script, Pool: runtime.NewSocketPool(runtime.DefaultIdleLimits)}
+			defer socket.Close()
+			in := smtpInterpWith(t, socket, c.url)
+			var got string
+			for _, subject := range []string{"One", "Two"} {
+				v, fault := in.Call(context.Background(), "sendWelcome",
+					map[string]runtime.Value{"to": str("ann@y.org"), "subject": str(subject)})
+				if fault != nil {
+					t.Fatalf("fault: %v", fault)
+				}
+				got = fmt.Sprint(v)
+			}
+			if !strings.HasPrefix(got, c.want) {
+				t.Errorf("second mail %s, want %s", got, c.want)
+			}
+			if err := script.Done(); err != nil {
+				t.Error(err)
+			}
+			if n := socket.Pool.Idle(); n != c.kept {
+				t.Errorf("pool holds %d, want %d", n, c.kept)
+			}
+			for i, p := range peers {
+				if p.Closed() != c.closed[i] {
+					t.Errorf("peer %d closed = %v, want %v", i, p.Closed(), c.closed[i])
+				}
+			}
+		})
 	}
 }

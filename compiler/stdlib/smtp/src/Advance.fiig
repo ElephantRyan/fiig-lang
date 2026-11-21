@@ -12,11 +12,12 @@ conversion advance(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError>
         SmtpPhase.AuthLogin -> expecting(d, reply, 334, SmtpPhase.LoginUser)
         SmtpPhase.LoginUser -> expecting(d, reply, 334, SmtpPhase.LoginPassword)
         SmtpPhase.LoginPassword -> expecting(d, reply, 235, SmtpPhase.MailFrom)
+        SmtpPhase.Reset -> expecting(d, reply, 250, SmtpPhase.MailFrom)
         SmtpPhase.MailFrom -> expectingStart(d, reply)
         SmtpPhase.Rcpt -> afterRecipient(d, reply)
         SmtpPhase.Data -> expecting(d, reply, 354, SmtpPhase.Body)
-        SmtpPhase.Body -> expecting(d, reply, 250, SmtpPhase.Quit)
-        SmtpPhase.Quit -> Ok(d)
+        SmtpPhase.Body -> expecting(d, reply, 250, SmtpPhase.Sent)
+        SmtpPhase.Sent -> Ok(d)
     }
 }
 

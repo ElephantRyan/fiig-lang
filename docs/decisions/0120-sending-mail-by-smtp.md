@@ -159,6 +159,36 @@ offers neither is still `Err(Protocol(...))`. The prompts' text isn't
 checked: it is `Username:` and `Password:` in base64 by convention only,
 and the order is fixed. XOAUTH2 and CRAM-MD5 remain out.)*
 
+### 3a. Connections are kept between mails
+
+*(Amended 2026-11-21: open question 1 decided. "One mail is one
+connection" above no longer holds.)* A mail the server accepts leaves its
+connection with `Socket.keep` (ADR 0109), and the next `send` takes it with
+`Socket.reuse`, so a program sending in bulk pays the TCP, TLS, EHLO and
+AUTH round trips once.
+
+- **The session names the login**: `user=<name>`, or `no login`
+  (`sessionFor`). With the key's host, port and TLS, a connection logged in
+  as one user never sends as another. smtp:// is kept as TLS, since it
+  upgraded before anything was sent.
+- **A kept connection starts with RSET** (`resumeDialogue`), which clears
+  whatever the last mail left, then MAIL FROM. What EHLO offered isn't asked
+  again, so SIZE isn't checked before a mail on a kept connection; the
+  server refuses one over its limit itself (552).
+- **No QUIT.** After the 250 for the message the connection is kept, not
+  closed, so §3's `SendAndClose(bytes)` step gave way to `Finish`; one the pool later drops (idle limit, the server's own timeout)
+  is closed without QUIT, which servers treat as the client going away.
+  A connection with bytes left unread after the 250 isn't kept.
+- **Any error closes the connection**, a refusal included: what the server
+  thinks of the dialogue after one is better not guessed.
+- **A dead kept connection is replaced, once.** A server that closed an idle
+  connection shows it as a socket failure or a 421 on RSET (or MAIL FROM,
+  RCPT TO or DATA). The mail then goes again from the start on a new
+  connection (`resendOnNewConnection`). Never once the body has been
+  written: the server may have accepted the mail even if its 250 never
+  arrived, and sending it again could deliver it twice. A new connection
+  is never retried, so a send makes at most two.
+
 ### 4. Scope
 
 In: one plain-text mail to one or more recipients, over STARTTLS, implicit
@@ -198,10 +228,10 @@ delivery status notifications, connection reuse, and pipelining.
 
 ## Open questions
 
-1. **Connection reuse.** One connection per mail costs a TCP, TLS, EHLO and
+1. ~~**Connection reuse.** One connection per mail costs a TCP, TLS, EHLO and
    AUTH round trip each. ADR 0109's `reuse` and `keep` could keep one with
    a `session` naming the user (RSET between mails), which a program that
-   sends in bulk wants.
+   sends in bulk wants.~~ Done 2026-11-21 (§3a).
 2. **More login mechanisms.** ~~AUTH LOGIN (older Exchange),~~ Done
    2026-11-21 (§3's amendment). XOAUTH2 (Gmail, Microsoft 365), and
    CRAM-MD5 remain. XOAUTH2 needs an access token, not a password, which is

@@ -1,10 +1,12 @@
 use fiig.time
 
-// ADR 0120: sending mail by SMTP, written in fiig over Socket. One mail is
-// one connection: connect, greet, upgrade with STARTTLS when the URL says
-// to, log in, MAIL FROM, RCPT TO each recipient, DATA, QUIT. Every decision
-// about what to send next is a conversion (nextStep, advance); this gateway
-// only writes the bytes and reads the replies.
+// ADR 0120: sending mail by SMTP, written in fiig over Socket. A mail goes
+// out on a connection an earlier one kept for the same server and login
+// (ADR 0109), starting with RSET, or on a new one: connect, greet, upgrade
+// with STARTTLS when the URL says to, log in. Then MAIL FROM, RCPT TO each
+// recipient, DATA, and the connection is kept for the next mail (§3a).
+// Every decision about what to send next is a conversion (nextStep,
+// advance); this gateway only writes the bytes and reads the replies.
 capability Smtp {
     gateway send(mail: Mail) -> Result<None, SmtpError>
         requires Socket
@@ -16,97 +18,142 @@ capability Smtp {
         date = mapErr(e in time.formatRfc5322(now)): SmtpError.Protocol(reason: "the clock reads a year outside 0000 to 9999")?
         data = mailData(mail, date, messageIdFor(mail, token))
         until: int = now + SmtpServer.timeoutMillis
-        opened: Result<Connection, SocketError> = Err(SocketError.Closed)
-        match target.security {
-            SmtpSecurity.Implicit -> {
-                opened = Socket.connectTls(target.host, target.port, deadline: until)
-            }
-            _ -> {
-                opened = Socket.connect(target.host, target.port, deadline: until)
-            }
-        }
-        connection: Connection = mapErr(e in opened): SmtpError.Socket(failure: e)?
-        dialogue: Dialogue = startDialogue(target, mail, SmtpServer.helloName, data)
-        buffer: bytes = <<>>
+        session = sessionFor(target)
+        reused: Connection | None = Socket.reuse(
+            target.host,
+            target.port,
+            tls: target.security != SmtpSecurity.Plain,
+            session: session,
+        )
+        // A kept connection the server closed while it sat idle fails
+        // before the message is written; the mail then goes again, once,
+        // on a new connection. A new connection is never sent on twice, so
+        // this loop runs at most twice.
         while true {
-            match nextStep(dialogue) {
-                SmtpStep.Listen -> None
-                SmtpStep.Send(out) -> {
-                    match Socket.write(connection, out, deadline: until) {
-                        Err(failure) -> {
-                            Socket.close(connection)
-                            return Err(SmtpError.Socket(failure: failure))
+            kept: bool = false
+            opened: Result<Connection, SocketError> = Err(SocketError.Closed)
+            match reused {
+                None -> {
+                    match target.security {
+                        SmtpSecurity.Implicit -> {
+                            opened = Socket.connectTls(target.host, target.port, deadline: until)
                         }
-                        Ok(_) -> None
+                        _ -> {
+                            opened = Socket.connect(target.host, target.port, deadline: until)
+                        }
                     }
                 }
-                SmtpStep.SendAndClose(out) -> {
-                    // The mail was accepted before QUIT, so a hang-up the
-                    // server beat us to isn't a failure.
-                    match Socket.write(connection, out, deadline: until) {
-                        Err(_) -> None
-                        Ok(_) -> None
-                    }
-                    Socket.close(connection)
-                    return Ok(None)
+                earlier -> {
+                    opened = Ok(earlier)
+                    kept = true
                 }
-                SmtpStep.Upgrade -> {
-                    // Bytes that arrived after the server's agreement and
-                    // before the handshake were sent in the clear, perhaps by
-                    // someone else (CVE-2011-0411): refuse them.
-                    if buffer.length() > 0 {
-                        Socket.close(connection)
-                        return Err(
-                            SmtpError.Protocol(reason: "the server sent bytes after agreeing to STARTTLS and before the TLS handshake"),
-                        )
-                    }
-                    match Socket.startTls(connection, target.host, deadline: until) {
-                        Err(failure) -> {
-                            Socket.close(connection)
-                            return Err(SmtpError.Socket(failure: failure))
+            }
+            reused = None
+            connection: Connection = mapErr(e in opened): SmtpError.Socket(failure: e)?
+            dialogue: Dialogue = startDialogue(target, mail, SmtpServer.helloName, data)
+            if kept {
+                dialogue = resumeDialogue(target, mail, SmtpServer.helloName, data)
+            }
+            buffer: bytes = <<>>
+            failed: bool = false
+            failure: SmtpError = SmtpError.Protocol(reason: "")
+            sent: bool = false
+            while not failed and not sent {
+                match nextStep(dialogue) {
+                    SmtpStep.Listen -> None
+                    SmtpStep.Send(out) -> {
+                        match Socket.write(connection, out, deadline: until) {
+                            Err(e) -> {
+                                failed = true
+                                failure = SmtpError.Socket(failure: e)
+                                continue
+                            }
+                            Ok(_) -> None
                         }
-                        Ok(secured) -> {
-                            connection = secured
+                    }
+                    SmtpStep.Finish -> {
+                        sent = true
+                        continue
+                    }
+                    SmtpStep.Upgrade -> {
+                        // Bytes that arrived after the server's agreement and
+                        // before the handshake were sent in the clear, perhaps
+                        // by someone else (CVE-2011-0411): refuse them.
+                        if buffer.length() > 0 {
+                            failed = true
+                            failure = SmtpError.Protocol(
+                                reason: "the server sent bytes after agreeing to STARTTLS and before the TLS handshake",
+                            )
+                            continue
+                        }
+                        match Socket.startTls(connection, target.host, deadline: until) {
+                            Err(e) -> {
+                                failed = true
+                                failure = SmtpError.Socket(failure: e)
+                                continue
+                            }
+                            Ok(secured) -> {
+                                connection = secured
+                            }
+                        }
+                        dialogue = afterUpgrade(dialogue)
+                        continue
+                    }
+                }
+                reply: SmtpReply = SmtpReply(code: 0, lines: [])
+                reading: bool = true
+                while reading {
+                    match readSmtpReply(buffer) {
+                        SmtpReplyRead.Done(found, rest) -> {
+                            reply = found
+                            buffer = rest
+                            reading = false
+                        }
+                        SmtpReplyRead.Malformed(reason) -> {
+                            failed = true
+                            failure = SmtpError.Protocol(reason: reason)
+                            reading = false
+                        }
+                        SmtpReplyRead.NeedMore -> {
+                            match Socket.read(connection, deadline: until) {
+                                Ok(chunk) -> {
+                                    buffer = <<buffer: bytes, chunk: bytes>>
+                                }
+                                Err(e) -> {
+                                    failed = true
+                                    failure = SmtpError.Socket(failure: e)
+                                    reading = false
+                                }
+                            }
                         }
                     }
-                    dialogue = afterUpgrade(dialogue)
+                }
+                if failed {
                     continue
                 }
-            }
-            reply: SmtpReply = SmtpReply(code: 0, lines: [])
-            reading: bool = true
-            while reading {
-                match readSmtpReply(buffer) {
-                    SmtpReplyRead.Done(found, rest) -> {
-                        reply = found
-                        buffer = rest
-                        reading = false
+                match advance(dialogue, reply) {
+                    Ok(next) -> {
+                        dialogue = next
                     }
-                    SmtpReplyRead.Malformed(reason) -> {
-                        Socket.close(connection)
-                        return Err(SmtpError.Protocol(reason: reason))
-                    }
-                    SmtpReplyRead.NeedMore -> {
-                        match Socket.read(connection, deadline: until) {
-                            Ok(chunk) -> {
-                                buffer = <<buffer: bytes, chunk: bytes>>
-                            }
-                            Err(failure) -> {
-                                Socket.close(connection)
-                                return Err(SmtpError.Socket(failure: failure))
-                            }
-                        }
+                    Err(e) -> {
+                        failed = true
+                        failure = e
                     }
                 }
             }
-            match advance(dialogue, reply) {
-                Ok(next) -> {
-                    dialogue = next
-                }
-                Err(failure) -> {
+            if sent {
+                // A reply the server sent unasked would be read as the next
+                // mail's, so a connection with bytes left over isn't kept.
+                if buffer.length() == 0 {
+                    Socket.keep(connection, session: session)
+                } else {
                     Socket.close(connection)
-                    return Err(failure)
                 }
+                return Ok(None)
+            }
+            Socket.close(connection)
+            if not kept or not resendOnNewConnection(dialogue, failure) {
+                return Err(failure)
             }
         }
     }

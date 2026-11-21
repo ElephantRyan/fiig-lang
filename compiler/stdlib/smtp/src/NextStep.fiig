@@ -11,11 +11,12 @@ conversion nextStep(d: Dialogue) -> SmtpStep {
         SmtpPhase.AuthLogin -> SmtpStep.Send(data: crlfLine("AUTH LOGIN"))
         SmtpPhase.LoginUser -> SmtpStep.Send(data: crlfLine(userOf(d.target).utf8().toBase64()))
         SmtpPhase.LoginPassword -> SmtpStep.Send(data: crlfLine(passwordOf(d.target).utf8().toBase64()))
+        SmtpPhase.Reset -> SmtpStep.Send(data: crlfLine("RSET"))
         SmtpPhase.MailFrom -> SmtpStep.Send(data: crlfLine("MAIL FROM:<${d.mail.from}>"))
         SmtpPhase.Rcpt -> SmtpStep.Send(data: crlfLine("RCPT TO:<${d.mail.to.at(d.recipient)}>"))
         SmtpPhase.Data -> SmtpStep.Send(data: crlfLine("DATA"))
         SmtpPhase.Body -> SmtpStep.Send(data: d.data)
-        SmtpPhase.Quit -> SmtpStep.SendAndClose(data: crlfLine("QUIT"))
+        SmtpPhase.Sent -> SmtpStep.Finish
     }
 }
 

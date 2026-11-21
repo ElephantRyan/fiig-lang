@@ -24,7 +24,49 @@ test aStartTlsSendFromGreetingToQuit {
     d10 = go(d9, 354, ["End data with <CR><LF>.<CR><LF>"])
     expect sent(d10) == "the message"
     d11 = go(d10, 250, ["OK queued"])
-    expect sent(d11) == "close:QUIT\r\n"
+    // No QUIT: the connection is kept for the next mail.
+    expect sent(d11) == "finish"
+}
+
+test aKeptConnectionStartsWithRset {
+    d0 = resumeDialogue(
+        startTls("user", "pass"),
+        mail(["b@y.org"]),
+        "client.test",
+        "the message".utf8(),
+    )
+    expect d0.secure
+    expect sent(d0) == "RSET\r\n"
+    d1 = go(d0, 250, ["2.0.0 OK"])
+    expect sent(d1) == "MAIL FROM:<a@x.org>\r\n"
+}
+
+test aRefusedRsetEndsTheSend {
+    d = resumeDialogue(plain(None, None), mail(["b@y.org"]), "client.test", "the message".utf8())
+    expect not d.secure
+    expect advance(d, reply(421, ["4.4.2 Timeout"])) is Err(SmtpError.Refused(code, message))
+    expect code == 421
+}
+
+test aKeptConnectionIsOnlyForTheSameLogin {
+    expect sessionFor(startTls("ann", "pass")) == "user=ann"
+    expect sessionFor(startTls("bob", "pass")) == "user=bob"
+    expect sessionFor(plain(None, None)) == "no login"
+}
+
+test aDeadKeptConnectionIsTriedAgainOnlyBeforeTheBody {
+    kept = resumeDialogue(plain(None, None), mail(["b@y.org"]), "client.test", "the message".utf8())
+    closed = SmtpError.Socket(failure: SocketError.Closed)
+    expect resendOnNewConnection(kept, closed)
+    expect resendOnNewConnection(kept, SmtpError.Refused(code: 421, message: "closing"))
+    expect not resendOnNewConnection(kept, SmtpError.Refused(code: 550, message: "no"))
+    expect not resendOnNewConnection(kept, SmtpError.Protocol(reason: "malformed"))
+    for phase in [SmtpPhase.MailFrom, SmtpPhase.Rcpt, SmtpPhase.Data] {
+        expect resendOnNewConnection(copy(kept, phase: phase), closed)
+    }
+    // Once the message has been written the server may have it.
+    expect not resendOnNewConnection(copy(kept, phase: SmtpPhase.Body), closed)
+    expect not resendOnNewConnection(copy(kept, phase: SmtpPhase.Sent), closed)
 }
 
 test smtpWithoutStartTlsIsRefusedBeforeAnythingIsSent {
@@ -210,7 +252,7 @@ private {
             SmtpStep.Listen -> "listen"
             SmtpStep.Upgrade -> "upgrade"
             SmtpStep.Send(data) -> textOf(data)
-            SmtpStep.SendAndClose(data) -> "close:${textOf(data)}"
+            SmtpStep.Finish -> "finish"
         }
     }
 
