@@ -155,6 +155,9 @@ dirty reads is better told no.
 2. **Read-only transactions** (`BEGIN READ ONLY`), which let Postgres skip
    some serializable bookkeeping and a replica serve them.
 
+Both are answered by ADR 0119: a `savepoint { }` block inside a
+transaction, and `transaction Database readOnly { }`.
+
 ## Implementation notes (2026-11-17)
 
 - **Syntax:** `TransactionStmt` gained `Isolation` and `Attempts`; the
