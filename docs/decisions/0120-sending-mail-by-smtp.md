@@ -150,6 +150,15 @@ server that offers a login mechanism but not PLAIN is `Err(Protocol(...))`
 the next (open question 1). The QUIT after the mail is accepted is written
 without waiting, and a server that has hung up already isn't a failure.
 
+*(Amended 2026-11-21: AUTH LOGIN is the second mechanism. A server whose
+EHLO offers PLAIN is logged in to with PLAIN, as before; one that offers
+LOGIN and not PLAIN (older Exchange) gets `AUTH LOGIN`, then the user and
+then the password, each in base64 on its own line, answering the server's
+two 334 prompts; any other reply ends the send as `Refused`. A server that
+offers neither is still `Err(Protocol(...))`. The prompts' text isn't
+checked: it is `Username:` and `Password:` in base64 by convention only,
+and the order is fixed. XOAUTH2 and CRAM-MD5 remain out.)*
+
 ### 4. Scope
 
 In: one plain-text mail to one or more recipients, over STARTTLS, implicit
@@ -193,9 +202,10 @@ delivery status notifications, connection reuse, and pipelining.
    AUTH round trip each. ADR 0109's `reuse` and `keep` could keep one with
    a `session` naming the user (RSET between mails), which a program that
    sends in bulk wants.
-2. **More login mechanisms.** AUTH LOGIN (older Exchange), XOAUTH2 (Gmail,
-   Microsoft 365), and CRAM-MD5. XOAUTH2 needs an access token, not a
-   password, which is a different configuration.
+2. **More login mechanisms.** ~~AUTH LOGIN (older Exchange),~~ Done
+   2026-11-21 (§3's amendment). XOAUTH2 (Gmail, Microsoft 365), and
+   CRAM-MD5 remain. XOAUTH2 needs an access token, not a password, which is
+   a different configuration.
 3. **SMTPUTF8 and internationalised addresses** (RFC 6531), and IDN domains.
 4. **Multipart: HTML and attachments**, and Cc, Bcc, Reply-To and display
    names. A `Mail` model grows fields, or a second `send` takes a richer

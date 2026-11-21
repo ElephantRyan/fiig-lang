@@ -1,5 +1,7 @@
 // Where a send has got to. Upgrading is the moment between the server's
-// agreement to STARTTLS and the handshake, which has no reply to read.
+// agreement to STARTTLS and the handshake, which has no reply to read. Auth
+// is AUTH PLAIN's one line; AuthLogin, LoginUser and LoginPassword are AUTH
+// LOGIN's three.
 enum SmtpPhase {
     Greeting
     Hello
@@ -7,6 +9,9 @@ enum SmtpPhase {
     Upgrading
     SecureHello
     Auth
+    AuthLogin
+    LoginUser
+    LoginPassword
     MailFrom
     Rcpt
     Data

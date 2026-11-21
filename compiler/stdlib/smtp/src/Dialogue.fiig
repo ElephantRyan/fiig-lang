@@ -12,6 +12,7 @@ model Dialogue {
     recipient: int
     startTls: bool
     authPlain: bool
+    authLogin: bool
     // The most bytes the server takes in a message, 0 when it says nothing.
     sizeLimit: int
 }

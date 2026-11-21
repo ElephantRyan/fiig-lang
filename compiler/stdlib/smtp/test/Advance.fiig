@@ -49,12 +49,49 @@ test plainWithNoLoginGoesStraightToMail {
     expect sent(d) == "MAIL FROM:<a@x.org>\r\n"
 }
 
-test aLoginNeedsAuthPlain {
+test aLoginNeedsAuthPlainOrAuthLogin {
     after = advance(afterGreeting(), reply(250, ["mail.example Hello", "STARTTLS"]))
     expect after is Ok(next)
     secured = afterUpgrade(next)
-    expect advance(copy(secured, phase: SmtpPhase.SecureHello), reply(250, ["mail.example Hello", "AUTH LOGIN XOAUTH2"])) is Err(SmtpError.Protocol(reason))
+    expect advance(copy(secured, phase: SmtpPhase.SecureHello), reply(250, ["mail.example Hello", "AUTH XOAUTH2 CRAM-MD5"])) is Err(SmtpError.Protocol(reason))
     expect reason.contains("AUTH PLAIN")
+    expect reason.contains("AUTH LOGIN")
+}
+
+test authLoginIsUsedWhenItIsAllTheServerOffers {
+    d0 = go(
+        go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]),
+        250,
+        ["mail.example Hello", "AUTH LOGIN XOAUTH2"],
+    )
+    expect sent(d0) == "AUTH LOGIN\r\n"
+    // The server's prompts are Username: and Password: in base64.
+    d1 = go(d0, 334, ["VXNlcm5hbWU6"])
+    expect sent(d1) == "dXNlcg==\r\n"
+    d2 = go(d1, 334, ["UGFzc3dvcmQ6"])
+    expect sent(d2) == "cGFzcw==\r\n"
+    d3 = go(d2, 235, ["Authentication successful"])
+    expect sent(d3) == "MAIL FROM:<a@x.org>\r\n"
+}
+
+test aRefusedAuthLoginPasswordEndsTheSend {
+    d = go(
+        go(go(go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]), 250, ["Hello", "AUTH=LOGIN"]), 334, ["VXNlcm5hbWU6"]),
+        334,
+        ["UGFzc3dvcmQ6"],
+    )
+    expect sent(d) == "cGFzcw==\r\n"
+    expect advance(d, reply(535, ["5.7.8 Authentication credentials invalid"])) is Err(SmtpError.Refused(code, message))
+    expect code == 535
+}
+
+test authPlainIsPreferredWhenBothAreOffered {
+    d = go(
+        go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]),
+        250,
+        ["mail.example Hello", "AUTH LOGIN PLAIN"],
+    )
+    expect sent(d) == "AUTH PLAIN AHVzZXIAcGFzcw==\r\n"
 }
 
 test theOlderAuthEqualsFormIsRead {

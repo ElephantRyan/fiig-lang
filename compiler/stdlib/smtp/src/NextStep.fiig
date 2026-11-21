@@ -8,6 +8,9 @@ conversion nextStep(d: Dialogue) -> SmtpStep {
         SmtpPhase.Upgrading -> SmtpStep.Upgrade
         SmtpPhase.SecureHello -> SmtpStep.Send(data: crlfLine("EHLO ${d.hello}"))
         SmtpPhase.Auth -> SmtpStep.Send(data: crlfLine("AUTH PLAIN ${plainLogin(d.target)}"))
+        SmtpPhase.AuthLogin -> SmtpStep.Send(data: crlfLine("AUTH LOGIN"))
+        SmtpPhase.LoginUser -> SmtpStep.Send(data: crlfLine(userOf(d.target).utf8().toBase64()))
+        SmtpPhase.LoginPassword -> SmtpStep.Send(data: crlfLine(passwordOf(d.target).utf8().toBase64()))
         SmtpPhase.MailFrom -> SmtpStep.Send(data: crlfLine("MAIL FROM:<${d.mail.from}>"))
         SmtpPhase.Rcpt -> SmtpStep.Send(data: crlfLine("RCPT TO:<${d.mail.to.at(d.recipient)}>"))
         SmtpPhase.Data -> SmtpStep.Send(data: crlfLine("DATA"))
@@ -24,21 +27,25 @@ private {
     // RFC 4616: an empty authorization identity, the user, and the password,
     // each ended by a zero byte but the last, in base64.
     plainLogin(target: SmtpTarget) -> string {
-        user: string = ""
-        password: string = ""
-        match target.user {
-            None -> None
-            name -> {
-                user = name
-            }
-        }
-        match target.password {
-            None -> None
-            secret -> {
-                password = secret
-            }
-        }
+        user = userOf(target)
+        password = passwordOf(target)
         login: bytes = <<0: u8, user: utf8, 0: u8, password: utf8>>
         return login.toBase64()
+    }
+
+    // AUTH LOGIN (draft-murchison-sasl-login) answers the server's two 334
+    // prompts, Username: and Password:, with each in base64 on its own line.
+    userOf(target: SmtpTarget) -> string {
+        match target.user {
+            None -> ""
+            name -> name
+        }
+    }
+
+    passwordOf(target: SmtpTarget) -> string {
+        match target.password {
+            None -> ""
+            secret -> secret
+        }
     }
 }

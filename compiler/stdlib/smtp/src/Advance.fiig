@@ -9,6 +9,9 @@ conversion advance(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError>
         SmtpPhase.StartTls -> expecting(d, reply, 220, SmtpPhase.Upgrading)
         SmtpPhase.Upgrading -> Err(SmtpError.Protocol(reason: "the server spoke while the connection was upgrading to TLS"))
         SmtpPhase.Auth -> expecting(d, reply, 235, SmtpPhase.MailFrom)
+        SmtpPhase.AuthLogin -> expecting(d, reply, 334, SmtpPhase.LoginUser)
+        SmtpPhase.LoginUser -> expecting(d, reply, 334, SmtpPhase.LoginPassword)
+        SmtpPhase.LoginPassword -> expecting(d, reply, 235, SmtpPhase.MailFrom)
         SmtpPhase.MailFrom -> expectingStart(d, reply)
         SmtpPhase.Rcpt -> afterRecipient(d, reply)
         SmtpPhase.Data -> expecting(d, reply, 354, SmtpPhase.Body)
@@ -48,7 +51,8 @@ private {
 
     // EHLO's reply lists what the server offers, a keyword a line after the
     // first. STARTTLS is required of smtp:// before anything is sent, and a
-    // login before MAIL FROM when the URL has one.
+    // login before MAIL FROM when the URL has one: AUTH PLAIN when offered,
+    // else AUTH LOGIN, which older Exchange servers offer alone.
     afterHello(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError> {
         if reply.code != 250 {
             return Err(refused(reply, ""))
@@ -66,7 +70,8 @@ private {
         learned = copy(
             d,
             startTls: offers.contains("STARTTLS"),
-            authPlain: offersPlain(offers),
+            authPlain: offersAuth(offers, "PLAIN"),
+            authLogin: offersAuth(offers, "LOGIN"),
             sizeLimit: size,
         )
         if not d.secure and d.target.security == SmtpSecurity.StartTls {
@@ -85,8 +90,11 @@ private {
                 if learned.authPlain {
                     return Ok(copy(learned, phase: SmtpPhase.Auth))
                 }
+                if learned.authLogin {
+                    return Ok(copy(learned, phase: SmtpPhase.AuthLogin))
+                }
                 return Err(
-                    SmtpError.Protocol(reason: "the server offers no AUTH PLAIN, which is what fiig.smtp logs in with"),
+                    SmtpError.Protocol(reason: "the server offers neither AUTH PLAIN nor AUTH LOGIN, which are what fiig.smtp logs in with"),
                 )
             }
         }
@@ -107,12 +115,13 @@ private {
         return 0
     }
 
-    // AUTH PLAIN LOGIN, or the older AUTH=PLAIN LOGIN.
-    offersPlain(offers: List<string>) -> bool {
+    // Whether AUTH PLAIN LOGIN, or the older AUTH=PLAIN LOGIN, names the
+    // mechanism.
+    offersAuth(offers: List<string>, mechanism: string) -> bool {
         for offer in offers {
             if offer.startsWith("AUTH ") or offer.startsWith("AUTH=") {
                 for word in offer.removePrefix("AUTH").replaceAll("=", " ").split(" ") {
-                    if word == "PLAIN" {
+                    if word == mechanism {
                         return true
                     }
                 }

@@ -146,6 +146,35 @@ func TestSmtpSendsThroughStartTlsAndALogin(t *testing.T) {
 	}
 }
 
+// A server that offers AUTH LOGIN alone, as older Exchange servers do, is
+// logged in to with LOGIN's two prompts.
+func TestSmtpLogsInWithAuthLoginWhenPlainIsNotOffered(t *testing.T) {
+	got := sendWelcome(t, "smtps://user:pass@mail.example", "Welcome",
+		peer("mail.example", 465,
+			tlsStep,
+			send("220 mail.example ESMTP\r\n"),
+			expect("EHLO client.test\r\n"),
+			send("250-mail.example\r\n250 AUTH LOGIN\r\n"),
+			expect("AUTH LOGIN\r\n"),
+			send("334 VXNlcm5hbWU6\r\n"),
+			expect("dXNlcg==\r\n"),
+			send("334 UGFzc3dvcmQ6\r\n"),
+			expect("cGFzcw==\r\n"),
+			send("235 2.7.0 Authentication successful\r\n"),
+			expect("MAIL FROM:<noreply@shop.example>\r\n"),
+			send("250 OK\r\n"),
+			expect("RCPT TO:<ann@y.org>\r\n"),
+			send("250 OK\r\n"),
+			expect("DATA\r\n"),
+			send("354 go\r\n"),
+			expect(welcomeMessage(t, "Welcome")),
+			send("250 OK\r\n"),
+			expect("QUIT\r\n")))
+	if got != "Ok(None)" {
+		t.Errorf("sendWelcome = %s, want Ok(None)", got)
+	}
+}
+
 // smtp+plain:// for a server on the same machine: no TLS, no login.
 func TestSmtpPlainToALocalServer(t *testing.T) {
 	got := sendWelcome(t, "smtp+plain://localhost:1025", "Welcome",
