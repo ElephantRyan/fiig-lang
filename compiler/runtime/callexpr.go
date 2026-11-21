@@ -88,9 +88,9 @@ func (in *Interp) evalIdentCall(ctx context.Context, e *syntax.CallExpr, ident *
 // evalHttpResponse builds the prelude's HttpResponse<B> (ADR 0069 §3): a
 // record whose left-out fields are None.
 func (in *Interp) evalHttpResponse(ctx context.Context, e *syntax.CallExpr, env *Env) (Value, bool, *Fault) {
-	supplied, earlyReturn, fault := in.evalArgs(ctx, env, e.Args, types.HttpResponseFieldNames)
+	supplied, early, earlyReturn, fault := in.evalArgs(ctx, env, e.Args, types.HttpResponseFieldNames)
 	if fault != nil || earlyReturn {
-		return nil, earlyReturn, fault
+		return early, earlyReturn, fault
 	}
 	fields := make(map[string]Value, len(types.HttpResponseFieldNames))
 	for _, n := range types.HttpResponseFieldNames {
@@ -127,9 +127,9 @@ func (in *Interp) constructDecl(ctx context.Context, decl syntax.Decl, displayNa
 	switch decl := decl.(type) {
 	case *syntax.ModelDecl:
 		names := fieldNames(decl.Fields)
-		supplied, earlyReturn, fault := in.evalArgs(ctx, env, args, names)
+		supplied, early, earlyReturn, fault := in.evalArgs(ctx, env, args, names)
 		if fault != nil || earlyReturn {
-			return nil, earlyReturn, fault
+			return early, earlyReturn, fault
 		}
 		fields := make(map[string]Value, len(decl.Fields))
 		// A record is flat (ADR 0045): an embedded model's fields are merged
@@ -197,9 +197,9 @@ func (in *Interp) callDeclInPackage(ctx context.Context, pkg *types.Package, ali
 		return nil, false, Faultf("%q is not callable", field)
 	}
 	fr, vals := newCallFrame(len(params))
-	supplied, earlyReturn, fault := in.evalParamArgs(ctx, env, args, params, vals)
+	supplied, early, earlyReturn, fault := in.evalParamArgs(ctx, env, args, params, vals)
 	if fault != nil || earlyReturn {
-		return nil, earlyReturn, fault
+		return early, earlyReturn, fault
 	}
 	if _, isWorkflow := decl.(*syntax.WorkflowDecl); isWorkflow {
 		// A gateway calling another package's workflow (ADR 0079 §1): the
@@ -220,9 +220,9 @@ func (in *Interp) evalDeclCall(ctx context.Context, sc scope, name string, decl 
 		return nil, false, Faultf("%q is not callable", name)
 	}
 	fr, vals := newCallFrame(len(params))
-	supplied, earlyReturn, fault := in.evalParamArgs(ctx, env, args, params, vals)
+	supplied, early, earlyReturn, fault := in.evalParamArgs(ctx, env, args, params, vals)
 	if fault != nil || earlyReturn {
-		return nil, earlyReturn, fault
+		return early, earlyReturn, fault
 	}
 	v, f := in.callDeclValues(ctx, sc, name, decl, supplied, fr)
 	if f != nil {
@@ -287,9 +287,9 @@ func (in *Interp) evalQualifiedCall(ctx context.Context, fa *syntax.FieldAccess,
 		// Neither a declared name nor a known import alias — a
 		// capability call (Database.queryOne(...)), the only other shape
 		// this grammar position is attested to mean.
-		argVals, earlyReturn, fault := in.evalArgsPositional(ctx, args, env)
+		argVals, early, earlyReturn, fault := in.evalArgsPositional(ctx, args, env)
 		if fault != nil || earlyReturn {
-			return nil, earlyReturn, fault
+			return early, earlyReturn, fault
 		}
 		// ADR 0015: implicit transaction binding — if this call is running
 		// inside a `transaction <targetIdent.Name> { ... }` block, it joins
@@ -324,9 +324,9 @@ func (in *Interp) evalQualifiedCall(ctx context.Context, fa *syntax.FieldAccess,
 	if p, isProvider := target.(Provider); isProvider {
 		return in.callProvider(ctx, p, fa.Field, args, env)
 	}
-	argVals, earlyReturn, fault := in.evalArgsPositional(ctx, args, env)
+	argVals, early, earlyReturn, fault := in.evalArgsPositional(ctx, args, env)
 	if fault != nil || earlyReturn {
-		return nil, earlyReturn, fault
+		return early, earlyReturn, fault
 	}
 	if sigs, ok := types.MethodsOfKind(methodKind(target)); ok {
 		if m, found := sigs[fa.Field]; found {
@@ -351,9 +351,9 @@ func (in *Interp) constructEnum(ctx context.Context, enumDecl *syntax.EnumDecl, 
 		}
 		return EnumValue{TypeName: enumName, Variant: variant.Name, Consts: consts, Decl: enumDecl}, false, nil
 	}
-	supplied, earlyReturn, fault := in.evalArgs(ctx, env, args, fieldNames(variant.Fields))
+	supplied, early, earlyReturn, fault := in.evalArgs(ctx, env, args, fieldNames(variant.Fields))
 	if fault != nil || earlyReturn {
-		return nil, earlyReturn, fault
+		return early, earlyReturn, fault
 	}
 	fields := make([]Value, len(variant.Fields))
 	for i, f := range variant.Fields {
@@ -404,7 +404,7 @@ func (in *Interp) evalCopy(ctx context.Context, e *syntax.CallExpr, env *Env) (V
 // evalArgs matches args against names by name or position (mirroring
 // compiler/checker/expr.go's matchArgs), evaluating each argument
 // expression left to right as written.
-func (in *Interp) evalArgs(ctx context.Context, env *Env, args []syntax.Arg, names []string) (map[string]Value, bool, *Fault) {
+func (in *Interp) evalArgs(ctx context.Context, env *Env, args []syntax.Arg, names []string) (map[string]Value, Value, bool, *Fault) {
 	nameSet := make(map[string]bool, len(names))
 	for _, n := range names {
 		nameSet[n] = true
@@ -414,11 +414,11 @@ func (in *Interp) evalArgs(ctx context.Context, env *Env, args []syntax.Arg, nam
 	for _, a := range args {
 		v, earlyReturn, fault := in.evalExpr(ctx, a.Value, env)
 		if fault != nil || earlyReturn {
-			return nil, earlyReturn, fault
+			return nil, v, earlyReturn, fault
 		}
 		if a.Name != "" {
 			if !nameSet[a.Name] {
-				return nil, false, Faultf("no parameter named %q", a.Name)
+				return nil, nil, false, Faultf("no parameter named %q", a.Name)
 			}
 			supplied[a.Name] = v
 			continue
@@ -430,23 +430,23 @@ func (in *Interp) evalArgs(ctx context.Context, env *Env, args []syntax.Arg, nam
 			posIdx++
 		}
 		if posIdx >= len(names) {
-			return nil, false, Faultf("too many arguments")
+			return nil, nil, false, Faultf("too many arguments")
 		}
 		supplied[names[posIdx]] = v
 		posIdx++
 	}
-	return supplied, false, nil
+	return supplied, nil, false, nil
 }
 
 // evalParamArgs is evalArgs for a declaration's params, filling vals
 // (newCallFrame's, all nil) in parameter order and leaving nil one not
 // supplied, with no maps built (ADR 0115 §5).
-func (in *Interp) evalParamArgs(ctx context.Context, env *Env, args []syntax.Arg, params []syntax.Param, vals []Value) ([]Value, bool, *Fault) {
+func (in *Interp) evalParamArgs(ctx context.Context, env *Env, args []syntax.Arg, params []syntax.Param, vals []Value) ([]Value, Value, bool, *Fault) {
 	posIdx := 0
 	for _, a := range args {
 		v, earlyReturn, fault := in.evalExpr(ctx, a.Value, env)
 		if fault != nil || earlyReturn {
-			return nil, earlyReturn, fault
+			return nil, v, earlyReturn, fault
 		}
 		if a.Name != "" {
 			i := 0
@@ -454,7 +454,7 @@ func (in *Interp) evalParamArgs(ctx context.Context, env *Env, args []syntax.Arg
 				i++
 			}
 			if i == len(params) {
-				return nil, false, Faultf("no parameter named %q", a.Name)
+				return nil, nil, false, Faultf("no parameter named %q", a.Name)
 			}
 			vals[i] = v
 			continue
@@ -463,27 +463,27 @@ func (in *Interp) evalParamArgs(ctx context.Context, env *Env, args []syntax.Arg
 			posIdx++
 		}
 		if posIdx >= len(params) {
-			return nil, false, Faultf("too many arguments")
+			return nil, nil, false, Faultf("too many arguments")
 		}
 		vals[posIdx] = v
 		posIdx++
 	}
-	return vals, false, nil
+	return vals, nil, false, nil
 }
 
 // evalArgsPositional evaluates args in order with no name matching — used
 // for capability/builtin-method calls, neither of which has a declared
 // parameter list to match against.
-func (in *Interp) evalArgsPositional(ctx context.Context, args []syntax.Arg, env *Env) ([]Value, bool, *Fault) {
+func (in *Interp) evalArgsPositional(ctx context.Context, args []syntax.Arg, env *Env) ([]Value, Value, bool, *Fault) {
 	vals := make([]Value, len(args))
 	for i, a := range args {
 		v, earlyReturn, fault := in.evalExpr(ctx, a.Value, env)
 		if fault != nil || earlyReturn {
-			return nil, earlyReturn, fault
+			return nil, v, earlyReturn, fault
 		}
 		vals[i] = v
 	}
-	return vals, false, nil
+	return vals, nil, false, nil
 }
 
 // placeArgs orders a builtin call's argument values, which are in source

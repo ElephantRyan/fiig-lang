@@ -377,9 +377,9 @@ func (in *Interp) callMath(ctx context.Context, fa *syntax.FieldAccess, args []s
 	if !ok || body == nil {
 		return nil, false, Faultf("the prelude math group has no formula %q", fa.Field)
 	}
-	vals, earlyReturn, fault := in.evalArgsPositional(ctx, args, env)
+	vals, early, earlyReturn, fault := in.evalArgsPositional(ctx, args, env)
 	if fault != nil || earlyReturn {
-		return nil, earlyReturn, fault
+		return early, earlyReturn, fault
 	}
 	argNames := make([]string, len(args))
 	for i, a := range args {

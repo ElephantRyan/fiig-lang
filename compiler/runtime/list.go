@@ -42,9 +42,9 @@ func appendList(l List, v Value) List {
 }
 
 func (in *Interp) evalAppend(ctx context.Context, e *syntax.CallExpr, env *Env) (Value, bool, *Fault) {
-	vals, earlyReturn, fault := in.evalArgsPositional(ctx, e.Args, env)
+	vals, early, earlyReturn, fault := in.evalArgsPositional(ctx, e.Args, env)
 	if fault != nil || earlyReturn {
-		return nil, earlyReturn, fault
+		return early, earlyReturn, fault
 	}
 	if len(vals) != 2 {
 		return nil, false, Faultf("append(list, element) takes exactly two arguments")

@@ -148,25 +148,25 @@ func compileStmt(s syntax.Stmt, producingHere bool) cstmt {
 	}
 }
 
-// compileCond is evalCond. Like evalCond, an early return from a condition
-// carries no value.
-func compileCond(e syntax.Expr) func(in *Interp, ctx context.Context, env *Env) (bool, bool, *Fault) {
+// compileCond is evalCond: whether the condition holds, or the value of
+// an early return from it.
+func compileCond(e syntax.Expr) func(in *Interp, ctx context.Context, env *Env) (bool, Value, bool, *Fault) {
 	cond := compileExpr(e)
-	return func(in *Interp, ctx context.Context, env *Env) (bool, bool, *Fault) {
+	return func(in *Interp, ctx context.Context, env *Env) (bool, Value, bool, *Fault) {
 		val, earlyReturn, fault := cond(in, ctx, env)
 		if fault != nil || earlyReturn {
-			return false, earlyReturn, fault
+			return false, val, earlyReturn, fault
 		}
 		b, ok := val.(Bool)
 		if !ok {
-			return false, false, Faultf("condition did not evaluate to a boolean (got %s)", val)
+			return false, nil, false, Faultf("condition did not evaluate to a boolean (got %s)", val)
 		}
-		return bool(b), false, nil
+		return bool(b), nil, false, nil
 	}
 }
 
 func compileIf(s *syntax.IfStmt, producingHere bool) cstmt {
-	conds := []func(*Interp, context.Context, *Env) (bool, bool, *Fault){compileCond(s.Cond)}
+	conds := []func(*Interp, context.Context, *Env) (bool, Value, bool, *Fault){compileCond(s.Cond)}
 	blocks := []*cblock{compileBlock(s.Then, producingHere)}
 	for _, ei := range s.ElseIfs {
 		conds = append(conds, compileCond(ei.Cond))
@@ -178,12 +178,12 @@ func compileIf(s *syntax.IfStmt, producingHere bool) cstmt {
 	}
 	return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
 		for i, cond := range conds {
-			ok, earlyReturn, fault := cond(in, ctx, env)
+			ok, early, earlyReturn, fault := cond(in, ctx, env)
 			if fault != nil {
 				return nil, false, fault
 			}
 			if earlyReturn {
-				return nil, true, nil
+				return early, true, nil
 			}
 			if ok {
 				return blocks[i].in(in, ctx, env)
@@ -210,9 +210,9 @@ func compileWhile(s *syntax.WhileStmt) cstmt {
 			if f := checkCancelled(ctx); f != nil {
 				return nil, false, f
 			}
-			ok, earlyReturn, fault := cond(in, ctx, env)
+			ok, early, earlyReturn, fault := cond(in, ctx, env)
 			if fault != nil || earlyReturn {
-				return nil, earlyReturn, fault
+				return early, earlyReturn, fault
 			}
 			if !ok {
 				return nil, false, nil

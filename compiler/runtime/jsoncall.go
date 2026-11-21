@@ -15,9 +15,9 @@ import (
 // recorded on the call (§2); input that isn't JSON or doesn't fit is an
 // Err(JsonError), not a fault.
 func (in *Interp) callJson(ctx context.Context, e *syntax.CallExpr, member string, env *Env) (Value, bool, *Fault) {
-	vals, earlyReturn, fault := in.evalArgsPositional(ctx, e.Args, env)
+	vals, early, earlyReturn, fault := in.evalArgsPositional(ctx, e.Args, env)
 	if fault != nil || earlyReturn {
-		return nil, earlyReturn, fault
+		return early, earlyReturn, fault
 	}
 	if len(vals) != 1 {
 		return nil, false, Faultf("json.%s takes one argument", member)
