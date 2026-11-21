@@ -86,10 +86,13 @@ doesn't have to discover them.
   certificates, and redirects come back as replies (§4). Connections are
   kept between requests (ADR 0109), one request at a time each.
 - **`fiig.smtp` sends plain-text mail only** (ADR 0120): no HTML or
-  attachments, Cc, Bcc, Reply-To or display names, no login but AUTH PLAIN
-  (so no XOAUTH2 for Gmail or Microsoft 365), no internationalised
-  addresses, and one connection per mail. A mail to several recipients goes
-  to all of them or to none.
+  attachments, no login but AUTH PLAIN and AUTH LOGIN (so no XOAUTH2 for
+  Gmail or Microsoft 365, and no CRAM-MD5), no internationalised
+  addresses, and Reply-To takes one address. A mail to several recipients
+  (To, Cc and Bcc together) goes to all of them or to none. Connections
+  are kept between mails; a mail on a kept connection isn't checked
+  against the server's SIZE limit first, so the server refuses an
+  oversized one itself.
 - **`fiig.s3` covers single objects** (ADR 0121): put (optionally with
   user metadata, always with an `x-amz-checksum-sha256` for S3 to verify),
   get (whole, with its metadata, or a byte range), head, delete, and copy
