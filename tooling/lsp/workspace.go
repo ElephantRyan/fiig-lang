@@ -506,6 +506,12 @@ func memberSpan(src string, decl syntax.Decl, member string) (lexer.Pos, lexer.P
 			s, e := nameAt(src, f.Start, member)
 			return s, e, true
 		}
+	case *syntax.AdapterDecl:
+		// An adapter's principal, named by a route (ADR 0137 §1).
+		if pr := d.Principal(member); pr != nil {
+			s, e := nameAt(src, pr.Start, member)
+			return s, e, true
+		}
 	}
 	return lexer.Pos{}, lexer.Pos{}, false
 }

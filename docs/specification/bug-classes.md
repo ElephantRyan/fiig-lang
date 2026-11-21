@@ -243,6 +243,21 @@ attests them (T2 also by any program file).
 | T6 | A test reaches an operation its fake lacks, or a provider a rule can return that it doesn't fake (§4) | Attested — `TestTestBugClasses` |
 | T7 | A fake of a capability with no fiig declaration (§4): there's nothing to check it against | Attested — `TestTestBugClasses` |
 
+## U. Principal errors (ADR 0137)
+
+An http adapter may settle who is calling, its principal, before it reads the
+request: `principal me: Identity from cookie "sid" by sessions.signedIn else
+sessions.signInFirst`. These are checked in `compiler/checker/principal.go`.
+
+| # | Bug class | Status |
+|---|---|---|
+| U1 | A principal's `by` names something other than a workflow, or a workflow whose one parameter isn't the principal's input (`string \| None` from a header or cookie, or the earlier principal's type), or whose result isn't `Result<T, E>` for the principal's type `T`; or a principal typed `T \| None`, which ADR 0137 §9 records but isn't built | Attested — `TestU1TheBinderIsAWorkflowOfTheRightShape` |
+| U2 | A principal's `else` names something other than a conversion from the binder's error `E` to an `HttpResponse` | Attested — `TestU2TheRefusalIsAConversionToAnHttpResponse` |
+| U3 | In an adapter that declares a principal, a route that takes none and isn't `public`, or a `public` route that takes one; `public` in an adapter with no principal. The adapter said it settles who is calling, so a route without it is a mistake in every reading (ADR 0051) | Attested — `TestU3EveryRouteTakesAPrincipalOrIsPublic` |
+| U4 | A bare route argument that names no principal of the adapter, one whose type isn't the workflow parameter's, or a path or query placeholder with a principal's name | Attested — `TestU4ARouteNamesADeclaredPrincipalOfTheParametersType`, `TestU4APlaceholderCantShareAPrincipalsName`, `TestU4APrincipalHasTheParametersType` |
+| U5 | A principal settled `from` one that isn't declared before it in the adapter, which also rules out a cycle | Attested — `TestU5APrincipalIsSettledFromAnEarlierOne` |
+| U6 | A principal in a cli, stream, schedule or startup adapter, whose call carries no credential (§7) | Attested — `TestU6OnlyAnHttpAdapterSettlesAPrincipal` |
+
 ## I. Stream, schedule and startup adapter errors (ADR 0047, ADR 0111, ADR 0112, ADR 0124)
 
 A stream route binds one element from a source, names it by a key, and

@@ -137,6 +137,10 @@ type Card struct {
 
 	AdapterKind string   `json:"adapterKind,omitempty"` // "http" | "cli"
 	Routes      []string `json:"routes,omitempty"`      // e.g. "GET /customers/{id}"
+	// Principals is an http adapter's principals (ADR 0137 §5), each as
+	// "me: Identity from cookie sid by sessions.signedIn else sessions.signInFirst";
+	// a route that takes one ends "as me".
+	Principals []string `json:"principals,omitempty"`
 
 	// Operations is an interface's members, or a capability group's
 	// gateways (ADR 0043) — the contract either one presents to callers.
@@ -253,7 +257,7 @@ func BuildCard(decl syntax.Decl, source string) *Card {
 	case *syntax.WorkflowDecl:
 		return &Card{Name: d.Name, Kind: "workflow", Catalog: Composition, Source: source, Params: paramParams(d.Params), Returns: typeString(d.ReturnType), Error: errorTypeOf(d.ReturnType), Dependencies: bodyCallNames(d.Body), Uses: syntax.BodyCapabilityCalls(d.Body)}
 	case *syntax.AdapterDecl:
-		card := &Card{Name: d.Name, Kind: "adapter", Catalog: Composition, Source: source, AdapterKind: string(d.Kind), Routes: routeSummaries(d.Routes), Dependencies: adapterCallNames(d)}
+		card := &Card{Name: d.Name, Kind: "adapter", Catalog: Composition, Source: source, AdapterKind: string(d.Kind), Routes: routeSummaries(d.Routes), Principals: principalSummaries(d.Principals), Dependencies: adapterCallNames(d)}
 		if d.Kind == syntax.AdapterHTTP {
 			card.BrowserCalls = "from the origins in ALLOW_ORIGINS or fiig serve -allow-origin at deploy, none by default (ADR 0070)"
 		}
@@ -580,6 +584,19 @@ func routeSummaries(routes []*syntax.Route) []string {
 		if r.Key != nil {
 			out[i] += " key " + r.Key.Name
 		}
+		// Who may call it (ADR 0137 §5): the principals it takes, or public.
+		var takes []string
+		for _, a := range r.Args {
+			if a.Principal {
+				takes = append(takes, a.Name)
+			}
+		}
+		switch {
+		case len(takes) > 0:
+			out[i] += " as " + strings.Join(takes, ", ")
+		case r.Public:
+			out[i] += " public"
+		}
 	}
 	return out
 }
@@ -663,4 +680,17 @@ func requiredPath(f *syntax.File, requires string) string {
 		}
 	}
 	return requires
+}
+
+// principalSummaries is each principal as a card shows it (ADR 0137 §5).
+func principalSummaries(prs []*syntax.PrincipalDecl) []string {
+	var out []string
+	for _, pr := range prs {
+		from := pr.Source + " " + pr.SourceName
+		if pr.From != nil {
+			from = pr.From.Name
+		}
+		out = append(out, fmt.Sprintf("%s: %s from %s by %s else %s", pr.Name, typeString(pr.Type), from, pr.By.Name(), pr.Else.Name()))
+	}
+	return out
 }

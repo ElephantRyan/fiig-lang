@@ -215,6 +215,12 @@ func (w *walker) visit(d syntax.Decl, sc configScope) {
 	w.seen[d] = true
 	switch d := d.(type) {
 	case *syntax.AdapterDecl:
+		// A principal's binder and refusal run on every request that takes
+		// it, so what they read is required too (ADR 0137).
+		for _, pr := range d.Principals {
+			w.one(pr.By.Call(), sc)
+			w.one(pr.Else.Call(), sc)
+		}
 		for _, r := range d.Routes {
 			if r.Workflow != nil {
 				w.call(r.Workflow.Name, sc)

@@ -481,9 +481,62 @@ const (
 
 type AdapterDecl struct {
 	Span
-	Kind   AdapterKind
-	Name   string
-	Routes []*Route
+	Kind       AdapterKind
+	Name       string
+	Principals []*PrincipalDecl // ADR 0137; http adapters only (U6)
+	Routes     []*Route
+}
+
+// PrincipalDecl is `principal me: Identity from cookie "sid" by
+// sessions.signedIn else sessions.signInFirst` (ADR 0137 §1): who is
+// calling, settled by the adapter before it reads the request's body. It is
+// read from a header or cookie (Source, SourceName), or settled from an
+// earlier principal (From, §2).
+type PrincipalDecl struct {
+	Span
+	Name       string
+	Type       Type
+	Source     string // "header" or "cookie"; "" when From is set
+	SourceName string
+	From       *Ident // the earlier principal this one is settled from
+	By         *QualifiedRef
+	Else       *QualifiedRef
+}
+
+// Principal is the adapter's principal named name, or nil.
+func (d *AdapterDecl) Principal(name string) *PrincipalDecl {
+	for _, pr := range d.Principals {
+		if pr.Name == name {
+			return pr
+		}
+	}
+	return nil
+}
+
+// QualifiedRef names a declaration as a call site does:`signedIn` is Path
+// [signedIn], `sessions.signedIn` is [sessions signedIn].
+type QualifiedRef struct {
+	Span
+	Path []string
+}
+
+// Name is the reference as written, dotted.
+func (r *QualifiedRef) Name() string { return strings.Join(r.Path, ".") }
+
+// Call is the call expression the reference stands for, `ref(args...)`
+// positionally: how the runtime calls a principal's binder and refusal,
+// and how the walks that follow calls (config, the registry's graph) reach
+// them, the same way they reach a call in a response arm.
+func (r *QualifiedRef) Call(args ...Expr) *CallExpr {
+	var callee Expr = &Ident{Span: r.Span, Name: r.Path[0]}
+	if len(r.Path) == 2 {
+		callee = &FieldAccess{Span: r.Span, Target: callee, Field: r.Path[1], FieldStart: r.Start}
+	}
+	call := &CallExpr{Span: r.Span, Callee: callee}
+	for _, a := range args {
+		call.Args = append(call.Args, Arg{Value: a})
+	}
+	return call
 }
 
 // Route covers http-route, cli-route, and stream-route (grammar.md): Verb
@@ -507,8 +560,11 @@ type Route struct {
 	// Once and Within are a startup route's `once` (one replica runs it,
 	// claimed with the ScheduleLock) and `within "10s"` (its own deadline),
 	// ADR 0124 §6; false and "" otherwise or when omitted.
-	Once     bool
-	Within   string
+	Once   bool
+	Within string
+	// Public is an http route's `public` (ADR 0137 §3): anyone may call it,
+	// in an adapter that declares a principal.
+	Public   bool
 	Workflow *Ident // the workflow the route calls
 	Args     []RouteArg
 	Consumes *MediaType    // nil if the route has no `consumes` clause (ADR 0069 §5)
@@ -520,10 +576,14 @@ type Route struct {
 // binds, that parameter's type, and, for an argument read from a header or
 // cookie (ADR 0069 §1), where it comes from. A route argument holds a type,
 // not a value, so it is not an ordinary call argument.
+//
+// A bare name with no type (`putRating(me, ...)`) passes the adapter's
+// principal of that name (ADR 0137 §1): Principal is true and Type is nil.
 type RouteArg struct {
 	Span
 	Name       string
 	Type       Type
+	Principal  bool
 	Source     string // "", "header", or "cookie"
 	SourceName string // the header or cookie name as it appears on the wire
 }

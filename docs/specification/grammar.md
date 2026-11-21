@@ -408,10 +408,13 @@ An application is the one declaration an application's top level may hold
 (ADR 0108's H6); a library has none, and a module has one.
 
 ```ebnf
-adapter-decl  ::= 'adapter' adapter-kind identifier '{' { route } '}'
+adapter-decl  ::= 'adapter' adapter-kind identifier '{' { principal-decl } { route } '}'
+principal-decl ::= 'principal' identifier ':' type                                      -- ADR 0137 §1, §2; http only (U6); U1-U5
+                   'from' ( ( 'header' | 'cookie' ) string-literal | identifier )
+                   'by' qualified-name 'else' qualified-name
 adapter-kind  ::= 'http' | 'cli' | 'stream' | 'schedule' | 'startup'                       -- stream: ADR 0111; schedule: ADR 0112; startup: ADR 0124
 route         ::= http-route | cli-route | stream-route | schedule-route | startup-route
-http-route    ::= http-method string-literal '->' route-call { media-clause } [ response-mapping ]
+http-route    ::= http-method string-literal [ 'public' ] '->' route-call { media-clause } [ response-mapping ]   -- public: ADR 0137 §3, U3
 http-method   ::= 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'QUERY'
 cli-route     ::= 'command' string-literal '->' route-call [ response-mapping ]
 stream-route  ::= 'source' string-literal 'group' string-literal 'from' ( 'earliest' | 'latest' ) [ 'key' identifier ] '->' route-call stream-mapping   -- ADR 0111 §3, §3a; I1-I4, I8
@@ -419,6 +422,7 @@ schedule-route ::= ( 'every' | 'cron' ) string-literal '->' route-call schedule-
 startup-route ::= 'run' [ 'once' ] [ 'within' string-literal ] '->' route-call startup-mapping   -- ADR 0124 §1, §6; I7, I9, I10
 route-call    ::= identifier '(' [ route-arg { ',' route-arg } [ ',' ] ] ')'
 route-arg     ::= identifier ':' type [ 'from' ( 'header' | 'cookie' ) string-literal ]   -- ADR 0069 §1; read from text, so string, int, float, decimal, bool, or a payload-free enum, optionally | None (W4, ADR 0080)
+                | identifier                                                              -- the adapter's principal of that name (ADR 0137 §1, U4)
 media-clause  ::= ( 'consumes' | 'produces' ) string-literal                              -- ADR 0069 §5
 
 response-mapping ::= '{' response-arm { response-arm } '}'

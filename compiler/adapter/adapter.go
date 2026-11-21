@@ -56,6 +56,9 @@ type routePlan struct {
 	bodyArg    string // "" if this route has no body-bound argument
 	bodyType   types.Type
 	paramTypes map[string]types.Type
+	// principals is what the route needs settled before it reads the
+	// request (ADR 0137 §4), in order; nil for a public route.
+	principals []principalStep
 }
 
 // planRoute reads route's workflow's parameter types: through in when
@@ -101,7 +104,7 @@ func planRoute(route *syntax.Route, isHTTP bool, u *types.Universe, in *runtime.
 		claimed[n] = true
 	}
 	for _, arg := range route.Args {
-		if !claimed[arg.Name] && arg.Source == "" {
+		if !claimed[arg.Name] && arg.Source == "" && !arg.Principal {
 			plan.bodyArg = arg.Name
 			plan.bodyType = plan.paramTypes[arg.Name]
 			break
@@ -138,6 +141,7 @@ type request struct {
 	bodyJSON                    any
 	bodyRaw                     []byte
 	bodyIsJSON                  bool
+	principals                  map[string]runtime.Value // settled (ADR 0137)
 }
 
 // buildArgs resolves every one of route's arguments into a runtime.Value:
@@ -161,6 +165,14 @@ func buildArgs(route *syntax.Route, plan routePlan, req request, u *types.Univer
 		pt, ok := plan.paramTypes[name]
 		if !ok {
 			return nil, fmt.Errorf("no parameter named %q", name)
+		}
+		if arg.Principal {
+			v, ok := req.principals[name]
+			if !ok {
+				return nil, fmt.Errorf("principal %q was not settled", name)
+			}
+			args[name] = v
+			continue
 		}
 		var src valueSource
 		var what, key string

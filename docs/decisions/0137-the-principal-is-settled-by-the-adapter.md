@@ -1,6 +1,6 @@
 # ADR 0137: The Principal Is Settled by the Adapter, Before the Request Is Read
 
-Status: Proposed
+Status: Accepted (2026-11-21). Implemented 2026-11-21, except §8's second source and §9's optional principal; see Implementation notes.
 Date: 2026-11-21
 Related: charter principle 11 (fail at the earliest point that has the
 information), principle 10 (strict about what a program says it reads), ADR
@@ -141,6 +141,14 @@ http-route     ::= http-method string-literal [ 'public' ] '->' route-call { med
   Its one parameter has the type of its source: a header or cookie is
   `string | None`, and `from <principal>` is that principal's type. It returns
   `Result<T, E>`, where `T` is the declared type.
+- **`by` and `else` may name another package's** workflow and conversion,
+  through its `use` alias (`sessions.signedIn`). Settling who is calling is
+  one domain's job and is shared by every domain's adapter, so each domain
+  writing its own pass-through binder would bring back the duplication this
+  ADR removes. Routes are unchanged: a route still names only its own
+  package's workflow (ADR 0079 §6, Hearsay GAPS G41). This is the one place
+  an adapter reaches another package, and it reaches only that package's
+  public workflow, which is what a workflow is for (ADR 0079 §1).
 - **`else`** names a **conversion** from `E` to an `HttpResponse`. It is the
   one place that says how a refusal looks on the wire, so the 401 text lives
   once, in the package that owns `IdentityError`, and not in every adapter.
@@ -234,6 +242,7 @@ body is never read.
 | U3 | A route of an adapter that declares a `principal` takes no required one and isn't marked `public`; or a `public` route takes a required one (§9) |
 | U4 | A route argument names a principal the adapter doesn't declare, or one whose type isn't the workflow parameter's |
 | U5 | `from` names a later principal, or principals depend on each other in a cycle |
+| U6 | A principal in an adapter that isn't http (§7) |
 
 ### 7. Other adapter kinds
 
@@ -400,3 +409,46 @@ here and built when one does, as with §8's `or`.
 
 None left from the review on 2026-11-21: several ways in (§8) and an optional
 principal (§9) were settled there.
+
+## Implementation notes (2026-11-21)
+
+- **Syntax and format:** `syntax.PrincipalDecl`, `QualifiedRef` (whose
+  `Call` builds the call expression a binder or refusal stands for),
+  `Route.Public` and `RouteArg.Principal`. `fiig fmt` prints principals
+  before routes, with one blank line after them, and puts `by ... else
+  ...` on a continuation line when the line is too long.
+- **Checker:** `compiler/checker/principal.go` (U1, U2, U3, U5, U6), and
+  `checkPrincipalArg` in `route.go` (U4). A principal argument is neither a
+  placeholder nor the body.
+- **Runtime:** `compiler/adapter/principal.go`. `principalsFor` lists the
+  principals a route needs, in declaration order, including the ones they
+  are settled from. `settlePrincipals` runs each binder once per request,
+  through the same expression evaluation as a response arm's conversion, so
+  a binder in another package resolves through the adapter's `use` alias. It
+  runs in `http.go` after the request limits and before the Content-Type
+  check and the body. `TestAPrincipalIsSettledBeforeTheBodyIsRead` sends no
+  cookie and a body that isn't JSON, and checks that the answer is the
+  refusal and that the body is never read.
+- **Walks that follow calls:** the config walker (`tooling/runprogram`) and
+  the registry's call graph reach binders and refusals, so config they read
+  is required and `fiig calls` and the catalog show them.
+- **OpenAPI:** an `apiKey` security scheme per cookie or header, required
+  by each route that needs it, and the refusal's statuses among its
+  responses. A public route has no `security`.
+- **Registry:** an adapter card lists its principals, and a route summary
+  ends `as me` or `public`, so `registry.Diff` reports a route gaining a
+  principal as a breaking change.
+- **Language server:** a route's principal argument and a `from` name go to
+  the principal (a member of its adapter), hovering as `principal (who is
+  calling) ...`. `by` and `else` navigate like a route's workflow.
+- **Tried on Hearsay** (a scratch copy, 2026-11-21): `ratingsApi` declared
+  `principal me: accounts.Identity from cookie "sid" by sessions.signedIn
+  else sessions.identityErrorResponse`, and `putRating` and `deleteMyRating`
+  took `me`. Under `fiig serve`:
+  - a PUT with no cookie and a body that wasn't JSON got 401 "sign in first",
+    where it got a 415 before;
+  - a forged cookie got 401;
+  - a real session reached the workflow;
+  - a bad body with a real session got its 400 only then.
+- **Not built:** §8's `or` for a second source, and §9's optional
+  principal. U1 refuses a principal typed `T | None`.

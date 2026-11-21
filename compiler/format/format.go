@@ -553,6 +553,15 @@ func (p *printer) printAdapterDecl(d *syntax.AdapterDecl) {
 	line := startLine(d)
 	p.emitLine(fmt.Sprintf("adapter %s %s {", string(d.Kind), d.Name), line, line)
 	p.indent++
+	// Principals sit together, then one blank line before the routes, as a
+	// test's fakes do before its body.
+	for _, pr := range d.Principals {
+		p.emitLeading(startLine(pr))
+		p.printPrincipal(pr)
+	}
+	if len(d.Principals) > 0 && len(d.Routes) > 0 {
+		p.out.WriteByte('\n')
+	}
 	for _, r := range d.Routes {
 		p.emitLeading(startLine(r))
 		p.printRoute(r)
@@ -598,7 +607,11 @@ func (p *printer) printRoute(r *syntax.Route) {
 	for i, a := range r.Args {
 		args[i] = printRouteArg(a)
 	}
-	head := fmt.Sprintf("%s %s -> %s", r.Verb, strconv.Quote(r.Path), r.Workflow.Name)
+	public := ""
+	if r.Public {
+		public = " public"
+	}
+	head := fmt.Sprintf("%s %s%s -> %s", r.Verb, strconv.Quote(r.Path), public, r.Workflow.Name)
 	if r.Verb == "run" {
 		// A startup route has no path (ADR 0124 §1).
 		head = "run"
@@ -677,7 +690,32 @@ func (p *printer) printRoute(r *syntax.Route) {
 	p.out.WriteString("}\n")
 }
 
+// printPrincipal prints `principal name: Type from ... by ... else ...`
+// (ADR 0137 §1) on one line, or, when that is too long, with `by` and
+// `else` on a continuation line.
+func (p *printer) printPrincipal(pr *syntax.PrincipalDecl) {
+	line := startLine(pr)
+	head := "principal " + pr.Name + ": " + printType(pr.Type)
+	if pr.From != nil {
+		head += " from " + pr.From.Name
+	} else {
+		head += " from " + pr.Source + " " + strconv.Quote(pr.SourceName)
+	}
+	tail := "by " + pr.By.Name() + " else " + pr.Else.Name()
+	if len(strings.Repeat("    ", p.indent))+len(head)+1+len(tail) <= maxLineWidth {
+		p.emitLine(head+" "+tail, line, line)
+		return
+	}
+	p.emitLine(head, line, line)
+	p.indent++
+	p.emitLine(tail, line, line)
+	p.indent--
+}
+
 func printRouteArg(a syntax.RouteArg) string {
+	if a.Principal {
+		return a.Name
+	}
 	s := a.Name + ": " + printType(a.Type)
 	if a.Source != "" {
 		s += " from " + a.Source + " " + strconv.Quote(a.SourceName)
