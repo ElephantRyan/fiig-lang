@@ -348,3 +348,73 @@ func TestClockSleepMovesTheTestClock(t *testing.T) {
 		t.Fatalf("want 1 passing test and exit 0, got %d: %+v", code, results)
 	}
 }
+
+// ADR 0140 under `fiig test` (Hearsay G70): a setting is known to every test
+// package that reaches it, and a Settings call reaches the field it names.
+func TestSettingsAreKnownToEveryTestPackage(t *testing.T) {
+	root := writePackage(t, map[string]string{
+		"fiig.pkg.json": `{"path": "probe", "kind": "application", "version": "0.1.0", "capabilities": ["Settings"]}`,
+		"src/cfg/Abs.fiig": `wire Abs {
+    url: string | None from setting "abs.url" ?? env "ABS_URL"
+}
+`,
+		"src/cfg/Sign.fiig": `wire Sign {
+    name: string | None from setting "sign.name" ?? env "SIGN_NAME"
+}
+`,
+		"src/cfg/AbsUrl.fiig": `activity absUrl() -> string | None {
+    return Abs.url;
+}
+`,
+		"src/cfg/SaveUrl.fiig": `activity saveUrl(url: string) -> Result<None, SettingError> {
+    return saveUrlSetting(url);
+}
+`,
+		"src/cfg/SaveUrlSetting.fiig": `gateway saveUrlSetting(url: string) -> Result<None, SettingError>
+    requires Settings
+{
+    return Settings.save("abs.url", url, by: "t");
+}
+`,
+		"src/cfg/NameSaved.fiig": `activity nameSaved() -> bool {
+    return nameSource() == SettingSource.Saved;
+}
+`,
+		"src/cfg/NameSource.fiig": `gateway nameSource() -> SettingSource
+    requires Settings
+{
+    return Settings.source("sign.name");
+}
+`,
+		"src/other/OtherUrl.fiig": `use probe.cfg
+
+activity otherUrl() -> string | None {
+    return cfg.absUrl();
+}
+`,
+		"src/third/ThirdSaved.fiig": `use probe.cfg
+
+activity thirdSaved() -> bool {
+    return cfg.nameSaved();
+}
+`,
+		"test/third/ThirdSaved.fiig": `test aThirdPackageAsksTheOtherSetting {
+    expect !thirdSaved();
+}
+`,
+		"test/cfg/NameSaved.fiig": `test aSourceAloneReachesItsField {
+    expect !nameSaved();
+}
+`,
+		"test/other/OtherUrl.fiig": `use probe.cfg
+
+test anotherPackageSavesAndReads {
+    expect cfg.saveUrl("https://abs.test") is Ok(_);
+    expect otherUrl() == "https://abs.test";
+}
+`,
+	})
+	if code, results := runJSON(t, root); code != 0 {
+		t.Fatalf("settings in two test packages: %d %+v", code, results)
+	}
+}

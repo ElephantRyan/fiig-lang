@@ -330,6 +330,9 @@ func (w *walker) one(e syntax.Expr, sc configScope) {
 		if !ok {
 			return
 		}
+		if target.Name == types.SettingsName && len(e.Args) > 0 {
+			w.settingConfig(e.Args[0].Value, sc)
+		}
 		if pkg, ok := sc.imports[target.Name]; ok {
 			if d, found := pkg.Universe.Lookup(fa.Field); found {
 				w.visit(d, packageScope(pkg))
@@ -388,6 +391,35 @@ func (w *walker) addConfig(cd *syntax.ConfigDecl, sc configScope) {
 	w.configs[cd] = sc
 	if cd.When != nil {
 		w.whenConfigs(cd.When, sc)
+	}
+}
+
+// settingConfig adds the config a Settings call's name reads, in the
+// calling package (ADR 0140 §4): saving, clearing or asking the source of
+// a setting reaches its field as reading it does.
+func (w *walker) settingConfig(arg syntax.Expr, sc configScope) {
+	lit, ok := arg.(*syntax.StringLit)
+	if !ok {
+		return
+	}
+	var b strings.Builder
+	for _, part := range lit.Parts {
+		if part.Interp != nil {
+			return
+		}
+		b.WriteString(part.Text)
+	}
+	if sc.base == nil {
+		return
+	}
+	for _, d := range sc.base.Decls {
+		if cd, ok := d.(*syntax.ConfigDecl); ok {
+			for _, f := range cd.Fields {
+				if f.Setting == b.String() {
+					w.addConfig(cd, configScope{path: sc.path, base: sc.base, universe: sc.base, imports: sc.imports, groups: sc.groups})
+				}
+			}
+		}
 	}
 }
 

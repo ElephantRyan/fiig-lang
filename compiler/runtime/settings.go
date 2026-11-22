@@ -127,11 +127,23 @@ func (in *Interp) ShareSettingFields(from *Interp) {
 		in.settingRefs = map[*types.Universe]map[string]*settingRef{}
 		in.softFields = map[*syntax.ConfigDecl]map[string]*settingRef{}
 	}
+	// Merged, not replaced: each test package loads the config its tests
+	// reach, and a package's settings may be reached from several.
 	for u, refs := range from.settingRefs {
-		in.settingRefs[u] = refs
+		if in.settingRefs[u] == nil {
+			in.settingRefs[u] = map[string]*settingRef{}
+		}
+		for name, ref := range refs {
+			in.settingRefs[u][name] = ref
+		}
 	}
 	for d, refs := range from.softFields {
-		in.softFields[d] = refs
+		if in.softFields[d] == nil {
+			in.softFields[d] = map[string]*settingRef{}
+		}
+		for name, ref := range refs {
+			in.softFields[d][name] = ref
+		}
 	}
 }
 
