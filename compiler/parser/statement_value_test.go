@@ -21,19 +21,20 @@ func TestIfOrMatchAsAValueIsOneError(t *testing.T) {
     }
 }
 `,
-		"match in a binding": `rule pick(a: int | None) -> int {
-    larger = match a {
+		// A whole binding's or return's value may be a match (ADR 0142 §2);
+		// inside another expression it may not.
+		"match in an argument": `rule pick(a: int | None) -> int {
+    return math.max(1, match a {
         None -> 0
         n -> n
-    }
-    return larger
+    })
 }
 `,
 	}
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
 			_, errs := Parse(src)
-			if len(errs) != 1 || !strings.Contains(errs[0].Msg, "is a statement, not a value") {
+			if len(errs) != 1 || !(strings.Contains(errs[0].Msg, "is a statement, not a value") || strings.Contains(errs[0].Msg, "is a value only as a whole")) {
 				t.Fatalf("want one statement-not-a-value error, got %v", errs)
 			}
 		})

@@ -16,6 +16,11 @@ import (
 // means "no expectation" (a non-producing position) — still infers e for
 // its own errors, just doesn't compare the result to anything.
 func (c *checker) checkExpected(e syntax.Expr, expected types.Type, env map[string]types.Type) {
+	if m, ok := e.(*syntax.MatchExpr); ok && expected != nil {
+		c.checkMatchValueArms(m)
+		c.checkMatchStmt(m.Match, c.declReturn, expected, env)
+		return
+	}
 	if lit, ok := e.(*syntax.ListLit); ok {
 		c.checkListLit(lit, expected, env)
 		return
@@ -136,6 +141,8 @@ func (c *checker) inferExprType(e syntax.Expr, env map[string]types.Type) types.
 		return c.inferFieldAccess(e, env)
 	case *syntax.CallExpr:
 		return c.inferCall(e, env)
+	case *syntax.MatchExpr:
+		return c.inferMatchValue(e, env)
 	case *syntax.NotExpr:
 		c.checkExpected(e.Operand, types.Primitive{Name: "bool"}, env)
 		return types.Primitive{Name: "bool"}

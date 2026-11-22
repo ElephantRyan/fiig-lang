@@ -582,6 +582,37 @@ func (in *Interp) evalCond(ctx context.Context, e syntax.Expr, env *Env) (condRe
 	return condResult{ok: bool(b), value: val}, false, nil
 }
 
+// evalMatchValue is a `match` used as a value (ADR 0142 §2). A value arm is
+// its value. An arm block runs until it returns, which ends the function:
+// its value travels up as an early return, as any `return` does. The
+// checker refuses an arm block that doesn't end with `return`.
+func (in *Interp) evalMatchValue(ctx context.Context, s *syntax.MatchStmt, env *Env) (Value, bool, *Fault) {
+	subject, earlyReturn, fault := in.evalExpr(ctx, s.Subject, env)
+	if fault != nil || earlyReturn {
+		return subject, earlyReturn, fault
+	}
+	armEnv := env.Child()
+	for _, arm := range s.Arms {
+		armEnv.reset()
+		if !MatchPattern(arm.Pattern, subject, armEnv) {
+			continue
+		}
+		switch body := arm.Body.(type) {
+		case syntax.ExprBody:
+			return in.evalExpr(ctx, body.Expr, armEnv)
+		case *syntax.Block:
+			val, earlyReturn, fault := in.evalBlock(ctx, body, armEnv, false)
+			if fault != nil || earlyReturn {
+				return val, earlyReturn, fault
+			}
+			return nil, false, Faultf("a match arm used as a value ended without a value")
+		default:
+			return nil, false, Faultf("unsupported match-arm body %T", body)
+		}
+	}
+	return nil, false, Faultf("no match arm matched %s", subject)
+}
+
 func (in *Interp) evalMatchStmt(ctx context.Context, s *syntax.MatchStmt, env *Env, producingHere bool) (Value, bool, *Fault) {
 	subject, earlyReturn, fault := in.evalExpr(ctx, s.Subject, env)
 	if fault != nil {

@@ -551,7 +551,8 @@ statement ::= binding
             | transaction-block
             | expression
 
-binding         ::= identifier [ ':' type ] '=' expression    -- ADR 0053: typed form declares a reassignable local
+binding         ::= identifier [ ':' type ] '=' value         -- ADR 0053: typed form declares a reassignable local
+value           ::= expression | match-statement               -- ADR 0142 §2: a whole match as the value; its arms are values, or blocks ending in `return`
 if-statement    ::= 'if' expression block { 'else' 'if' expression block } [ 'else' block ]
 for-statement   ::= [ identifier ':' ] 'for' ( for-head | '(' for-head ')' ) block   -- ADR 0142 §4: parenthesised; bare until §5 step 2
 for-head        ::= loop-name [ ',' loop-name ] 'in' expression   -- ADR 0053; two names over a Map, ADR 0065 §7
@@ -559,7 +560,7 @@ loop-name       ::= identifier | '_'
 while-statement ::= [ identifier ':' ] 'while' expression block                -- ADR 0059
 break-statement ::= 'break' [ identifier ]                                   -- label on the same line
 continue-statement ::= 'continue' [ identifier ]
-return-statement::= 'return' [ expression ]
+return-statement::= 'return' [ value ]
 ```
 
 A plain `name = expression` names a reassignable local only when `name` was

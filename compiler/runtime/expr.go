@@ -65,6 +65,8 @@ func (in *Interp) evalExpr(ctx context.Context, e syntax.Expr, env *Env) (Value,
 		return in.evalFieldAccess(ctx, e, env)
 	case *syntax.CallExpr:
 		return in.evalCall(ctx, e, env)
+	case *syntax.MatchExpr:
+		return in.evalMatchValue(ctx, e.Match, env)
 	case *syntax.NotExpr:
 		v, earlyReturn, fault := in.evalExpr(ctx, e.Operand, env)
 		if fault != nil || earlyReturn {

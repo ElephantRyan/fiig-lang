@@ -38,3 +38,44 @@ func TestSymbolOperatorsRun(t *testing.T) {
 		}
 	}
 }
+
+// ADR 0142 §2: `match` as a value, after `return` and in a binding. A
+// value arm is the value; an arm block's `return` ends the function.
+func TestMatchAsAValueRuns(t *testing.T) {
+	rule := `rule r(n: int | None, code: int) -> string {
+    label = match (code) {
+        401 -> "unauthorized"
+        404 -> "not found"
+        _ -> "rejected"
+    };
+    size: string | None = match (n) {
+        None -> None
+        given -> "${given}"
+    };
+    return match (n) {
+        None -> "${label}/none"
+        given -> {
+            if (given > 9) {
+                return "big";
+            }
+            return "${label}/${size ?? ""}";
+        }
+    }
+}`
+	checkClean(t, rule)
+	in := newTestInterp(universeFromSource(t, rule), nil)
+	for _, c := range []struct {
+		n    Value
+		code int
+		want string
+	}{
+		{None{}, 401, "unauthorized/none"},
+		{Int(3), 404, "not found/3"},
+		{Int(12), 500, "big"},
+	} {
+		got, fault := in.Call(context.Background(), "r", map[string]Value{"n": c.n, "code": Int(c.code)})
+		if fault != nil || got.String() != c.want {
+			t.Errorf("%v %d: got %v, %v; want %s", c.n, c.code, got, fault, c.want)
+		}
+	}
+}

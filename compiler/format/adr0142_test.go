@@ -25,3 +25,21 @@ func TestFormatKeepsTheSymbolOperators(t *testing.T) {
 		t.Fatalf("the old spelling changed:\n%s", old)
 	}
 }
+
+// A match used as a value prints after its `return` or `name =`.
+func TestFormatMatchAsAValue(t *testing.T) {
+	src := "rule r(n: int | None) -> int {\n" +
+		"    label = match (n) {\n" +
+		"        None -> 0\n" +
+		"        given -> given\n" +
+		"    }\n" +
+		"\n" +
+		"    return match (n) {\n" +
+		"        None -> label\n" +
+		"        given -> given\n" +
+		"    }\n" +
+		"}\n"
+	if out := mustFormat(t, src); out != src {
+		t.Fatalf("got:\n%s\nwant:\n%s", out, src)
+	}
+}

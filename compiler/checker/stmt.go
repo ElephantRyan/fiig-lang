@@ -188,6 +188,7 @@ func (c *checker) checkBlock(b *syntax.Block, declReturn types.Type, env map[str
 }
 
 func (c *checker) checkStmt(s syntax.Stmt, declReturn types.Type, env map[string]types.Type) {
+	c.declReturn = declReturn
 	switch s := s.(type) {
 	case *syntax.Binding:
 		c.checkBinding(s, env)
@@ -288,6 +289,7 @@ func (c *checker) checkTransactionStmt(s *syntax.TransactionStmt, declReturn typ
 
 // checkProducingStmt is the final statement of a producing block.
 func (c *checker) checkProducingStmt(s syntax.Stmt, declReturn types.Type, env map[string]types.Type) {
+	c.declReturn = declReturn
 	switch s := s.(type) {
 	case *syntax.ReturnStmt:
 		c.checkReturnValue(s, declReturn, env)

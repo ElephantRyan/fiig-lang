@@ -738,6 +738,10 @@ type checker struct {
 	// enclosing declaration's, or nil where a `?` doesn't return from it (a
 	// test, a concurrent body, whose Err becomes that item's outcome).
 	tryTarget types.Type
+	// declReturn is the return type of the declaration whose statement is
+	// being checked, for the `return`s in a `match` used as a value (ADR
+	// 0142 §2), which is checked as an expression.
+	declReturn types.Type
 	// activeTransaction is the capability named by the transaction block currently in
 	// scope, or "" when there isn't one. Used by Category C.
 	activeTransaction string

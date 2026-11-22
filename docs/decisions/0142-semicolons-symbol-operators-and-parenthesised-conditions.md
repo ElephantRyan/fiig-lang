@@ -1,8 +1,9 @@
 # ADR 0142: Semicolons, Symbol Operators, and Parenthesised Conditions
 
 Status: Accepted (2026-11-21; the owner asked for it to be implemented).
-Step 1 (§5) in progress: the new forms parse beside the old ones, except
-`match` as an expression (§2).
+Step 1 (§5) in progress: the new forms parse and run beside the old ones,
+`match` as a value (§2) included. The formatter rewrite, the migration,
+and the editors are next.
 Date: 2026-11-21
 Amends: ADR 0011 (boolean operators), ADR 0099 (`or` gives a default),
 ADR 0013 (`if`/`else` chains), ADR 0053 (`for`), ADR 0059 (`while`).
@@ -82,6 +83,12 @@ workflow syncCollections(me: accounts.Identity, userId: string | None, dryRun: b
   whose value is a `match` (§2). Declarations, model fields, enum
   variants, imports, adapter routes and principals, and match or
   response-mapping arms aren't statements and take none either.
+- **In a test** (Hearsay's question): a faked config's values, `fake
+  SignInConfig { authMode: AuthMode.Abs }`, are fields, like a model's,
+  and take none. A faked gateway's body and the test's own body are
+  blocks of statements, so their statements take `;` as any other block's
+  do. The formatter tells them apart by the declaration it is printing,
+  not by guessing from the text.
 - A missing `;` is a syntax error that names the fix: "a statement ends with
   `;`". Fixing the error is what the formatter can't do, because the file
   doesn't parse.
@@ -167,6 +174,13 @@ the `(`.
   Mixing `??` with `&&` or `||` without parentheses is a syntax error,
   as in JavaScript and TypeScript, because the intended grouping is never
   obvious.
+- **`??` binds looser than arithmetic and comparisons** (Hearsay's
+  question): `count ?? 0 + 1` is `count ?? (0 + 1)`, as in C# and Swift.
+  That is the grouping `or` has today, since `or` too sits below `+`, so
+  the rewrite from `or` to `??` never changes what a line means. Where an
+  `or`-as-default has an `&&` or `||` beside it, the rewrite adds the
+  parentheses this section requires. The other grouping is written
+  `(count ?? 0) + 1`.
 - **Lexing.** `!` alone, `&&`, `||` and `??` become tokens. `!=` stays one
   token. `??` is read before `?`, so `f()??fallback` is a default. To
   propagate and then default, write `f()? ?? fallback`.
@@ -211,7 +225,11 @@ because nothing would parse. So it lands in two steps:
    `or`-as-default into `??` using the checker's types. That last one needs
    type information, so `fiig fmt` asks the checker when the file
    type-checks, and leaves an ambiguous `or` for the old-form error to
-   catch otherwise. `fiig fmt -w` then runs over fiig-lang's `examples/`,
+   catch otherwise. It never skips one quietly (Hearsay's question): for
+   each `or` it leaves, it prints the file and line and that the file
+   doesn't type-check, so `||` and `??` can't be told apart there, and it
+   exits non-zero. Step 2 waits until no such line is left in fiig-lang
+   or in an application being migrated. `fiig fmt -w` then runs over fiig-lang's `examples/`,
    `libraries/` and standard library, the fiig snippets in Go tests and in
    `docs/`, and Hearsay.
 2. **The old forms become errors**, each naming its replacement, in the next

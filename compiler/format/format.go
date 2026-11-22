@@ -1018,6 +1018,10 @@ func (p *printer) printStmt(s syntax.Stmt) {
 // (canWrap): then it wraps there, one argument or element per line with a
 // trailing comma (the record_order.fiig case), and so on inward.
 func (p *printer) printValueLine(prefix string, expr syntax.Expr, stmtLine int) {
+	if m, ok := expr.(*syntax.MatchExpr); ok {
+		p.printMatch(prefix, m.Match)
+		return
+	}
 	upper := deepestLine(expr)
 	content := prefix + printExpr(expr)
 	indentWidth := 4 * p.indent
@@ -1207,8 +1211,14 @@ func (p *printer) printBlockBodyNoClose(b *syntax.Block) {
 }
 
 func (p *printer) printMatchStmt(s *syntax.MatchStmt) {
+	p.printMatch("", s)
+}
+
+// printMatch prints a match after prefix: "" for a match statement, or
+// `return ` or `name = ` for a match used as a value (ADR 0142 §2).
+func (p *printer) printMatch(prefix string, s *syntax.MatchStmt) {
 	line := startLine(s)
-	p.emitLine(fmt.Sprintf("match %s {", printExpr(s.Subject)), line, line)
+	p.emitLine(fmt.Sprintf("%smatch %s {", prefix, printExpr(s.Subject)), line, line)
 	p.indent++
 	for _, arm := range s.Arms {
 		al := startLine(arm)
@@ -1332,6 +1342,8 @@ func printExpr(e syntax.Expr) string {
 		return printExpr(e.Left) + " " + op + " " + printExpr(e.Right)
 	case *syntax.TryExpr:
 		return printExpr(e.Operand) + "?"
+	case *syntax.MatchExpr:
+		return "match " + printExpr(e.Match.Subject) + " { ... }"
 	case *syntax.ParenExpr:
 		return "(" + printExpr(e.Inner) + ")"
 	case *syntax.BytesLit:

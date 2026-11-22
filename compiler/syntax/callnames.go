@@ -159,6 +159,8 @@ func CollectExprCallNames(e Expr, out map[string]bool) {
 	case *ListForm:
 		CollectExprCallNames(e.Iterable, out)
 		CollectExprCallNames(e.Body, out)
+	case *MatchExpr:
+		collectStmtCallNames(e.Match, out)
 	case *MapLit:
 		for _, en := range e.Entries {
 			CollectExprCallNames(en.Key, out)
@@ -307,6 +309,8 @@ func walkExpr(e Expr, visit func(Expr)) {
 	case *ListForm:
 		walkExpr(e.Iterable, visit)
 		walkExpr(e.Body, visit)
+	case *MatchExpr:
+		walkStmtExprs(e.Match, visit)
 	case *MapLit:
 		for _, en := range e.Entries {
 			walkExpr(en.Key, visit)

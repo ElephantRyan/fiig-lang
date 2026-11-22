@@ -1787,7 +1787,7 @@ func (p *Parser) atExpect() bool {
 func (p *Parser) parseBinding() *syntax.Binding {
 	nameTok := p.advance()
 	p.expect(lexer.Equals)
-	val := p.parseExpression()
+	val := p.parseValue()
 	return &syntax.Binding{Span: syntax.Span{Start: nameTok.Start, End: p.cur().Start}, Name: nameTok.Text, Value: val}
 }
 
@@ -1798,7 +1798,7 @@ func (p *Parser) parseTypedBinding() *syntax.Binding {
 	p.expect(lexer.Colon)
 	typ := p.parseType()
 	p.expect(lexer.Equals)
-	val := p.parseExpression()
+	val := p.parseValue()
 	return &syntax.Binding{Span: syntax.Span{Start: nameTok.Start, End: p.cur().Start}, Name: nameTok.Text, Type: typ, Value: val}
 }
 
@@ -1895,8 +1895,18 @@ func (p *Parser) parseReturnStmt() *syntax.ReturnStmt {
 	if p.at(lexer.RBrace) || p.at(lexer.Semicolon) {
 		return &syntax.ReturnStmt{Span: syntax.Span{Start: start, End: p.cur().Start}}
 	}
-	val := p.parseExpression()
+	val := p.parseValue()
 	return &syntax.ReturnStmt{Span: syntax.Span{Start: start, End: p.cur().Start}, Value: val}
+}
+
+// parseValue is a `return`'s or a binding's value: an expression, or a
+// whole `match` (ADR 0142 §2), whose closing `}` ends the statement.
+func (p *Parser) parseValue() syntax.Expr {
+	if p.at(lexer.KwMatch) {
+		m := p.parseMatchStmt()
+		return &syntax.MatchExpr{Span: m.Span, Match: m}
+	}
+	return p.parseExpression()
 }
 
 func (p *Parser) parseMatchStmt() *syntax.MatchStmt {
@@ -2323,7 +2333,7 @@ func (p *Parser) parsePrimary() syntax.Expr {
 			p.errorf(start, "`if` is a statement, not a value; assign or return in each branch (for the larger or smaller of two numbers, use math.max or math.min)")
 			p.parseIfStmt()
 		} else {
-			p.errorf(start, "`match` is a statement, not a value; assign or return in each arm, or make the match the last statement of the body")
+			p.errorf(start, "a `match` is a value only as a whole `return` or binding value, `return match (x) { ... }` or `name = match (x) { ... }` (ADR 0142 §2); bind it first, then use the name")
 			p.parseMatchStmt()
 		}
 		return &syntax.Ident{Span: syntax.Span{Start: start, End: p.cur().Start}, Name: syntax.ErrorName}

@@ -1234,6 +1234,14 @@ type BinaryExpr struct {
 	Symbol bool
 }
 
+// MatchExpr is a `match` used as a value (ADR 0142 §2): `return match
+// (x) { ... }` or `name = match (x) { ... }`. Its arms are values; an arm
+// that is a block ends the function with `return`.
+type MatchExpr struct {
+	Span
+	Match *MatchStmt
+}
+
 // TryExpr is the postfix `?` (error propagation).
 type TryExpr struct {
 	Span
@@ -1383,6 +1391,7 @@ func (*StringLit) exprNode()      {}
 func (*FieldAccess) exprNode()    {}
 func (*CallExpr) exprNode()       {}
 func (*NotExpr) exprNode()        {}
+func (*MatchExpr) exprNode()      {}
 func (*NegExpr) exprNode()        {}
 func (*BinaryExpr) exprNode()     {}
 func (*TryExpr) exprNode()        {}
