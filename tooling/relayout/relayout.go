@@ -435,7 +435,9 @@ func mergeTests(tests []*source) (string, error) {
 		var body []string
 		for _, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
 			if strings.HasPrefix(strings.TrimSpace(line), "use ") {
-				imports[strings.TrimSpace(line)] = true
+				// Without its `;` (ADR 0145 §1), so one import written
+				// either way is kept once; the formatter writes it back.
+				imports[strings.TrimSuffix(strings.TrimSpace(line), ";")] = true
 				continue
 			}
 			body = append(body, line)
@@ -479,6 +481,7 @@ func rewriteImports(text string, rename map[string]string) string {
 		if !ok {
 			continue
 		}
+		rest, semi := strings.CutSuffix(strings.TrimSpace(rest), ";") // ADR 0145 §1
 		p, alias, hasAlias := strings.Cut(rest, " as ")
 		p = strings.TrimSpace(p)
 		np := rewritePath(p, rename)
@@ -491,6 +494,9 @@ func rewriteImports(text string, rename map[string]string) string {
 		out := "use " + np
 		if hasAlias {
 			out += " as " + strings.TrimSpace(alias)
+		}
+		if semi {
+			out += ";"
 		}
 		lines[i] = out + strings.TrimPrefix(line, trimmed)
 	}
@@ -523,7 +529,7 @@ func addProvides(text, group, iface, ownPath string) string {
 			if !ok {
 				continue
 			}
-			p, a, hasAlias := strings.Cut(rest, " as ")
+			p, a, hasAlias := strings.Cut(strings.TrimSuffix(rest, ";"), " as ")
 			if strings.TrimSpace(p) == pkg {
 				alias = pkg[strings.LastIndex(pkg, ".")+1:]
 				if hasAlias {
@@ -533,7 +539,7 @@ func addProvides(text, group, iface, ownPath string) string {
 		}
 		if alias == "" {
 			alias = pkg[strings.LastIndex(pkg, ".")+1:]
-			text = "use " + pkg + "\n" + text
+			text = "use " + pkg + ";\n" + text
 		}
 		ref = alias + "." + name
 	}
