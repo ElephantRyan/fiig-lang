@@ -1,6 +1,9 @@
 package lockfile
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"fiig-lang/compiler/version"
@@ -91,5 +94,34 @@ func TestWriteOmitsTheHashOfABuiltin(t *testing.T) {
 	}
 	if lf.Dependencies[0].Hash != "sha256:aaaa" {
 		t.Error("Write changed its caller's entries")
+	}
+}
+
+// Hearsay GAPS G62: a checkout that turned the file's LFs into CRLFs keeps
+// it byte for byte when nothing in it changed, and gets LFs when something did.
+func TestWriteLeavesAnUnchangedFileAlone(t *testing.T) {
+	dir := t.TempDir()
+	lf := &Lockfile{Dependencies: []Entry{{Path: "acme.client", Version: "2.0.0", Source: "../acme-client"}}}
+	if err := Write(dir, lf); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, Filename)
+	written, _ := os.ReadFile(path)
+	crlf := bytes.ReplaceAll(written, []byte("\n"), []byte("\r\n"))
+	if err := os.WriteFile(path, crlf, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Write(dir, lf); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(path); !bytes.Equal(got, crlf) {
+		t.Errorf("an unchanged file was rewritten:\n%q", got)
+	}
+	lf.Dependencies[0].Version = "2.1.0"
+	if err := Write(dir, lf); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(path); bytes.Contains(got, []byte("\r")) || !bytes.Contains(got, []byte("2.1.0")) {
+		t.Errorf("a changed file wasn't written: %q", got)
 	}
 }

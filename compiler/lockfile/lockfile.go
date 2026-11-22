@@ -8,6 +8,7 @@
 package lockfile
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -104,7 +105,13 @@ func Write(root string, lf *Lockfile) error {
 		return err
 	}
 	data = append(data, '\n')
-	return os.WriteFile(filepath.Join(root, Filename), data, 0o644)
+	path := filepath.Join(root, Filename)
+	// A file that already says this is left alone, so a checkout that
+	// turned its LFs into CRLFs doesn't show it modified (Hearsay G62).
+	if old, err := os.ReadFile(path); err == nil && bytes.Equal(bytes.ReplaceAll(old, []byte("\r\n"), []byte("\n")), data) {
+		return nil
+	}
+	return os.WriteFile(path, data, 0o644)
 }
 
 // Load reads the lockfile at root's Filename.
