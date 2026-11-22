@@ -24,11 +24,9 @@ capability SqlRelay provides db.SqlDriver {
         }
     }
 
-    gateway run(
-        connection: Connection,
-        sql: string,
-        values: List<db.SqlValue>,
-    ) -> Result<db.SqlResult, db.DatabaseError> requires Socket {
+    gateway run(connection: Connection, sql: string, values: List<db.SqlValue>)
+            -> Result<db.SqlResult, db.DatabaseError>
+            requires Socket {
         request = json.encode(RelayRequest(sql: sql, values: values));
         size = request.length();
         match (Socket.write(connection, <<size: i32be, request: bytes>>)) {

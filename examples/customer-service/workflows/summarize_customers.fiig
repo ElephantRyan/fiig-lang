@@ -1,6 +1,5 @@
 // Required example 3 (collection half): concurrently convert a collection.
-workflow summarizeCustomers(
-    customerIds: List<string>,
-) -> BatchResult<string, CustomerSummary, CustomerError> {
+workflow summarizeCustomers(customerIds: List<string>)
+        -> BatchResult<string, CustomerSummary, CustomerError> {
     return concurrent(id in customerIds): summarizeCustomer(id);
 }

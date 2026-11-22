@@ -2,11 +2,8 @@
 // batch's records are at its base offset and the ones after it. A
 // partition's error is the call's, with the broker's message when it gives
 // one.
-conversion readProduce(
-    frame: bytes,
-    correlation: int,
-    call: ProduceCall,
-) -> Result<List<SentAt>, KafkaError> {
+conversion readProduce(frame: bytes, correlation: int, call: ProduceCall)
+        -> Result<List<SentAt>, KafkaError> {
     got = intAt(frame, 0)?;
     if (got != correlation) {
         return Err(

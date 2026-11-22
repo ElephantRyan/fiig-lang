@@ -10,8 +10,8 @@ conversion groupSettings(
     bootstrap: string,
     tls: bool,
     clientId: string,
-    commitMillis: int,
-) -> Result<Map<string, string>, stream.SourceError> {
+    commitMillis: int)
+        -> Result<Map<string, string>, stream.SourceError> {
     return match (bootstrapOf(bootstrap)) {
         Err(failure) -> {
             return Err(consumerError(failure));

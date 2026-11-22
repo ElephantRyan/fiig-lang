@@ -4,11 +4,8 @@ use fiig.stream;
 // runtime asked for, and no more than it can handle one after another
 // before the first is reclaimed after retryAfter. When even one doesn't fit,
 // no batch is safe, so the route halts naming the setting.
-conversion fitBatch(
-    batchSize: int,
-    retryAfter: int,
-    handleMillis: int,
-) -> Result<int, stream.SourceError> {
+conversion fitBatch(batchSize: int, retryAfter: int, handleMillis: int)
+        -> Result<int, stream.SourceError> {
     if (handleMillis <= 0) {
         return Ok(batchSize);
     }

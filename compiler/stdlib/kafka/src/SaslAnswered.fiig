@@ -6,12 +6,8 @@
 // the password gives, so a broker that doesn't know it is refused. Once
 // logged in, a broker session is ready and a group session asks for its
 // coordinator (ADR 0117 §3).
-conversion saslAnswered(
-    turn: SessionTurn,
-    kind: string,
-    frame: bytes,
-    login: SaslLogin,
-) -> SessionTurn {
+conversion saslAnswered(turn: SessionTurn, kind: string, frame: bytes, login: SaslLogin)
+        -> SessionTurn {
     s = turn.state;
     return match (login.mechanism) {
         None -> {

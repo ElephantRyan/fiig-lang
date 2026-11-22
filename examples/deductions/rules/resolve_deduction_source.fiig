@@ -2,10 +2,8 @@
 // sentinels are business decisions and stay here. Codes and aliases are
 // lookup facts and live on the enum, so this rule is the same size for 3
 // clients or 2,500.
-rule resolveDeductionSource(
-    raw: string,
-    tenant: Tenant,
-) -> Result<DeductionSource, DeductionError> {
+rule resolveDeductionSource(raw: string, tenant: Tenant)
+        -> Result<DeductionSource, DeductionError> {
     if (raw == "DEFAULT") {
         return Ok(tenant.defaultSource);
     }

@@ -4,12 +4,8 @@ use fiig.stream;
 // position on (a batch may start before it), as deliveries ordered by
 // their partition. The record a retry seeks back to is on the attempt the
 // group session counted.
-conversion takenFrom(
-    part: FetchedPartition,
-    position: int,
-    assigned: AssignedPartition,
-    room: int,
-) -> Taken {
+conversion takenFrom(part: FetchedPartition, position: int, assigned: AssignedPartition, room: int)
+        -> Taken {
     out: List<stream.Delivery> = [];
     next: int = 0 - 2;
     for (record in part.records) {

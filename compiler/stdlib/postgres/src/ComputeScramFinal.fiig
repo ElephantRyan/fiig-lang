@@ -5,8 +5,8 @@ conversion computeScramFinal(
     password: bytes,
     clientFirstBare: string,
     clientNonce: string,
-    serverFirst: string,
-) -> Result<ScramFinal, string> {
+    serverFirst: string)
+        -> Result<ScramFinal, string> {
     nonce: string = "";
     salt: bytes = <<>>;
     iterations: int = 0;

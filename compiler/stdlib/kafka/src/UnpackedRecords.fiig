@@ -2,11 +2,8 @@
 // codec its attributes name, at most maxSize bytes. Snappy comes either
 // xerial-framed, as Java's client writes it, or as one raw block, as some
 // other clients write it; both are read.
-conversion unpackedRecords(
-    compression: Compression,
-    data: bytes,
-    maxSize: int,
-) -> Result<bytes, KafkaError> {
+conversion unpackedRecords(compression: Compression, data: bytes, maxSize: int)
+        -> Result<bytes, KafkaError> {
     return match (compression) {
         Compression.None -> {
             return Ok(data);
@@ -33,9 +30,8 @@ conversion unpackedRecords(
         Compression.Snappy -> {
             if (data.length() < 16 || data.slice(0, 8) != xerialMagic()) {
                 return Ok(
-                    mapErr(e in compress.unsnappy(data, maxSize)): KafkaError.Decompress(
-                        failure: e,
-                    )?,
+                    mapErr(e in compress.unsnappy(data, maxSize)):
+                            KafkaError.Decompress(failure: e)?,
                 );
             }
 
@@ -53,9 +49,8 @@ private {
         while (rest.length() > 0) {
             match (rest) {
                 <<length: i32be, block: bytes(length), more: bytes>> -> {
-                    chunk = mapErr(e in compress.unsnappy(block, maxSize - out.length())): KafkaError.Decompress(
-                        failure: e,
-                    )?;
+                    chunk = mapErr(e in compress.unsnappy(block, maxSize - out.length())):
+                            KafkaError.Decompress(failure: e)?;
                     out = <<out: bytes, chunk: bytes>>;
                     rest = more;
                 },

@@ -7,8 +7,8 @@ conversion producePlan(
     layout: TopicLayout,
     records: List<KafkaRecord>,
     now: int,
-    compression: Compression,
-) -> Result<List<ProduceCall>, KafkaError> {
+    compression: Compression)
+        -> Result<List<ProduceCall>, KafkaError> {
     count = layout.leaders.length();
     keyless = now % count;
     byPartition: Map<int, List<int>> = [:];
@@ -67,11 +67,8 @@ private {
     }
 
     // calls with batch added to its broker's call, or a new call for it.
-    addTo(
-        calls: List<ProduceCall>,
-        broker: BrokerNode,
-        batch: PartitionBatch,
-    ) -> List<ProduceCall> {
+    addTo(calls: List<ProduceCall>, broker: BrokerNode, batch: PartitionBatch)
+            -> List<ProduceCall> {
         out: List<ProduceCall> = [];
         added: bool = false;
         for (call in calls) {

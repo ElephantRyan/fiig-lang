@@ -16,8 +16,8 @@ conversion presignedUrl(
     key: string,
     expiresSeconds: int,
     account: S3Account,
-    millis: int,
-) -> Result<string, S3Error> {
+    millis: int)
+        -> Result<string, S3Error> {
     if (method != "GET" && method != "PUT" && method != "HEAD" && method != "DELETE") {
         return Err(S3Error.InvalidRequest(reason: "S3 operations are GET, PUT, HEAD and DELETE"));
     }
@@ -32,9 +32,8 @@ conversion presignedUrl(
 
     endpoint = parseS3Endpoint(account.endpoint)?;
     target = objectTarget(endpoint, bucket, key, account.pathStyle)?;
-    stamp = mapErr(e in time.formatBasic(millis)): S3Error.InvalidRequest(
-        reason: "the signing time is outside the years 0000 to 9999",
-    )?;
+    stamp = mapErr(e in time.formatBasic(millis)):
+            S3Error.InvalidRequest(reason: "the signing time is outside the years 0000 to 9999")?;
     day = stamp.slice(0, 8);
     scope = "${day}/${account.region}/s3/aws4_request";
     fields: List<http.Header> = [

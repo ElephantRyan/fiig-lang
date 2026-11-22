@@ -12,8 +12,8 @@ conversion canonicalHeaders(
     payloadHash: string,
     stamp: string,
     token: string,
-    extra: List<http.Header>,
-) -> Result<List<http.Header>, S3Error> {
+    extra: List<http.Header>)
+        -> Result<List<http.Header>, S3Error> {
     byName: Map<string, string> = ["host": host, "x-amz-content-sha256": payloadHash, "x-amz-date": stamp];
     if (token != "") {
         byName = byName.put("x-amz-security-token", token);

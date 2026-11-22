@@ -4,11 +4,8 @@ use fiig.stream;
 // XRANGE and XPENDING answered, as the entry with exactly that id, on the
 // attempt the group last delivered it on, else 1; None when the stream no
 // longer holds it. A group that doesn't exist yet has delivered nothing.
-conversion fetchedEntry(
-    id: string,
-    found: RespValue,
-    pending: RespValue,
-) -> Result<stream.Delivery | None, stream.SourceError> {
+conversion fetchedEntry(id: string, found: RespValue, pending: RespValue)
+        -> Result<stream.Delivery | None, stream.SourceError> {
     match (found) {
         RespValue.Error(message) -> {
             return Err(stream.SourceError.Protocol(reason: message));

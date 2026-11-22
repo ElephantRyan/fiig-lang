@@ -6,17 +6,13 @@ use fiig.time;
 // x-amz-security-token with temporary credentials) and every header the
 // call adds, sent in the Authorization header. millis is the signing time, Unix milliseconds. The
 // body's SHA-256 is signed, so a body altered in transit fails the check.
-conversion signedRequest(
-    call: S3Call,
-    account: S3Account,
-    millis: int,
-) -> Result<http.Request, S3Error> {
+conversion signedRequest(call: S3Call, account: S3Account, millis: int)
+        -> Result<http.Request, S3Error> {
     verb = verbOf(call.method)?;
     endpoint = parseS3Endpoint(account.endpoint)?;
     target = objectTarget(endpoint, call.bucket, call.key, account.pathStyle)?;
-    stamp = mapErr(e in time.formatBasic(millis)): S3Error.InvalidRequest(
-        reason: "the signing time is outside the years 0000 to 9999",
-    )?;
+    stamp = mapErr(e in time.formatBasic(millis)):
+            S3Error.InvalidRequest(reason: "the signing time is outside the years 0000 to 9999")?;
     day = stamp.slice(0, 8);
     payload = crypto.sha256(call.body).toHex();
     signed = canonicalHeaders(target.host, payload, stamp, account.token, call.headers)?;

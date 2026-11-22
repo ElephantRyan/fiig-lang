@@ -4,10 +4,8 @@ use fiig.stream;
 // payload field's bytes, and the attempt counts gives the id, else 1
 // (ADR 0111 §7). An entry with no payload field delivers empty bytes,
 // which a model element can't decode, so its route halts and says so.
-conversion streamDeliveries(
-    entries: List<RespValue>,
-    counts: Map<string, int>,
-) -> List<stream.Delivery> {
+conversion streamDeliveries(entries: List<RespValue>, counts: Map<string, int>)
+        -> List<stream.Delivery> {
     out: List<stream.Delivery> = [];
     for (entry in entries) {
         match (entry) {

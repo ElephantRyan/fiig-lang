@@ -13,12 +13,9 @@ use fiig.http.HttpClient;
 // object, and copy copies one server-side, within a bucket or across two;
 // presign makes a time-limited URL for one of those requests and sends none.
 capability S3 {
-    gateway put(
-        bucket: string,
-        key: string,
-        body: bytes,
-        contentType: string,
-    ) -> Result<None, S3Error> requires HttpClient {
+    gateway put(bucket: string, key: string, body: bytes, contentType: string)
+            -> Result<None, S3Error>
+            requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
             None -> None,
@@ -147,8 +144,9 @@ capability S3 {
         key: string,
         body: bytes,
         contentType: string,
-        metadata: Map<string, string>,
-    ) -> Result<None, S3Error> requires HttpClient {
+        metadata: Map<string, string>)
+            -> Result<None, S3Error>
+            requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
             None -> None,
@@ -212,12 +210,9 @@ capability S3 {
         return objectResult(reply);
     }
 
-    gateway getRange(
-        bucket: string,
-        key: string,
-        first: int,
-        last: int | None,
-    ) -> Result<bytes, S3Error> requires HttpClient {
+    gateway getRange(bucket: string, key: string, first: int, last: int | None)
+            -> Result<bytes, S3Error>
+            requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
             None -> None,
@@ -249,12 +244,9 @@ capability S3 {
         return rangeResult(reply, first, last);
     }
 
-    gateway copy(
-        fromBucket: string,
-        fromKey: string,
-        toBucket: string,
-        toKey: string,
-    ) -> Result<None, S3Error> requires HttpClient {
+    gateway copy(fromBucket: string, fromKey: string, toBucket: string, toKey: string)
+            -> Result<None, S3Error>
+            requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
             None -> None,
@@ -292,12 +284,9 @@ capability S3 {
     // (ADR 0010), and HttpClient is the one the URL's request goes through,
     // made by whoever holds it; this gateway never calls it, so making a
     // link opens no connection, and the package binds nothing it didn't.
-    gateway presign(
-        method: string,
-        bucket: string,
-        key: string,
-        expiresSeconds: int,
-    ) -> Result<string, S3Error> requires HttpClient {
+    gateway presign(method: string, bucket: string, key: string, expiresSeconds: int)
+            -> Result<string, S3Error>
+            requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
             None -> None,

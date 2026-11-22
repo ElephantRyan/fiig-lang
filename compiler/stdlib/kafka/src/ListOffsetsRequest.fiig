@@ -6,8 +6,8 @@ conversion listOffsetsRequest(
     correlation: int,
     topic: string,
     partitions: List<int>,
-    timestamp: int,
-) -> bytes {
+    timestamp: int)
+        -> bytes {
     ids: bytes = <<partitions.length(): i32be>>;
     for (p in partitions) {
         ids = <<ids: bytes, p: i32be, timestamp: i64be>>;

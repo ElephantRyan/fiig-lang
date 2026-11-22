@@ -5,11 +5,8 @@
 // is the batch's own. ADR 0116 §4: with a codec, the records section is
 // compressed and the attributes name the codec; the CRC covers the
 // compressed bytes.
-conversion recordBatch(
-    records: List<KafkaRecord>,
-    timestamp: int,
-    compression: Compression,
-) -> Result<bytes, KafkaError> {
+conversion recordBatch(records: List<KafkaRecord>, timestamp: int, compression: Compression)
+        -> Result<bytes, KafkaError> {
     if (records.length() == 0) {
         return Err(KafkaError.InvalidRecord(reason: "a batch has at least one record"));
     }

@@ -1,8 +1,7 @@
 // ADR 0024: `preserveOrder` — same shape as retrieveCustomers, but callers
 // that need the BatchResult's items to line up with customerIds positionally
 // (rather than by whichever loadCustomer finishes first) ask for it explicitly.
-workflow retrieveCustomersInOrder(
-    customerIds: List<string>,
-) -> BatchResult<string, Customer, CustomerError> {
+workflow retrieveCustomersInOrder(customerIds: List<string>)
+        -> BatchResult<string, Customer, CustomerError> {
     return concurrent(customerId in customerIds, preserveOrder): loadCustomer(customerId);
 }

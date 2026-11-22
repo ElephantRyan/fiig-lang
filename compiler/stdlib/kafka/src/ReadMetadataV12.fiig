@@ -3,11 +3,8 @@
 // correlation id, then tagged fields), then compact arrays and strings,
 // each struct ending in its own tagged fields. A partition without a
 // leader (-1, mid-election) is LEADER_NOT_AVAILABLE, which is retriable.
-conversion readMetadataV12(
-    frame: bytes,
-    correlation: int,
-    topic: string,
-) -> Result<TopicLayout, KafkaError> {
+conversion readMetadataV12(frame: bytes, correlation: int, topic: string)
+        -> Result<TopicLayout, KafkaError> {
     got = intAt(frame, 0)?;
     if (got != correlation) {
         return Err(

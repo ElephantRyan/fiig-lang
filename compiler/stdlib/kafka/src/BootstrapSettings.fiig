@@ -4,11 +4,8 @@
 // topics' layouts. With one server it names the same session as
 // brokerSettings does for that broker, so a one-broker cluster is one
 // connection.
-conversion bootstrapSettings(
-    bootstrap: string,
-    tls: bool,
-    clientId: string,
-) -> Result<Map<string, string>, KafkaError> {
+conversion bootstrapSettings(bootstrap: string, tls: bool, clientId: string)
+        -> Result<Map<string, string>, KafkaError> {
     servers = bootstrapOf(bootstrap)?;
     settings = brokerSettings(servers.first(), tls, clientId);
     if (servers.length() == 1) {

@@ -7,11 +7,8 @@ use fiig.sql as db;
 // used are closed to make room. Whichever runs moves to the end, most
 // recently used. With cacheSize 0 nothing is cached and every
 // statement is the unnamed one, parsed each time.
-conversion planStatement(
-    on: db.SqlConnection,
-    sql: string,
-    values: List<db.SqlValue>,
-) -> StatementPlan {
+conversion planStatement(on: db.SqlConnection, sql: string, values: List<db.SqlValue>)
+        -> StatementPlan {
     numbered = numberPlaceholders(sql);
     if (on.cacheSize <= 0) {
         return StatementPlan(

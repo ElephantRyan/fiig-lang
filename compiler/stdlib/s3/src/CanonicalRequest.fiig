@@ -12,8 +12,8 @@ conversion canonicalRequest(
     host: string,
     payloadHash: string,
     stamp: string,
-    token: string,
-) -> string {
+    token: string)
+        -> string {
     headers: List<http.Header> = [
         http.Header(name: "host", value: host),
         http.Header(name: "x-amz-content-sha256", value: payloadHash),

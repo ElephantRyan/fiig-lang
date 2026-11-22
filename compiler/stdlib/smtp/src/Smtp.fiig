@@ -22,9 +22,8 @@ capability Smtp {
         target = withLogin(parseSmtpUrl(SmtpServer.url.reveal())?, SmtpServer.auth, token)?;
         now = Clock.now();
         unique = Random.bytes(12).toHex();
-        date = mapErr(e in time.formatRfc5322(now)): SmtpError.Protocol(
-            reason: "the clock reads a year outside 0000 to 9999",
-        )?;
+        date = mapErr(e in time.formatRfc5322(now)):
+                SmtpError.Protocol(reason: "the clock reads a year outside 0000 to 9999")?;
         data = mailData(mail, date, messageIdFor(mail, unique));
         until: int = now + SmtpServer.timeoutMillis;
         session = sessionFor(target);

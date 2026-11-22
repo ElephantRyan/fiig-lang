@@ -7,8 +7,8 @@ conversion produceRequest(
     correlation: int,
     topic: string,
     timeoutMillis: int,
-    batches: List<PartitionBatch>,
-) -> bytes {
+    batches: List<PartitionBatch>)
+        -> bytes {
     partitions: bytes = <<batches.length(): i32be>>;
     for (batch in batches) {
         partitions = <<

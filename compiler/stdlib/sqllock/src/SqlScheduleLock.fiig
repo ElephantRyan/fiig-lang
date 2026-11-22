@@ -20,12 +20,9 @@ use fiig.schedule;
 // `fiig serve -check`, which applies no migration, can still ask. Expiry is
 // measured on each replica's clock, as a schedule's firing times already are.
 capability SqlScheduleLock provides schedule.ScheduleLock {
-    gateway claim(
-        job: string,
-        firedAt: int,
-        holder: string,
-        holdMillis: int,
-    ) -> Result<bool, schedule.LockError> requires Database {
+    gateway claim(job: string, firedAt: int, holder: string, holdMillis: int)
+            -> Result<bool, schedule.LockError>
+            requires Database {
         Database.execute(
             "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)",
         );
@@ -45,12 +42,9 @@ capability SqlScheduleLock provides schedule.ScheduleLock {
         return Ok(changed > 0);
     }
 
-    gateway complete(
-        job: string,
-        firedAt: int,
-        holder: string,
-        retainMillis: int,
-    ) -> Result<bool, schedule.LockError> requires Database {
+    gateway complete(job: string, firedAt: int, holder: string, retainMillis: int)
+            -> Result<bool, schedule.LockError>
+            requires Database {
         Database.execute(
             "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)",
         );

@@ -5,8 +5,8 @@ conversion kafkaFlexRequest(
     apiVersion: int,
     correlation: int,
     clientId: string,
-    body: bytes,
-) -> bytes {
+    body: bytes)
+        -> bytes {
     message = <<
         apiKey: i16be,
         apiVersion: i16be,

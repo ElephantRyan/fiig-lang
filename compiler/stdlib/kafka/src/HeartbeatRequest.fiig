@@ -10,8 +10,8 @@ conversion heartbeatRequest(
     epoch: int,
     topic: string,
     topicId: bytes,
-    owned: List<int>,
-) -> bytes {
+    owned: List<int>)
+        -> bytes {
     // TopicPartitions: none yet, or the topic's owned partitions.
     partitions: bytes = uvarint(1);
     if (topicId.length() == 16 && owned.length() > 0) {

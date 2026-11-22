@@ -247,12 +247,8 @@ private {
         );
     }
 
-    heartbeatAnswerOf(
-        correlation: int,
-        epoch: int,
-        topicId: bytes,
-        partitions: List<int>,
-    ) -> bytes {
+    heartbeatAnswerOf(correlation: int, epoch: int, topicId: bytes, partitions: List<int>)
+            -> bytes {
         ids: bytes = uvarint(partitions.length() + 1);
         for (p in partitions) {
             ids = <<ids: bytes, p: i32be>>;

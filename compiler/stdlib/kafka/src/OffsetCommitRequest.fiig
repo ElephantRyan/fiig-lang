@@ -8,8 +8,8 @@ conversion offsetCommitRequest(
     memberId: string,
     epoch: int,
     topic: string,
-    offsets: List<PartitionOffset>,
-) -> bytes {
+    offsets: List<PartitionOffset>)
+        -> bytes {
     partitions: bytes = uvarint(offsets.length() + 1);
     for (o in offsets) {
         partitions = <<

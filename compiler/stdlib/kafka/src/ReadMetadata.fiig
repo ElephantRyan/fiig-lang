@@ -1,11 +1,8 @@
 // ADR 0113 §4: a Metadata v4 response read as the topic's layout. A
 // partition without a leader (-1, mid-election) is LEADER_NOT_AVAILABLE,
 // which is retriable.
-conversion readMetadata(
-    frame: bytes,
-    correlation: int,
-    topic: string,
-) -> Result<TopicLayout, KafkaError> {
+conversion readMetadata(frame: bytes, correlation: int, topic: string)
+        -> Result<TopicLayout, KafkaError> {
     got = intAt(frame, 0)?;
     if (got != correlation) {
         return Err(

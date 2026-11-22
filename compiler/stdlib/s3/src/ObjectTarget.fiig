@@ -7,12 +7,8 @@ use fiig.http;
 // `%` in a key can't change the URL; `/` keeps its place, so keys that look
 // like folders work. `.` and `..` segments are refused, since a server
 // resolves them as "here" and "up one".
-conversion objectTarget(
-    endpoint: S3Endpoint,
-    bucket: string,
-    key: string,
-    pathStyle: bool,
-) -> Result<S3Target, S3Error> {
+conversion objectTarget(endpoint: S3Endpoint, bucket: string, key: string, pathStyle: bool)
+        -> Result<S3Target, S3Error> {
     if (!validBucket(bucket)) {
         return Err(
             S3Error.InvalidRequest(

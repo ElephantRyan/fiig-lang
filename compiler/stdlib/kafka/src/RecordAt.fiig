@@ -5,10 +5,8 @@ use fiig.stream;
 // 1, or None when the partition no longer reaches it (OFFSET_OUT_OF_RANGE)
 // or holds no record there, such as a compacted one. A fetch returns whole
 // batches, so it may start before the offset.
-conversion recordAt(
-    parts: List<FetchedPartition>,
-    at: PartitionOffset,
-) -> Result<stream.Delivery | None, KafkaError> {
+conversion recordAt(parts: List<FetchedPartition>, at: PartitionOffset)
+        -> Result<stream.Delivery | None, KafkaError> {
     for (part in parts) {
         if (part.partition == at.partition) {
             if (part.code == 1) {

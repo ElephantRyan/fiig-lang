@@ -14,12 +14,8 @@ use fiig.session;
 // before a login, and is "authenticating", holding every ask, until the
 // login is done (saslAnswered); a group session asks for its coordinator
 // after. nonce is SCRAM's client nonce, fresh for each connection.
-conversion sessionOpened(
-    settings: Map<string, string>,
-    now: int,
-    login: SaslLogin,
-    nonce: string,
-) -> session.Step {
+conversion sessionOpened(settings: Map<string, string>, now: int, login: SaslLogin, nonce: string)
+        -> session.Step {
     s = KafkaSessionState(
         role: settings.atOr("role", "broker"),
         host: settings.atOr("host", ""),

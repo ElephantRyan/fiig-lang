@@ -4,11 +4,8 @@
 // — a failed lookup or send doesn't undo a successful, already-shipped
 // order, the same compensation philosophy place_and_ship_order.fiig
 // already uses for its own best-effort refund/release.
-workflow placeShipAndNotifyCustomer(
-    orderId: string,
-    customerId: string,
-    total: int,
-) -> Result<Order, OrderError> {
+workflow placeShipAndNotifyCustomer(orderId: string, customerId: string, total: int)
+        -> Result<Order, OrderError> {
     order = placeAndShipOrder(orderId, customerId, total)?;
     notified = notifyShipped(customerId, order.id);
     return Ok(order);

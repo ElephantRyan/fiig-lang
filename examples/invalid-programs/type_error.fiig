@@ -75,8 +75,7 @@ rule describeRegion(region: Region) -> string {
 // Type error: a concurrent block's inferred BatchResult doesn't match its
 // workflow's declared one — getCustomer fails with CustomerError, not
 // OrderError.
-workflow retrieveCustomersWrongError(
-    customerIds: List<string>,
-) -> BatchResult<string, Customer, OrderError> {
+workflow retrieveCustomersWrongError(customerIds: List<string>)
+        -> BatchResult<string, Customer, OrderError> {
     return concurrent(customerId in customerIds): getCustomer(customerId); // rejected: produces BatchResult<string, Customer, CustomerError>, not ...OrderError
 }

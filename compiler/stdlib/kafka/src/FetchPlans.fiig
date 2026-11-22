@@ -1,9 +1,7 @@
 // ADR 0117 §4: the partitions a poll gave, grouped by the broker that
 // leads each, in the order the brokers first appear.
-conversion fetchPlans(
-    layout: TopicLayout,
-    partitions: List<AssignedPartition>,
-) -> Result<List<LeaderFetch>, KafkaError> {
+conversion fetchPlans(layout: TopicLayout, partitions: List<AssignedPartition>)
+        -> Result<List<LeaderFetch>, KafkaError> {
     plans: List<LeaderFetch> = [];
     for (p in partitions) {
         if (p.partition < 0 || p.partition >= layout.leaders.length()) {

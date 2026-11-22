@@ -5,8 +5,8 @@ conversion offsetFetchRequest(
     correlation: int,
     group: string,
     topic: string,
-    partitions: List<int>,
-) -> bytes {
+    partitions: List<int>)
+        -> bytes {
     ids: bytes = <<partitions.length(): i32be>>;
     for (p in partitions) {
         ids = <<ids: bytes, p: i32be>>;

@@ -8,8 +8,8 @@ conversion fetchRequest(
     topic: string,
     waitMillis: int,
     maxBytes: int,
-    positions: List<PartitionOffset>,
-) -> bytes {
+    positions: List<PartitionOffset>)
+        -> bytes {
     partitions: bytes = <<positions.length(): i32be>>;
     for (p in positions) {
         partitions = <<

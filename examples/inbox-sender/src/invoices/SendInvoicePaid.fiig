@@ -6,12 +6,9 @@
 use fiig.http;
 use fiig.http.HttpClient;
 
-gateway sendInvoicePaid(
-    inboxUrl: string,
-    id: string,
-    invoice: string,
-    amount: decimal,
-) -> Result<InboxEvent, SendError> requires HttpClient {
+gateway sendInvoicePaid(inboxUrl: string, id: string, invoice: string, amount: decimal)
+        -> Result<InboxEvent, SendError>
+        requires HttpClient {
     event = PaidEnvelope(
         id: id,
         eventType: "invoice.paid",

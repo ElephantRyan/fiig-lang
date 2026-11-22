@@ -2,11 +2,8 @@
 // compensation, not rollback (fiig-lang.md §3.8). By the time reserveShipping
 // fails, placeOrder's two transaction blocks have already committed — refundPayment
 // and releaseInventory are compensating actions, not part of any transaction.
-activity placeAndShipOrder(
-    orderId: string,
-    customerId: string,
-    total: int,
-) -> Result<Order, OrderError> {
+activity placeAndShipOrder(orderId: string, customerId: string, total: int)
+        -> Result<Order, OrderError> {
     order = placeOrder(orderId, customerId, total)?;
     shipped = reserveShipping(order.id);
     return match (shipped) {

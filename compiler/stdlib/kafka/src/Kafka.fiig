@@ -26,9 +26,8 @@ capability Kafka {
         now = Clock.now();
         until = now + KafkaServer.timeoutMillis;
         ask = KafkaAsk.Layout(topic: topic, maxAgeMillis: KafkaServer.metadataMaxAgeMillis);
-        described = mapErr(e in Session.call(bootstrap, json.encode(ask), deadline: until)): KafkaError.Session(
-            failure: e,
-        )?;
+        described = mapErr(e in Session.call(bootstrap, json.encode(ask), deadline: until)):
+                KafkaError.Session(failure: e)?;
         layout = layoutOf(described)?;
         sent: List<SentAt> = [];
         for (call in producePlan(layout, records, now, compression)?) {

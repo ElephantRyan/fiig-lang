@@ -3,11 +3,8 @@
 // then compact arrays, each struct ending in its tagged fields. A
 // partition's error is the call's, with the broker's message when it
 // gives one.
-conversion readProduceV9(
-    frame: bytes,
-    correlation: int,
-    call: ProduceCall,
-) -> Result<List<SentAt>, KafkaError> {
+conversion readProduceV9(frame: bytes, correlation: int, call: ProduceCall)
+        -> Result<List<SentAt>, KafkaError> {
     got = intAt(frame, 0)?;
     if (got != correlation) {
         return Err(

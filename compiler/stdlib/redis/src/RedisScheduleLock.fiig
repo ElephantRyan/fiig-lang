@@ -10,12 +10,9 @@ use fiig.schedule;
 // whether anyone has finished. A claimant that dies leaves no done key, so
 // its claim expires and a waiting replica claims it next.
 capability RedisScheduleLock provides schedule.ScheduleLock {
-    gateway claim(
-        job: string,
-        firedAt: int,
-        holder: string,
-        holdMillis: int,
-    ) -> Result<bool, schedule.LockError> requires Redis {
+    gateway claim(job: string, firedAt: int, holder: string, holdMillis: int)
+            -> Result<bool, schedule.LockError>
+            requires Redis {
         key = "fiig:schedule:${job}:${firedAt}";
         return match (Redis.send(["SET", key, holder, "NX", "PX", "${holdMillis}"])) {
             Ok(RespValue.Simple(_)) -> {
@@ -32,12 +29,9 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
         }
     }
 
-    gateway complete(
-        job: string,
-        firedAt: int,
-        holder: string,
-        retainMillis: int,
-    ) -> Result<bool, schedule.LockError> requires Redis {
+    gateway complete(job: string, firedAt: int, holder: string, retainMillis: int)
+            -> Result<bool, schedule.LockError>
+            requires Redis {
         key = "fiig:schedule:${job}:${firedAt}:done";
         return match (Redis.send(["SET", key, holder, "PX", "${retainMillis}"])) {
             Ok(RespValue.Simple(_)) -> {

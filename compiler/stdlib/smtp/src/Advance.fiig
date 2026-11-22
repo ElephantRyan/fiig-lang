@@ -28,12 +28,8 @@ conversion advance(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError>
 }
 
 private {
-    expecting(
-        d: Dialogue,
-        reply: SmtpReply,
-        code: int,
-        next: SmtpPhase,
-    ) -> Result<Dialogue, SmtpError> {
+    expecting(d: Dialogue, reply: SmtpReply, code: int, next: SmtpPhase)
+            -> Result<Dialogue, SmtpError> {
         if (reply.code == code) {
             return Ok(copy(d, phase: next));
         }

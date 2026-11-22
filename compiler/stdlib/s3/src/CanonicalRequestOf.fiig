@@ -8,8 +8,8 @@ conversion canonicalRequestOf(
     method: string,
     path: string,
     headers: List<http.Header>,
-    payloadHash: string,
-) -> string {
+    payloadHash: string)
+        -> string {
     lines: List<string> = [];
     for (header in headers) {
         lines = append(lines, "${header.name}:${header.value}");
