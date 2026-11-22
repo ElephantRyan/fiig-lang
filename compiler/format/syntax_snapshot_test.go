@@ -106,10 +106,8 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 		},
 		{
 			name: "transaction block with ? propagation",
-			src: `workflow changeCustomerEmail(
-    id: CustomerId,
-    newEmail: EmailAddress,
-) -> Result<Customer, CustomerError> {
+			src: `workflow changeCustomerEmail(id: CustomerId, newEmail: EmailAddress)
+        -> Result<Customer, CustomerError> {
     transaction Database {
         updateCustomerEmail(id, newEmail)?;
         return getCustomer(id);
@@ -126,38 +124,32 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 		},
 		{
 			name: "concurrent expression, bare form",
-			src: `workflow retrieveCustomers(
-    customerIds: List<CustomerId>,
-) -> BatchResult<CustomerId, Customer, CustomerError> {
+			src: `workflow retrieveCustomers(customerIds: List<CustomerId>)
+        -> BatchResult<CustomerId, Customer, CustomerError> {
     return concurrent(customerId in customerIds): getCustomer(customerId);
 }
 `,
 		},
 		{
 			name: "concurrent expression, explicit limit",
-			src: `workflow retrieveCustomersLimited(
-    customerIds: List<CustomerId>,
-) -> BatchResult<CustomerId, Customer, CustomerError> {
+			src: `workflow retrieveCustomersLimited(customerIds: List<CustomerId>)
+        -> BatchResult<CustomerId, Customer, CustomerError> {
     return concurrent(customerId in customerIds, limit: 5): getCustomer(customerId);
 }
 `,
 		},
 		{
 			name: "concurrent expression, unbounded limit (checker-rejected, parses fine)",
-			src: `workflow retrieveAllCustomers(
-    customerIds: List<CustomerId>,
-) -> BatchResult<CustomerId, Customer, CustomerError> {
+			src: `workflow retrieveAllCustomers(customerIds: List<CustomerId>)
+        -> BatchResult<CustomerId, Customer, CustomerError> {
     return concurrent(customerId in customerIds, limit: unbounded): getCustomer(customerId);
 }
 `,
 		},
 		{
 			name: "match with block-bodied arms and a qualified constructor pattern",
-			src: `workflow checkout(
-    orderId: OrderId,
-    input: NewCustomer,
-    total: Money,
-) -> Result<Order, CheckoutError> {
+			src: `workflow checkout(orderId: OrderId, input: NewCustomer, total: Money)
+        -> Result<Order, CheckoutError> {
     return match (createCustomer(input)) {
         Err(error) -> {
             return Err(CheckoutError.Customer(error)); // wrapped unchanged

@@ -66,15 +66,27 @@ func TestAStatementWrapsAtItsOpeningParen(t *testing.T) {
 				"}\n",
 		},
 		{
-			"mapErr wraps at its body's call",
+			"mapErr breaks after its `:`",
 			"rule r(reply: Reply) -> Result<List<AbsLibrary>, AbsError> {\n" +
 				"    found: AbsLibrariesReply = mapErr(e in json.decode(reply.body)): absclient.AbsError.Unreadable(failure: e)?;\n" +
 				"    return Ok(found.libraries);\n}\n",
 			"rule r(reply: Reply) -> Result<List<AbsLibrary>, AbsError> {\n" +
-				"    found: AbsLibrariesReply = mapErr(e in json.decode(reply.body)): absclient.AbsError.Unreadable(\n" +
-				"        failure: e,\n" +
-				"    )?;\n" +
+				"    found: AbsLibrariesReply = mapErr(e in json.decode(reply.body)):\n" +
+				"            absclient.AbsError.Unreadable(failure: e)?;\n" +
 				"    return Ok(found.libraries);\n" +
+				"}\n",
+		},
+		{
+			// Hearsay: the body used to wrap at its own `(`, leaving a lone
+			// `e,` on a line of its own.
+			"a short mapErr body stays whole",
+			"workflow w(checked: SettingsChange, userId: string) -> Result<None, AdminError> {\n" +
+				"    mapErr(e in settings.applySettingsChange(checked, admin.identity.userId)): adminErrorOfChange(e)?;\n" +
+				"    return Ok(None);\n}\n",
+			"workflow w(checked: SettingsChange, userId: string) -> Result<None, AdminError> {\n" +
+				"    mapErr(e in settings.applySettingsChange(checked, admin.identity.userId)):\n" +
+				"            adminErrorOfChange(e)?;\n" +
+				"    return Ok(None);\n" +
 				"}\n",
 		},
 	} {
@@ -95,28 +107,57 @@ func TestAStatementWrapsAtItsOpeningParen(t *testing.T) {
 	}
 }
 
-// A signature too long for one line wraps its parameters at their `(`, one
-// per line with a trailing comma, as a long call's arguments do; `)` then
-// carries the result type, the clauses when they fit, and `{`.
-func TestALongSignatureWrapsItsParameters(t *testing.T) {
-	src := "capability AbsCatalog {\n" +
-		"    gateway pageAsService(abs: absclient.AbsTarget, libraryId: string, page: int, size: int) -> Result<BookPage, absclient.AbsError> requires HttpClient {\n" +
-		"        return Ok(page);\n    }\n}\n"
-	want := "capability AbsCatalog {\n" +
-		"    gateway pageAsService(\n" +
-		"        abs: absclient.AbsTarget,\n" +
-		"        libraryId: string,\n" +
-		"        page: int,\n" +
-		"        size: int,\n" +
-		"    ) -> Result<BookPage, absclient.AbsError> requires HttpClient {\n" +
-		"        return Ok(page);\n" +
-		"    }\n" +
-		"}\n"
-	out := mustFormat(t, src)
-	if out != want {
-		t.Fatalf("got:\n%s\nwant:\n%s", out, want)
-	}
-	if again := mustFormat(t, out); again != out {
-		t.Fatalf("not stable:\n%s", again)
+// A signature too long for one line puts `-> Type` under it, with the
+// clauses at two indents, so the parameters stay on one line when they fit
+// (Hearsay: `changeSettings(`, a parameter per line, then `) -> ...`). When
+// they don't, they go one per line with `)` ending the last.
+func TestALongSignatureWrapsAtItsResultType(t *testing.T) {
+	for _, tc := range []struct{ name, src, want string }{
+		{
+			"the parameters fit",
+			"workflow changeSettings(admin: accounts.Admin, change: settings.SettingsChange) -> Result<settings.SettingsView, AdminError> {\n" +
+				"    return Ok(settings.describeSettings());\n}\n",
+			"workflow changeSettings(admin: accounts.Admin, change: settings.SettingsChange)\n" +
+				"        -> Result<settings.SettingsView, AdminError> {\n" +
+				"    return Ok(settings.describeSettings());\n" +
+				"}\n",
+		},
+		{
+			"the parameters fit, with a clause",
+			"capability AbsCatalog {\n" +
+				"    gateway pageAsService(abs: absclient.AbsTarget, libraryId: string, page: int, size: int) -> Result<BookPage, absclient.AbsError> requires HttpClient {\n" +
+				"        return Ok(page);\n    }\n}\n",
+			"capability AbsCatalog {\n" +
+				"    gateway pageAsService(abs: absclient.AbsTarget, libraryId: string, page: int, size: int)\n" +
+				"            -> Result<BookPage, absclient.AbsError>\n" +
+				"            requires HttpClient {\n" +
+				"        return Ok(page);\n" +
+				"    }\n" +
+				"}\n",
+		},
+		{
+			"the parameters don't fit",
+			"gateway chargeCustomer(orderId: string, amount: int, customer: customers.Customer, reference: string) -> Result<string, PaymentError> requires PaymentGateway {\n" +
+				"    return Ok(reference);\n}\n",
+			"gateway chargeCustomer(\n" +
+				"    orderId: string,\n" +
+				"    amount: int,\n" +
+				"    customer: customers.Customer,\n" +
+				"    reference: string)\n" +
+				"        -> Result<string, PaymentError>\n" +
+				"        requires PaymentGateway {\n" +
+				"    return Ok(reference);\n" +
+				"}\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := mustFormat(t, tc.src)
+			if out != tc.want {
+				t.Fatalf("got:\n%s\nwant:\n%s", out, tc.want)
+			}
+			if again := mustFormat(t, out); again != out {
+				t.Fatalf("not stable:\n%s", again)
+			}
+		})
 	}
 }

@@ -647,13 +647,17 @@ func (p *printer) printGatewayDecl(d *syntax.GatewayDecl) {
 //
 //  1. all of it on one line;
 //  2. the signature on one line and the clauses under it (printClauses);
-//  3. the parameters one per line, wrapped at their `(` like a long call's
-//     arguments, then `) -> Type` with the clauses, on one line or under it.
+//  3. the name and parameters on one line, and `-> Type` under it as the
+//     first of the clauses;
+//  4. the parameters one per line, `)` ending the last, then `-> Type` and
+//     the clauses under them.
 //
-// `{` ends the last line in every shape, never a line of its own.
+// `{` ends the last line in every shape, never a line of its own, and a
+// wrapped result type sits with the clauses at two indents, apart from the
+// parameters and the body at one.
 func (p *printer) printSignature(lead string, params []syntax.Param, after string, clauses []string, tail string, line int) {
 	sig := lead + printParams(params) + after
-	lines := make([]int, len(clauses))
+	lines := make([]int, len(clauses)+1)
 	for i := range lines {
 		lines[i] = line
 	}
@@ -666,19 +670,23 @@ func (p *printer) printSignature(lead string, params []syntax.Param, after strin
 		p.printClauses(clauses, tail, lines)
 		return
 	}
-	p.emitLine(lead+"(", line, line)
-	p.indent++
-	for _, prm := range params {
-		p.emitLine(fmt.Sprintf("%s: %s,", prm.Name, printType(prm.Type)), line, line)
-	}
-	p.indent--
-	closing := ")" + after
-	if len(clauses) == 0 || p.fits(joinClauses(closing, clauses, tail)) {
-		p.emitLine(joinClauses(closing, clauses, tail), line, line)
+	withResult := append([]string{strings.TrimSpace(after)}, clauses...)
+	if head := lead + printParams(params); p.fits(head) {
+		p.emitLine(head, line, line)
+		p.printClauses(withResult, tail, lines)
 		return
 	}
-	p.emitLine(closing, line, line)
-	p.printClauses(clauses, tail, lines)
+	p.emitLine(lead+"(", line, line)
+	p.indent++
+	for i, prm := range params {
+		end := ","
+		if i == len(params)-1 {
+			end = ")"
+		}
+		p.emitLine(fmt.Sprintf("%s: %s%s", prm.Name, printType(prm.Type), end), line, line)
+	}
+	p.indent--
+	p.printClauses(withResult, tail, lines)
 }
 
 // joinClauses is a header with its clauses on one line, then tail.
@@ -1245,8 +1253,9 @@ func canWrap(e syntax.Expr) bool {
 }
 
 // wrapValue writes prefix and e wrapped at e's outermost opening `(` or
-// `[`, for an e that canWrap. A list form keeps its head on the line and
-// wraps its body, so the break is at the body's `(`.
+// `[`, for an e that canWrap. A list form breaks after its head's `:`
+// instead, and its body goes on the next line at two indents, wrapping
+// there only if it still doesn't fit (`mapErr(e in r):` then `Wrap(e)?`).
 func (p *printer) wrapValue(prefix string, e syntax.Expr) {
 	switch e := e.(type) {
 	case *syntax.CallExpr:
@@ -1259,7 +1268,12 @@ func (p *printer) wrapValue(prefix string, e syntax.Expr) {
 		p.wrapValue(prefix, e.Operand)
 		p.out.WriteString("?")
 	case *syntax.ListForm:
-		p.wrapValue(fmt.Sprintf("%s%s(%s in %s): ", prefix, e.Form, e.Var, printExpr(e.Iterable)), e.Body)
+		fmt.Fprintf(&p.out, "%s%s(%s in %s):", prefix, e.Form, e.Var, printExpr(e.Iterable))
+		p.out.WriteByte('\n')
+		p.indent += 2
+		p.writeIndent()
+		p.printWrappedValue("", e.Body)
+		p.indent -= 2
 	}
 }
 
