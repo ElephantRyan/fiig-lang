@@ -1,6 +1,8 @@
 package servecmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -20,11 +22,13 @@ var namedPrincipalApp = map[string]string{
 `,
 	"app/src/P141.fiig": `use p141.books
 use p141.admin
+use p141.sessions
 
 application P141 {
     serve {
         books.booksApi
         admin.adminApi
+        sessions.sessionsApi
     }
 }
 `,
@@ -98,6 +102,20 @@ workflow myBooks(me: sessions.Identity) -> string {
     }
 }
 `,
+	"app/src/sessions/SessionsApi.fiig": `adapter http sessionsApi {
+    wire me
+
+    GET "/me" -> whoAmI(me)
+        produces "application/json"
+    {
+        who -> 200 who
+    }
+}
+`,
+	"app/src/sessions/WhoAmI.fiig": `workflow whoAmI(me: Identity) -> string {
+    return me.userId
+}
+`,
 	"app/src/sessions/Me.fiig": `wire me: Identity from cookie "sid" by signedIn else refused
 `,
 	"app/src/sessions/Refused.fiig": `conversion refused(e: IdentityError) -> HttpResponse<string> {
@@ -150,6 +168,33 @@ func TestANamedPrincipalIsSettledInItsOwnPackage(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 		if rec.Code != c.code || !strings.Contains(rec.Body.String(), c.want) {
 			t.Errorf("%s with %q: %d %s, want %d %s", c.path, c.cookie, rec.Code, rec.Body.String(), c.code, c.want)
+		}
+	}
+}
+
+// Hearsay G69: the adapter in the wire's own package names it `me`, the
+// others `sessions.me`, and the document has one scheme for it, named
+// after the declaring package.
+func TestANamedPrincipalHasOneScheme(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, namedPrincipalApp)
+	var out bytes.Buffer
+	if err := writeOpenAPI(&out, filepath.Join(root, "app"), nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	schemes := doc["components"].(map[string]any)["securitySchemes"].(map[string]any)
+	if _, ok := schemes["sessionsMe"]; !ok || len(schemes) != 1 {
+		t.Errorf("schemes = %v, want sessionsMe alone", schemes)
+	}
+	paths := doc["paths"].(map[string]any)
+	for _, p := range []string{"/me", "/books", "/admin/stats"} {
+		security, _ := json.Marshal(paths[p].(map[string]any)["get"].(map[string]any)["security"])
+		if string(security) != `[{"sessionsMe":[]}]` {
+			t.Errorf("%s: security %s", p, security)
 		}
 	}
 }

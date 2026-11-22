@@ -282,9 +282,12 @@ takes. U6 (http only) applies to the adapter that names it.
   in `sessions`. Settled values are kept by declaration, so a route that
   takes `admin` settles `me` once, even when the adapter names only
   `admin` (§3).
-- OpenAPI: a named principal's scheme is `alias` + `Name` (`sessionsMe`),
-  or the bare name in the adapter's own package; its refusal's statuses
-  resolve in its own package. Inline principals keep the cookie or header
+- OpenAPI: a named principal's scheme is the declaring package's last path
+  segment + `Name` (`sessionsMe`), however the adapter spells it; its
+  refusal's statuses resolve in its own package. (First built as the
+  adapter's alias + `Name`, which gave the adapter in `sessions` itself,
+  naming it `me`, a second scheme `me`: Hearsay G69, fixed 2026-11-21,
+  `TestANamedPrincipalHasOneScheme`.) Inline principals keep the cookie or header
   name as the scheme, as before.
 - Registry: a top-level principal has a `principal` card with its binder,
   refusal and `from` as dependencies; an adapter's card lists `principal

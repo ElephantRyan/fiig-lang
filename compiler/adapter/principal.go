@@ -59,13 +59,17 @@ func (s principalScope) resolve(r *syntax.PrincipalRef) (*syntax.PrincipalDecl, 
 	return pr, pkg, r.Path[0]
 }
 
-// schemeName is the security scheme a named principal is described by:
-// `sessions.me` is sessionsMe, and `me` in the adapter's own package is me.
-func schemeName(alias, name string) string {
-	if alias == "" {
+// schemeName is the security scheme a named principal is described by,
+// after the package declaring it, however an adapter spells it: `me` in
+// package hearsay.sessions is sessionsMe, named as `me` there or as
+// `sessions.me` (or another alias) elsewhere (Hearsay G69). One in a
+// package with no path is its name alone.
+func schemeName(pkg *types.Package, name string) string {
+	if pkg == nil || pkg.Path == "" {
 		return name
 	}
-	return alias + capitalized(name)
+	tail := pkg.Path[strings.LastIndex(pkg.Path, ".")+1:]
+	return tail + capitalized(name)
 }
 
 func lookupPrincipal(u *types.Universe, name string) (*syntax.PrincipalDecl, bool) {
@@ -162,7 +166,11 @@ func principalsFor(d *syntax.AdapterDecl, route *syntax.Route, sc principalScope
 		index[b.decl] = len(steps)
 		scheme := b.decl.SourceName
 		if !b.inline {
-			scheme = schemeName(b.alias, b.decl.Name)
+			declaring := b.pkg
+			if declaring == nil {
+				declaring = sc.pkg
+			}
+			scheme = schemeName(declaring, b.decl.Name)
 		}
 		step := principalStep{
 			decl:    b.decl,
