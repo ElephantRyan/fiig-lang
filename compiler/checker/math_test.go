@@ -128,12 +128,12 @@ func TestFormulaMayCallMath(t *testing.T) {
 // named after anything the prelude binds in every file.
 func TestDeclarationNamedAfterPrelude(t *testing.T) {
 	cases := map[string]string{
-		"formulas math {\n    formula twice(n: int) -> int {\n        return n * 2;\n    }\n}": "the prelude math group",
-		"model Result {\n    code: int;\n}":           "a prelude type",
-		"enum SocketError {\n    Lost,\n}":            "a prelude type",
-		"enum Rounding {\n    Nearest,\n}":            "a prelude type",
-		"model Connection {\n    host: string;\n}":    "a prelude type",
-		"rule Ok(n: int) -> int {\n    return n;\n}": "Result's constructor",
+		"formulas math {\n    formula twice(n: int) -> int {\n        return n * 2;\n    }\n}":                "the prelude math group",
+		"model Result {\n    code: int;\n}":                                                                   "a prelude type",
+		"enum SocketError {\n    Lost,\n}":                                                                    "a prelude type",
+		"enum Rounding {\n    Nearest,\n}":                                                                    "a prelude type",
+		"model Connection {\n    host: string;\n}":                                                            "a prelude type",
+		"rule Ok(n: int) -> int {\n    return n;\n}":                                                          "Result's constructor",
 		"rule r(n: int) -> int {\n    return n;\n}\n\nprivate {\n    model List {\n        n: int;\n    }\n}": "a prelude type",
 	}
 	for src, want := range cases {
