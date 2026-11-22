@@ -113,7 +113,7 @@ workflow myBooks(me: sessions.Identity) -> string {
 }
 `,
 	"app/src/sessions/WhoAmI.fiig": `workflow whoAmI(me: Identity) -> string {
-    return me.userId
+    return me.userId;
 }
 `,
 	"app/src/sessions/Me.fiig": `wire me: Identity from cookie "sid" by signedIn else refused
