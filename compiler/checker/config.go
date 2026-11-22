@@ -315,6 +315,9 @@ func (c *checker) whenShape(d *syntax.ConfigDecl, e syntax.Expr) bool {
 	case *syntax.NotExpr:
 		return c.whenShape(d, e.Operand)
 	case *syntax.BinaryExpr:
+		if e.Op == syntax.OpOr {
+			e.OrKnown = true // a `when` is boolean throughout, so `fiig fmt` writes `||`
+		}
 		switch e.Op {
 		case syntax.OpEq, syntax.OpNe, syntax.OpAnd, syntax.OpOr:
 			left := c.whenShape(d, e.Left)

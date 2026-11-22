@@ -45,22 +45,22 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 		{
 			name: "rule declaration (if guard, not, field access, method call)",
 			src: `rule validateNewCustomer(input: NewCustomer) -> Result<NewCustomer, CustomerError> {
-    if input.name.isBlank() {
-        return Err(CustomerError.Invalid("name", "must not be blank"))
+    if (input.name.isBlank()) {
+        return Err(CustomerError.Invalid("name", "must not be blank"));
     }
 
-    if not input.email.value.contains("@") {
-        return Err(CustomerError.Invalid("email", "must be a valid address"))
+    if (!input.email.value.contains("@")) {
+        return Err(CustomerError.Invalid("email", "must be a valid address"));
     }
 
-    return Ok(input)
+    return Ok(input);
 }
 `,
 		},
 		{
 			name: "conversion declaration",
 			src: `conversion customerToSummary(customer: Customer) -> CustomerSummary {
-    return CustomerSummary(id: customer.id, name: customer.name)
+    return CustomerSummary(id: customer.id, name: customer.name);
 }
 `,
 		},
@@ -69,8 +69,8 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 			src: `gateway getCustomer(id: CustomerId) -> Result<Customer, CustomerError>
         requires Database
         idempotent {
-    row = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id)
-    match row {
+    row = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id);
+    return match (row) {
         found -> Ok(Customer(id: found.id, name: found.name, email: found.email))
         None -> Err(CustomerError.NotFound(id))
     }
@@ -80,8 +80,8 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 		{
 			name: "gateway declaration without idempotent",
 			src: `gateway checkEmailUnique(email: EmailAddress) -> Result<None, CustomerError> requires Database {
-    existing = Database.queryOne("SELECT id FROM customers WHERE email = ?", email)
-    match existing {
+    existing = Database.queryOne("SELECT id FROM customers WHERE email = ?", email);
+    return match (existing) {
         found -> Err(CustomerError.EmailAlreadyInUse(email))
         None -> Ok(None)
     }
@@ -92,15 +92,15 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 			name: "gateway declaration writing through a capability",
 			src: `gateway updateCustomerEmail(id: CustomerId, email: EmailAddress) -> Result<None, CustomerError>
         requires Database {
-    Database.execute("UPDATE customers SET email = ? WHERE id = ?", email, id)
-    return Ok(None)
+    Database.execute("UPDATE customers SET email = ? WHERE id = ?", email, id);
+    return Ok(None);
 }
 `,
 		},
 		{
 			name: "workflow declaration, bare call return",
 			src: `workflow readCustomer(id: CustomerId) -> Result<Customer, CustomerError> {
-    return getCustomer(id)
+    return getCustomer(id);
 }
 `,
 		},
@@ -111,8 +111,8 @@ func TestSyntaxFormSnapshots(t *testing.T) {
     newEmail: EmailAddress,
 ) -> Result<Customer, CustomerError> {
     transaction Database {
-        updateCustomerEmail(id, newEmail)?
-        return getCustomer(id)
+        updateCustomerEmail(id, newEmail)?;
+        return getCustomer(id);
     }
 }
 `,
@@ -120,7 +120,7 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 		{
 			name: "retry expression",
 			src: `workflow readCustomerWithRetry(id: CustomerId) -> Result<Customer, CustomerError> {
-    return retry(attempts: 3): getCustomer(id)
+    return retry(attempts: 3): getCustomer(id);
 }
 `,
 		},
@@ -129,7 +129,7 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 			src: `workflow retrieveCustomers(
     customerIds: List<CustomerId>,
 ) -> BatchResult<CustomerId, Customer, CustomerError> {
-    concurrent(customerId in customerIds): getCustomer(customerId)
+    return concurrent(customerId in customerIds): getCustomer(customerId);
 }
 `,
 		},
@@ -138,7 +138,7 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 			src: `workflow retrieveCustomersLimited(
     customerIds: List<CustomerId>,
 ) -> BatchResult<CustomerId, Customer, CustomerError> {
-    concurrent(customerId in customerIds, limit: 5): getCustomer(customerId)
+    return concurrent(customerId in customerIds, limit: 5): getCustomer(customerId);
 }
 `,
 		},
@@ -147,7 +147,7 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 			src: `workflow retrieveAllCustomers(
     customerIds: List<CustomerId>,
 ) -> BatchResult<CustomerId, Customer, CustomerError> {
-    concurrent(customerId in customerIds, limit: unbounded): getCustomer(customerId)
+    return concurrent(customerId in customerIds, limit: unbounded): getCustomer(customerId);
 }
 `,
 		},
@@ -158,23 +158,23 @@ func TestSyntaxFormSnapshots(t *testing.T) {
     input: NewCustomer,
     total: Money,
 ) -> Result<Order, CheckoutError> {
-    match createCustomer(input) {
+    return match (createCustomer(input)) {
         Err(error) -> {
-            return Err(CheckoutError.Customer(error)) // wrapped unchanged
+            return Err(CheckoutError.Customer(error)); // wrapped unchanged
         }
 
         found -> {
-            match placeOrder(orderId, found.id, total) {
+            return match (placeOrder(orderId, found.id, total)) {
                 Ok(order) -> {
-                    return Ok(order)
+                    return Ok(order);
                 }
 
                 Err(OrderError.InventoryUnavailable(_)) -> {
-                    return Err(CheckoutError.OutOfStock) // reinterpreted
+                    return Err(CheckoutError.OutOfStock); // reinterpreted
                 }
 
                 Err(error) -> {
-                    return Err(CheckoutError.Order(error)) // wrapped unchanged
+                    return Err(CheckoutError.Order(error)); // wrapped unchanged
                 }
             }
         }
@@ -187,7 +187,7 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 			src: `// ADR 0019: arithmetic is int-only and never overloaded — adding two Money
 // amounts is an ordinary rule, not a + defined on Money itself.
 rule addMoney(a: Money, b: Money) -> Money {
-    return Money(a.value + b.value)
+    return Money(a.value + b.value);
 }
 `,
 		},
@@ -284,7 +284,7 @@ use company.time as businessTime
 use standard.time as systemTime
 
 rule computeFollowUpDate(from: systemTime.Instant) -> systemTime.Instant {
-    return businessTime.addBusinessDays(from, 3)
+    return businessTime.addBusinessDays(from, 3);
 }
 `,
 		},
@@ -293,7 +293,7 @@ rule computeFollowUpDate(from: systemTime.Instant) -> systemTime.Instant {
 			src: `// Type error: a structurally-typed anonymous record used in a public
 // signature — structural typing is only for anonymous *local* records (§3.3).
 rule summarizeOrderShape(input: { id: OrderId, total: Money }) -> string {
-    return "Order ${input.id}: ${input.total}" // rejected: public rule signature uses a structural type instead of a named model
+    return "Order ${input.id}: ${input.total}"; // rejected: public rule signature uses a structural type instead of a named model
 }
 `,
 		},
@@ -307,25 +307,25 @@ rule summarizeOrderShape(input: { id: OrderId, total: Money }) -> string {
 		{
 			name: "boolean/comparison operators: not, and, parenthesized primary",
 			src: `rule isUsableName(name: string) -> string {
-    if not (name == "") and name != "unknown" {
-        return name
+    if (!(name == "") && name != "unknown") {
+        return name;
     }
 
-    return "empty"
+    return "empty";
 }
 `,
 		},
 		{
 			name: "trailing comma in a multi-line call's arguments",
 			src: `gateway insertCustomer(input: NewCustomer) -> Result<Customer, CustomerError> requires Database {
-    id = CustomerId(Database.nextId())
+    id = CustomerId(Database.nextId());
     Database.execute(
         "INSERT INTO customers (id, name, email) VALUES (?, ?, ?)",
         id,
         input.name,
         input.email,
-    )
-    return Ok(Customer(id: id, name: input.name, email: input.email))
+    );
+    return Ok(Customer(id: id, name: input.name, email: input.email));
 }
 `,
 		},

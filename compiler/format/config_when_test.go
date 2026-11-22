@@ -6,7 +6,7 @@ import "testing"
 // condition's spacing is the formatter's. It is parenthesised (ADR 0142
 // §4, ADR 0143 §7), and `config` is written `wire`.
 func TestFormatConfigWhen(t *testing.T) {
-	want := "wire Oidc when (SignInConfig.authMode != \"abs\" and Flags.on) {\n" +
+	want := "wire Oidc when (SignInConfig.authMode != \"abs\" && Flags.on) {\n" +
 		"    issuer: string from env \"OIDC_ISSUER\"\n" +
 		"}\n"
 	got, errs := Format("config   Oidc  when SignInConfig.authMode!=\"abs\"   and   Flags.on {\n  issuer:string from env \"OIDC_ISSUER\"\n}")

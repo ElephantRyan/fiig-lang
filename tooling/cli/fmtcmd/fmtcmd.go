@@ -36,6 +36,8 @@ func Main(name string, args []string) {
 	write := fs.Bool("w", false, "write the formatted result back to each file whose formatting differs, instead of printing it")
 	list := fs.Bool("l", false, "list the files whose formatting differs and change nothing; exit 1 if there are any")
 	asJSON := fs.Bool("json", false, "print format errors as a JSON array instead of one line each")
+	var workspaces stringList
+	fs.Var(&workspaces, "workspace", "directory to search for the modules' package dependencies, as `fiig check -workspace`; repeatable. It lets the checker tell each `or` apart (ADR 0142 §5)")
 	relayoutFlag := fs.Bool("layout", false, "move the module in the one directory given to src/ and test/, with files named after their declarations (ADRs 0102, 0104, 0105)")
 	dryRun := fs.Bool("n", false, "with -layout, print what would move and change nothing")
 	into := fs.String("into", "", "with -layout, the folder package for files that would sit directly in src/; an application needs one (ADR 0108)")
@@ -53,11 +55,22 @@ func Main(name string, args []string) {
 
 	exit := 0
 	var allErrors []fileErrors
-	paths, err := expandDirs(fs.Args())
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+	var paths []string
+	stops := map[string]string{} // each file's command-line directory
+	for _, arg := range fs.Args() {
+		found, err := expandDirs([]string{arg})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		for _, f := range found {
+			if f != arg {
+				stops[f] = arg
+			}
+		}
+		paths = append(paths, found...)
 	}
+	ors := typedOrs(paths, stops, workspaces)
 	for _, path := range paths {
 		src, err := os.ReadFile(path)
 		if err != nil {
@@ -65,7 +78,13 @@ func Main(name string, args []string) {
 			exit = 1
 			continue
 		}
-		out, errs := format.Format(string(src))
+		out, errs, unknown := format.FormatTyped(string(src), ors[absPath(path)])
+		// ADR 0142 §5: an `or` the checker couldn't place is named, never
+		// skipped quietly, since only a checked file says `||` from `??`.
+		for _, at := range unknown {
+			fmt.Fprintf(os.Stderr, "%s:%s: `or` left as written: the checker couldn't tell whether it is `||` or `??` here; fix the file's type errors (or pass -workspace) and run fiig fmt again (ADR 0142)\n", path, at)
+			exit = 1
+		}
 		if len(errs) > 0 {
 			exit = 1
 			if *asJSON {
@@ -165,6 +184,11 @@ func runLayout(args []string, absorb absorbList, into string, dryRun bool) int {
 	}
 	return 0
 }
+
+type stringList []string
+
+func (s *stringList) String() string     { return strings.Join(*s, ",") }
+func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
 
 // expandDirs is args with each directory replaced by the .fiig files under
 // it, in path order, so `fiig fmt -w .` formats a module (abs-recommendations

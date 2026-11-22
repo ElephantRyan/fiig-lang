@@ -1,9 +1,11 @@
 # ADR 0142: Semicolons, Symbol Operators, and Parenthesised Conditions
 
 Status: Accepted (2026-11-21; the owner asked for it to be implemented).
-Step 1 (§5) in progress: the new forms parse and run beside the old ones,
-`match` as a value (§2) included. The formatter rewrite, the migration,
-and the editors are next.
+Step 1 (§5) done in fiig-lang: the new forms parse and run beside the
+old ones, `fiig fmt` writes only the new ones, and the standard library,
+the examples and the editors are rewritten. Left for step 1: the examples
+in the other lane, Hearsay (its owner's), and the fiig snippets in Go
+tests and docs. Step 2, the old forms as errors, follows.
 Date: 2026-11-21
 Amends: ADR 0011 (boolean operators), ADR 0099 (`or` gives a default),
 ADR 0013 (`if`/`else` chains), ADR 0053 (`for`), ADR 0059 (`while`).

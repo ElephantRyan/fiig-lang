@@ -1239,6 +1239,10 @@ type BinaryExpr struct {
 	// Symbol is an `and` or `or` written `&&` or `||` (ADR 0142 §3). A
 	// `||` is bool only.
 	Symbol bool
+	// OrKnown is set by the checker on an `or` once it knows which it is,
+	// boolean or a default (OrDefault), so `fiig fmt` can write `||` or
+	// `??` for it (ADR 0142 §5).
+	OrKnown bool
 }
 
 // MatchExpr is a `match` used as a value (ADR 0142 §2): `return match

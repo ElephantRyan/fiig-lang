@@ -8,8 +8,8 @@ func TestFormatTestDecl(t *testing.T) {
 	src := `test chargeIsRecorded {
     fake Ledger {
         gateway record(entry: string) -> Result<None, string> {
-            expect entry == "a"
-            return Ok(None)
+            expect entry == "a";
+            return Ok(None);
         }
     }
 
@@ -17,17 +17,17 @@ func TestFormatTestDecl(t *testing.T) {
         apiKey: "sk_test_1"
     }
 
-    result = pay("a")
-    expect result is Ok(_)
-    expect findRating("dune") is Err(RatingError.Invalid(field, _))
-    expect field == "score"
-    expect calls(Ledger.record) == 1
+    result = pay("a");
+    expect result is Ok(_);
+    expect findRating("dune") is Err(RatingError.Invalid(field, _));
+    expect field == "score";
+    expect calls(Ledger.record) == 1;
 }
 `
 	if got := mustFormat(t, src); got != src {
 		t.Errorf("got:\n%s\nwant:\n%s", got, src)
 	}
-	if got := mustFormat(t, "test t {\n    expect  x   is   Ok( y )\n}\n"); got != "test t {\n    expect x is Ok(y)\n}\n" {
+	if got := mustFormat(t, "test t {\n    expect  x   is   Ok( y )\n}\n"); got != "test t {\n    expect x is Ok(y);\n}\n" {
 		t.Errorf("got:\n%s", got)
 	}
 }

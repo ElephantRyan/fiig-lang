@@ -359,6 +359,7 @@ func (c *checker) inferBinary(e *syntax.BinaryExpr, env map[string]types.Type) t
 		// `input.note or ""` is the note, or "" when there is none. A `||`
 		// is bool only (ADR 0142 §3).
 		lt := c.inferExpr(e.Left, env)
+		e.OrKnown = !isUnknown(lt)
 		if admitsNone(lt) && !e.Symbol {
 			return c.inferDefault(e, lt, "or", env)
 		}

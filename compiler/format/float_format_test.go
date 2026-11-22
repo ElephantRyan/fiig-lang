@@ -7,7 +7,7 @@ import "testing"
 // exact value, and rewriting it could only lose that.
 func TestFormatKeepsFloatLiteralsAsWritten(t *testing.T) {
 	src := "rule scaled(x: float) -> float {\n" +
-		"    return x * 6.02E23 + 1e-9 - 0.50\n" +
+		"    return x * 6.02E23 + 1e-9 - 0.50;\n" +
 		"}\n"
 	once, errs := Format(src)
 	if len(errs) > 0 {

@@ -28,7 +28,7 @@ func TestFormatSimpleModelIsStable(t *testing.T) {
 
 func TestFormatConcurrentWithPreserveOrderIsStable(t *testing.T) {
 	src := "workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {\n" +
-		"    concurrent(id in ids, limit: 5, preserveOrder): getCustomer(id)\n" +
+		"    return concurrent(id in ids, limit: 5, preserveOrder): getCustomer(id);\n" +
 		"}\n"
 	out := mustFormat(t, src)
 	if out != src {
@@ -130,9 +130,9 @@ func TestFormatPreservesLeadingComment(t *testing.T) {
 }
 
 func TestFormatPreservesTrailingComment(t *testing.T) {
-	src := "rule f(x: int) -> int {\n    return x // trailing\n}\n"
+	src := "rule f(x: int) -> int {\n    return x; // trailing\n}\n"
 	out := mustFormat(t, src)
-	if !strings.Contains(out, "return x // trailing") {
+	if !strings.Contains(out, "return x; // trailing") {
 		t.Fatalf("trailing comment not reattached to its line:\n%s", out)
 	}
 }
@@ -159,10 +159,10 @@ workflow w(x: int) -> int {
 }
 `
 	out := mustFormat(t, src)
-	if !strings.Contains(out, "return f(y) // first") {
+	if !strings.Contains(out, "return f(y); // first") {
 		t.Fatalf("first arm's trailing comment not attached to its return line:\n%s", out)
 	}
-	if !strings.Contains(out, "return g(y) // second") {
+	if !strings.Contains(out, "return g(y); // second") {
 		t.Fatalf("second arm's trailing comment not attached to its return line, or was stolen by the first arm:\n%s", out)
 	}
 }
@@ -212,12 +212,12 @@ func TestFormatHeaderClauses(t *testing.T) {
 		{
 			"a gateway that fits is one line",
 			"gateway s(id: CustomerId) -> Result<Customer, CustomerError>\n    requires Database\n    idempotent\n{\n    return Ok(id)\n}\n",
-			"gateway s(id: CustomerId) -> Result<Customer, CustomerError> requires Database idempotent {\n    return Ok(id)\n}\n",
+			"gateway s(id: CustomerId) -> Result<Customer, CustomerError> requires Database idempotent {\n    return Ok(id);\n}\n",
 		},
 		{
 			"a gateway that doesn't fit wraps its clauses",
 			"gateway itemsAsService(target: AbsTarget, itemIds: List<string>) -> Result<List<Book>, AbsError> requires HttpClient idempotent {\n    return Ok([])\n}\n",
-			"gateway itemsAsService(target: AbsTarget, itemIds: List<string>) -> Result<List<Book>, AbsError>\n        requires HttpClient\n        idempotent {\n    return Ok([])\n}\n",
+			"gateway itemsAsService(target: AbsTarget, itemIds: List<string>) -> Result<List<Book>, AbsError>\n        requires HttpClient\n        idempotent {\n    return Ok([]);\n}\n",
 		},
 		{
 			"a route that fits is one line",
@@ -311,13 +311,13 @@ func TestFormatPrivateBlock(t *testing.T) {
 		"  // trailing note\n" +
 		"}\n"
 	want := "rule fooBar(number: int) -> int {\n" +
-		"    return 4\n" +
+		"    return 4;\n" +
 		"}\n" +
 		"\n" +
 		"private {\n" +
 		"    // decides the branch\n" +
 		"    interiorFunctionCall(number: int) -> bool {\n" +
-		"        return number > 0 // positive only\n" +
+		"        return number > 0; // positive only\n" +
 		"    }\n" +
 		"\n" +
 		"    model Threshold {\n" +
@@ -348,13 +348,13 @@ func TestFormatListLiteral(t *testing.T) {
 		"  return [" + long + "]\n" +
 		"}\n"
 	want := "rule r() -> List<string> {\n" +
-		"    short = [1, 2]\n" +
+		"    short = [1, 2];\n" +
 		"    return [\n" +
 		"        \"aaaaaaaaaaaaaaaaaaaa\",\n" +
 		"        \"bbbbbbbbbbbbbbbbbbbb\",\n" +
 		"        \"cccccccccccccccccccc\",\n" +
 		"        \"dddddddddddddddddddd\",\n" +
-		"    ]\n" +
+		"    ];\n" +
 		"}\n"
 	got, errs := Format(src)
 	if len(errs) > 0 {
@@ -379,7 +379,7 @@ func TestFormatBinarySegments(t *testing.T) {
 		"  }\n" +
 		"}\n"
 	want := "conversion c(b: bytes) -> bytes {\n" +
-		"    match b {\n" +
+		"    return match (b) {\n" +
 		"        <<0x52: u8, n: i32be, body: bytes(n - 4)>> -> <<n: u16le, body: bytes>>\n" +
 		"        _ -> <<\n" +
 		"            \"user\": utf8,\n" +
@@ -410,23 +410,23 @@ func TestFormatBinarySegments(t *testing.T) {
 // string literal is text, not a block.
 func TestFormatBlankLineAfterABlock(t *testing.T) {
 	want := `rule r(x: int, items: List<int>) -> string {
-    total: int = 0
-    for item in items {
-        if item > x {
-            total = total + item
+    total: int = 0;
+    for (item in items) {
+        if (item > x) {
+            total = total + item;
         } else {
-            total = total - 1
+            total = total - 1;
         }
     }
 
-    note = "a brace on its own line\n}\nstays as it is"
-    match x {
+    note = "a brace on its own line\n}\nstays as it is";
+    return match (x) {
         0 -> {
-            return note
+            return note;
         }
 
         _ -> {
-            return "${total}"
+            return "${total}";
         }
     }
 }

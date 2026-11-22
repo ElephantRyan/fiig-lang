@@ -1000,6 +1000,9 @@ func (p *Parser) parseTestDecl() *syntax.TestDecl {
 			p.errorf(p.cur().Start, "unexpected token %s in statement", p.cur().Kind)
 			p.advance()
 		}
+		if p.at(lexer.Semicolon) { // ADR 0142 §1, as parseBlock
+			p.advance()
+		}
 	}
 	end := p.expect(lexer.RBrace).End
 	d.Body = &syntax.Block{Span: syntax.Span{Start: bodyStart, End: end}, Stmts: stmts}

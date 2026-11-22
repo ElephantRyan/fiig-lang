@@ -16,14 +16,14 @@ func TestFormatInterfaceAndCapabilityAreStable(t *testing.T) {
 			"\n" +
 			"capability PayrollDataApi {\n" +
 			"    gateway getEmployee(id: EmployeeId) -> Result<Employee, PayrollError> requires Client {\n" +
-			"        return Client.send(id)\n" +
+			"        return Client.send(id);\n" +
 			"    }\n" +
 			"\n" +
 			"    // stubs are cached upstream, so a retry is safe\n" +
 			"    gateway getPayStubs(id: EmployeeId) -> Result<List<PayStub>, PayrollError>\n" +
 			"            requires Client\n" +
 			"            idempotent {\n" +
-			"        return Client.send(id)\n" +
+			"        return Client.send(id);\n" +
 			"    }\n" +
 			"}\n",
 	} {

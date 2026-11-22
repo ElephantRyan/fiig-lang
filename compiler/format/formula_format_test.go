@@ -10,14 +10,14 @@ func TestFormatFormulasGroupIsStable(t *testing.T) {
 		"\n" +
 		"formulas shapes {\n" +
 		"    formula diagonal(v: Vector) -> int {\n" +
-		"        return vector.lengthSquared(v)\n" +
+		"        return vector.lengthSquared(v);\n" +
 		"    }\n" +
 		"\n" +
 		"    // native: the compiler supplies the body\n" +
 		"    formula sqrt(x: int) -> int\n" +
 		"\n" +
 		"    formula twice(n: int) -> int {\n" +
-		"        return diagonal(Vector(x: n, y: n))\n" +
+		"        return diagonal(Vector(x: n, y: n));\n" +
 		"    }\n" +
 		"}\n"
 	once, errs := Format(src)

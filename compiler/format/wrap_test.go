@@ -18,7 +18,8 @@ func TestANestedLongCallWraps(t *testing.T) {
 		"            serviceToken: checkText(\"serviceToken\", change.serviceToken)?,\n" +
 		"            mirrorEnabled: change.mirrorEnabled,\n" +
 		"        ),\n" +
-		"    )\n}\n"
+		"    );\n" +
+		"}\n"
 	out := mustFormat(t, src)
 	if out != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", out, want)
@@ -60,8 +61,9 @@ func TestAStatementWrapsAtItsOpeningParen(t *testing.T) {
 				"        HttpClient.send(\n" +
 				"            absclient.absGet(abs.url, \"/api/items/${itemIdSegment}\", abs.token.reveal()),\n" +
 				"        ),\n" +
-				"    )?\n" +
-				"    return Ok(reply)\n}\n",
+				"    )?;\n" +
+				"    return Ok(reply);\n" +
+				"}\n",
 		},
 		{
 			"mapErr wraps at its body's call",
@@ -71,8 +73,9 @@ func TestAStatementWrapsAtItsOpeningParen(t *testing.T) {
 			"rule r(reply: Reply) -> Result<List<AbsLibrary>, AbsError> {\n" +
 				"    found: AbsLibrariesReply = mapErr(e in json.decode(reply.body)): absclient.AbsError.Unreadable(\n" +
 				"        failure: e,\n" +
-				"    )?\n" +
-				"    return Ok(found.libraries)\n}\n",
+				"    )?;\n" +
+				"    return Ok(found.libraries);\n" +
+				"}\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -106,7 +109,9 @@ func TestALongSignatureWrapsItsParameters(t *testing.T) {
 		"        page: int,\n" +
 		"        size: int,\n" +
 		"    ) -> Result<BookPage, absclient.AbsError> requires HttpClient {\n" +
-		"        return Ok(page)\n    }\n}\n"
+		"        return Ok(page);\n" +
+		"    }\n" +
+		"}\n"
 	out := mustFormat(t, src)
 	if out != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", out, want)

@@ -382,6 +382,12 @@ func collectLocals(b *syntax.Block, out map[string]bool) {
 		return
 	}
 	for _, s := range b.Stmts {
+		// A match used as a value (ADR 0142 §2) binds in its arms as a match
+		// statement does.
+		switch v := valueOf(s).(type) {
+		case *syntax.MatchExpr:
+			collectArmLocals(v.Match, out)
+		}
 		switch s := s.(type) {
 		case *syntax.Binding:
 			out[s.Name] = true
@@ -400,18 +406,34 @@ func collectLocals(b *syntax.Block, out map[string]bool) {
 			}
 			collectLocals(s.Else, out)
 		case *syntax.MatchStmt:
-			for _, arm := range s.Arms {
-				for _, name := range patternNames(arm.Pattern) {
-					out[name] = true
-				}
-				if blk, ok := arm.Body.(*syntax.Block); ok {
-					collectLocals(blk, out)
-				}
-			}
+			collectArmLocals(s, out)
 		case *syntax.TransactionStmt:
 			collectLocals(s.Body, out)
 		}
 	}
+}
+
+// collectArmLocals adds the names m's arms bind, and their blocks' locals.
+func collectArmLocals(m *syntax.MatchStmt, out map[string]bool) {
+	for _, arm := range m.Arms {
+		for _, name := range patternNames(arm.Pattern) {
+			out[name] = true
+		}
+		if blk, ok := arm.Body.(*syntax.Block); ok {
+			collectLocals(blk, out)
+		}
+	}
+}
+
+// valueOf is the value a return or binding statement holds, or nil.
+func valueOf(s syntax.Stmt) syntax.Expr {
+	switch s := s.(type) {
+	case *syntax.ReturnStmt:
+		return s.Value
+	case *syntax.Binding:
+		return s.Value
+	}
+	return nil
 }
 
 func sortedSet(m map[string]bool) []string {

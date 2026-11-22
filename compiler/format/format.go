@@ -40,15 +40,36 @@ const maxLineWidth = 100
 // still builds the whole tree for it, so there is nothing to lose by
 // formatting, and the checker is what reports it.
 func Format(src string) (string, []parser.Error) {
+	out, errs, _ := FormatTyped(src, nil)
+	return out, errs
+}
+
+// FormatTyped is Format with the checker's verdict on each `or` in src,
+// keyed by its byte offset: true for a default, written `??`, false for a
+// boolean one, written `||` (ADR 0142 §5). It also returns where each `or`
+// with no verdict starts, since it can only be left as written.
+func FormatTyped(src string, ors map[int]bool) (string, []parser.Error, []lexer.Pos) {
 	file, comments, errs := parser.ParseWithComments(src)
 	for _, e := range errs {
 		if e.Rule != "G1" {
-			return "", errs
+			return "", errs, nil
 		}
 	}
+	var unknown []lexer.Pos
+	syntax.Inspect(file, func(n any) {
+		b, ok := n.(*syntax.BinaryExpr)
+		if !ok || b.Op != syntax.OpOr || b.Symbol {
+			return
+		}
+		if isDefault, ok := ors[b.Start.Offset]; ok {
+			b.OrKnown, b.OrDefault = true, isDefault
+			return
+		}
+		unknown = append(unknown, b.Start)
+	})
 	p := &printer{comments: comments}
 	p.printFile(file)
-	return blankAfterBlocks(p.out.String()), nil
+	return blankAfterBlocks(p.out.String()), nil, unknown
 }
 
 // blankAfterBlocks puts a blank line after a line that only closes a block,
@@ -396,7 +417,7 @@ func (p *printer) printFormulasDecl(d *syntax.FormulasDecl) {
 		}
 		p.printSignature("formula "+m.Name, m.Params, " -> "+printType(m.ReturnType), clauses, tail, mLine)
 		if m.Body != nil {
-			p.printBlockBody(m.Body)
+			p.printProducingBody(m.Body)
 		}
 	}
 	p.indent--
@@ -419,7 +440,7 @@ func (p *printer) printPrivateBlock(b *syntax.PrivateBlock) {
 		if h, ok := m.(*syntax.HelperDecl); ok {
 			line := startLine(h)
 			p.printSignature(h.Name, h.Params, " -> "+printType(h.ReturnType), nil, " {", line)
-			p.printBlockBody(h.Body)
+			p.printProducingBody(h.Body)
 			continue
 		}
 		p.printDecl(m)
@@ -585,7 +606,7 @@ func printSpelling(v syntax.EnumVariant) string {
 // own line, because they don't have one).
 func (p *printer) printCallableDecl(keyword, name string, params []syntax.Param, ret syntax.Type, body *syntax.Block, line int) {
 	p.printSignature(keyword+" "+name, params, " -> "+printType(ret), nil, " {", line)
-	p.printBlockBody(body)
+	p.printProducingBody(body)
 }
 
 // printGatewayDecl prints a gateway's `requires Capability` and
@@ -601,7 +622,7 @@ func (p *printer) printGatewayDecl(d *syntax.GatewayDecl) {
 		clauses = append(clauses, "idempotent")
 	}
 	p.printSignature("gateway "+d.Name, d.Params, " -> "+printType(d.ReturnType), clauses, " {", sigLine)
-	p.printBlockBody(d.Body)
+	p.printProducingBody(d.Body)
 }
 
 // printSignature prints a declaration's header: lead (`gateway name`), its
@@ -951,6 +972,76 @@ func (p *printer) printBlockBody(b *syntax.Block) {
 	p.out.WriteString("}\n")
 }
 
+// printProducingBody prints the body of a declaration that returns a value
+// (ADR 0142 §2): its last statement, a bare expression or `match` that was
+// the value, is written with `return` (printProducingStmt).
+func (p *printer) printProducingBody(b *syntax.Block) {
+	p.indent++
+	for i, s := range b.Stmts {
+		p.emitLeading(startLine(s.(syntax.Spanned)))
+		if i == len(b.Stmts)-1 {
+			p.printProducingStmt(s)
+		} else {
+			p.printStmt(s)
+		}
+	}
+	p.indent--
+	p.writeIndent()
+	p.out.WriteString("}\n")
+}
+
+// printProducingStmt prints the statement whose value a block produces. A
+// bare expression gets `return`. A bare `match` becomes `return match` when
+// every one of its block arms ends in a value too; otherwise it stays a
+// statement, its arms written as producing blocks.
+func (p *printer) printProducingStmt(s syntax.Stmt) {
+	switch s := s.(type) {
+	case *syntax.ExprStmt:
+		p.printValueLineEnd("return ", s.Value, startLine(s), ";")
+	case *syntax.MatchStmt:
+		prefix := ""
+		if producesThroughout(s) {
+			prefix = "return "
+		}
+		p.printMatchArms(prefix, s, true)
+	default:
+		p.printStmt(s)
+	}
+}
+
+// producesThroughout reports whether every block arm of m ends in a value,
+// so m can be written `return match` (ADR 0142 §2).
+func producesThroughout(m *syntax.MatchStmt) bool {
+	for _, arm := range m.Arms {
+		b, ok := arm.Body.(*syntax.Block)
+		if !ok {
+			continue
+		}
+		if len(b.Stmts) == 0 {
+			return false
+		}
+		switch last := b.Stmts[len(b.Stmts)-1].(type) {
+		case *syntax.ReturnStmt, *syntax.ExprStmt:
+		case *syntax.MatchStmt:
+			if !producesThroughout(last) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// condition is a condition or loop head in its parentheses (ADR 0142 §4),
+// once, even when the source already had them.
+func condition(e syntax.Expr) string {
+	if _, ok := e.(*syntax.ParenExpr); ok {
+		return printExpr(e)
+	}
+	return "(" + printExpr(e) + ")"
+}
+
 func (p *printer) printStmt(s syntax.Stmt) {
 	switch s := s.(type) {
 	case *syntax.Binding:
@@ -958,14 +1049,14 @@ func (p *printer) printStmt(s syntax.Stmt) {
 		if s.Type != nil {
 			prefix = s.Name + ": " + printType(s.Type) + " = "
 		}
-		p.printValueLine(prefix, s.Value, startLine(s))
+		p.printValueLineEnd(prefix, s.Value, startLine(s), ";")
 	case *syntax.ForStmt:
 		line := startLine(s)
 		names := s.Var
 		if s.Value != "" {
 			names += ", " + s.Value
 		}
-		header := fmt.Sprintf("for %s in %s {", names, printExpr(s.Iterable))
+		header := fmt.Sprintf("for (%s in %s) {", names, printExpr(s.Iterable))
 		if s.Label != "" {
 			header = s.Label + ": " + header
 		}
@@ -973,7 +1064,7 @@ func (p *printer) printStmt(s syntax.Stmt) {
 		p.printBlockBody(s.Body)
 	case *syntax.WhileStmt:
 		line := startLine(s)
-		header := fmt.Sprintf("while %s {", printExpr(s.Cond))
+		header := fmt.Sprintf("while %s {", condition(s.Cond))
 		if s.Label != "" {
 			header = s.Label + ": " + header
 		}
@@ -981,25 +1072,25 @@ func (p *printer) printStmt(s syntax.Stmt) {
 		p.printBlockBody(s.Body)
 	case *syntax.BreakStmt:
 		line := startLine(s)
-		p.emitLine(jumpText("break", s.Label), line, line)
+		p.emitLine(jumpText("break", s.Label)+";", line, line)
 	case *syntax.ContinueStmt:
 		line := startLine(s)
-		p.emitLine(jumpText("continue", s.Label), line, line)
+		p.emitLine(jumpText("continue", s.Label)+";", line, line)
 	case *syntax.ReturnStmt:
 		if s.Value == nil {
 			line := startLine(s)
-			p.emitLine("return", line, line)
+			p.emitLine("return;", line, line)
 			return
 		}
-		p.printValueLine("return ", s.Value, startLine(s))
+		p.printValueLineEnd("return ", s.Value, startLine(s), ";")
 	case *syntax.ExprStmt:
-		p.printValueLine("", s.Value, startLine(s))
+		p.printValueLineEnd("", s.Value, startLine(s), ";")
 	case *syntax.ExpectStmt:
 		if s.Pattern != nil {
-			p.emitLine("expect "+printExpr(s.Cond)+" is "+printPattern(s.Pattern), startLine(s), deepestLine(s.Cond))
+			p.emitLine("expect "+printExpr(s.Cond)+" is "+printPattern(s.Pattern)+";", startLine(s), deepestLine(s.Cond))
 			break
 		}
-		p.printValueLine("expect ", s.Cond, startLine(s))
+		p.printValueLineEnd("expect ", s.Cond, startLine(s), ";")
 	case *syntax.IfStmt:
 		p.printIfStmt(s)
 	case *syntax.MatchStmt:
@@ -1023,16 +1114,23 @@ func (p *printer) printStmt(s syntax.Stmt) {
 // (canWrap): then it wraps there, one argument or element per line with a
 // trailing comma (the record_order.fiig case), and so on inward.
 func (p *printer) printValueLine(prefix string, expr syntax.Expr, stmtLine int) {
+	p.printValueLineEnd(prefix, expr, stmtLine, "")
+}
+
+// printValueLineEnd is printValueLine for a statement, which ends with end,
+// `;` (ADR 0142 §1). A match used as a value ends with its `}` instead.
+func (p *printer) printValueLineEnd(prefix string, expr syntax.Expr, stmtLine int, end string) {
 	if m, ok := expr.(*syntax.MatchExpr); ok {
 		p.printMatch(prefix, m.Match)
 		return
 	}
 	upper := deepestLine(expr)
-	content := prefix + printExpr(expr)
+	content := prefix + printExpr(expr) + end
 	indentWidth := 4 * p.indent
 	if _, bytes := expr.(*syntax.BytesLit); !bytes && indentWidth+len(content) > maxLineWidth && canWrap(expr) {
 		p.writeIndent()
 		p.wrapValue(prefix, expr)
+		p.out.WriteString(end)
 		p.emitTrailingOnly(stmtLine, upper)
 		return
 	}
@@ -1048,7 +1146,7 @@ func (p *printer) printValueLine(prefix string, expr syntax.Expr, stmtLine int) 
 		}
 		p.indent--
 		p.writeIndent()
-		p.out.WriteString(">>")
+		p.out.WriteString(">>" + end)
 		p.emitTrailingOnly(stmtLine, upper)
 		return
 	}
@@ -1181,7 +1279,7 @@ func jumpText(keyword, label string) string {
 
 func (p *printer) printIfStmt(s *syntax.IfStmt) {
 	line := startLine(s)
-	p.emitLine(fmt.Sprintf("if %s {", printExpr(s.Cond)), line, line)
+	p.emitLine(fmt.Sprintf("if %s {", condition(s.Cond)), line, line)
 	p.printBlockBodyNoClose(s.Then)
 	for _, ei := range s.ElseIfs {
 		// ElseIf carries no Span of its own (unattested in the corpus —
@@ -1189,7 +1287,7 @@ func (p *printer) printIfStmt(s *syntax.IfStmt) {
 		// example), so there's no source line to anchor comment placement to;
 		// best effort, no trailing-comment support on this line.
 		p.writeIndent()
-		p.out.WriteString(fmt.Sprintf("} else if %s {\n", printExpr(ei.Cond)))
+		p.out.WriteString(fmt.Sprintf("} else if %s {\n", condition(ei.Cond)))
 		p.printBlockBodyNoClose(ei.Then)
 	}
 	if s.Else != nil {
@@ -1222,13 +1320,19 @@ func (p *printer) printMatchStmt(s *syntax.MatchStmt) {
 // printMatch prints a match after prefix: "" for a match statement, or
 // `return ` or `name = ` for a match used as a value (ADR 0142 §2).
 func (p *printer) printMatch(prefix string, s *syntax.MatchStmt) {
+	p.printMatchArms(prefix, s, false)
+}
+
+// printMatchArms is printMatch, with each block arm printed as a producing
+// body when producing: the arms of the match that is a declaration's value.
+func (p *printer) printMatchArms(prefix string, s *syntax.MatchStmt, producing bool) {
 	line := startLine(s)
-	p.emitLine(fmt.Sprintf("%smatch %s {", prefix, printExpr(s.Subject)), line, line)
+	p.emitLine(fmt.Sprintf("%smatch %s {", prefix, condition(s.Subject)), line, line)
 	p.indent++
 	for _, arm := range s.Arms {
 		al := startLine(arm)
 		p.emitLeading(al)
-		p.printMatchArm(arm)
+		p.printMatchArm(arm, producing)
 	}
 	p.indent--
 	// See printFieldedDecl: no drain before "}" here either.
@@ -1236,7 +1340,7 @@ func (p *printer) printMatch(prefix string, s *syntax.MatchStmt) {
 	p.out.WriteString("}\n")
 }
 
-func (p *printer) printMatchArm(arm syntax.MatchArm) {
+func (p *printer) printMatchArm(arm syntax.MatchArm, producing bool) {
 	prefix := printPattern(arm.Pattern) + " -> "
 	switch body := arm.Body.(type) {
 	case syntax.ExprBody:
@@ -1253,7 +1357,11 @@ func (p *printer) printMatchArm(arm syntax.MatchArm) {
 		// statement it actually follows instead of the brace above it.
 		p.writeIndent()
 		p.out.WriteString(prefix + "{\n")
-		p.printBlockBody(body)
+		if producing {
+			p.printProducingBody(body)
+		} else {
+			p.printBlockBody(body)
+		}
 	}
 }
 
@@ -1318,6 +1426,47 @@ func printSegment(seg syntax.Segment) string {
 // (ADR 0046).
 func Expr(e syntax.Expr) string { return printExpr(e) }
 
+// printBinary writes ADR 0142 §3's operators: `&&`, `||` for a boolean
+// `or`, and `??` for a default. An `or` the checker couldn't place stays
+// `or` (FormatTyped reports it). `??` beside `&&` or `||` gets the
+// parentheses §3 requires, which the old `or` didn't need.
+func printBinary(e *syntax.BinaryExpr) string {
+	op := string(e.Op)
+	left, right := printExpr(e.Left), printExpr(e.Right)
+	switch {
+	case isDefault(e):
+		op = "??"
+		left, right = groupedLogic(e.Left, left), groupedLogic(e.Right, right)
+	case e.Op == syntax.OpAnd || e.Op == syntax.OpOr && (e.Symbol || e.OrKnown):
+		op = "&&"
+		if e.Op == syntax.OpOr {
+			op = "||"
+		}
+		if isDefault(e.Left) {
+			left = "(" + left + ")"
+		}
+		if isDefault(e.Right) {
+			right = "(" + right + ")"
+		}
+	}
+	return left + " " + op + " " + right
+}
+
+// isDefault reports whether e is a `??`, or an `or` the checker found is one.
+func isDefault(e syntax.Expr) bool {
+	b, ok := e.(*syntax.BinaryExpr)
+	return ok && (b.Op == syntax.OpDefault || b.Op == syntax.OpOr && b.OrDefault)
+}
+
+// groupedLogic is text, a `??` operand, in parentheses when it is an `&&`
+// or `||`.
+func groupedLogic(e syntax.Expr, text string) string {
+	if b, ok := e.(*syntax.BinaryExpr); ok && (b.Op == syntax.OpAnd || b.Op == syntax.OpOr) && !isDefault(b) {
+		return "(" + text + ")"
+	}
+	return text
+}
+
 func printExpr(e syntax.Expr) string {
 	switch e := e.(type) {
 	case *syntax.Ident:
@@ -1333,18 +1482,11 @@ func printExpr(e syntax.Expr) string {
 	case *syntax.CallExpr:
 		return printExpr(e.Callee) + "(" + printArgs(e.Args) + ")"
 	case *syntax.NotExpr:
-		if e.Bang {
-			return "!" + printExpr(e.Operand)
-		}
-		return "not " + printExpr(e.Operand)
+		return "!" + printExpr(e.Operand)
 	case *syntax.NegExpr:
 		return "-" + printExpr(e.Operand)
 	case *syntax.BinaryExpr:
-		op := string(e.Op)
-		if e.Symbol {
-			op = map[syntax.BinaryOp]string{syntax.OpAnd: "&&", syntax.OpOr: "||"}[e.Op]
-		}
-		return printExpr(e.Left) + " " + op + " " + printExpr(e.Right)
+		return printBinary(e)
 	case *syntax.TryExpr:
 		return printExpr(e.Operand) + "?"
 	case *syntax.MatchExpr:

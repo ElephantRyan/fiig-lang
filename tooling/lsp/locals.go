@@ -127,6 +127,14 @@ func collectStmt(src string, st syntax.Stmt, out *[]binding) {
 	case *syntax.Binding:
 		ns, ne := nameAt(src, s.Start, s.Name)
 		*out = append(*out, binding{s.Name, ns, ne})
+		if m, ok := s.Value.(*syntax.MatchExpr); ok {
+			collectStmt(src, m.Match, out)
+		}
+	case *syntax.ReturnStmt:
+		// `return match (x) { ... }` (ADR 0142 §2) binds in its arms.
+		if m, ok := s.Value.(*syntax.MatchExpr); ok {
+			collectStmt(src, m.Match, out)
+		}
 	case *syntax.IfStmt:
 		collectBlock(src, s.Then, out)
 		for _, ei := range s.ElseIfs {

@@ -10,16 +10,16 @@ import (
 // pass.
 func TestFormatLoopSyntaxIsStable(t *testing.T) {
 	src := "rule sumUntilNegative(orders: List<Order>) -> int {\n" +
-		"    total: int = 0\n" +
-		"    outer: for order in orders {\n" +
-		"        if order.amount < 0 {\n" +
-		"            break outer\n" +
+		"    total: int = 0;\n" +
+		"    outer: for (order in orders) {\n" +
+		"        if (order.amount < 0) {\n" +
+		"            break outer;\n" +
 		"        }\n" +
 		"\n" +
-		"        continue\n" +
+		"        continue;\n" +
 		"    }\n" +
 		"\n" +
-		"    return total\n" +
+		"    return total;\n" +
 		"}\n"
 	once, errs := Format(src)
 	if len(errs) > 0 {
@@ -37,15 +37,15 @@ func TestFormatLoopSyntaxIsStable(t *testing.T) {
 // TestFormatWhileIsStable checks `while` and a labeled `while` (ADR 0059).
 func TestFormatWhileIsStable(t *testing.T) {
 	src := "rule countdown(n: int) -> int {\n" +
-		"    left: int = n\n" +
-		"    scan: while left > 0 {\n" +
-		"        left = left - 1\n" +
-		"        while true {\n" +
-		"            break scan\n" +
+		"    left: int = n;\n" +
+		"    scan: while (left > 0) {\n" +
+		"        left = left - 1;\n" +
+		"        while (true) {\n" +
+		"            break scan;\n" +
 		"        }\n" +
 		"    }\n" +
 		"\n" +
-		"    return left\n" +
+		"    return left;\n" +
 		"}\n"
 	once, errs := Format(src)
 	if len(errs) > 0 {
@@ -65,7 +65,7 @@ func TestFormatWhileIsStable(t *testing.T) {
 // '$' stays plain.
 func TestFormatStringEscapesAreStable(t *testing.T) {
 	src := "conversion line(path: string) -> string {\n" +
-		`    return "GET ${path}\r\n\${raw} $5 $$${path}"` + "\n" +
+		"    return \"GET ${path}\\r\\n\\${raw} $5 $$${path}\";\n" +
 		"}\n"
 	once, errs := Format(src)
 	if len(errs) > 0 {
@@ -89,7 +89,7 @@ func TestFormatCRLFCommentsLoseTheirCR(t *testing.T) {
 	src := "// Doubles n.\n" +
 		"conversion double(n: int) -> int {\n" +
 		"    // Twice.\n" +
-		"    return n * 2 // trailing\n" +
+		"    return n * 2; // trailing\n" +
 		"}\n"
 	got, errs := Format(strings.ReplaceAll(src, "\n", "\r\n"))
 	if len(errs) > 0 {
