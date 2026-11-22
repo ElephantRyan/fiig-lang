@@ -59,7 +59,7 @@ class FiigPluginTest : BasePlatformTestCase() {
         assertSame(FiigColors.KEYWORD, h.getTokenHighlights(FiigTokens.KEYWORD).single())
         assertSame(FiigColors.TYPE_NAME, h.getTokenHighlights(FiigTokens.TYPE_NAME).single())
         assertSame(FiigColors.INVALID_ESCAPE, h.getTokenHighlights(FiigTokens.INVALID_ESCAPE).single())
-        assertEquals(24, FiigColorSettingsPage().attributeDescriptors.size)
+        assertEquals(25, FiigColorSettingsPage().attributeDescriptors.size)
     }
 
     // ADR 0106 §1: every token type tooling/lsp/semantic.go sends has a
@@ -95,7 +95,7 @@ class FiigPluginTest : BasePlatformTestCase() {
     fun testRunTargetsFromTheGutter() {
         val contributor = FiigRunLineMarkerContributor()
         fun identifier(text: String, word: String, nth: Int = 0) = myFixture.configureByText("a.fiig", text).let { file ->
-            file.firstChild.siblings().filter { it.elementType == FiigTokens.IDENTIFIER && it.text == word }.drop(nth).first()
+            file.firstChild.siblings().filter { (it.elementType == FiigTokens.IDENTIFIER || it.elementType == FiigTokens.KEYWORD) && it.text == word }.drop(nth).first()
         }
         val app = "application Shop {\n    serve web { api }\n    serve worker { jobs }\n}\n"
         val application = identifier(app, "application")

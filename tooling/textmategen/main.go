@@ -229,6 +229,17 @@ func Grammar() rule {
 					"match":    `^\s*(wire|principal)\s+(` + ident + `)`,
 					"captures": captures("storage.type.fiig", "entity.name.function.fiig"),
 				},
+				// ADR 0143's `wire`, contextual as `principal` is: a grouped
+				// wire is named like a type (`wire Abs {`), a single one like
+				// a value (`wire me: ...`, or `wire sessions.me` in an adapter).
+				rule{
+					"match":    `^\s*(wire)\s+([A-Z][A-Za-z0-9_]*)`,
+					"captures": captures("storage.type.fiig", "entity.name.type.fiig"),
+				},
+				rule{
+					"match":    `^\s*(wire)\s+(` + ident + `)`,
+					"captures": captures("storage.type.fiig", "entity.name.function.fiig"),
+				},
 				// An http adapter's route: `POST "/sessions" -> logIn(...)`.
 				rule{
 					"match":    `^\s*(` + strings.Join(HTTPMethods, "|") + `)(?=\s+")`,
@@ -277,6 +288,10 @@ func Grammar() rule {
 				match(`<<`, "punctuation.definition.binary.begin.fiig"),
 				match(`>>`, "punctuation.definition.binary.end.fiig"),
 				match(`==|!=|<=|>=|<|>`, "keyword.operator.comparison.fiig"),
+				// ADR 0142 §3: the boolean operators, and `??`, read before `?`
+				// as compiler/lexer reads it.
+				match(`&&|\|\||!`, "keyword.operator.logical.fiig"),
+				match(`\?\?`, "keyword.operator.coalesce.fiig"),
 				match(`=`, "keyword.operator.assignment.fiig"),
 				match(`[-+*/%]`, "keyword.operator.arithmetic.fiig"),
 				match(`\?`, "keyword.operator.propagate.fiig"),
@@ -291,6 +306,7 @@ func Grammar() rule {
 				match(`\[`, "punctuation.section.brackets.begin.fiig"),
 				match(`\]`, "punctuation.section.brackets.end.fiig"),
 				match(`,`, "punctuation.separator.comma.fiig"),
+				match(`;`, "punctuation.terminator.statement.fiig"), // ADR 0142 §1
 				match(`:`, "punctuation.separator.colon.fiig"),
 				match(`\.`, "punctuation.accessor.fiig"),
 			}},

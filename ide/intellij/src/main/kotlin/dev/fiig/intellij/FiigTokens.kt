@@ -31,6 +31,7 @@ object FiigTokens {
     @JvmField val DOT = FiigTokenType("DOT")
     @JvmField val COLON = FiigTokenType("COLON")
     @JvmField val ARROW = FiigTokenType("ARROW")
+    @JvmField val SEMICOLON = FiigTokenType("SEMICOLON")
     @JvmField val OPERATOR = FiigTokenType("OPERATOR")
     @JvmField val UNDERSCORE = FiigTokenType("UNDERSCORE")
 

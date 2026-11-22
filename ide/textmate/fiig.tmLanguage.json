@@ -141,6 +141,28 @@
         {
           "captures": {
             "1": {
+              "name": "storage.type.fiig"
+            },
+            "2": {
+              "name": "entity.name.type.fiig"
+            }
+          },
+          "match": "^\\s*(wire)\\s+([A-Z][A-Za-z0-9_]*)"
+        },
+        {
+          "captures": {
+            "1": {
+              "name": "storage.type.fiig"
+            },
+            "2": {
+              "name": "entity.name.function.fiig"
+            }
+          },
+          "match": "^\\s*(wire)\\s+([A-Za-z][A-Za-z0-9_]*)"
+        },
+        {
+          "captures": {
+            "1": {
               "name": "keyword.other.http-method.fiig"
             }
           },
@@ -277,6 +299,14 @@
           "name": "keyword.operator.comparison.fiig"
         },
         {
+          "match": "&&|\\|\\||!",
+          "name": "keyword.operator.logical.fiig"
+        },
+        {
+          "match": "\\?\\?",
+          "name": "keyword.operator.coalesce.fiig"
+        },
+        {
           "match": "=",
           "name": "keyword.operator.assignment.fiig"
         },
@@ -323,6 +353,10 @@
         {
           "match": ",",
           "name": "punctuation.separator.comma.fiig"
+        },
+        {
+          "match": ";",
+          "name": "punctuation.terminator.statement.fiig"
         },
         {
           "match": ":",

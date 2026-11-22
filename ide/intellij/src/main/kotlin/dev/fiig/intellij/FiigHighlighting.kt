@@ -32,6 +32,7 @@ object FiigColors {
     val BRACKETS = createTextAttributesKey("FIIG_BRACKETS", D.BRACKETS)
     val OPERATOR = createTextAttributesKey("FIIG_OPERATOR", D.OPERATION_SIGN)
     val COMMA = createTextAttributesKey("FIIG_COMMA", D.COMMA)
+    val SEMICOLON = createTextAttributesKey("FIIG_SEMICOLON", D.SEMICOLON)
     val DOT = createTextAttributesKey("FIIG_DOT", D.DOT)
     val BAD = createTextAttributesKey("FIIG_BAD_CHARACTER", HighlighterColors.BAD_CHARACTER)
 
@@ -79,6 +80,7 @@ class FiigSyntaxHighlighter : SyntaxHighlighterBase() {
             FiigTokens.LBRACKET, FiigTokens.RBRACKET, FiigTokens.BINARY_OPEN -> FiigColors.BRACKETS
             FiigTokens.OPERATOR, FiigTokens.ARROW, FiigTokens.COLON -> FiigColors.OPERATOR
             FiigTokens.COMMA -> FiigColors.COMMA
+            FiigTokens.SEMICOLON -> FiigColors.SEMICOLON
             FiigTokens.DOT -> FiigColors.DOT
             FiigTokens.BAD_CHARACTER -> FiigColors.BAD
             else -> return TextAttributesKey.EMPTY_ARRAY
@@ -115,6 +117,7 @@ class FiigColorSettingsPage : ColorSettingsPage {
         AttributesDescriptor("Braces and operators//Brackets", FiigColors.BRACKETS),
         AttributesDescriptor("Braces and operators//Operator", FiigColors.OPERATOR),
         AttributesDescriptor("Braces and operators//Comma", FiigColors.COMMA),
+        AttributesDescriptor("Braces and operators//Semicolon", FiigColors.SEMICOLON),
         AttributesDescriptor("Braces and operators//Dot", FiigColors.DOT),
         AttributesDescriptor("Bad character", FiigColors.BAD),
         AttributesDescriptor("Calls//Rule", FiigColors.RULE_CALL),
@@ -130,24 +133,28 @@ class FiigColorSettingsPage : ColorSettingsPage {
     override fun getDemoText(): String = """
         // A gateway reads a typed row (ADR 0082).
         gateway findRating(item: string) -> Result<Rating, RatingError> requires Database idempotent {
-            row: Rating | None = Database.queryOne("SELECT item, score FROM ratings WHERE item = ?", item)
-            match row {
+            row: Rating | None = Database.queryOne("SELECT item, score FROM ratings WHERE item = ?", item);
+            return match (row) {
                 found -> Ok(found)
                 None -> Err(RatingError.NotFound(item))
             }
         }
 
         workflow rate(item: string) -> Result<Rating, RatingError> {
-            found = <activityCall>loadRating</activityCall>(item)?
-            return <ruleCall>checkRating</ruleCall>(found)
+            found = <activityCall>loadRating</activityCall>(item)?;
+            return <ruleCall>checkRating</ruleCall>(found);
         }
 
         activity loadRating(item: string) -> Result<Rating, RatingError> {
-            return <gatewayCall>findRating</gatewayCall>(item)
+            return <gatewayCall>findRating</gatewayCall>(item);
         }
 
-        rule label(score: int, weight: decimal) -> string {
-            return "score ${'$'}{score} of 10\tweight ${'$'}{weight * 1.5e2}\q"
+        rule label(score: int, weight: decimal, note: string | None) -> string {
+            if (score > 7 && !(weight == 0.0)) {
+                return note ?? "high";
+            }
+
+            return "score ${'$'}{score} of 10\tweight ${'$'}{weight * 1.5e2}\q";
         }
     """.trimIndent()
 }

@@ -24,7 +24,8 @@ object FiigRunTargets {
     data class Target(val command: FiigCommand, val name: String, val arg: String)
 
     fun at(element: PsiElement): Target? {
-        if (element.elementType != FiigTokens.IDENTIFIER) return null
+        // `test` and `application` lex as keywords where they start a declaration.
+        if (element.elementType != FiigTokens.IDENTIFIER && element.elementType != FiigTokens.KEYWORD) return null
         val name = FiigDeclarations.blockName(element) ?: return null
         val depth = FiigDeclarations.depthAt(element)
         val file = element.containingFile ?: return null

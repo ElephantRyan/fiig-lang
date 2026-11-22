@@ -21,6 +21,8 @@ What it reads, beyond the lexer's tokens:
 - type arguments written without a space: `Result<T, E>`; `a < b` is a
   comparison
 - a reserved word beside a dot as a name: `use acme.http`, `http.WebRequest`
+- ADR 0142's `;`, `!`, `&&`, `||` and `??`, and ADR 0143's contextual `wire`
+  at the start of a line, as `principal` is
 
 Other contextual words (`from`, `key`, `then`, ...) are names elsewhere, so
 they are not highlighted, as in IntelliJ. Calls are coloured by name and

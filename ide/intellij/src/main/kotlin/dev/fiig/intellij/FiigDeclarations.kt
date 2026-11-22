@@ -53,8 +53,8 @@ object FiigDeclarations {
             when (leaf.elementType) {
                 FiigTokens.LBRACE -> depth++
                 FiigTokens.RBRACE -> depth--
-                FiigTokens.IDENTIFIER -> if (depth == 0 && (leaf.text == "test" || leaf.text == "application")) return leaf.text
-                FiigTokens.KEYWORD -> if (depth == 0 && leaf.text in KINDS) return leaf.text
+                // `test` and `application` lex as keywords where they start a declaration.
+                FiigTokens.IDENTIFIER, FiigTokens.KEYWORD -> if (depth == 0 && (leaf.text in KINDS || leaf.text == "test" || leaf.text == "application")) return leaf.text
             }
             if (depth == 0 && isWireWord(leaf) && of(leaf) != null) return "wire"
         }

@@ -73,6 +73,7 @@ class FiigLexer : LexerBase() {
                 val word = buffer.subSequence(tokenStart, i).toString()
                 emit(i, when {
                     word in FiigKeywords.ALL -> FiigTokens.KEYWORD
+                    word in DECLARATION_WORDS && startsLine(tokenStart) && nameFollows(i) -> FiigTokens.KEYWORD
                     word[0].isUpperCase() -> FiigTokens.TYPE_NAME
                     else -> FiigTokens.IDENTIFIER
                 })
@@ -112,6 +113,8 @@ class FiigLexer : LexerBase() {
             "->" -> return emit(i + 2, FiigTokens.ARROW)
             "<<" -> return emit(i + 2, FiigTokens.BINARY_OPEN)
             "==", "!=", "<=", ">=" -> return emit(i + 2, FiigTokens.OPERATOR)
+            // ADR 0142 §3. `??` is read before `?`, as compiler/lexer reads it.
+            "&&", "||", "??" -> return emit(i + 2, FiigTokens.OPERATOR)
         }
         val type = when (c) {
             '{' -> {
@@ -135,7 +138,8 @@ class FiigLexer : LexerBase() {
             ',' -> FiigTokens.COMMA
             '.' -> FiigTokens.DOT
             ':' -> FiigTokens.COLON
-            '<', '>', '?', '=', '|', '*', '+', '-', '/', '%' -> FiigTokens.OPERATOR
+            '<', '>', '?', '=', '|', '*', '+', '-', '/', '%', '!' -> FiigTokens.OPERATOR
+            ';' -> FiigTokens.SEMICOLON // ADR 0142 §1
             else -> FiigTokens.BAD_CHARACTER
         }
         emit(i + 1, type)
@@ -162,6 +166,20 @@ class FiigLexer : LexerBase() {
         emit(i, FiigTokens.STRING)
     }
 
+    // Whether only spaces come before i on its line.
+    private fun startsLine(i: Int): Boolean {
+        var j = i - 1
+        while (j >= 0 && (buffer[j] == ' ' || buffer[j] == '\t')) j--
+        return j < 0 || buffer[j] == '\n'
+    }
+
+    // Whether a name comes after i, past spaces on the same line.
+    private fun nameFollows(i: Int): Boolean {
+        var j = i
+        while (j < end && (at(j) == ' ' || at(j) == '\t')) j++
+        return isLetter(at(j))
+    }
+
     private fun emit(to: Int, type: IElementType) {
         tokenEnd = minOf(to, end)
         tokenType = type
@@ -169,6 +187,12 @@ class FiigLexer : LexerBase() {
 
     private companion object {
         const val STRING = -1
+
+        // Contextual words that start a declaration (compiler/parser reads
+        // them only at the start of a line, before a name): ADR 0132's
+        // `application`, ADR 0091's `test`, ADR 0143's `wire`, and the
+        // `principal` it replaces. Elsewhere they are ordinary names.
+        val DECLARATION_WORDS = setOf("application", "test", "wire", "principal")
 
         fun isLetter(c: Char) = c in 'a'..'z' || c in 'A'..'Z'
         fun isIdentContinue(c: Char) = isLetter(c) || c in '0'..'9' || c == '_'

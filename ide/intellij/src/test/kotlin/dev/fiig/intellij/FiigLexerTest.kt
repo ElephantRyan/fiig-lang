@@ -62,6 +62,29 @@ class FiigLexerTest : TestCase() {
         assertTrue(FiigTokens.UNDERSCORE to "_" in got)
     }
 
+    // ADR 0142: `;`, `!`, `&&`, `||` and `??`, which used to be bad characters.
+    fun testStatementSyntax() {
+        val got = tokens("if (!a && b || c) { x = n ?? f()?; }")
+            .filter { it.first != FiigTokens.WHITE_SPACE }
+        for (op in listOf("!", "&&", "||", "??", "?")) {
+            assertTrue(op, FiigTokens.OPERATOR to op in got)
+        }
+        assertTrue(FiigTokens.SEMICOLON to ";" in got)
+        assertTrue(got.none { it.first == FiigTokens.BAD_CHARACTER })
+        assertTrue(FiigTokens.OPERATOR to "!=" in tokens("a != b"))
+    }
+
+    // Contextual declaration words read as keywords only where the parser
+    // reads them: at the start of a line, before a name.
+    fun testDeclarationWords() {
+        for (src in listOf("wire me: Identity", "    wire sessions.me", "wire Abs {", "application App {", "test it {", "principal me: Identity")) {
+            assertEquals(src, FiigTokens.KEYWORD, tokens(src).first { it.first != FiigTokens.WHITE_SPACE }.first)
+        }
+        for (src in listOf("x = wire", "test = 1", "test(1)", "a.wire b")) {
+            assertTrue(src, tokens(src).none { it.first == FiigTokens.KEYWORD })
+        }
+    }
+
     fun testKeywordsAreTheCompilers() {
         for (word in listOf("model", "workflow", "transaction", "retry", "attempts", "formulas", "config")) {
             assertEquals(word, FiigTokens.KEYWORD, tokens(word).single().first)
