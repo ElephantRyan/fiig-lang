@@ -26,7 +26,8 @@ func appWithApplication(application string) map[string]string {
 }
 
 // serving loads the program with the arguments, and says whether its HTTP
-// adapter answers and whether a startup loop is among the loops.
+// adapter answers (false when nothing listens) and whether a startup loop
+// is among the loops.
 func serving(t *testing.T, application string, args ...string) (http, startup bool, err error) {
 	t.Helper()
 	t.Setenv("STORAGE_READY", "true")
@@ -38,11 +39,14 @@ func serving(t *testing.T, application string, args ...string) (http, startup bo
 		return false, false, err
 	}
 	t.Cleanup(caps.Close)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/hello", nil))
 	for _, l := range loops {
 		startup = startup || l.startup
 	}
+	if handler == nil {
+		return false, startup, nil
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/hello", nil))
 	return rec.Code == 200, startup, nil
 }
 
@@ -64,6 +68,25 @@ func TestARoleIsOneProcess(t *testing.T) {
 	}
 	if _, _, err := serving(t, twoProcesses); err == nil || !strings.Contains(err.Error(), "runs as web or worker") || !strings.Contains(err.Error(), "fiig serve . web") {
 		t.Errorf("no role named: err = %v", err)
+	}
+}
+
+// A process that serves no http adapter listens on nothing, so a worker
+// beside a web process needs no -addr of its own (Hearsay).
+func TestAWorkerListensOnNothing(t *testing.T) {
+	t.Setenv("STORAGE_READY", "true")
+	root := t.TempDir()
+	writeTree(t, root, appWithApplication(twoProcesses))
+	env, _ := runprogram.NewEnvironment("")
+	for role, listens := range map[string]bool{"web": true, "worker": false} {
+		handler, _, _, caps, err := load(filepath.Join(root, "app"), []string{role}, "", nil, nil, nil, adapter.DefaultLimits(), env, nil, migrate.Apply)
+		if err != nil {
+			t.Fatal(err)
+		}
+		caps.Close()
+		if (handler != nil) != listens {
+			t.Errorf("%s: handler = %v, want listening %v", role, handler, listens)
+		}
 	}
 }
 

@@ -125,12 +125,20 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 		os.Exit(1)
 	}
 
-	readTimeout, writeTimeout := limits.ServerTimeouts()
-	// ADR 0128: every request has an id, and a fault stays in this log.
-	handler = adapter.Observer{Logf: log.Printf, Access: *accessLog}.Wrap(handler)
-	srv := &http.Server{
-		Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout: readTimeout, WriteTimeout: writeTimeout, MaxHeaderBytes: adapter.MaxHeaderBytes,
+	// A process that serves no http adapter, such as a worker of only
+	// schedules and streams, listens on nothing (ADR 0132's roles), so a
+	// web process and a worker can share a host and an env file.
+	var srv *http.Server
+	if handler != nil {
+		readTimeout, writeTimeout := limits.ServerTimeouts()
+		// ADR 0128: every request has an id, and a fault stays in this log.
+		handler = adapter.Observer{Logf: log.Printf, Access: *accessLog}.Wrap(handler)
+		srv = &http.Server{
+			Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout: readTimeout, WriteTimeout: writeTimeout, MaxHeaderBytes: adapter.MaxHeaderBytes,
+		}
+	} else if *addrFlag != "" {
+		log.Printf("fiig: ignoring -addr %s: nothing served here is an http adapter", *addrFlag)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -176,13 +184,18 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 			}
 		}()
 	}
-	go func() {
-		<-ctx.Done()
-		done, cancel := context.WithTimeout(context.Background(), *shutdown)
-		defer cancel()
-		srv.Shutdown(done)
-	}()
-	log.Printf("fiig %s: serving %s on %s", version.Version, strings.Join(fs.Args()[1:], ", "), addr)
+	served := strings.Join(fs.Args()[1:], ", ")
+	if srv != nil {
+		go func() {
+			<-ctx.Done()
+			done, cancel := context.WithTimeout(context.Background(), *shutdown)
+			defer cancel()
+			srv.Shutdown(done)
+		}()
+		log.Printf("fiig %s: serving %s on %s", version.Version, served, addr)
+	} else {
+		log.Printf("fiig %s: running %s, listening on nothing", version.Version, served)
+	}
 	for _, b := range bindings {
 		log.Printf("fiig: %s", b)
 	}
@@ -192,7 +205,9 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	for _, l := range loops {
 		log.Printf("fiig: %s", l.describe)
 	}
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if srv == nil {
+		<-ctx.Done()
+	} else if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
@@ -216,7 +231,8 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 // load checks root and builds the handler for the http adapters named
 // names, with every configuration problem (ADR 0071 §3's one report)
 // found first. It returns ADR 0079 §6a's listing of each domain's
-// capability bindings, for the startup log.
+// capability bindings, for the startup log. The handler is nil when no
+// http adapter is served, and then nothing listens.
 func load(root string, names []string, capsPath string, workspaces []string, factories runtime.FactoryRegistry, cors *adapter.CORS, limits adapter.Limits, env *runprogram.Environment, problems []string, mode migrate.Mode) (http.Handler, []loop, []string, *runtime.CapabilityRegistry, error) {
 	p, err := check(root, names, workspaces, "serve")
 	if err != nil {
@@ -349,6 +365,10 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	if err := runprogram.Migrate(context.Background(), root, packages, caps, mode); err != nil {
 		return nil, nil, nil, nil, err
 	}
+	bindings := runprogram.Bindings(packages, caps.BoundFor, caps.Packages())
+	if len(httpServed) == 0 {
+		return nil, loops, bindings, caps, nil
+	}
 	h, err := adapter.HTTPHandlerFor(httpServed, universe, in, limits)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -357,7 +377,7 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	return h, loops, runprogram.Bindings(packages, caps.BoundFor, caps.Packages()), caps, nil
+	return h, loops, bindings, caps, nil
 }
 
 // loop is a stream or schedule route: something fiig serve runs beside its

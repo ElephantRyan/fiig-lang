@@ -261,7 +261,10 @@ describes the HTTP adapters of the same selection.
 
 `-addr` defaults to `$LISTEN_ADDR`, then `:8080`, `-allow-origin` to
 `$ALLOW_ORIGINS`, and the request limits to theirs (see below); all read
-the same lookup. SIGINT or SIGTERM stops
+the same lookup. A process that serves no HTTP adapter, such as a `worker`
+of schedules and streams, listens on nothing, so it can share a host and an
+env file with the web process; an `-addr` given to it is ignored, with a
+note in the log. SIGINT or SIGTERM stops
 accepting connections and gives in-flight requests `-shutdown` (10s) to
 finish, then closes a driver's pooled connections.
 
