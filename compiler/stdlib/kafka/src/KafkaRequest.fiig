@@ -1,13 +1,19 @@
 // A request as it goes on the wire: its size, then request header v1 (the
 // API, its version, the correlation id the reply repeats, and the client's
 // id), then its body.
-conversion kafkaRequest(apiKey: int, apiVersion: int, correlation: int, clientId: string, body: bytes) -> bytes {
+conversion kafkaRequest(
+    apiKey: int,
+    apiVersion: int,
+    correlation: int,
+    clientId: string,
+    body: bytes,
+) -> bytes {
     message = <<
         apiKey: i16be,
         apiVersion: i16be,
         correlation: i32be,
         kafkaString(clientId): bytes,
         body: bytes,
-    >>
-    return <<message.length(): i32be, message: bytes>>
+    >>;
+    return <<message.length(): i32be, message: bytes>>;
 }

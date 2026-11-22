@@ -4,35 +4,45 @@ use fiig.stream
 // XRANGE and XPENDING answered, as the entry with exactly that id, on the
 // attempt the group last delivered it on, else 1; None when the stream no
 // longer holds it. A group that doesn't exist yet has delivered nothing.
-conversion fetchedEntry(id: string, found: RespValue, pending: RespValue) -> Result<stream.Delivery | None, stream.SourceError> {
-    match found {
+conversion fetchedEntry(
+    id: string,
+    found: RespValue,
+    pending: RespValue,
+) -> Result<stream.Delivery | None, stream.SourceError> {
+    match (found) {
         RespValue.Error(message) -> {
-            return Err(stream.SourceError.Protocol(reason: message))
+            return Err(stream.SourceError.Protocol(reason: message));
         }
+
         _ -> None
     }
-    counts: Map<string, int> = [:]
-    match pending {
+
+    counts: Map<string, int> = [:];
+    match (pending) {
         RespValue.Error(message) -> {
-            if not message.startsWith("NOGROUP") {
-                return Err(stream.SourceError.Protocol(reason: message))
+            if (!message.startsWith("NOGROUP")) {
+                return Err(stream.SourceError.Protocol(reason: message));
             }
         }
+
         _ -> {
-            for entry in pendingEntries(pending) {
-                counts = counts.put(entry.id, entry.deliveries)
+            for (entry in pendingEntries(pending)) {
+                counts = counts.put(entry.id, entry.deliveries);
             }
         }
     }
-    match found {
+
+    match (found) {
         RespValue.Array(entries) -> {
-            for d in streamDeliveries(entries, counts) {
-                if d.id == id {
-                    return Ok(d)
+            for (d in streamDeliveries(entries, counts)) {
+                if (d.id == id) {
+                    return Ok(d);
                 }
             }
         }
+
         _ -> None
     }
-    return Ok(None)
+
+    return Ok(None);
 }

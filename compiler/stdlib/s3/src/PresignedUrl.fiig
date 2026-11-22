@@ -10,41 +10,56 @@ use fiig.time
 // names are written in SigV4's sorted order, so no general canonicaliser is
 // needed. millis is the signing time, Unix milliseconds; expiresSeconds is 1
 // to 604800 (seven days), S3's own bounds.
-conversion presignedUrl(method: string, bucket: string, key: string, expiresSeconds: int, account: S3Account, millis: int) -> Result<string, S3Error> {
-    if method != "GET" and method != "PUT" and method != "HEAD" and method != "DELETE" {
-        return Err(S3Error.InvalidRequest(reason: "S3 operations are GET, PUT, HEAD and DELETE"))
+conversion presignedUrl(
+    method: string,
+    bucket: string,
+    key: string,
+    expiresSeconds: int,
+    account: S3Account,
+    millis: int,
+) -> Result<string, S3Error> {
+    if (method != "GET" && method != "PUT" && method != "HEAD" && method != "DELETE") {
+        return Err(S3Error.InvalidRequest(reason: "S3 operations are GET, PUT, HEAD and DELETE"));
     }
-    if expiresSeconds < 1 or expiresSeconds > 604800 {
+
+    if (expiresSeconds < 1 || expiresSeconds > 604800) {
         return Err(
-            S3Error.InvalidRequest(reason: "a presigned URL expires in 1 to 604800 seconds (seven days)"),
-        )
+            S3Error.InvalidRequest(
+                reason: "a presigned URL expires in 1 to 604800 seconds (seven days)",
+            ),
+        );
     }
-    endpoint = parseS3Endpoint(account.endpoint)?
-    target = objectTarget(endpoint, bucket, key, account.pathStyle)?
-    stamp = mapErr(e in time.formatBasic(millis)): S3Error.InvalidRequest(reason: "the signing time is outside the years 0000 to 9999")?
-    day = stamp.slice(0, 8)
-    scope = "${day}/${account.region}/s3/aws4_request"
+
+    endpoint = parseS3Endpoint(account.endpoint)?;
+    target = objectTarget(endpoint, bucket, key, account.pathStyle)?;
+    stamp = mapErr(e in time.formatBasic(millis)): S3Error.InvalidRequest(
+        reason: "the signing time is outside the years 0000 to 9999",
+    )?;
+    day = stamp.slice(0, 8);
+    scope = "${day}/${account.region}/s3/aws4_request";
     fields: List<http.Header> = [
         http.Header(name: "X-Amz-Algorithm", value: "AWS4-HMAC-SHA256"),
         http.Header(name: "X-Amz-Credential", value: "${account.accessKeyId}/${scope}"),
         http.Header(name: "X-Amz-Date", value: stamp),
         http.Header(name: "X-Amz-Expires", value: "${expiresSeconds}"),
-    ]
-    if account.token != "" {
-        fields = append(fields, http.Header(name: "X-Amz-Security-Token", value: account.token))
+    ];
+    if (account.token != "") {
+        fields = append(fields, http.Header(name: "X-Amz-Security-Token", value: account.token));
     }
-    fields = append(fields, http.Header(name: "X-Amz-SignedHeaders", value: "host"))
-    pairs: List<string> = []
-    for field in fields {
-        pairs = append(pairs, "${field.name}=${queryValue(field.value)}")
+
+    fields = append(fields, http.Header(name: "X-Amz-SignedHeaders", value: "host"));
+    pairs: List<string> = [];
+    for (field in fields) {
+        pairs = append(pairs, "${field.name}=${queryValue(field.value)}");
     }
-    query = pairs.join("&")
-    canonical = "${method}\n${target.path}\n${query}\nhost:${target.host}\n\nhost\nUNSIGNED-PAYLOAD"
+
+    query = pairs.join("&");
+    canonical = "${method}\n${target.path}\n${query}\nhost:${target.host}\n\nhost\nUNSIGNED-PAYLOAD";
     signature = signatureOf(
         signingKey(account.secret, day, account.region, "s3"),
         stringToSign(stamp, scope, canonical),
-    )
-    return Ok("${target.url}?${query}&X-Amz-Signature=${signature}")
+    );
+    return Ok("${target.url}?${query}&X-Amz-Signature=${signature}");
 }
 
 private {
@@ -53,12 +68,13 @@ private {
     // http.pathSegment does; the empty, `.` and `..` values it refuses are
     // already their own encoding.
     queryValue(text: string) -> string {
-        match http.pathSegment(text) {
+        return match (http.pathSegment(text)) {
             None -> {
-                return text
+                return text;
             }
+
             encoded -> {
-                return encoded
+                return encoded;
             }
         }
     }

@@ -5,18 +5,21 @@ use fiig.http
 // A range that starts before 0 or ends before it starts is refused here; one
 // that starts past the end is the server's to answer (416, OutOfRange).
 conversion rangeHeader(first: int, last: int | None) -> Result<http.Header, S3Error> {
-    if first < 0 {
-        return Err(S3Error.InvalidRequest(reason: "a range starts at byte 0 or later"))
+    if (first < 0) {
+        return Err(S3Error.InvalidRequest(reason: "a range starts at byte 0 or later"));
     }
-    match last {
+
+    return match (last) {
         None -> {
-            return Ok(http.Header(name: "Range", value: "bytes=${first}-"))
+            return Ok(http.Header(name: "Range", value: "bytes=${first}-"));
         }
+
         given -> {
-            if given < first {
-                return Err(S3Error.InvalidRequest(reason: "a range can't end before it starts"))
+            if (given < first) {
+                return Err(S3Error.InvalidRequest(reason: "a range can't end before it starts"));
             }
-            return Ok(http.Header(name: "Range", value: "bytes=${first}-${given}"))
+
+            return Ok(http.Header(name: "Range", value: "bytes=${first}-${given}"));
         }
     }
 }

@@ -2,19 +2,20 @@ use fiig.stream
 
 // A delivery's id, "partition/offset" (ADR 0117 §4), read back.
 conversion deliveryAt(id: string) -> Result<PartitionOffset, stream.SourceError> {
-    pieces = id.split("/")
-    if pieces.length() == 2 {
-        match pieces.first().toIntOrNone() {
+    pieces = id.split("/");
+    if (pieces.length() == 2) {
+        match (pieces.first().toIntOrNone()) {
             None -> None
             partition -> {
-                match pieces.last().toIntOrNone() {
+                match (pieces.last().toIntOrNone()) {
                     None -> None
                     offset -> {
-                        return Ok(PartitionOffset(partition: partition, offset: offset))
+                        return Ok(PartitionOffset(partition: partition, offset: offset));
                     }
                 }
             }
         }
     }
-    return Err(stream.SourceError.Protocol(reason: "delivery ${id} isn't partition/offset"))
+
+    return Err(stream.SourceError.Protocol(reason: "delivery ${id} isn't partition/offset"));
 }

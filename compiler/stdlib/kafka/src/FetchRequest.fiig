@@ -2,9 +2,16 @@
 // position, waiting up to waitMillis for a first byte, at most maxBytes in
 // all and in any one partition. Read uncommitted, as Java's consumer does
 // by default; no fetch session (KIP-227) and no rack.
-conversion fetchRequest(clientId: string, correlation: int, topic: string, waitMillis: int, maxBytes: int, positions: List<PartitionOffset>) -> bytes {
-    partitions: bytes = <<positions.length(): i32be>>
-    for p in positions {
+conversion fetchRequest(
+    clientId: string,
+    correlation: int,
+    topic: string,
+    waitMillis: int,
+    maxBytes: int,
+    positions: List<PartitionOffset>,
+) -> bytes {
+    partitions: bytes = <<positions.length(): i32be>>;
+    for (p in positions) {
         partitions = <<
             partitions: bytes,
             p.partition: i32be,
@@ -12,8 +19,9 @@ conversion fetchRequest(clientId: string, correlation: int, topic: string, waitM
             p.offset: i64be,
             0 - 1: i64be,
             maxBytes: i32be,
-        >>
+        >>;
     }
+
     body = <<
         0 - 1: i32be,
         waitMillis: i32be,
@@ -27,6 +35,6 @@ conversion fetchRequest(clientId: string, correlation: int, topic: string, waitM
         partitions: bytes,
         0: i32be,
         kafkaString(""): bytes,
-    >>
-    return kafkaRequest(1, 11, correlation, clientId, body)
+    >>;
+    return kafkaRequest(1, 11, correlation, clientId, body);
 }

@@ -7,30 +7,39 @@ use fiig.http
 // value is printable ASCII, since S3 returns a value byte for byte and
 // anything else would need an encoding every reader had to undo.
 conversion metadataHeaders(metadata: Map<string, string>) -> Result<List<http.Header>, S3Error> {
-    byName: Map<string, string> = [:]
-    for key in metadata.keys() {
-        name = key.lowercase()
-        if not http.isToken(name) {
+    byName: Map<string, string> = [:];
+    for (key in metadata.keys()) {
+        name = key.lowercase();
+        if (!http.isToken(name)) {
             return Err(
-                S3Error.InvalidRequest(reason: "a metadata key is letters, digits and !#$%&'*+-.^_`|~"),
-            )
+                S3Error.InvalidRequest(
+                    reason: "a metadata key is letters, digits and !#$%&'*+-.^_`|~",
+                ),
+            );
         }
-        if byName.containsKey(name) {
-            return Err(S3Error.InvalidRequest(reason: "two metadata keys differ only in case"))
+
+        if (byName.containsKey(name)) {
+            return Err(S3Error.InvalidRequest(reason: "two metadata keys differ only in case"));
         }
-        value = metadata.at(key)
-        for b in value.utf8() {
-            if b < 32 or b > 126 {
+
+        value = metadata.at(key);
+        for (b in value.utf8()) {
+            if (b < 32 || b > 126) {
                 return Err(
-                    S3Error.InvalidRequest(reason: "a metadata value is printable ASCII, with no control characters"),
-                )
+                    S3Error.InvalidRequest(
+                        reason: "a metadata value is printable ASCII, with no control characters",
+                    ),
+                );
             }
         }
-        byName = byName.put(name, value)
+
+        byName = byName.put(name, value);
     }
-    headers: List<http.Header> = []
-    for name in byName.keys().sorted() {
-        headers = append(headers, http.Header(name: "x-amz-meta-${name}", value: byName.at(name)))
+
+    headers: List<http.Header> = [];
+    for (name in byName.keys().sorted()) {
+        headers = append(headers, http.Header(name: "x-amz-meta-${name}", value: byName.at(name)));
     }
-    return Ok(headers)
+
+    return Ok(headers);
 }

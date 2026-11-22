@@ -1,15 +1,17 @@
 // The signed VARINT or VARLONG at offset at, zigzag-decoded as varint
 // encodes it, or None when the data ends first.
 conversion varintAt(data: bytes, at: int) -> IntAt | None {
-    match uvarintAt(data, at) {
+    return match (uvarintAt(data, at)) {
         None -> {
-            return None
+            return None;
         }
+
         read -> {
-            if read.value % 2 == 0 {
-                return IntAt(value: read.value / 2, next: read.next)
+            if (read.value % 2 == 0) {
+                return IntAt(value: read.value / 2, next: read.next);
             }
-            return IntAt(value: 0 - (read.value - 1) / 2 - 1, next: read.next)
+
+            return IntAt(value: 0 - (read.value - 1) / 2 - 1, next: read.next);
         }
     }
 }

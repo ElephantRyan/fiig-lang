@@ -3,150 +3,178 @@
 // correlation id, then tagged fields), then compact arrays and strings,
 // each struct ending in its own tagged fields. A partition without a
 // leader (-1, mid-election) is LEADER_NOT_AVAILABLE, which is retriable.
-conversion readMetadataV12(frame: bytes, correlation: int, topic: string) -> Result<TopicLayout, KafkaError> {
-    got = intAt(frame, 0)?
-    if got != correlation {
+conversion readMetadataV12(
+    frame: bytes,
+    correlation: int,
+    topic: string,
+) -> Result<TopicLayout, KafkaError> {
+    got = intAt(frame, 0)?;
+    if (got != correlation) {
         return Err(
-            KafkaError.MalformedReply(reason: "Metadata answered correlation ${got}, not ${correlation}"),
-        )
+            KafkaError.MalformedReply(
+                reason: "Metadata answered correlation ${got}, not ${correlation}",
+            ),
+        );
     }
+
     // After the header's tags, the throttle time.
-    afterHeader = tagsAt(frame, 4)?
-    brokerCount = countAt(frame, afterHeader + 4)?
-    pos: int = brokerCount.next
-    brokers: List<BrokerNode> = []
-    i: int = 0
-    while i < brokerCount.value {
-        id = intAt(frame, pos)?
-        host = textAt(frame, pos + 4)?
-        port = intAt(frame, host.next)?
-        rack = textAt(frame, host.next + 4)?
-        brokers = append(brokers, BrokerNode(id: id, host: host.text, port: port))
-        pos = tagsAt(frame, rack.next)?
-        i = i + 1
+    afterHeader = tagsAt(frame, 4)?;
+    brokerCount = countAt(frame, afterHeader + 4)?;
+    pos: int = brokerCount.next;
+    brokers: List<BrokerNode> = [];
+    i: int = 0;
+    while (i < brokerCount.value) {
+        id = intAt(frame, pos)?;
+        host = textAt(frame, pos + 4)?;
+        port = intAt(frame, host.next)?;
+        rack = textAt(frame, host.next + 4)?;
+        brokers = append(brokers, BrokerNode(id: id, host: host.text, port: port));
+        pos = tagsAt(frame, rack.next)?;
+        i = i + 1;
     }
-    cluster = textAt(frame, pos)?
+
+    cluster = textAt(frame, pos)?;
     // The controller's id, then the topics.
-    topicCount = countAt(frame, cluster.next + 4)?
-    pos = topicCount.next
-    t: int = 0
-    while t < topicCount.value {
-        code = shortAt(frame, pos)?
-        name = textAt(frame, pos + 2)?
+    topicCount = countAt(frame, cluster.next + 4)?;
+    pos = topicCount.next;
+    t: int = 0;
+    while (t < topicCount.value) {
+        code = shortAt(frame, pos)?;
+        name = textAt(frame, pos + 2)?;
         // The topic id, sixteen bytes, and is_internal, one, then the
         // partitions.
-        partitionCount = countAt(frame, name.next + 17)?
-        pos = partitionCount.next
+        partitionCount = countAt(frame, name.next + 17)?;
+        pos = partitionCount.next;
         // Partitions come in no promised order, so they are collected by
         // index and listed 0 to n-1 afterwards.
-        byIndex: Map<int, int> = [:]
-        failure: KafkaError | None = None
-        p: int = 0
-        while p < partitionCount.value {
-            partitionCode = shortAt(frame, pos)?
-            index = intAt(frame, pos + 2)?
-            leader = intAt(frame, pos + 6)?
+        byIndex: Map<int, int> = [:];
+        failure: KafkaError | None = None;
+        p: int = 0;
+        while (p < partitionCount.value) {
+            partitionCode = shortAt(frame, pos)?;
+            index = intAt(frame, pos + 2)?;
+            leader = intAt(frame, pos + 6)?;
             // The leader's epoch, then the replicas, the in-sync replicas,
             // and the offline ones, each a compact array of ids.
-            pos = pos + 14
-            for _ in [1, 2, 3] {
-                ids = countAt(frame, pos)?
-                pos = ids.next + ids.value * 4
+            pos = pos + 14;
+            for (_ in [1, 2, 3]) {
+                ids = countAt(frame, pos)?;
+                pos = ids.next + ids.value * 4;
             }
-            pos = tagsAt(frame, pos)?
-            if partitionCode != 0 {
-                failure = brokerError(partitionCode, "Metadata for ${name.text} partition ${index}")
-            } else if leader < 0 {
-                failure = brokerError(5, "Metadata for ${name.text} partition ${index}")
+
+            pos = tagsAt(frame, pos)?;
+            if (partitionCode != 0) {
+                failure = brokerError(
+                    partitionCode,
+                    "Metadata for ${name.text} partition ${index}",
+                );
+            } else if (leader < 0) {
+                failure = brokerError(5, "Metadata for ${name.text} partition ${index}");
             }
-            byIndex = byIndex.put(index, leader)
-            p = p + 1
+
+            byIndex = byIndex.put(index, leader);
+            p = p + 1;
         }
+
         // The topic's authorized operations, then its tags.
-        pos = tagsAt(frame, pos + 4)?
-        if name.text == topic {
-            if code == 0 {
-                match failure {
+        pos = tagsAt(frame, pos + 4)?;
+        if (name.text == topic) {
+            if (code == 0) {
+                match (failure) {
                     None -> None
                     found -> {
-                        return Err(found)
+                        return Err(found);
                     }
                 }
             }
-            leaders: List<int> = []
-            n: int = 0
-            while n < partitionCount.value {
-                if not byIndex.containsKey(n) {
+
+            leaders: List<int> = [];
+            n: int = 0;
+            while (n < partitionCount.value) {
+                if (!byIndex.containsKey(n)) {
                     return Err(
-                        KafkaError.MalformedReply(reason: "Metadata for ${topic} skips partition ${n}"),
-                    )
+                        KafkaError.MalformedReply(
+                            reason: "Metadata for ${topic} skips partition ${n}",
+                        ),
+                    );
                 }
-                leaders = append(leaders, byIndex.at(n))
-                n = n + 1
+
+                leaders = append(leaders, byIndex.at(n));
+                n = n + 1;
             }
-            if code == 3 {
-                return Err(KafkaError.UnknownTopic(topic: topic))
+
+            if (code == 3) {
+                return Err(KafkaError.UnknownTopic(topic: topic));
             }
-            if code != 0 {
-                return Err(brokerError(code, "Metadata for ${topic}"))
+
+            if (code != 0) {
+                return Err(brokerError(code, "Metadata for ${topic}"));
             }
-            if leaders.length() == 0 {
+
+            if (leaders.length() == 0) {
                 return Err(
                     KafkaError.MalformedReply(reason: "Metadata lists no partitions for ${topic}"),
-                )
+                );
             }
-            return Ok(TopicLayout(brokers: brokers, leaders: leaders))
+
+            return Ok(TopicLayout(brokers: brokers, leaders: leaders));
         }
-        t = t + 1
+
+        t = t + 1;
     }
-    return Err(KafkaError.UnknownTopic(topic: topic))
+
+    return Err(KafkaError.UnknownTopic(topic: topic));
 }
 
 private {
     short() -> KafkaError {
-        return KafkaError.MalformedReply(reason: "a Metadata response ends early")
+        return KafkaError.MalformedReply(reason: "a Metadata response ends early");
     }
 
     intAt(data: bytes, at: int) -> Result<int, KafkaError> {
-        match i32At(data, at) {
+        return match (i32At(data, at)) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             value -> {
-                return Ok(value)
+                return Ok(value);
             }
         }
     }
 
     shortAt(data: bytes, at: int) -> Result<int, KafkaError> {
-        match i16At(data, at) {
+        return match (i16At(data, at)) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             value -> {
-                return Ok(value)
+                return Ok(value);
             }
         }
     }
 
     textAt(data: bytes, at: int) -> Result<TextAt, KafkaError> {
-        match compactStringAt(data, at) {
+        return match (compactStringAt(data, at)) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             value -> {
-                return Ok(value)
+                return Ok(value);
             }
         }
     }
 
     tagsAt(data: bytes, at: int) -> Result<int, KafkaError> {
-        match afterTags(data, at) {
+        return match (afterTags(data, at)) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             value -> {
-                return Ok(value)
+                return Ok(value);
             }
         }
     }
@@ -154,15 +182,17 @@ private {
     // A compact array's length, from its length plus one; a null one (0)
     // is empty.
     countAt(data: bytes, at: int) -> Result<IntAt, KafkaError> {
-        match uvarintAt(data, at) {
+        return match (uvarintAt(data, at)) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             found -> {
-                if found.value == 0 {
-                    return Ok(found)
+                if (found.value == 0) {
+                    return Ok(found);
                 }
-                return Ok(IntAt(value: found.value - 1, next: found.next))
+
+                return Ok(IntAt(value: found.value - 1, next: found.next));
             }
         }
     }

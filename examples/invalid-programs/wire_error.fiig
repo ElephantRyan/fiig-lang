@@ -3,7 +3,7 @@
 // Content-Type comes from the route's produces. Three declarations in one
 // file, so G1 also fires, incidentally but correctly.
 conversion htmlPage(page: string) -> HttpResponse<string> {
-    return HttpResponse(status: 200, body: page, headers: ["Content-Type": "text/html"])
+    return HttpResponse(status: 200, body: page, headers: ["Content-Type": "text/html"]);
 }
 
 // W2: a cookie sent to any site must be Secure, and browsers drop this one
@@ -11,8 +11,15 @@ conversion htmlPage(page: string) -> HttpResponse<string> {
 conversion embedCookie(token: string) -> HttpResponse<None> {
     return HttpResponse(
         status: 204,
-        cookies: [Cookie(name: "embed", value: token, sameSite: SameSite.AnySite, sentOverPlainHttp: true)],
-    )
+        cookies: [
+            Cookie(
+                name: "embed",
+                value: token,
+                sameSite: SameSite.AnySite,
+                sentOverPlainHttp: true,
+            ),
+        ],
+    );
 }
 
 // W3: an enum with payloads names its variant in a JSON `variant` member
@@ -26,10 +33,9 @@ enum Delivery {
 // with a payload has no single-text form, so this route would answer
 // every request 400.
 workflow trackDelivery(delivery: Delivery) -> string {
-    return "tracked"
+    return "tracked";
 }
 
 adapter http deliveryApi {
-    GET "/deliveries/{delivery}" -> trackDelivery(delivery: Delivery)
-        produces "application/json"
+    GET "/deliveries/{delivery}" -> trackDelivery(delivery: Delivery) produces "application/json"
 }

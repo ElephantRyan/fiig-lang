@@ -8,21 +8,23 @@ use fiig.session
 // keeps when that is young enough, else from Metadata (ADR 0113 §4, as
 // amended 2026-11-21).
 conversion sessionAsked(state: bytes, message: bytes, now: int) -> session.Step {
-    decodedState: Result<KafkaSessionState, JsonError> = json.decode(state)
-    decodedAsk: Result<KafkaAsk, JsonError> = json.decode(message)
-    match decodedState {
+    decodedState: Result<KafkaSessionState, JsonError> = json.decode(state);
+    decodedAsk: Result<KafkaAsk, JsonError> = json.decode(message);
+    return match (decodedState) {
         Err(_) -> {
-            return failedStep("fiig.kafka's session state doesn't decode")
+            return failedStep("fiig.kafka's session state doesn't decode");
         }
+
         Ok(s) -> {
-            match decodedAsk {
+            return match (decodedAsk) {
                 Err(_) -> {
                     return failedStep(
                         "a fiig.kafka session was asked something that isn't a KafkaAsk",
-                    )
+                    );
                 }
+
                 Ok(ask) -> {
-                    return askedOf(s, ask, now)
+                    return askedOf(s, ask, now);
                 }
             }
         }
@@ -31,16 +33,17 @@ conversion sessionAsked(state: bytes, message: bytes, now: int) -> session.Step 
 
 private {
     askedOf(s: KafkaSessionState, ask: KafkaAsk, now: int) -> session.Step {
-        if s.phase == "opening" or s.phase == "authenticating" {
+        if (s.phase == "opening" || s.phase == "authenticating") {
             // Not accepted: the runtime asks again after the next step.
-            return sessionStep(SessionTurn(state: s, write: <<>>, replies: [], close: None), None)
+            return sessionStep(SessionTurn(state: s, write: <<>>, replies: [], close: None), None);
         }
-        key = s.nextCorrelation
-        taken = copy(s, nextCorrelation: key + 1)
-        turn = SessionTurn(state: taken, write: <<>>, replies: [], close: None)
-        match ask {
+
+        key = s.nextCorrelation;
+        taken = copy(s, nextCorrelation: key + 1);
+        turn = SessionTurn(state: taken, write: <<>>, replies: [], close: None);
+        return match (ask) {
             KafkaAsk.Request(data) -> {
-                match data {
+                return match (data) {
                     <<size: i32be, apiKey: i16be, version: i16be, caller: i32be, rest: bytes>> -> {
                         entry = Inflight(
                             correlation: key,
@@ -48,131 +51,165 @@ private {
                             callerCorrelation: caller,
                             kind: "request",
                             topic: "",
-                        )
+                        );
                         sent = <<
                             size: i32be,
                             apiKey: i16be,
                             version: i16be,
                             key: i32be,
                             rest: bytes,
-                        >>
+                        >>;
                         return sessionStep(
-                            copy(turn, state: copy(taken, inflight: append(taken.inflight, entry)), write: sent),
+                            copy(
+                                turn,
+                                state: copy(taken, inflight: append(taken.inflight, entry)),
+                                write: sent,
+                            ),
                             key,
-                        )
+                        );
                     }
+
                     _ -> {
                         return failedStep(
                             "a fiig.kafka session was asked to send a request shorter than its header",
-                        )
+                        );
                     }
                 }
             }
+
             KafkaAsk.Poll(waitMillis) -> {
                 held = copy(
                     taken,
                     polls: append(taken.polls, WaitingPoll(key: key, until: now + waitMillis)),
-                )
-                return sessionStep(answerPolls(copy(turn, state: held), now), key)
+                );
+                return sessionStep(answerPolls(copy(turn, state: held), now), key);
             }
+
             KafkaAsk.Advance(partition, next) -> {
-                moved: List<OwnedPartition> = []
-                for p in taken.partitions {
-                    if p.partition == partition {
-                        moved = append(moved, copy(p, position: next))
+                moved: List<OwnedPartition> = [];
+                for (p in taken.partitions) {
+                    if (p.partition == partition) {
+                        moved = append(moved, copy(p, position: next));
                     } else {
-                        moved = append(moved, p)
+                        moved = append(moved, p);
                     }
                 }
-                return done(copy(turn, state: copy(taken, partitions: moved)), key)
+
+                return done(copy(turn, state: copy(taken, partitions: moved)), key);
             }
+
             KafkaAsk.Ack(partition, offset) -> {
-                acked: List<OwnedPartition> = []
-                pending: bool = false
-                for p in taken.partitions {
-                    if p.partition == partition and offset + 1 > p.acked {
-                        pending = true
-                        if p.retryOffset == offset {
+                acked: List<OwnedPartition> = [];
+                pending: bool = false;
+                for (p in taken.partitions) {
+                    if (p.partition == partition && offset + 1 > p.acked) {
+                        pending = true;
+                        if (p.retryOffset == offset) {
                             acked = append(
                                 acked,
-                                copy(p, acked: offset + 1, retryOffset: 0 - 1, retries: 0, resumeAt: 0),
-                            )
+                                copy(
+                                    p,
+                                    acked: offset + 1,
+                                    retryOffset: 0 - 1,
+                                    retries: 0,
+                                    resumeAt: 0,
+                                ),
+                            );
                         } else {
-                            acked = append(acked, copy(p, acked: offset + 1))
+                            acked = append(acked, copy(p, acked: offset + 1));
                         }
                     } else {
-                        acked = append(acked, p)
+                        acked = append(acked, p);
                     }
                 }
-                commitAt: int = taken.commitAt
-                if pending and commitAt == 0 {
-                    commitAt = now + taken.commitMillis
+
+                commitAt: int = taken.commitAt;
+                if (pending && commitAt == 0) {
+                    commitAt = now + taken.commitMillis;
                 }
+
                 return done(
                     copy(turn, state: copy(taken, partitions: acked, commitAt: commitAt)),
                     key,
-                )
+                );
             }
+
             KafkaAsk.Retry(partition, offset, resumeAt) -> {
                 // Seek back (§5): the partition is fetched again from the
                 // retried record once resumeAt comes.
-                retried: List<OwnedPartition> = []
-                for p in taken.partitions {
-                    if p.partition == partition {
-                        retries: int = 1
-                        if p.retryOffset == offset {
-                            retries = p.retries + 1
+                retried: List<OwnedPartition> = [];
+                for (p in taken.partitions) {
+                    if (p.partition == partition) {
+                        retries: int = 1;
+                        if (p.retryOffset == offset) {
+                            retries = p.retries + 1;
                         }
+
                         retried = append(
                             retried,
-                            copy(p, position: offset, retryOffset: offset, retries: retries, resumeAt: resumeAt),
-                        )
+                            copy(
+                                p,
+                                position: offset,
+                                retryOffset: offset,
+                                retries: retries,
+                                resumeAt: resumeAt,
+                            ),
+                        );
                     } else {
-                        retried = append(retried, p)
+                        retried = append(retried, p);
                     }
                 }
-                return done(copy(turn, state: copy(taken, partitions: retried)), key)
+
+                return done(copy(turn, state: copy(taken, partitions: retried)), key);
             }
+
             KafkaAsk.Layout(topic, maxAgeMillis) -> {
-                match taken.refused {
+                match (taken.refused) {
                     None -> None
                     refusal -> {
-                        return replied(turn, key, LayoutReply(layout: None, error: refusal))
+                        return replied(turn, key, LayoutReply(layout: None, error: refusal));
                     }
                 }
-                for cached in taken.layouts {
-                    if cached.topic == topic and now - cached.at < maxAgeMillis {
-                        return replied(turn, key, LayoutReply(layout: cached.layout, error: None))
+
+                for (cached in taken.layouts) {
+                    if (cached.topic == topic && now - cached.at < maxAgeMillis) {
+                        return replied(turn, key, LayoutReply(layout: cached.layout, error: None));
                     }
                 }
+
                 entry = Inflight(
                     correlation: key,
                     key: key,
                     callerCorrelation: 0,
                     kind: "metadata",
                     topic: topic,
-                )
+                );
                 return sessionStep(
-                    copy(turn, state: copy(taken, inflight: append(taken.inflight, entry)), write: metadataV12Request(taken.clientId, key, topic)),
+                    copy(
+                        turn,
+                        state: copy(taken, inflight: append(taken.inflight, entry)),
+                        write: metadataV12Request(taken.clientId, key, topic),
+                    ),
                     key,
-                )
+                );
             }
+
             KafkaAsk.Forget(topic) -> {
-                kept = filter(c in taken.layouts): c.topic != topic
-                return done(copy(turn, state: copy(taken, layouts: kept)), key)
+                kept = filter(c in taken.layouts): c.topic != topic;
+                return done(copy(turn, state: copy(taken, layouts: kept)), key);
             }
         }
     }
 
     // The ask answered at once, with a broker session's LayoutReply.
     replied(turn: SessionTurn, key: int, reply: LayoutReply) -> session.Step {
-        answer = session.SessionReply(key: key, message: json.encode(reply), last: true)
-        return sessionStep(copy(turn, replies: append(turn.replies, answer)), key)
+        answer = session.SessionReply(key: key, message: json.encode(reply), last: true);
+        return sessionStep(copy(turn, replies: append(turn.replies, answer)), key);
     }
 
     // The ask answered at once, with nothing.
     done(turn: SessionTurn, key: int) -> session.Step {
-        reply = session.SessionReply(key: key, message: <<>>, last: true)
-        return sessionStep(copy(turn, replies: append(turn.replies, reply)), key)
+        reply = session.SessionReply(key: key, message: <<>>, last: true);
+        return sessionStep(copy(turn, replies: append(turn.replies, reply)), key);
     }
 }

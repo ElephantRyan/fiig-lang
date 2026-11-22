@@ -1,48 +1,44 @@
 // Effect error: rules are pure (fiig-lang.md §3.2) and may not call gateways.
 rule summarizeCustomerName(id: string) -> string {
-    customer = getCustomer(id) // rejected: getCustomer is a gateway, not a rule
-    return customer.name
+    customer = getCustomer(id); // rejected: getCustomer is a gateway, not a rule
+    return customer.name;
 }
 
 // Effect error: rules may not call workflows either — ADR 0029 made Rule
 // fully isolated, it may call nothing at all.
 rule summarizeViaWorkflow(id: string) -> string {
-    result = readCustomer(id) // rejected: readCustomer is a workflow, not a rule
-    return "done"
+    result = readCustomer(id); // rejected: readCustomer is a workflow, not a rule
+    return "done";
 }
 
 // Effect error (B7, ADR 0029): a rule may not call another rule, even a
 // fully pure one — that composition is Activity's job now.
 rule computeDiscount(base: int) -> int {
-    return doubled(base) // rejected: doubled is another rule; rules call nothing
+    return doubled(base); // rejected: doubled is another rule; rules call nothing
 }
 
 rule doubled(n: int) -> int {
-    return n * 2
+    return n * 2;
 }
 
 // Effect error: "gateways may not coordinate other application gateways"
 // (§3.2) — called out on its own because it's an easy mistake, distinct
 // from a gateway calling a rule or conversion, which is allowed.
-gateway insertAndNotify(input: NewCustomer) -> Result<Customer, CustomerError>
-    requires Database
-{
-    customer = insertCustomer(input)? // rejected: insertCustomer is another gateway; gateways can't coordinate gateways
-    return Ok(customer)
+gateway insertAndNotify(input: NewCustomer) -> Result<Customer, CustomerError> requires Database {
+    customer = insertCustomer(input)?; // rejected: insertCustomer is another gateway; gateways can't coordinate gateways
+    return Ok(customer);
 }
 
 // Effect error: gateways may not call workflows.
-gateway notifyViaWorkflow(customer: Customer) -> Result<None, CustomerError>
-    requires EmailSender
-{
-    return readCustomer(customer.id) // rejected: readCustomer is a workflow, not a rule or conversion
+gateway notifyViaWorkflow(customer: Customer) -> Result<None, CustomerError> requires EmailSender {
+    return readCustomer(customer.id); // rejected: readCustomer is a workflow, not a rule or conversion
 }
 
 // Effect error: conversions may call rules and other conversions only, not
 // gateways.
 conversion customerToSummaryWithLookup(id: string) -> CustomerSummary {
-    customer = getCustomer(id) // rejected: getCustomer is a gateway; conversions may only call rules/conversions
-    return CustomerSummary(id: customer.id, name: customer.name)
+    customer = getCustomer(id); // rejected: getCustomer is a gateway; conversions may only call rules/conversions
+    return CustomerSummary(id: customer.id, name: customer.name);
 }
 
 // Effect error (B8, ADR 0044): nothing in fiig may call a workflow — a
@@ -50,22 +46,21 @@ conversion customerToSummaryWithLookup(id: string) -> CustomerSummary {
 // activity (which may call gateways and other activities) is still rejected
 // here.
 activity lookupViaWorkflow(id: string) -> Result<Customer, CustomerError> {
-    return readCustomer(id) // rejected: readCustomer is a workflow; nothing may call a workflow
+    return readCustomer(id); // rejected: readCustomer is a workflow; nothing may call a workflow
 }
 
 // Effect error (B9, ADR 0044): activities may call each other now, which
 // makes recursion expressible — a call cycle is rejected.
 activity pingCustomer(id: string) -> Result<Customer, CustomerError> {
-    return pongCustomer(id) // part of the cycle pingCustomer -> pongCustomer -> pingCustomer
+    return pongCustomer(id); // part of the cycle pingCustomer -> pongCustomer -> pingCustomer
 }
 
 activity pongCustomer(id: string) -> Result<Customer, CustomerError> {
-    return pingCustomer(id) // part of the same cycle
+    return pingCustomer(id); // part of the same cycle
 }
 
 // Effect error: adapters call exported workflows only, never a gateway
 // directly.
 adapter http customerHttpApiBroken {
-    GET "/customers/{id}" -> getCustomer(id: string) // rejected: getCustomer is a gateway, not a workflow
-        produces "application/json"
+    GET "/customers/{id}" -> getCustomer(id: string) produces "application/json" // rejected: getCustomer is a gateway, not a workflow
 }

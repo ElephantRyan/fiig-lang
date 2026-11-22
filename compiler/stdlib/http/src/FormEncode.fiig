@@ -3,38 +3,42 @@
 // and *-._ stay as they are, a space becomes +, and every other byte of
 // the UTF-8 is %XX.
 conversion formEncode(fields: List<Header>) -> bytes {
-    out: bytes = <<>>
-    first: bool = true
-    for field in fields {
-        if not first {
-            out = <<out: bytes, 38: u8>>
+    out: bytes = <<>>;
+    first: bool = true;
+    for (field in fields) {
+        if (!first) {
+            out = <<out: bytes, 38: u8>>;
         }
-        first = false
-        out = <<out: bytes, escaped(field.name): bytes, 61: u8, escaped(field.value): bytes>>
+
+        first = false;
+        out = <<out: bytes, escaped(field.name): bytes, 61: u8, escaped(field.value): bytes>>;
     }
-    return out
+
+    return out;
 }
 
 private {
     escaped(text: string) -> bytes {
-        out: bytes = <<>>
-        for b in text.utf8() {
-            if (b >= 65 and b <= 90) or (b >= 97 and b <= 122) or (b >= 48 and b <= 57) or b == 42 or b == 45 or b == 46 or b == 95 {
-                out = <<out: bytes, b: u8>>
-            } else if b == 32 {
-                out = <<out: bytes, 43: u8>>
+        out: bytes = <<>>;
+        for (b in text.utf8()) {
+            if ((b >= 65 && b <= 90) || (b >= 97 && b <= 122) || (b >= 48 && b <= 57) || b == 42 || b == 45 || b == 46 || b == 95) {
+                out = <<out: bytes, b: u8>>;
+            } else if (b == 32) {
+                out = <<out: bytes, 43: u8>>;
             } else {
-                out = <<out: bytes, 37: u8, hexDigit(b / 16): u8, hexDigit(b % 16): u8>>
+                out = <<out: bytes, 37: u8, hexDigit(b / 16): u8, hexDigit(b % 16): u8>>;
             }
         }
-        return out
+
+        return out;
     }
 
     // The ASCII code of an uppercase hex digit.
     hexDigit(n: int) -> int {
-        if n < 10 {
-            return 48 + n
+        if (n < 10) {
+            return 48 + n;
         }
-        return 55 + n
+
+        return 55 + n;
     }
 }

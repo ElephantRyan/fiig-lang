@@ -1,18 +1,19 @@
 // ADR 0065 §5-§7: a count per category, built with `put` from an empty
 // map. The map keeps customers in the order they first appear.
 rule orderCountByCustomer(orders: List<Order>) -> Map<string, int> {
-    counts: Map<string, int> = [:]
-    for order in orders {
-        counts = counts.put(order.customerId, countSoFar(counts, order.customerId) + 1)
+    counts: Map<string, int> = [:];
+    for (order in orders) {
+        counts = counts.put(order.customerId, countSoFar(counts, order.customerId) + 1);
     }
-    return counts
+
+    return counts;
 }
 
 private {
     // A customer not yet counted has 0 orders: atOrNone tells absent
     // from present, and the match says what absent means here.
     countSoFar(counts: Map<string, int>, customerId: string) -> int {
-        match counts.atOrNone(customerId) {
+        return match (counts.atOrNone(customerId)) {
             None -> 0
             count -> count
         }

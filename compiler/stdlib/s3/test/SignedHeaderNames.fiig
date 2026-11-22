@@ -1,7 +1,7 @@
 test withoutAToken {
-    expect signedHeaderNames("") == "host;x-amz-content-sha256;x-amz-date"
+    expect signedHeaderNames("") == "host;x-amz-content-sha256;x-amz-date";
 }
 
 test aTokenIsLastAndSorted {
-    expect signedHeaderNames("T") == "host;x-amz-content-sha256;x-amz-date;x-amz-security-token"
+    expect signedHeaderNames("T") == "host;x-amz-content-sha256;x-amz-date;x-amz-security-token";
 }

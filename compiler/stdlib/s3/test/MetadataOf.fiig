@@ -6,8 +6,8 @@ test metadataHeadersInAnyCaseAreKeyedWithoutThePrefix {
         http.Header(name: "x-amz-meta-run", value: "7"),
         http.Header(name: "x-amz-request-id", value: "r"),
         http.Header(name: "Content-Type", value: "text/plain"),
-    ]
-    expect metadataOf(headers) == ["author": "Ada", "run": "7"]
+    ];
+    expect metadataOf(headers) == ["author": "Ada", "run": "7"];
 }
 
 test thePrefixAloneAndARepeatAreIgnored {
@@ -15,6 +15,6 @@ test thePrefixAloneAndARepeatAreIgnored {
         http.Header(name: "x-amz-meta-", value: "x"),
         http.Header(name: "x-amz-meta-a", value: "1"),
         http.Header(name: "x-amz-meta-a", value: "2"),
-    ]
-    expect metadataOf(headers) == ["a": "1"]
+    ];
+    expect metadataOf(headers) == ["a": "1"];
 }

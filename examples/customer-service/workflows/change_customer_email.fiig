@@ -1,5 +1,5 @@
 // Required example 5: the update and reread run in one transaction, in
 // the changeEmail activity.
 workflow changeCustomerEmail(id: string, newEmail: string) -> Result<Customer, CustomerError> {
-    return changeEmail(id, newEmail)
+    return changeEmail(id, newEmail);
 }

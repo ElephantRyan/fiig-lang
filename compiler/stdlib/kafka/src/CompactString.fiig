@@ -1,6 +1,6 @@
 // A COMPACT_STRING, as flexible versions (KIP-482) write text: its length
 // plus one as an unsigned varint, then its UTF-8. A null one is a single 0.
 conversion compactString(text: string) -> bytes {
-    data = text.utf8()
-    return <<uvarint(data.length() + 1): bytes, data: bytes>>
+    data = text.utf8();
+    return <<uvarint(data.length() + 1): bytes, data: bytes>>;
 }

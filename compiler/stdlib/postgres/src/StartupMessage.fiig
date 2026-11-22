@@ -10,13 +10,14 @@ conversion startupMessage(settings: PgSettings) -> bytes {
         cString("UTF8"): bytes,
         cString("DateStyle"): bytes,
         cString("ISO"): bytes,
-    >>
-    match settings.applicationName {
+    >>;
+    match (settings.applicationName) {
         None -> None
         name -> {
-            body = <<body: bytes, cString("application_name"): bytes, cString(name): bytes>>
+            body = <<body: bytes, cString("application_name"): bytes, cString(name): bytes>>;
         }
     }
-    length = body.length() + 9
-    return <<length: i32be, 196608: i32be, body: bytes, 0: u8>>
+
+    length = body.length() + 9;
+    return <<length: i32be, 196608: i32be, body: bytes, 0: u8>>;
 }

@@ -2,18 +2,24 @@
 // that many bytes, starting with the correlation id. A broker's reply is
 // bounded at 100 MiB, so a corrupt size can't ask for gigabytes.
 conversion nextFrame(buffer: bytes) -> FrameRead {
-    match buffer {
+    return match (buffer) {
         <<size: i32be, rest: bytes>> -> {
-            if size < 4 or size > 104857600 {
-                return FrameRead.Malformed(reason: "a response says it is ${size} bytes")
+            if (size < 4 || size > 104857600) {
+                return FrameRead.Malformed(reason: "a response says it is ${size} bytes");
             }
-            if rest.length() < size {
-                return FrameRead.NeedMore
+
+            if (rest.length() < size) {
+                return FrameRead.NeedMore;
             }
-            return FrameRead.Done(frame: rest.slice(0, size), rest: rest.slice(size, rest.length()))
+
+            return FrameRead.Done(
+                frame: rest.slice(0, size),
+                rest: rest.slice(size, rest.length()),
+            );
         }
+
         _ -> {
-            return FrameRead.NeedMore
+            return FrameRead.NeedMore;
         }
     }
 }

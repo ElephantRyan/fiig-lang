@@ -5,43 +5,49 @@ use fiig.sql as db
 // Parse, if it needs one (§3b). Parameters are text, except bytes, which
 // are binary; every result column is text.
 conversion statementMessages(name: string, values: List<db.SqlValue>) -> bytes {
-    formats: bytes = <<>>
-    params: bytes = <<>>
-    for value in values {
-        match value {
+    formats: bytes = <<>>;
+    params: bytes = <<>>;
+    for (value in values) {
+        match (value) {
             db.SqlValue.Null -> {
-                formats = <<formats: bytes, 0: i16be>>
-                params = <<params: bytes, -1: i32be>>
+                formats = <<formats: bytes, 0: i16be>>;
+                params = <<params: bytes, -1: i32be>>;
             }
+
             db.SqlValue.Bytes(data) -> {
-                formats = <<formats: bytes, 1: i16be>>
-                params = withParam(params, data)
+                formats = <<formats: bytes, 1: i16be>>;
+                params = withParam(params, data);
             }
+
             db.SqlValue.Int(n) -> {
-                formats = <<formats: bytes, 0: i16be>>
-                params = withParam(params, "${n}".utf8())
+                formats = <<formats: bytes, 0: i16be>>;
+                params = withParam(params, "${n}".utf8());
             }
+
             db.SqlValue.Float(x) -> {
-                formats = <<formats: bytes, 0: i16be>>
-                params = withParam(params, "${x}".utf8())
+                formats = <<formats: bytes, 0: i16be>>;
+                params = withParam(params, "${x}".utf8());
             }
+
             db.SqlValue.Text(text) -> {
-                formats = <<formats: bytes, 0: i16be>>
-                params = withParam(params, text.utf8())
+                formats = <<formats: bytes, 0: i16be>>;
+                params = withParam(params, text.utf8());
             }
+
             db.SqlValue.Bool(flag) -> {
-                formats = <<formats: bytes, 0: i16be>>
-                params = withParam(params, "${flag}".utf8())
+                formats = <<formats: bytes, 0: i16be>>;
+                params = withParam(params, "${flag}".utf8());
             }
         }
     }
-    count = values.length()
+
+    count = values.length();
     bind = pgMessage(
         66,
         <<cString(""): bytes, cString(name): bytes, count: i16be, formats: bytes, count: i16be, params: bytes, 0: i16be>>,
-    )
-    describe = pgMessage(68, <<80: u8, 0: u8>>)
-    execute = pgMessage(69, <<0: u8, 0: i32be>>)
-    sync = pgMessage(83, <<>>)
-    return <<bind: bytes, describe: bytes, execute: bytes, sync: bytes>>
+    );
+    describe = pgMessage(68, <<80: u8, 0: u8>>);
+    execute = pgMessage(69, <<0: u8, 0: i32be>>);
+    sync = pgMessage(83, <<>>);
+    return <<bind: bytes, describe: bytes, execute: bytes, sync: bytes>>;
 }

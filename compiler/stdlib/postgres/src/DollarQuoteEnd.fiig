@@ -1,28 +1,34 @@
 // Past a $tag$...$tag$ body starting at i. A $ that opens no tag, such as
 // $1 or one inside an identifier, is passed over alone.
 conversion dollarQuoteEnd(data: bytes, i: int) -> int {
-    n = data.length()
-    if i > 0 and isIdentByte(data.at(i - 1)) {
-        return i + 1
+    n = data.length();
+    if (i > 0 && isIdentByte(data.at(i - 1))) {
+        return i + 1;
     }
-    j: int = i + 1
-    if j < n and data.at(j) >= 48 and data.at(j) <= 57 {
-        return i + 1
+
+    j: int = i + 1;
+    if (j < n && data.at(j) >= 48 && data.at(j) <= 57) {
+        return i + 1;
     }
-    while j < n and isIdentByte(data.at(j)) {
-        j = j + 1
+
+    while (j < n && isIdentByte(data.at(j))) {
+        j = j + 1;
     }
-    if j >= n or data.at(j) != 36 {
-        return i + 1
+
+    if (j >= n || data.at(j) != 36) {
+        return i + 1;
     }
-    tag = data.slice(i, j + 1)
-    size = tag.length()
-    k: int = j + 1
-    while k + size <= n {
-        if data.slice(k, k + size) == tag {
-            return k + size
+
+    tag = data.slice(i, j + 1);
+    size = tag.length();
+    k: int = j + 1;
+    while (k + size <= n) {
+        if (data.slice(k, k + size) == tag) {
+            return k + size;
         }
-        k = k + 1
+
+        k = k + 1;
     }
-    return n
+
+    return n;
 }

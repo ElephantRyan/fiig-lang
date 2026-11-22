@@ -3,15 +3,14 @@
 // fiig serve . shippingApi
 adapter http shippingApi {
     POST "/quotes" -> quoteShipping(request: QuoteRequest)
-        consumes "application/json"
-        produces "application/json"
-    {
+            consumes "application/json"
+            produces "application/json" {
         Ok(quote) -> 200 quote
         Err(error) -> 422 error
     }
+
     GET "/rates/{speed}?weightGrams={weightGrams}" -> domesticRate(speed: Speed, weightGrams: int)
-        produces "application/json"
-    {
+            produces "application/json" {
         Ok(cents) -> 200 cents
         Err(error) -> 422 error
     }

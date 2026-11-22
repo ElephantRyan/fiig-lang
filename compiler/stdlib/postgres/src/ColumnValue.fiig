@@ -6,47 +6,54 @@ use fiig.sql as db
 // Bool; bytea (17) is Bytes from its \x hex form; anything else, numeric
 // (1700) included, is Text.
 conversion columnValue(text: bytes, oid: int) -> db.SqlValue {
-    match text.utf8() {
+    return match (text.utf8()) {
         None -> {
-            return db.SqlValue.Bytes(value: text)
+            return db.SqlValue.Bytes(value: text);
         }
+
         value -> {
-            if oid == 20 or oid == 21 or oid == 23 {
-                match value.toIntOrNone() {
+            if (oid == 20 || oid == 21 || oid == 23) {
+                match (value.toIntOrNone()) {
                     None -> None
                     n -> {
-                        return db.SqlValue.Int(value: n)
+                        return db.SqlValue.Int(value: n);
                     }
                 }
             }
-            if oid == 700 or oid == 701 {
-                if value == "NaN" or value == "Infinity" or value == "-Infinity" {
-                    return db.SqlValue.Text(value: value)
+
+            if (oid == 700 || oid == 701) {
+                if (value == "NaN" || value == "Infinity" || value == "-Infinity") {
+                    return db.SqlValue.Text(value: value);
                 }
-                match value.toFloatOrNone() {
+
+                match (value.toFloatOrNone()) {
                     None -> None
                     x -> {
-                        return db.SqlValue.Float(value: x)
+                        return db.SqlValue.Float(value: x);
                     }
                 }
             }
-            if oid == 16 {
-                if value == "t" {
-                    return db.SqlValue.Bool(value: true)
+
+            if (oid == 16) {
+                if (value == "t") {
+                    return db.SqlValue.Bool(value: true);
                 }
-                if value == "f" {
-                    return db.SqlValue.Bool(value: false)
+
+                if (value == "f") {
+                    return db.SqlValue.Bool(value: false);
                 }
             }
-            if oid == 17 and value.startsWith("\\x") {
-                match value.removePrefix("\\x").fromHex() {
+
+            if (oid == 17 && value.startsWith("\\x")) {
+                match (value.removePrefix("\\x").fromHex()) {
                     None -> None
                     data -> {
-                        return db.SqlValue.Bytes(value: data)
+                        return db.SqlValue.Bytes(value: data);
                     }
                 }
             }
-            return db.SqlValue.Text(value: value)
+
+            return db.SqlValue.Text(value: value);
         }
     }
 }

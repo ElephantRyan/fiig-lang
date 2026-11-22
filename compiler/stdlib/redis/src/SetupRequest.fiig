@@ -4,30 +4,35 @@
 // sent and answered before the command, so a refused SELECT can't let the
 // command run on database 0.
 conversion setupRequest(target: RedisTarget) -> RedisRequest {
-    commands: List<List<string>> = []
-    match target.password {
+    commands: List<List<string>> = [];
+    match (target.password) {
         None -> None
         password -> {
-            match target.user {
+            match (target.user) {
                 None -> {
-                    commands = append(commands, ["AUTH", password])
+                    commands = append(commands, ["AUTH", password]);
                 }
+
                 user -> {
-                    commands = append(commands, ["AUTH", user, password])
+                    commands = append(commands, ["AUTH", user, password]);
                 }
             }
         }
     }
-    if target.database != 0 {
-        commands = append(commands, ["SELECT", "${target.database}"])
+
+    if (target.database != 0) {
+        commands = append(commands, ["SELECT", "${target.database}"]);
     }
-    data: bytes = <<>>
-    for each in commands {
-        words: List<bytes> = []
-        for word in each {
-            words = append(words, word.utf8())
+
+    data: bytes = <<>>;
+    for (each in commands) {
+        words: List<bytes> = [];
+        for (word in each) {
+            words = append(words, word.utf8());
         }
-        data = <<data: bytes, encodeCommand(words): bytes>>
+
+        data = <<data: bytes, encodeCommand(words): bytes>>;
     }
-    return RedisRequest(data: data, replies: commands.length())
+
+    return RedisRequest(data: data, replies: commands.length());
 }

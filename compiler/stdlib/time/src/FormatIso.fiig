@@ -2,8 +2,8 @@
 // and always with three fractional digits, so the strings of two moments sort
 // the way the moments do (ADR 0123 §2).
 conversion formatIso(millis: int) -> Result<string, TimeError> {
-    t = toDateTime(millis)?
-    date = "${zeroPad(t.year, 4)}-${zeroPad(t.month, 2)}-${zeroPad(t.day, 2)}"
-    clock = "${zeroPad(t.hour, 2)}:${zeroPad(t.minute, 2)}:${zeroPad(t.second, 2)}.${zeroPad(t.millisecond, 3)}"
-    return Ok("${date}T${clock}Z")
+    t = toDateTime(millis)?;
+    date = "${zeroPad(t.year, 4)}-${zeroPad(t.month, 2)}-${zeroPad(t.day, 2)}";
+    clock = "${zeroPad(t.hour, 2)}:${zeroPad(t.minute, 2)}:${zeroPad(t.second, 2)}.${zeroPad(t.millisecond, 3)}";
+    return Ok("${date}T${clock}Z");
 }

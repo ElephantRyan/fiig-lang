@@ -2,11 +2,11 @@
 // one file, so G1 also fires, incidentally but correctly. B10: only a
 // gateway that requires Socket may call it, and a rule is pure.
 rule peekAtDatabase(host: string) -> Result<Connection, SocketError> {
-    return Socket.connect(host, 5432)
+    return Socket.connect(host, 5432);
 }
 
 // H5: a workflow is the adapter boundary, and a socket handle can be neither
 // serialized nor handed in from outside.
 workflow resumeSession(connection: Connection) -> Result<None, SocketError> {
-    return Ok(None)
+    return Ok(None);
 }

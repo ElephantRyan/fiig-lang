@@ -1,14 +1,16 @@
 // The INT32 at offset at, or None when the response is too short.
 conversion i32At(data: bytes, at: int) -> int | None {
-    if at < 0 or at + 4 > data.length() {
-        return None
+    if (at < 0 || at + 4 > data.length()) {
+        return None;
     }
-    match data.slice(at, at + 4) {
+
+    return match (data.slice(at, at + 4)) {
         <<value: i32be>> -> {
-            return value
+            return value;
         }
+
         _ -> {
-            return None
+            return None;
         }
     }
 }

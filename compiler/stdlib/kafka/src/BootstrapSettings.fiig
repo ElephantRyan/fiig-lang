@@ -4,32 +4,40 @@
 // topics' layouts. With one server it names the same session as
 // brokerSettings does for that broker, so a one-broker cluster is one
 // connection.
-conversion bootstrapSettings(bootstrap: string, tls: bool, clientId: string) -> Result<Map<string, string>, KafkaError> {
-    servers = bootstrapOf(bootstrap)?
-    settings = brokerSettings(servers.first(), tls, clientId)
-    if servers.length() == 1 {
-        return Ok(settings)
+conversion bootstrapSettings(
+    bootstrap: string,
+    tls: bool,
+    clientId: string,
+) -> Result<Map<string, string>, KafkaError> {
+    servers = bootstrapOf(bootstrap)?;
+    settings = brokerSettings(servers.first(), tls, clientId);
+    if (servers.length() == 1) {
+        return Ok(settings);
     }
-    alternates: string = ""
-    seen: int = 0
-    for server in servers {
-        if seen == 1 {
-            alternates = serverText(server)
-        } else if seen > 1 {
-            alternates = "${alternates},${serverText(server)}"
+
+    alternates: string = "";
+    seen: int = 0;
+    for (server in servers) {
+        if (seen == 1) {
+            alternates = serverText(server);
+        } else if (seen > 1) {
+            alternates = "${alternates},${serverText(server)}";
         }
-        seen = seen + 1
+
+        seen = seen + 1;
     }
-    return Ok(settings.put("alternates", alternates))
+
+    return Ok(settings.put("alternates", alternates));
 }
 
 private {
     // A server as an alternate names it: host:port, an IPv6 host in
     // brackets as bootstrapOf reads it.
     serverText(server: BrokerNode) -> string {
-        if server.host.contains(":") {
-            return "[${server.host}]:${server.port}"
+        if (server.host.contains(":")) {
+            return "[${server.host}]:${server.port}";
         }
-        return "${server.host}:${server.port}"
+
+        return "${server.host}:${server.port}";
     }
 }

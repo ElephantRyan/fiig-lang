@@ -6,6 +6,6 @@ use fiig.http
 // a control character in a source key is refused before any connection.
 conversion copySource(bucket: string, key: string) -> Result<http.Header, S3Error> {
     // Only the path is taken, so the endpoint is any valid one.
-    target = objectTarget(S3Endpoint(scheme: "https", authority: "s3"), bucket, key, true)?
-    return Ok(http.Header(name: "x-amz-copy-source", value: target.path))
+    target = objectTarget(S3Endpoint(scheme: "https", authority: "s3"), bucket, key, true)?;
+    return Ok(http.Header(name: "x-amz-copy-source", value: target.path));
 }

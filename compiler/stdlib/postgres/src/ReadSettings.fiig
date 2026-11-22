@@ -2,62 +2,88 @@ use fiig.sql as db
 
 // ADR 0085 §2: the settings a capabilities file gives the driver.
 conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.DatabaseError> {
-    if not settings.containsKey("host") {
-        return Err(db.DatabaseError.Protocol(reason: "fiig.postgres needs a host setting"))
+    if (!settings.containsKey("host")) {
+        return Err(db.DatabaseError.Protocol(reason: "fiig.postgres needs a host setting"));
     }
-    if not settings.containsKey("user") {
-        return Err(db.DatabaseError.Protocol(reason: "fiig.postgres needs a user setting"))
+
+    if (!settings.containsKey("user")) {
+        return Err(db.DatabaseError.Protocol(reason: "fiig.postgres needs a user setting"));
     }
-    user = settings.at("user")
-    port: int = 5432
-    if settings.containsKey("port") {
-        match settings.at("port").toIntOrNone() {
+
+    user = settings.at("user");
+    port: int = 5432;
+    if (settings.containsKey("port")) {
+        match (settings.at("port").toIntOrNone()) {
             None -> {
                 return Err(
-                    db.DatabaseError.Protocol(reason: "the port setting must be a number, not ${settings.at("port")}"),
-                )
+                    db.DatabaseError.Protocol(
+                        reason: "the port setting must be a number, not ${settings.at("port")}",
+                    ),
+                );
             }
+
             number -> {
-                port = number
+                port = number;
             }
         }
     }
-    database: string = user
-    if settings.containsKey("database") {
-        database = settings.at("database")
+
+    database: string = user;
+    if (settings.containsKey("database")) {
+        database = settings.at("database");
     }
-    secure: bool = true
-    if settings.containsKey("sslmode") {
-        mode = settings.at("sslmode")
-        if mode == "disable" {
-            secure = false
-        } else if mode != "verify-full" {
+
+    secure: bool = true;
+    if (settings.containsKey("sslmode")) {
+        mode = settings.at("sslmode");
+        if (mode == "disable") {
+            secure = false;
+        } else if (mode != "verify-full") {
             return Err(
-                db.DatabaseError.Protocol(reason: "sslmode must be verify-full or disable, not ${mode} (ADR 0085 §5)"),
-            )
+                db.DatabaseError.Protocol(
+                    reason: "sslmode must be verify-full or disable, not ${mode} (ADR 0085 §5)",
+                ),
+            );
         }
     }
+
     // §3b: 100 holds every distinct statement most services send, at a few
     // kilobytes of server memory each per connection.
-    cacheSize: int = 100
-    if settings.containsKey("statementCacheSize") {
-        match settings.at("statementCacheSize").toIntOrNone() {
+    cacheSize: int = 100;
+    if (settings.containsKey("statementCacheSize")) {
+        match (settings.at("statementCacheSize").toIntOrNone()) {
             None -> {
                 return Err(
-                    db.DatabaseError.Protocol(reason: "the statementCacheSize setting must be a number, not ${settings.at("statementCacheSize")}"),
-                )
+                    db.DatabaseError.Protocol(
+                        reason: "the statementCacheSize setting must be a number, not ${settings.at("statementCacheSize")}",
+                    ),
+                );
             }
+
             number -> {
-                if number < 0 {
+                if (number < 0) {
                     return Err(
-                        db.DatabaseError.Protocol(reason: "the statementCacheSize setting must be 0 or more, not ${number}"),
-                    )
+                        db.DatabaseError.Protocol(
+                            reason: "the statementCacheSize setting must be 0 or more, not ${number}",
+                        ),
+                    );
                 }
-                cacheSize = number
+
+                cacheSize = number;
             }
         }
     }
+
     return Ok(
-        PgSettings(host: settings.at("host"), port: port, user: user, password: settings.atOrNone("password"), database: database, secure: secure, applicationName: settings.atOrNone("applicationName"), statementCacheSize: cacheSize),
-    )
+        PgSettings(
+            host: settings.at("host"),
+            port: port,
+            user: user,
+            password: settings.atOrNone("password"),
+            database: database,
+            secure: secure,
+            applicationName: settings.atOrNone("applicationName"),
+            statementCacheSize: cacheSize,
+        ),
+    );
 }

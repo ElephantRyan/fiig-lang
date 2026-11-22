@@ -1,11 +1,12 @@
 // Accounts as CSV (RFC 4180), every field quoted so a comma or a quote in
 // a name can't shift the columns.
 rule accountsCsv(accounts: List<Account>) -> string {
-    lines: List<string> = ["name,email"]
-    for account in accounts {
-        name = account.name.replaceAll(old: "\"", new: "\"\"")
-        email = account.email.replaceAll(old: "\"", new: "\"\"")
-        lines = append(lines, "\"${name}\",\"${email}\"")
+    lines: List<string> = ["name,email"];
+    for (account in accounts) {
+        name = account.name.replaceAll(old: "\"", new: "\"\"");
+        email = account.email.replaceAll(old: "\"", new: "\"\"");
+        lines = append(lines, "\"${name}\",\"${email}\"");
     }
-    return lines.join(separator: "\r\n")
+
+    return lines.join(separator: "\r\n");
 }

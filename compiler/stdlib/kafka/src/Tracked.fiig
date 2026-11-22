@@ -8,6 +8,6 @@ conversion tracked(s: KafkaSessionState, kind: string) -> KafkaSessionState {
         callerCorrelation: 0,
         kind: kind,
         topic: "",
-    )
-    return copy(s, nextCorrelation: s.nextCorrelation + 1, inflight: append(s.inflight, entry))
+    );
+    return copy(s, nextCorrelation: s.nextCorrelation + 1, inflight: append(s.inflight, entry));
 }

@@ -13,6 +13,6 @@ conversion keepsConnection(name: string) -> bool {
         "HELLO",
         "AUTH",
         "RESET",
-    ]
-    return not changing.contains(name.uppercase())
+    ];
+    return !changing.contains(name.uppercase());
 }

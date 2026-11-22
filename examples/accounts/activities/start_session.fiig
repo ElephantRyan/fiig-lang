@@ -2,19 +2,21 @@
 // token (ADR 0068), which the route sends back as a cookie. No header is
 // its own error, so the route can answer with a challenge.
 activity startSession(authorization: string | None) -> Result<Session, AccountError> {
-    match authorization {
+    return match (authorization) {
         None -> {
-            return Err(AccountError.NoCredentials)
+            return Err(AccountError.NoCredentials);
         }
+
         header -> {
-            match basicCredentials(header) {
+            return match (basicCredentials(header)) {
                 None -> {
-                    return Err(AccountError.BadCredentials)
+                    return Err(AccountError.BadCredentials);
                 }
+
                 credentials -> {
-                    account = findAccountByKey(credentials)?
-                    token = Random.bytes(count: 32).toBase64Url()
-                    return Ok(saveSession(token: token, account: account, maxAge: Sessions.maxAge))
+                    account = findAccountByKey(credentials)?;
+                    token = Random.bytes(count: 32).toBase64Url();
+                    return Ok(saveSession(token: token, account: account, maxAge: Sessions.maxAge));
                 }
             }
         }

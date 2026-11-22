@@ -3,63 +3,72 @@
 // then text, ending in CRLF. Nothing is consumed until the last line has
 // arrived, so a caller reads more and asks again.
 conversion readSmtpReply(buffer: bytes) -> SmtpReplyRead {
-    lines: List<string> = []
-    code: int = 0
-    rest: bytes = buffer
-    while true {
-        end = lineEnd(rest)
-        if end < 0 {
-            if rest.length() > 4096 {
-                return SmtpReplyRead.Malformed(reason: "a reply line is longer than 4096 bytes")
+    lines: List<string> = [];
+    code: int = 0;
+    rest: bytes = buffer;
+    while (true) {
+        end = lineEnd(rest);
+        if (end < 0) {
+            if (rest.length() > 4096) {
+                return SmtpReplyRead.Malformed(reason: "a reply line is longer than 4096 bytes");
             }
-            return SmtpReplyRead.NeedMore
+
+            return SmtpReplyRead.NeedMore;
         }
-        line = rest.slice(0, end)
-        rest = rest.slice(end + 2, rest.length())
-        if line.length() < 3 {
+
+        line = rest.slice(0, end);
+        rest = rest.slice(end + 2, rest.length());
+        if (line.length() < 3) {
             return SmtpReplyRead.Malformed(
                 reason: "a reply line is shorter than its three-digit code",
-            )
+            );
         }
-        number = codeOf(line)
-        if number < 0 {
+
+        number = codeOf(line);
+        if (number < 0) {
             return SmtpReplyRead.Malformed(
                 reason: "a reply line doesn't start with a three-digit code",
-            )
+            );
         }
-        last: bool = true
-        if line.length() > 3 {
-            mark = line.at(3)
-            if mark == 45 {
-                last = false
-            } else if mark != 32 {
+
+        last: bool = true;
+        if (line.length() > 3) {
+            mark = line.at(3);
+            if (mark == 45) {
+                last = false;
+            } else if (mark != 32) {
                 return SmtpReplyRead.Malformed(
                     reason: "a reply's code is followed by neither a space nor a hyphen",
-                )
+                );
             }
         }
-        text: string = ""
-        if line.length() > 4 {
-            match line.slice(4, line.length()).utf8() {
+
+        text: string = "";
+        if (line.length() > 4) {
+            match (line.slice(4, line.length()).utf8()) {
                 None -> {
-                    return SmtpReplyRead.Malformed(reason: "a reply line isn't UTF-8")
+                    return SmtpReplyRead.Malformed(reason: "a reply line isn't UTF-8");
                 }
+
                 decoded -> {
-                    text = decoded
+                    text = decoded;
                 }
             }
         }
-        if lines.length() == 0 {
-            code = number
-        } else if number != code {
-            return SmtpReplyRead.Malformed(reason: "a reply of several lines changes its code")
+
+        if (lines.length() == 0) {
+            code = number;
+        } else if (number != code) {
+            return SmtpReplyRead.Malformed(reason: "a reply of several lines changes its code");
         }
-        lines = append(lines, text)
-        if last {
-            return SmtpReplyRead.Done(reply: SmtpReply(code: code, lines: lines), rest: rest)
+
+        lines = append(lines, text);
+        if (last) {
+            return SmtpReplyRead.Done(reply: SmtpReply(code: code, lines: lines), rest: rest);
         }
-        if lines.length() >= 100 {
-            return SmtpReplyRead.Malformed(reason: "a reply has more than 100 lines")
+
+        if (lines.length() >= 100) {
+            return SmtpReplyRead.Malformed(reason: "a reply has more than 100 lines");
         }
     }
 }
@@ -67,32 +76,37 @@ conversion readSmtpReply(buffer: bytes) -> SmtpReplyRead {
 private {
     // Where the first CRLF starts, or -1.
     lineEnd(data: bytes) -> int {
-        i: int = 0
-        while i + 1 < data.length() {
-            if data.at(i) == 13 and data.at(i + 1) == 10 {
-                return i
+        i: int = 0;
+        while (i + 1 < data.length()) {
+            if (data.at(i) == 13 && data.at(i + 1) == 10) {
+                return i;
             }
-            i = i + 1
+
+            i = i + 1;
         }
-        return -1
+
+        return -1;
     }
 
     // The three digits at the start of a line as a number from 200 to 599,
     // or -1: SMTP has no other codes.
     codeOf(line: bytes) -> int {
-        value: int = 0
-        i: int = 0
-        while i < 3 {
-            b = line.at(i)
-            if b < 48 or b > 57 {
-                return -1
+        value: int = 0;
+        i: int = 0;
+        while (i < 3) {
+            b = line.at(i);
+            if (b < 48 || b > 57) {
+                return -1;
             }
-            value = value * 10 + b - 48
-            i = i + 1
+
+            value = value * 10 + b - 48;
+            i = i + 1;
         }
-        if value < 200 or value > 599 {
-            return -1
+
+        if (value < 200 || value > 599) {
+            return -1;
         }
-        return value
+
+        return value;
     }
 }

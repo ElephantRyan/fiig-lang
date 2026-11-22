@@ -3,8 +3,8 @@ use fiig.sql as db
 // The relay's reply frame, read as the result the driver returns. A frame
 // that isn't that JSON means the two sides disagree about the protocol.
 conversion relayReply(body: bytes) -> Result<db.SqlResult, db.DatabaseError> {
-    decoded: Result<Result<db.SqlResult, db.DatabaseError>, JsonError> = json.decode(body)
-    match decoded {
+    decoded: Result<Result<db.SqlResult, db.DatabaseError>, JsonError> = json.decode(body);
+    return match (decoded) {
         Ok(reply) -> reply
         Err(problem) -> Err(db.DatabaseError.Protocol(reason: "the relay's reply isn't a result"))
     }

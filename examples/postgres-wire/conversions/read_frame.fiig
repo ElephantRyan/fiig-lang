@@ -3,8 +3,12 @@
 // A buffer too short for the length it announces matches nothing, so
 // `None` means "read more"; there is no bounds check to forget.
 conversion readFrame(buffer: bytes) -> Frame | None {
-    match buffer {
-        <<kind: u8, length: i32be, body: bytes(length - 4), rest: bytes>> -> Frame(kind: kind, body: body, rest: rest)
+    return match (buffer) {
+        <<kind: u8, length: i32be, body: bytes(length - 4), rest: bytes>> -> Frame(
+            kind: kind,
+            body: body,
+            rest: rest,
+        )
         _ -> None
     }
 }

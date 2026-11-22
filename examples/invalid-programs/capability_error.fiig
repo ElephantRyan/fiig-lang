@@ -11,43 +11,35 @@ model RefundPolicy {
 
 // P5: two groups whose gateways require each other.
 capability RefundPing {
-    gateway ping(x: int) -> int
-        requires RefundPong
-    {
-        return RefundPong.pong(x)
+    gateway ping(x: int) -> int requires RefundPong {
+        return RefundPong.pong(x);
     }
 }
 
 capability RefundPong {
-    gateway pong(x: int) -> int
-        requires RefundPing
-    {
-        return RefundPing.ping(x)
+    gateway pong(x: int) -> int requires RefundPing {
+        return RefundPing.ping(x);
     }
 }
 
 // N1: a capability is capitalized. N2: its operations are not.
 capability refundDesk {
-    gateway Issue(reference: string) -> Result<None, string>
-        requires Socket
-    {
-        return Ok(None)
+    gateway Issue(reference: string) -> Result<None, string> requires Socket {
+        return Ok(None);
     }
 }
 
 // P3: a rule may select a provider but not invoke one.
 rule refundInRule(Provider: RefundProvider) -> Result<None, string> {
-    return Provider.refund("r-1")
+    return Provider.refund("r-1");
 }
 
 // P7: a gateway uses only the capability it requires.
-gateway refundDirect(x: int) -> int
-    requires Socket
-{
-    return RefundPing.ping(x)
+gateway refundDirect(x: int) -> int requires Socket {
+    return RefundPing.ping(x);
 }
 
 // N3: a binding holding a capability is capitalized.
 activity refundLowercase(provider: RefundProvider) -> Result<None, string> {
-    return provider.refund("r-2")
+    return provider.refund("r-2");
 }

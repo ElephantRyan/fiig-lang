@@ -4,6 +4,6 @@
 // the database's own constraint, reported by insertCustomer (ADR 0087): a
 // SELECT before the INSERT would let two requests with one email both pass.
 activity registerCustomer(input: NewCustomer) -> Result<Customer, CustomerError> {
-    validated = validateNewCustomer(input)?
-    return insertCustomer(validated)
+    validated = validateNewCustomer(input)?;
+    return insertCustomer(validated);
 }

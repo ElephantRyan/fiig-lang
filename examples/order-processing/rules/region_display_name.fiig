@@ -2,7 +2,7 @@
 // 0040) — every Region variant is zero-field, matched bare with no call
 // parens, exactly like constructing one (CheckoutError.OutOfStock).
 rule regionDisplayName(region: Region) -> string {
-    match region {
+    return match (region) {
         Region.US -> "United States"
         Region.EU -> "Europe"
         Region.APAC -> "Asia-Pacific"

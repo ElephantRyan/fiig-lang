@@ -4,8 +4,9 @@ use fiig.http
 // body, and its size, content type, ETag and metadata from the headers. A
 // 404 is NotFound and anything else is its error.
 conversion objectResult(reply: http.Reply) -> Result<S3Object, S3Error> {
-    if reply.status == 200 {
-        return Ok(S3Object(body: reply.body, info: objectInfoOf(reply, reply.body.length())))
+    if (reply.status == 200) {
+        return Ok(S3Object(body: reply.body, info: objectInfoOf(reply, reply.body.length())));
     }
-    return Err(errorOf(reply))
+
+    return Err(errorOf(reply));
 }

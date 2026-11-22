@@ -1,13 +1,11 @@
 // Neither table holds anything a leaked copy could log in with (ADR 0075):
 // an account's key is stored as an Argon2id hash, since a person chose it,
 // and a session as the SHA-256 of its token, since the token is random.
-gateway createAccountsSchema() -> int
-    requires Database
-{
+gateway createAccountsSchema() -> int requires Database {
     Database.execute(
         "CREATE TABLE IF NOT EXISTS accounts (name TEXT PRIMARY KEY, email TEXT NOT NULL, key_hash TEXT NOT NULL)",
-    )
+    );
     return Database.execute(
         "CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, name TEXT NOT NULL REFERENCES accounts (name))",
-    )
+    );
 }

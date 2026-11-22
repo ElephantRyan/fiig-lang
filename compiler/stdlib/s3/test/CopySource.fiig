@@ -1,11 +1,11 @@
 use fiig.http
 
 test theSourceIsTheEncodedPathStylePath {
-    expect copySource("photos", "2026/cat é?.png") is Ok(header)
-    expect header == http.Header(name: "x-amz-copy-source", value: "/photos/2026/cat%20%C3%A9%3F.png")
+    expect copySource("photos", "2026/cat é?.png") is Ok(header);
+    expect header == http.Header(name: "x-amz-copy-source", value: "/photos/2026/cat%20%C3%A9%3F.png");
 }
 
 test aBadSourceIsRefused {
-    expect copySource("photos", "a/../b") is Err(S3Error.InvalidRequest(reason))
-    expect copySource("No_Such", "a") is Err(S3Error.InvalidRequest(reason))
+    expect copySource("photos", "a/../b") is Err(S3Error.InvalidRequest(reason));
+    expect copySource("No_Such", "a") is Err(S3Error.InvalidRequest(reason));
 }

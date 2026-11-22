@@ -11,5 +11,5 @@ use company.time as businessTime
 use standard.time as systemTime
 
 activity computeFollowUpDate(from: systemTime.Instant) -> systemTime.Instant {
-    return businessTime.addBusinessDays(from, 3)
+    return businessTime.addBusinessDays(from, 3);
 }

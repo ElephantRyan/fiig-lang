@@ -2,25 +2,32 @@
 // decoder a request body uses, so a payload that doesn't fit is the same
 // JsonError.Mismatch whichever way the envelope arrived.
 rule readEvent(envelope: Envelope) -> Result<Event, JsonError> {
-    if envelope.eventType == "invoice.paid" {
-        paid: InvoicePaid = json.decode(envelope.data)?
-        return Ok(Event.Paid(invoice: paid))
+    if (envelope.eventType == "invoice.paid") {
+        paid: InvoicePaid = json.decode(envelope.data)?;
+        return Ok(Event.Paid(invoice: paid));
     }
-    if envelope.eventType == "credit.limit_changed" {
-        change: CreditLimitChanged = json.decode(envelope.data)?
-        return Ok(Event.LimitChanged(change: change))
+
+    if (envelope.eventType == "credit.limit_changed") {
+        change: CreditLimitChanged = json.decode(envelope.data)?;
+        return Ok(Event.LimitChanged(change: change));
     }
-    if envelope.eventType == "document.attached" {
-        document: DocumentAttached = json.decode(envelope.data)?
-        return Ok(Event.Attached(document: document))
+
+    if (envelope.eventType == "document.attached") {
+        document: DocumentAttached = json.decode(envelope.data)?;
+        return Ok(Event.Attached(document: document));
     }
-    if envelope.eventType == "customer.subscription.updated" {
-        subscription: SubscriptionUpdated = json.decode(envelope.data)?
+
+    if (envelope.eventType == "customer.subscription.updated") {
+        subscription: SubscriptionUpdated = json.decode(envelope.data)?;
         return Ok(
-            Event.SubscriptionChanged(subscription: subscription, needsAttention: needsAttention(subscription.status)),
-        )
+            Event.SubscriptionChanged(
+                subscription: subscription,
+                needsAttention: needsAttention(subscription.status),
+            ),
+        );
     }
-    return Ok(Event.Ignored(eventType: envelope.eventType))
+
+    return Ok(Event.Ignored(eventType: envelope.eventType));
 }
 
 private {
@@ -28,33 +35,41 @@ private {
     // status this inbox can't name yet is text, and is looked at too: the
     // match has to say what happens to it (ADR 0081 §3).
     needsAttention(status: SubscriptionStatus | string) -> bool {
-        match status {
+        return match (status) {
             SubscriptionStatus.PastDue -> {
-                return true
+                return true;
             }
+
             SubscriptionStatus.Unpaid -> {
-                return true
+                return true;
             }
+
             SubscriptionStatus.IncompleteExpired -> {
-                return true
+                return true;
             }
+
             SubscriptionStatus.Incomplete -> {
-                return false
+                return false;
             }
+
             SubscriptionStatus.Trialing -> {
-                return false
+                return false;
             }
+
             SubscriptionStatus.Active -> {
-                return false
+                return false;
             }
+
             SubscriptionStatus.Canceled -> {
-                return false
+                return false;
             }
+
             SubscriptionStatus.Paused -> {
-                return false
+                return false;
             }
+
             unknown -> {
-                return unknown.length() > 0
+                return unknown.length() > 0;
             }
         }
     }

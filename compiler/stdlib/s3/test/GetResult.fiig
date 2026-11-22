@@ -1,21 +1,21 @@
 use fiig.http
 
 test a200IsTheObject {
-    expect getResult(http.Reply(status: 200, headers: [], body: "hello".utf8())) is Ok(body)
-    expect body == "hello".utf8()
+    expect getResult(http.Reply(status: 200, headers: [], body: "hello".utf8())) is Ok(body);
+    expect body == "hello".utf8();
 }
 
 test binaryBytesComeBackWhole {
-    data: bytes = <<0: u8, 13: u8, 10: u8, 255: u8>>
-    expect getResult(http.Reply(status: 200, headers: [], body: data)) is Ok(body)
-    expect body == data
+    data: bytes = <<0: u8, 13: u8, 10: u8, 255: u8>>;
+    expect getResult(http.Reply(status: 200, headers: [], body: data)) is Ok(body);
+    expect body == data;
 }
 
 test aMissingKeyIsNotFound {
-    expect getResult(http.Reply(status: 404, headers: [], body: "<Error><Code>NoSuchKey</Code></Error>".utf8())) is Err(S3Error.NotFound)
+    expect getResult(http.Reply(status: 404, headers: [], body: "<Error><Code>NoSuchKey</Code></Error>".utf8())) is Err(S3Error.NotFound);
 }
 
 test anotherStatusIsRefusedWithItsCode {
-    expect getResult(http.Reply(status: 403, headers: [], body: "<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>".utf8())) is Err(S3Error.Refused(status, code, message))
-    expect code == "AccessDenied"
+    expect getResult(http.Reply(status: 403, headers: [], body: "<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>".utf8())) is Err(S3Error.Refused(status, code, message));
+    expect code == "AccessDenied";
 }

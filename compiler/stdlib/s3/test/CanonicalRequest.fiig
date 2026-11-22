@@ -1,15 +1,15 @@
 test aGetByVirtualHost {
-    expect canonicalRequest("GET", "/test.txt", "examplebucket.s3.amazonaws.com", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "20130524T000000Z", "") == "GET\n/test.txt\n\nhost:examplebucket.s3.amazonaws.com\nx-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nx-amz-date:20130524T000000Z\n\nhost;x-amz-content-sha256;x-amz-date\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    expect canonicalRequest("GET", "/test.txt", "examplebucket.s3.amazonaws.com", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "20130524T000000Z", "") == "GET\n/test.txt\n\nhost:examplebucket.s3.amazonaws.com\nx-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nx-amz-date:20130524T000000Z\n\nhost;x-amz-content-sha256;x-amz-date\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 }
 
 test aPutWithAnEncodedKey {
-    expect canonicalRequest("PUT", "/test%24file.text", "examplebucket.s3.amazonaws.com", "44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072", "20130524T000000Z", "") == "PUT\n/test%24file.text\n\nhost:examplebucket.s3.amazonaws.com\nx-amz-content-sha256:44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072\nx-amz-date:20130524T000000Z\n\nhost;x-amz-content-sha256;x-amz-date\n44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072"
+    expect canonicalRequest("PUT", "/test%24file.text", "examplebucket.s3.amazonaws.com", "44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072", "20130524T000000Z", "") == "PUT\n/test%24file.text\n\nhost:examplebucket.s3.amazonaws.com\nx-amz-content-sha256:44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072\nx-amz-date:20130524T000000Z\n\nhost;x-amz-content-sha256;x-amz-date\n44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072";
 }
 
 test aSessionTokenIsASignedHeader {
-    expect canonicalRequest("GET", "/abc/dir/b.txt", "s3.eu-west-1.amazonaws.com", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "20231114T221320Z", "TOKEN123") == "GET\n/abc/dir/b.txt\n\nhost:s3.eu-west-1.amazonaws.com\nx-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nx-amz-date:20231114T221320Z\nx-amz-security-token:TOKEN123\n\nhost;x-amz-content-sha256;x-amz-date;x-amz-security-token\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    expect canonicalRequest("GET", "/abc/dir/b.txt", "s3.eu-west-1.amazonaws.com", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "20231114T221320Z", "TOKEN123") == "GET\n/abc/dir/b.txt\n\nhost:s3.eu-west-1.amazonaws.com\nx-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nx-amz-date:20231114T221320Z\nx-amz-security-token:TOKEN123\n\nhost;x-amz-content-sha256;x-amz-date;x-amz-security-token\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 }
 
 test aPortStaysInTheHost {
-    expect canonicalRequest("PUT", "/photos/2026/cat%20%C3%A9.png", "localhost:19000", "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824", "20231114T221320Z", "") == "PUT\n/photos/2026/cat%20%C3%A9.png\n\nhost:localhost:19000\nx-amz-content-sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\nx-amz-date:20231114T221320Z\n\nhost;x-amz-content-sha256;x-amz-date\n2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    expect canonicalRequest("PUT", "/photos/2026/cat%20%C3%A9.png", "localhost:19000", "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824", "20231114T221320Z", "") == "PUT\n/photos/2026/cat%20%C3%A9.png\n\nhost:localhost:19000\nx-amz-content-sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\nx-amz-date:20231114T221320Z\n\nhost;x-amz-content-sha256;x-amz-date\n2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
 }

@@ -1,33 +1,37 @@
 // XPENDING's extended reply: an array of [id, consumer, idle ms, deliveries].
 conversion pendingEntries(reply: RespValue) -> List<PendingEntry> {
-    out: List<PendingEntry> = []
-    match reply {
+    out: List<PendingEntry> = [];
+    match (reply) {
         RespValue.Array(items) -> {
-            for item in items {
-                match item {
+            for (item in items) {
+                match (item) {
                     RespValue.Array(fields) -> {
-                        if fields.length() == 4 {
-                            match textOf(fields.first()) {
+                        if (fields.length() == 4) {
+                            match (textOf(fields.first())) {
                                 None -> None
                                 id -> {
-                                    match fields.last() {
+                                    match (fields.last()) {
                                         RespValue.Integer(count) -> {
                                             out = append(
                                                 out,
                                                 PendingEntry(id: id, deliveries: count),
-                                            )
+                                            );
                                         }
+
                                         _ -> None
                                     }
                                 }
                             }
                         }
                     }
+
                     _ -> None
                 }
             }
         }
+
         _ -> None
     }
-    return out
+
+    return out;
 }

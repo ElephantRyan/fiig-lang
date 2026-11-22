@@ -1,20 +1,23 @@
 // A list of zero-ended strings, ended by an empty one: the SASL
 // mechanisms a server offers.
 conversion cStrings(data: bytes) -> List<string> {
-    out: List<string> = []
-    rest: bytes = data
-    while rest.length() > 0 {
-        end = cStringEnd(rest)
-        if end <= 0 {
-            return out
+    out: List<string> = [];
+    rest: bytes = data;
+    while (rest.length() > 0) {
+        end = cStringEnd(rest);
+        if (end <= 0) {
+            return out;
         }
-        match rest.slice(0, end).utf8() {
+
+        match (rest.slice(0, end).utf8()) {
             None -> None
             text -> {
-                out = append(out, text)
+                out = append(out, text);
             }
         }
-        rest = rest.slice(end + 1, rest.length())
+
+        rest = rest.slice(end + 1, rest.length());
     }
-    return out
+
+    return out;
 }

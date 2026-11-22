@@ -2,7 +2,7 @@
 // send a mail (ADR 0109 §2, ADR 0120 §3a): a connection logged in as one
 // user never sends as another.
 conversion sessionFor(target: SmtpTarget) -> string {
-    match target.user {
+    return match (target.user) {
         None -> "no login"
         name -> "user=${name}"
     }

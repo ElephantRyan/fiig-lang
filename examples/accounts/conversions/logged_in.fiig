@@ -8,5 +8,5 @@ conversion loggedIn(session: Session) -> HttpResponse<Account> {
         body: session.account,
         headers: ["Cache-Control": "no-store"],
         cookies: [Cookie(name: "sid", value: session.token, maxAge: session.maxAge)],
-    )
+    );
 }

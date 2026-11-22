@@ -3,35 +3,46 @@
 // Host, Content-Length, Transfer-Encoding, and Connection; User-Agent is
 // fiig-http/1 unless the request sets its own.
 conversion outgoingRequest(request: Request) -> Result<Outgoing, HttpError> {
-    url = parseUrl(request.url)?
-    head: string = "${methodName(request.method)} ${url.target} HTTP/1.1\r\nHost: ${url.authority}\r\n"
-    named: bool = false
-    for header in headersOf(request) {
-        checkHeader(header)?
-        if header.name.equalsIgnoringCase("User-Agent") {
-            named = true
+    url = parseUrl(request.url)?;
+    head: string = "${methodName(request.method)} ${url.target} HTTP/1.1\r\nHost: ${url.authority}\r\n";
+    named: bool = false;
+    for (header in headersOf(request)) {
+        checkHeader(header)?;
+        if (header.name.equalsIgnoringCase("User-Agent")) {
+            named = true;
         }
-        head = "${head}${header.name}: ${header.value}\r\n"
+
+        head = "${head}${header.name}: ${header.value}\r\n";
     }
-    if not named {
-        head = "${head}User-Agent: fiig-http/1\r\n"
+
+    if (!named) {
+        head = "${head}User-Agent: fiig-http/1\r\n";
     }
-    body = bodyOf(request)
-    if body.length() > 0 or sendsLength(request) {
-        head = "${head}Content-Length: ${body.length()}\r\n"
+
+    body = bodyOf(request);
+    if (body.length() > 0 || sendsLength(request)) {
+        head = "${head}Content-Length: ${body.length()}\r\n";
     }
+
     // No Connection header: HTTP/1.1 keeps the connection open, and send
     // keeps it for the next request when the reply allows (ADR 0109 §6).
-    head = "${head}\r\n"
-    timeout = timeoutOf(request)
-    if timeout <= 0 {
+    head = "${head}\r\n";
+    timeout = timeoutOf(request);
+    if (timeout <= 0) {
         return Err(
             HttpError.InvalidRequest(reason: "timeoutMillis is ${timeout}; it must be more than 0"),
-        )
+        );
     }
+
     return Ok(
-        Outgoing(host: url.host, port: url.port, secure: url.secure, data: <<head: utf8, body: bytes>>, timeoutMillis: timeout),
-    )
+        Outgoing(
+            host: url.host,
+            port: url.port,
+            secure: url.secure,
+            data: <<head: utf8, body: bytes>>,
+            timeoutMillis: timeout,
+        ),
+    );
 }
 
 private {
@@ -46,146 +57,183 @@ private {
     }
 
     parseUrl(url: string) -> Result<Url, HttpError> {
-        if not plainAscii(url.utf8()) {
+        if (!plainAscii(url.utf8())) {
             return Err(
-                HttpError.InvalidRequest(reason: "the URL \"${url}\" has a space, a control character, or a character outside ASCII"),
-            )
+                HttpError.InvalidRequest(
+                    reason: "the URL \"${url}\" has a space, a control character, or a character outside ASCII",
+                ),
+            );
         }
-        lower = url.lowercase()
-        secure: bool = false
-        rest: string = ""
-        if lower.startsWith("https://") {
-            secure = true
-            rest = url.slice(8, url.length())
-        } else if lower.startsWith("http://") {
-            rest = url.slice(7, url.length())
+
+        lower = url.lowercase();
+        secure: bool = false;
+        rest: string = "";
+        if (lower.startsWith("https://")) {
+            secure = true;
+            rest = url.slice(8, url.length());
+        } else if (lower.startsWith("http://")) {
+            rest = url.slice(7, url.length());
         } else {
             return Err(
-                HttpError.InvalidRequest(reason: "the URL \"${url}\" must start with http:// or https://"),
-            )
+                HttpError.InvalidRequest(
+                    reason: "the URL \"${url}\" must start with http:// or https://",
+                ),
+            );
         }
-        end = firstOf(rest, "/?#")
-        authority = rest.slice(0, end)
-        path = rest.slice(end, rest.length())
-        target: string = path.slice(0, firstOf(path, "#"))
-        if not target.startsWith("/") {
-            target = "/${target}"
+
+        end = firstOf(rest, "/?#");
+        authority = rest.slice(0, end);
+        path = rest.slice(end, rest.length());
+        target: string = path.slice(0, firstOf(path, "#"));
+        if (!target.startsWith("/")) {
+            target = "/${target}";
         }
-        if authority.contains("@") {
+
+        if (authority.contains("@")) {
             return Err(
-                HttpError.InvalidRequest(reason: "the URL \"${url}\" has user information; send an Authorization header instead"),
-            )
+                HttpError.InvalidRequest(
+                    reason: "the URL \"${url}\" has user information; send an Authorization header instead",
+                ),
+            );
         }
-        host: string = authority
-        portText: string = ""
-        if authority.startsWith("[") {
-            close = firstOf(authority, "]")
-            if close == authority.length() {
+
+        host: string = authority;
+        portText: string = "";
+        if (authority.startsWith("[")) {
+            close = firstOf(authority, "]");
+            if (close == authority.length()) {
                 return Err(
-                    HttpError.InvalidRequest(reason: "the URL \"${url}\" opens an IPv6 address with [ and never closes it"),
-                )
+                    HttpError.InvalidRequest(
+                        reason: "the URL \"${url}\" opens an IPv6 address with [ and never closes it",
+                    ),
+                );
             }
-            host = authority.slice(1, close)
-            after = authority.slice(close + 1, authority.length())
-            if after != "" and not after.startsWith(":") {
+
+            host = authority.slice(1, close);
+            after = authority.slice(close + 1, authority.length());
+            if (after != "" && !after.startsWith(":")) {
                 return Err(
-                    HttpError.InvalidRequest(reason: "the URL \"${url}\" has \"${after}\" after its IPv6 address"),
-                )
+                    HttpError.InvalidRequest(
+                        reason: "the URL \"${url}\" has \"${after}\" after its IPv6 address",
+                    ),
+                );
             }
-            portText = after.removePrefix(":")
+
+            portText = after.removePrefix(":");
         } else {
-            colon = firstOf(authority, ":")
-            host = authority.slice(0, colon)
-            portText = authority.slice(colon, authority.length()).removePrefix(":")
+            colon = firstOf(authority, ":");
+            host = authority.slice(0, colon);
+            portText = authority.slice(colon, authority.length()).removePrefix(":");
         }
-        if host == "" {
-            return Err(HttpError.InvalidRequest(reason: "the URL \"${url}\" has no host"))
+
+        if (host == "") {
+            return Err(HttpError.InvalidRequest(reason: "the URL \"${url}\" has no host"));
         }
-        port: int = 80
-        if secure {
-            port = 443
+
+        port: int = 80;
+        if (secure) {
+            port = 443;
         }
-        if portText != "" {
-            port = digitsValue(portText)
-            if port < 1 or port > 65535 {
+
+        if (portText != "") {
+            port = digitsValue(portText);
+            if (port < 1 || port > 65535) {
                 return Err(
-                    HttpError.InvalidRequest(reason: "the URL \"${url}\" has port \"${portText}\"; a port is 1 to 65535"),
-                )
+                    HttpError.InvalidRequest(
+                        reason: "the URL \"${url}\" has port \"${portText}\"; a port is 1 to 65535",
+                    ),
+                );
             }
         }
-        return Ok(Url(host: host, port: port, secure: secure, authority: authority, target: target))
+
+        return Ok(
+            Url(host: host, port: port, secure: secure, authority: authority, target: target),
+        );
     }
 
     // Where the first of stops is in text, by byte; text.length() when
     // none is there. Only for ASCII text, where a byte is a grapheme.
     firstOf(text: string, stops: string) -> int {
-        raw = text.utf8()
-        marks = stops.utf8()
-        i: int = 0
-        while i < raw.length() {
-            j: int = 0
-            while j < marks.length() {
-                if raw.at(i) == marks.at(j) {
-                    return i
+        raw = text.utf8();
+        marks = stops.utf8();
+        i: int = 0;
+        while (i < raw.length()) {
+            j: int = 0;
+            while (j < marks.length()) {
+                if (raw.at(i) == marks.at(j)) {
+                    return i;
                 }
-                j = j + 1
+
+                j = j + 1;
             }
-            i = i + 1
+
+            i = i + 1;
         }
-        return raw.length()
+
+        return raw.length();
     }
 
     // Printable ASCII only: no space, no control character, nothing above
     // 126 (fiig doesn't encode international host names yet).
     plainAscii(raw: bytes) -> bool {
-        for b in raw {
-            if b < 33 or b > 126 {
-                return false
+        for (b in raw) {
+            if (b < 33 || b > 126) {
+                return false;
             }
         }
-        return true
+
+        return true;
     }
 
     // ADR 0069 §6's rule on the server, applied to what fiig sends.
     checkHeader(header: Header) -> Result<None, HttpError> {
-        if not isToken(header.name) {
+        if (!isToken(header.name)) {
             return Err(
-                HttpError.InvalidRequest(reason: "the header name \"${header.name}\" isn't an HTTP token"),
-            )
+                HttpError.InvalidRequest(
+                    reason: "the header name \"${header.name}\" isn't an HTTP token",
+                ),
+            );
         }
-        for owned in ["Host", "Content-Length", "Transfer-Encoding", "Connection"] {
-            if header.name.equalsIgnoringCase(owned) {
+
+        for (owned in ["Host", "Content-Length", "Transfer-Encoding", "Connection"]) {
+            if (header.name.equalsIgnoringCase(owned)) {
                 return Err(
-                    HttpError.InvalidRequest(reason: "send writes the ${owned} header itself, so a request may not set it"),
-                )
+                    HttpError.InvalidRequest(
+                        reason: "send writes the ${owned} header itself, so a request may not set it",
+                    ),
+                );
             }
         }
-        for b in header.value.utf8() {
-            if b == 13 or b == 10 or b == 0 {
+
+        for (b in header.value.utf8()) {
+            if (b == 13 || b == 10 || b == 0) {
                 return Err(
-                    HttpError.InvalidRequest(reason: "the value of header ${header.name} has a CR, LF, or NUL, which would end the header early"),
-                )
+                    HttpError.InvalidRequest(
+                        reason: "the value of header ${header.name} has a CR, LF, or NUL, which would end the header early",
+                    ),
+                );
             }
         }
-        return Ok(None)
+
+        return Ok(None);
     }
 
     headersOf(request: Request) -> List<Header> {
-        match request.headers {
+        return match (request.headers) {
             None -> []
             given -> given
         }
     }
 
     bodyOf(request: Request) -> bytes {
-        match request.body {
+        return match (request.body) {
             None -> <<>>
             given -> given
         }
     }
 
     timeoutOf(request: Request) -> int {
-        match request.timeoutMillis {
+        return match (request.timeoutMillis) {
             None -> 30000
             given -> given
         }
@@ -194,7 +242,7 @@ private {
     // A POST, PUT, or PATCH without a body still says Content-Length: 0,
     // which some servers require.
     sendsLength(request: Request) -> bool {
-        match request.method {
+        return match (request.method) {
             Method.Post -> true
             Method.Put -> true
             Method.Patch -> true
@@ -207,7 +255,7 @@ private {
     }
 
     methodName(method: Method) -> string {
-        match method {
+        return match (method) {
             Method.Get -> "GET"
             Method.Head -> "HEAD"
             Method.Post -> "POST"

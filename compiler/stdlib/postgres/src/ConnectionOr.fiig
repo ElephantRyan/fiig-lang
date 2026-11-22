@@ -1,8 +1,10 @@
 use fiig.sql as db
 
 // A socket failure, as the driver reports it: the connection is broken.
-conversion connectionOr(result: Result<Connection, SocketError>) -> Result<Connection, db.DatabaseError> {
-    match result {
+conversion connectionOr(
+    result: Result<Connection, SocketError>,
+) -> Result<Connection, db.DatabaseError> {
+    return match (result) {
         Ok(connection) -> Ok(connection)
         Err(failure) -> Err(db.DatabaseError.Broken(failure: failure))
     }

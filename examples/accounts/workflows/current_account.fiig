@@ -1,3 +1,3 @@
 workflow currentAccount(session: string | None) -> Result<Account, AccountError> {
-    return sessionAccount(session)
+    return sessionAccount(session);
 }

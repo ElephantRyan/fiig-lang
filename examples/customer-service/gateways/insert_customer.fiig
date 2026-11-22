@@ -3,19 +3,19 @@
 // it reaches (ADR 0010), with no second gateway for the draw. ADR 0087: the
 // insert's type opts in to its conflicts, so a taken email is the error the
 // caller expects, not a fault.
-gateway insertCustomer(input: NewCustomer) -> Result<Customer, CustomerError>
-    requires Database
-{
-    id = Random.uuid()
+gateway insertCustomer(input: NewCustomer) -> Result<Customer, CustomerError> requires Database {
+    id = Random.uuid();
     inserted: Result<int, DatabaseConflict> = Database.execute(
         "INSERT INTO customers (id, name, email) VALUES (?, ?, ?)",
         id,
         input.name,
         input.email,
-    )
-    match inserted {
+    );
+    return match (inserted) {
         Ok(_) -> Ok(Customer(id: id, name: input.name, email: input.email))
-        Err(DatabaseConflict.Unique(constraint)) -> Err(CustomerError.EmailAlreadyInUse(input.email))
+        Err(DatabaseConflict.Unique(constraint)) -> Err(
+            CustomerError.EmailAlreadyInUse(input.email),
+        )
         Err(other) -> Err(CustomerError.Invalid("customer", "${other}"))
     }
 }

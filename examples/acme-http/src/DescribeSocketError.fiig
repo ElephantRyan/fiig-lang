@@ -1,6 +1,6 @@
 // A SocketError as a sentence, for callers whose own error type is text.
 conversion describeSocketError(failure: SocketError) -> string {
-    match failure {
+    return match (failure) {
         SocketError.HostNotFound -> "host not found"
         SocketError.Refused -> "connection refused"
         SocketError.Unreachable -> "host unreachable"

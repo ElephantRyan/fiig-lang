@@ -1,6 +1,6 @@
 // An API client's export, authenticated with the deployment's export token
 // as a bearer token rather than a login.
 workflow exportAccounts(authorization: string) -> Result<string, AccountError> {
-    exportAllowed(authorization)?
-    return Ok(accountsCsv(loadAccounts()))
+    exportAllowed(authorization)?;
+    return Ok(accountsCsv(loadAccounts()));
 }

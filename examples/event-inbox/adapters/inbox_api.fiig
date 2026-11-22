@@ -3,19 +3,18 @@
 // fiig serve -env-file .env.example . inboxApi
 adapter http inboxApi {
     POST "/events" -> receiveEvent(envelope: Envelope)
-        consumes "application/json"
-        produces "application/json"
-    {
+            consumes "application/json"
+            produces "application/json" {
         Ok(event) -> 200 event
         Err(error) -> 422 error
     }
+
     POST "/events/signed" -> receiveSignedEvent(
         body: bytes,
         signature: string | None from header "X-Hub-Signature-256",
     )
-        consumes "application/json"
-        produces "application/json"
-    {
+            consumes "application/json"
+            produces "application/json" {
         Ok(event) -> 200 event
         Err(error) -> inboxErrorResponse(error)
     }

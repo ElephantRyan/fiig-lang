@@ -7,67 +7,86 @@ use fiig.http
 // `%` in a key can't change the URL; `/` keeps its place, so keys that look
 // like folders work. `.` and `..` segments are refused, since a server
 // resolves them as "here" and "up one".
-conversion objectTarget(endpoint: S3Endpoint, bucket: string, key: string, pathStyle: bool) -> Result<S3Target, S3Error> {
-    if not validBucket(bucket) {
+conversion objectTarget(
+    endpoint: S3Endpoint,
+    bucket: string,
+    key: string,
+    pathStyle: bool,
+) -> Result<S3Target, S3Error> {
+    if (!validBucket(bucket)) {
         return Err(
-            S3Error.InvalidRequest(reason: "a bucket name is 3 to 63 lowercase letters, digits, hyphens and dots, starting and ending with a letter or digit"),
-        )
+            S3Error.InvalidRequest(
+                reason: "a bucket name is 3 to 63 lowercase letters, digits, hyphens and dots, starting and ending with a letter or digit",
+            ),
+        );
     }
-    if key == "" {
-        return Err(S3Error.InvalidRequest(reason: "a key can't be empty"))
+
+    if (key == "") {
+        return Err(S3Error.InvalidRequest(reason: "a key can't be empty"));
     }
-    if key.utf8().length() > 1024 {
-        return Err(S3Error.InvalidRequest(reason: "a key is at most 1024 bytes"))
+
+    if (key.utf8().length() > 1024) {
+        return Err(S3Error.InvalidRequest(reason: "a key is at most 1024 bytes"));
     }
-    for b in key.utf8() {
-        if b < 32 or b == 127 {
-            return Err(S3Error.InvalidRequest(reason: "a key has a control character"))
+
+    for (b in key.utf8()) {
+        if (b < 32 || b == 127) {
+            return Err(S3Error.InvalidRequest(reason: "a key has a control character"));
         }
     }
-    segments: List<string> = []
-    for segment in key.split("/") {
-        if segment == "" {
-            segments = append(segments, "")
+
+    segments: List<string> = [];
+    for (segment in key.split("/")) {
+        if (segment == "") {
+            segments = append(segments, "");
         } else {
-            match http.pathSegment(segment) {
+            match (http.pathSegment(segment)) {
                 None -> {
-                    return Err(S3Error.InvalidRequest(reason: "a key can't have a . or .. segment"))
+                    return Err(
+                        S3Error.InvalidRequest(reason: "a key can't have a . or .. segment"),
+                    );
                 }
+
                 encoded -> {
-                    segments = append(segments, encoded)
+                    segments = append(segments, encoded);
                 }
             }
         }
     }
-    encodedKey = segments.join("/")
-    host: string = endpoint.authority
-    path: string = "/${bucket}/${encodedKey}"
-    if not pathStyle {
-        host = "${bucket}.${endpoint.authority}"
-        path = "/${encodedKey}"
+
+    encodedKey = segments.join("/");
+    host: string = endpoint.authority;
+    path: string = "/${bucket}/${encodedKey}";
+    if (!pathStyle) {
+        host = "${bucket}.${endpoint.authority}";
+        path = "/${encodedKey}";
     }
-    return Ok(S3Target(url: "${endpoint.scheme}://${host}${path}", host: host, path: path))
+
+    return Ok(S3Target(url: "${endpoint.scheme}://${host}${path}", host: host, path: path));
 }
 
 private {
     // The rules for a bucket that every S3 service takes, without the ones
     // about IP addresses and reserved prefixes, which the server enforces.
     validBucket(name: string) -> bool {
-        raw = name.utf8()
-        if raw.length() < 3 or raw.length() > 63 {
-            return false
+        raw = name.utf8();
+        if (raw.length() < 3 || raw.length() > 63) {
+            return false;
         }
-        i: int = 0
-        while i < raw.length() {
-            b = raw.at(i)
-            edge = i == 0 or i == raw.length() - 1
-            letter = b >= 97 and b <= 122
-            digit = b >= 48 and b <= 57
-            if not (letter or digit) and (edge or (b != 45 and b != 46)) {
-                return false
+
+        i: int = 0;
+        while (i < raw.length()) {
+            b = raw.at(i);
+            edge = i == 0 || i == raw.length() - 1;
+            letter = b >= 97 && b <= 122;
+            digit = b >= 48 && b <= 57;
+            if (!(letter || digit) && (edge || (b != 45 && b != 46))) {
+                return false;
             }
-            i = i + 1
+
+            i = i + 1;
         }
-        return true
+
+        return true;
     }
 }

@@ -1,4 +1,4 @@
 // ADR 0110 §1: one command as Redis reads it, and the one reply it brings.
 conversion commandRequest(words: List<bytes>) -> RedisRequest {
-    return RedisRequest(data: encodeCommand(words), replies: 1)
+    return RedisRequest(data: encodeCommand(words), replies: 1);
 }

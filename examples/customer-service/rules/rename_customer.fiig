@@ -2,5 +2,5 @@
 // modified Customer without reconstructing every field by hand. `id` and
 // `email` are carried over from `customer` untouched; only `name` changes.
 rule renameCustomer(customer: Customer, newName: string) -> Customer {
-    return copy(customer, name: newName)
+    return copy(customer, name: newName);
 }

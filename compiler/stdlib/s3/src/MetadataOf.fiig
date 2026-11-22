@@ -4,12 +4,13 @@ use fiig.http
 // case, keyed in lower case without the prefix. The first header of a name
 // wins.
 conversion metadataOf(headers: List<http.Header>) -> Map<string, string> {
-    metadata: Map<string, string> = [:]
-    for header in headers {
-        name = header.name.lowercase()
-        if name.startsWith("x-amz-meta-") and name != "x-amz-meta-" {
-            metadata = metadata.putIfAbsent(name.removePrefix("x-amz-meta-"), header.value)
+    metadata: Map<string, string> = [:];
+    for (header in headers) {
+        name = header.name.lowercase();
+        if (name.startsWith("x-amz-meta-") && name != "x-amz-meta-") {
+            metadata = metadata.putIfAbsent(name.removePrefix("x-amz-meta-"), header.value);
         }
     }
-    return metadata
+
+    return metadata;
 }

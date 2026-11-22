@@ -1,4 +1,4 @@
 activity createFirstAccount(name: string, email: string, key: string) -> Account {
-    createAccountsSchema()
-    return addAccount(name: name, email: email, key: key)
+    createAccountsSchema();
+    return addAccount(name: name, email: email, key: key);
 }

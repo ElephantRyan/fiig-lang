@@ -7,57 +7,49 @@ use fiig.session
 // 2026-11-21), so the password is never in the settings or the state, and
 // opened draws SCRAM's nonce from Random.
 capability KafkaSession provides session.SessionProtocol {
-    gateway opened(settings: Map<string, string>, now: int) -> session.Step
-        requires Session
-    {
-        password: bytes = <<>>
-        match KafkaServer.saslPassword {
+    gateway opened(settings: Map<string, string>, now: int) -> session.Step requires Session {
+        password: bytes = <<>>;
+        match (KafkaServer.saslPassword) {
             None -> None
             given -> {
-                password = given.reveal().utf8()
+                password = given.reveal().utf8();
             }
         }
+
         login = SaslLogin(
             mechanism: KafkaServer.saslMechanism,
             username: KafkaServer.saslUsername,
             password: password,
-        )
-        return sessionOpened(settings, now, login, Random.bytes(24).toBase64())
+        );
+        return sessionOpened(settings, now, login, Random.bytes(24).toBase64());
     }
 
-    gateway received(state: bytes, data: bytes, now: int) -> session.Step
-        requires Session
-    {
-        password: bytes = <<>>
-        match KafkaServer.saslPassword {
+    gateway received(state: bytes, data: bytes, now: int) -> session.Step requires Session {
+        password: bytes = <<>>;
+        match (KafkaServer.saslPassword) {
             None -> None
             given -> {
-                password = given.reveal().utf8()
+                password = given.reveal().utf8();
             }
         }
+
         login = SaslLogin(
             mechanism: KafkaServer.saslMechanism,
             username: KafkaServer.saslUsername,
             password: password,
-        )
-        return sessionReceived(state, data, now, login)
+        );
+        return sessionReceived(state, data, now, login);
     }
 
-    gateway asked(state: bytes, message: bytes, now: int) -> session.Step
-        requires Session
-    {
-        return sessionAsked(state, message, now)
+    gateway asked(state: bytes, message: bytes, now: int) -> session.Step requires Session {
+        return sessionAsked(state, message, now);
     }
 
-    gateway tick(state: bytes, now: int) -> session.Step
-        requires Session
-    {
-        return sessionTick(state, now)
+    gateway tick(state: bytes, now: int) -> session.Step requires Session {
+        return sessionTick(state, now);
     }
 
-    gateway closing(state: bytes, now: int) -> session.Step
-        requires Session
-    {
-        return sessionClosing(state, now)
+    gateway closing(state: bytes, now: int) -> session.Step requires Session {
+        return sessionClosing(state, now);
     }
 }

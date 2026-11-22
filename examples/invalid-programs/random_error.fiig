@@ -3,13 +3,11 @@
 // as a parameter. Two declarations in one file, so G1 also fires,
 // incidentally but correctly.
 rule rollDie() -> int {
-    return Random.int(min: 1, max: 6)
+    return Random.int(min: 1, max: 6);
 }
 
 // P8: there is nothing to require. An activity or a gateway calls Random
 // directly.
-gateway newApiKey() -> string
-    requires Random
-{
-    return Random.uuid()
+gateway newApiKey() -> string requires Random {
+    return Random.uuid();
 }

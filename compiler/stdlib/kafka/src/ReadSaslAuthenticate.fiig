@@ -2,40 +2,48 @@
 // message, and the mechanism's next message, COMPACT_BYTES. A refusal is
 // its error's name and the broker's message.
 conversion readSaslAuthenticate(frame: bytes) -> Result<bytes, string> {
-    match afterTags(frame, 4) {
+    return match (afterTags(frame, 4)) {
         None -> {
-            return Err(short())
+            return Err(short());
         }
+
         afterHeader -> {
-            match i16At(frame, afterHeader) {
+            return match (i16At(frame, afterHeader)) {
                 None -> {
-                    return Err(short())
+                    return Err(short());
                 }
+
                 code -> {
-                    match compactStringAt(frame, afterHeader + 2) {
+                    return match (compactStringAt(frame, afterHeader + 2)) {
                         None -> {
-                            return Err(short())
+                            return Err(short());
                         }
+
                         message -> {
-                            if code != 0 {
-                                if message.text == "" {
-                                    return Err(errorName(code))
+                            if (code != 0) {
+                                if (message.text == "") {
+                                    return Err(errorName(code));
                                 }
-                                return Err("${errorName(code)}: ${message.text}")
+
+                                return Err("${errorName(code)}: ${message.text}");
                             }
-                            match uvarintAt(frame, message.next) {
+
+                            return match (uvarintAt(frame, message.next)) {
                                 None -> {
-                                    return Err(short())
+                                    return Err(short());
                                 }
+
                                 size -> {
-                                    if size.value == 0 {
-                                        return Ok(<<>>)
+                                    if (size.value == 0) {
+                                        return Ok(<<>>);
                                     }
-                                    end = size.next + size.value - 1
-                                    if end > frame.length() {
-                                        return Err(short())
+
+                                    end = size.next + size.value - 1;
+                                    if (end > frame.length()) {
+                                        return Err(short());
                                     }
-                                    return Ok(frame.slice(size.next, end))
+
+                                    return Ok(frame.slice(size.next, end));
                                 }
                             }
                         }
@@ -48,6 +56,6 @@ conversion readSaslAuthenticate(frame: bytes) -> Result<bytes, string> {
 
 private {
     short() -> string {
-        return "a SaslAuthenticate response ends early"
+        return "a SaslAuthenticate response ends early";
     }
 }

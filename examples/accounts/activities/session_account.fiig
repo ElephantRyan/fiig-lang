@@ -1,12 +1,13 @@
 // The account behind a session token, from a cookie or a bearer header:
 // the workflows know only that it is a string or absent (ADR 0069 §1).
 activity sessionAccount(token: string | None) -> Result<Account, AccountError> {
-    match token {
+    return match (token) {
         None -> {
-            return Err(AccountError.NoSession)
+            return Err(AccountError.NoSession);
         }
+
         found -> {
-            return findSession(found)
+            return findSession(found);
         }
     }
 }

@@ -6,5 +6,5 @@ use standard.time as time
 // for standard.time, distinct from whatever alias a consuming file uses,
 // to exercise resolving this rule's own signature in its own scope.
 rule addBusinessDays(from: time.Instant, days: int) -> time.Instant {
-    return time.Instant(days: from.days + days)
+    return time.Instant(days: from.days + days);
 }

@@ -1,4 +1,4 @@
 // A 401 names the scheme a client should use (RFC 9110 §11.6.1).
 conversion challenge(error: AccountError) -> HttpResponse<None> {
-    return HttpResponse(status: 401, headers: ["WWW-Authenticate": "Basic realm=\"accounts\""])
+    return HttpResponse(status: 401, headers: ["WWW-Authenticate": "Basic realm=\"accounts\""]);
 }

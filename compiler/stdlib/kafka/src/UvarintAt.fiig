@@ -1,20 +1,23 @@
 // The UNSIGNED_VARINT at offset at, or None when the data ends first or it
 // runs past nine bytes, more than any length a response carries.
 conversion uvarintAt(data: bytes, at: int) -> IntAt | None {
-    value: int = 0
-    scale: int = 1
-    i: int = at
-    while i >= 0 and i < data.length() {
-        b = data.at(i)
-        value = value + b % 128 * scale
-        i = i + 1
-        if b < 128 {
-            return IntAt(value: value, next: i)
+    value: int = 0;
+    scale: int = 1;
+    i: int = at;
+    while (i >= 0 && i < data.length()) {
+        b = data.at(i);
+        value = value + b % 128 * scale;
+        i = i + 1;
+        if (b < 128) {
+            return IntAt(value: value, next: i);
         }
-        if i - at >= 9 {
-            return None
+
+        if (i - at >= 9) {
+            return None;
         }
-        scale = scale * 128
+
+        scale = scale * 128;
     }
-    return None
+
+    return None;
 }

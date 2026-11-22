@@ -2,39 +2,48 @@
 // and nothing else. A bucket belongs in each call, not here, and a path
 // would be signed and sent as part of every object's.
 conversion parseS3Endpoint(url: string) -> Result<S3Endpoint, S3Error> {
-    scheme: string = ""
-    rest: string = ""
-    if url.startsWith("https://") {
-        scheme = "https"
-        rest = url.removePrefix("https://")
-    } else if url.startsWith("http://") {
-        scheme = "http"
-        rest = url.removePrefix("http://")
+    scheme: string = "";
+    rest: string = "";
+    if (url.startsWith("https://")) {
+        scheme = "https";
+        rest = url.removePrefix("https://");
+    } else if (url.startsWith("http://")) {
+        scheme = "http";
+        rest = url.removePrefix("http://");
     } else {
-        return Err(invalid("it must start with http:// or https://"))
+        return Err(invalid("it must start with http:// or https://"));
     }
-    authority = rest.removeSuffix("/")
-    if authority == "" {
-        return Err(invalid("it has no host"))
+
+    authority = rest.removeSuffix("/");
+    if (authority == "") {
+        return Err(invalid("it has no host"));
     }
-    if authority.contains("/") or authority.contains("?") or authority.contains("#") {
-        return Err(invalid("it has a path, query, or fragment; give only the service's address"))
+
+    if (authority.contains("/") || authority.contains("?") || authority.contains("#")) {
+        return Err(invalid("it has a path, query, or fragment; give only the service's address"));
     }
-    if authority.contains("@") {
+
+    if (authority.contains("@")) {
         return Err(
-            invalid("it has user information; the keys are S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY"),
-        )
+            invalid(
+                "it has user information; the keys are S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY",
+            ),
+        );
     }
-    for b in authority.utf8() {
-        if b <= 32 or b >= 127 {
-            return Err(invalid("it has a space, a control character, or a character outside ASCII"))
+
+    for (b in authority.utf8()) {
+        if (b <= 32 || b >= 127) {
+            return Err(
+                invalid("it has a space, a control character, or a character outside ASCII"),
+            );
         }
     }
-    return Ok(S3Endpoint(scheme: scheme, authority: authority))
+
+    return Ok(S3Endpoint(scheme: scheme, authority: authority));
 }
 
 private {
     invalid(why: string) -> S3Error {
-        return S3Error.InvalidConfig(reason: "S3_ENDPOINT can't be used: ${why}")
+        return S3Error.InvalidConfig(reason: "S3_ENDPOINT can't be used: ${why}");
     }
 }

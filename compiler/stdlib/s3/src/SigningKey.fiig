@@ -3,9 +3,9 @@
 // secret is a string here because the gateway revealed it to get this far;
 // what leaves is a key valid for one day, region and service.
 conversion signingKey(secret: string, day: string, region: string, service: string) -> bytes {
-    seed: bytes = <<"AWS4": utf8, secret: utf8>>
-    dayKey = crypto.hmacSha256(seed, day.utf8())
-    regionKey = crypto.hmacSha256(dayKey, region.utf8())
-    serviceKey = crypto.hmacSha256(regionKey, service.utf8())
-    return crypto.hmacSha256(serviceKey, "aws4_request".utf8())
+    seed: bytes = <<"AWS4": utf8, secret: utf8>>;
+    dayKey = crypto.hmacSha256(seed, day.utf8());
+    regionKey = crypto.hmacSha256(dayKey, region.utf8());
+    serviceKey = crypto.hmacSha256(regionKey, service.utf8());
+    return crypto.hmacSha256(serviceKey, "aws4_request".utf8());
 }

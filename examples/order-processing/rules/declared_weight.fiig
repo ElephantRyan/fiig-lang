@@ -4,5 +4,5 @@ use order.processing.shipping
 // tenth. The conversion is exact, and the one rounding is the form's, named
 // here rather than happening on the way (ADR 0064 §4).
 rule declaredWeightKg(pounds: decimal) -> decimal {
-    return math.round(shipping.poundsToKilograms(pounds), places: 1, rounding: Rounding.HalfUp)
+    return math.round(shipping.poundsToKilograms(pounds), places: 1, rounding: Rounding.HalfUp);
 }

@@ -1,5 +1,5 @@
 // A username as SCRAM's n= attribute writes it (RFC 5802 §5.1): = as =3D
 // and , as =2C, so neither ends the attribute.
 conversion scramName(username: string) -> string {
-    return username.replaceAll("=", "=3D").replaceAll(",", "=2C")
+    return username.replaceAll("=", "=3D").replaceAll(",", "=2C");
 }

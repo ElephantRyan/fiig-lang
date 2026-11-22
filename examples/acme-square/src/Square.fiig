@@ -7,23 +7,23 @@ use acme.http.Client
 use acme.payments
 
 capability Square provides payments.PaymentProvider {
-    gateway charge(request: payments.ChargeRequest) -> Result<string, string>
-        requires Client
-    {
+    gateway charge(request: payments.ChargeRequest) -> Result<string, string> requires Client {
         outbound = http.WebRequest(
             host: "connect.squareup.com",
             path: "/v2/payments",
             body: "${request.orderId}:${request.amount}",
             authorization: "Bearer ${SquareAccount.accessToken.reveal()}",
-        )
-        reply = Client.send(outbound)
-        match reply {
+        );
+        reply = Client.send(outbound);
+        return match (reply) {
             Ok(sent) -> {
-                if sent.status != 200 {
-                    return Err("HTTP ${sent.status} from connect.squareup.com")
+                if (sent.status != 200) {
+                    return Err("HTTP ${sent.status} from connect.squareup.com");
                 }
-                return Ok("square:${sent.body}")
+
+                return Ok("square:${sent.body}");
             }
+
             Err(failure) -> Err(http.describeSocketError(failure))
         }
     }

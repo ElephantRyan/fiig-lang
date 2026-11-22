@@ -6,27 +6,32 @@ use fiig.http
 // the whole object, so the part is cut from it here, the same bytes a 206
 // would have held.
 conversion rangeResult(reply: http.Reply, first: int, last: int | None) -> Result<bytes, S3Error> {
-    if reply.status == 206 {
-        return Ok(reply.body)
+    if (reply.status == 206) {
+        return Ok(reply.body);
     }
-    if reply.status == 416 {
-        return Err(S3Error.OutOfRange)
+
+    if (reply.status == 416) {
+        return Err(S3Error.OutOfRange);
     }
-    if reply.status != 200 {
-        return Err(errorOf(reply))
+
+    if (reply.status != 200) {
+        return Err(errorOf(reply));
     }
-    size = reply.body.length()
-    if first >= size {
-        return Err(S3Error.OutOfRange)
+
+    size = reply.body.length();
+    if (first >= size) {
+        return Err(S3Error.OutOfRange);
     }
-    end: int = size
-    match last {
+
+    end: int = size;
+    match (last) {
         None -> None
         given -> {
-            if given < size - 1 {
-                end = given + 1
+            if (given < size - 1) {
+                end = given + 1;
             }
         }
     }
-    return Ok(reply.body.slice(first, end))
+
+    return Ok(reply.body.slice(first, end));
 }

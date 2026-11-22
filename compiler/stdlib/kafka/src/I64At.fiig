@@ -1,14 +1,16 @@
 // The INT64 at offset at, or None when the response is too short.
 conversion i64At(data: bytes, at: int) -> int | None {
-    if at < 0 or at + 8 > data.length() {
-        return None
+    if (at < 0 || at + 8 > data.length()) {
+        return None;
     }
-    match data.slice(at, at + 8) {
+
+    return match (data.slice(at, at + 8)) {
         <<value: i64be>> -> {
-            return value
+            return value;
         }
+
         _ -> {
-            return None
+            return None;
         }
     }
 }

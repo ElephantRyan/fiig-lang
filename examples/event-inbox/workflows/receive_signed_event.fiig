@@ -3,14 +3,15 @@
 // body is decoded; then the bytes are decoded by the decoder the JSON
 // route uses.
 workflow receiveSignedEvent(body: bytes, signature: string | None) -> Result<Event, InboxError> {
-    if not signatureMatches(body: body, header: signature) {
-        return Err(InboxError.BadSignature)
+    if (!signatureMatches(body: body, header: signature)) {
+        return Err(InboxError.BadSignature);
     }
-    decoded: Result<Envelope, JsonError> = json.decode(body)
-    match decoded {
+
+    decoded: Result<Envelope, JsonError> = json.decode(body);
+    return match (decoded) {
         Err(failure) -> Err(InboxError.Undecodable(failure: failure))
         Ok(envelope) -> {
-            match readEvent(envelope) {
+            return match (readEvent(envelope)) {
                 Ok(event) -> Ok(event)
                 Err(failure) -> Err(InboxError.Undecodable(failure: failure))
             }

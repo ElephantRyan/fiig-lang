@@ -3,134 +3,160 @@
 // then compact arrays, each struct ending in its tagged fields. A
 // partition's error is the call's, with the broker's message when it
 // gives one.
-conversion readProduceV9(frame: bytes, correlation: int, call: ProduceCall) -> Result<List<SentAt>, KafkaError> {
-    got = intAt(frame, 0)?
-    if got != correlation {
+conversion readProduceV9(
+    frame: bytes,
+    correlation: int,
+    call: ProduceCall,
+) -> Result<List<SentAt>, KafkaError> {
+    got = intAt(frame, 0)?;
+    if (got != correlation) {
         return Err(
-            KafkaError.MalformedReply(reason: "Produce answered correlation ${got}, not ${correlation}"),
-        )
+            KafkaError.MalformedReply(
+                reason: "Produce answered correlation ${got}, not ${correlation}",
+            ),
+        );
     }
-    topics = countAt(frame, tagsAt(frame, 4)?)?
-    pos: int = topics.next
-    sent: List<SentAt> = []
-    t: int = 0
-    while t < topics.value {
-        name = textAt(frame, pos)?
-        partitions = countAt(frame, name.next)?
-        pos = partitions.next
-        p: int = 0
-        while p < partitions.value {
-            index = intAt(frame, pos)?
-            code = shortAt(frame, pos + 4)?
-            baseOffset = longAt(frame, pos + 6)?
+
+    topics = countAt(frame, tagsAt(frame, 4)?)?;
+    pos: int = topics.next;
+    sent: List<SentAt> = [];
+    t: int = 0;
+    while (t < topics.value) {
+        name = textAt(frame, pos)?;
+        partitions = countAt(frame, name.next)?;
+        pos = partitions.next;
+        p: int = 0;
+        while (p < partitions.value) {
+            index = intAt(frame, pos)?;
+            code = shortAt(frame, pos + 4)?;
+            baseOffset = longAt(frame, pos + 6)?;
             // log_append_time_ms and log_start_offset, then the record errors.
-            recordErrors = countAt(frame, pos + 30)?
-            pos = recordErrors.next
-            detail: string = ""
-            e: int = 0
-            while e < recordErrors.value {
-                message = textAt(frame, pos + 4)?
-                if detail == "" {
-                    detail = message.text
+            recordErrors = countAt(frame, pos + 30)?;
+            pos = recordErrors.next;
+            detail: string = "";
+            e: int = 0;
+            while (e < recordErrors.value) {
+                message = textAt(frame, pos + 4)?;
+                if (detail == "") {
+                    detail = message.text;
                 }
-                pos = tagsAt(frame, message.next)?
-                e = e + 1
+
+                pos = tagsAt(frame, message.next)?;
+                e = e + 1;
             }
-            message = textAt(frame, pos)?
-            pos = tagsAt(frame, message.next)?
-            if message.text != "" {
-                detail = message.text
+
+            message = textAt(frame, pos)?;
+            pos = tagsAt(frame, message.next)?;
+            if (message.text != "") {
+                detail = message.text;
             }
-            if code != 0 {
-                failure = brokerError(code, "Produce to ${name.text} partition ${index}")
-                match failure {
+
+            if (code != 0) {
+                failure = brokerError(code, "Produce to ${name.text} partition ${index}");
+                match (failure) {
                     KafkaError.Broker(failed, label, retriable, text) -> {
-                        if detail != "" {
+                        if (detail != "") {
                             return Err(
-                                KafkaError.Broker(code: failed, name: label, retriable: retriable, message: "${text}: ${detail}"),
-                            )
+                                KafkaError.Broker(
+                                    code: failed,
+                                    name: label,
+                                    retriable: retriable,
+                                    message: "${text}: ${detail}",
+                                ),
+                            );
                         }
                     }
+
                     _ -> None
                 }
-                return Err(failure)
+
+                return Err(failure);
             }
-            for batch in call.batches {
-                if batch.partition == index {
-                    n: int = 0
-                    for record in batch.indexes {
+
+            for (batch in call.batches) {
+                if (batch.partition == index) {
+                    n: int = 0;
+                    for (record in batch.indexes) {
                         sent = append(
                             sent,
                             SentAt(index: record, partition: index, offset: baseOffset + n),
-                        )
-                        n = n + 1
+                        );
+                        n = n + 1;
                     }
                 }
             }
-            p = p + 1
+
+            p = p + 1;
         }
-        pos = tagsAt(frame, pos)?
-        t = t + 1
+
+        pos = tagsAt(frame, pos)?;
+        t = t + 1;
     }
-    return Ok(sent)
+
+    return Ok(sent);
 }
 
 private {
     short() -> KafkaError {
-        return KafkaError.MalformedReply(reason: "a Produce response ends early")
+        return KafkaError.MalformedReply(reason: "a Produce response ends early");
     }
 
     intAt(data: bytes, at: int) -> Result<int, KafkaError> {
-        match i32At(data, at) {
+        return match (i32At(data, at)) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             value -> {
-                return Ok(value)
+                return Ok(value);
             }
         }
     }
 
     shortAt(data: bytes, at: int) -> Result<int, KafkaError> {
-        match i16At(data, at) {
+        return match (i16At(data, at)) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             value -> {
-                return Ok(value)
+                return Ok(value);
             }
         }
     }
 
     longAt(data: bytes, at: int) -> Result<int, KafkaError> {
-        match i64At(data, at) {
+        return match (i64At(data, at)) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             value -> {
-                return Ok(value)
+                return Ok(value);
             }
         }
     }
 
     textAt(data: bytes, at: int) -> Result<TextAt, KafkaError> {
-        match compactStringAt(data, at) {
+        return match (compactStringAt(data, at)) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             value -> {
-                return Ok(value)
+                return Ok(value);
             }
         }
     }
 
     tagsAt(data: bytes, at: int) -> Result<int, KafkaError> {
-        match afterTags(data, at) {
+        return match (afterTags(data, at)) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             value -> {
-                return Ok(value)
+                return Ok(value);
             }
         }
     }
@@ -138,15 +164,17 @@ private {
     // A compact array's length, from its length plus one; a null one (0)
     // is empty.
     countAt(data: bytes, at: int) -> Result<IntAt, KafkaError> {
-        match uvarintAt(data, at) {
+        return match (uvarintAt(data, at)) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             found -> {
-                if found.value == 0 {
-                    return Ok(found)
+                if (found.value == 0) {
+                    return Ok(found);
                 }
-                return Ok(IntAt(value: found.value - 1, next: found.next))
+
+                return Ok(IntAt(value: found.value - 1, next: found.next));
             }
         }
     }

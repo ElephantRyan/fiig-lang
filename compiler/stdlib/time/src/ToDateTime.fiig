@@ -4,38 +4,51 @@
 // count is floored by hand. Years 0000 to 9999 are readable, as RFC 3339
 // writes them; outside that is OutOfRange, not a clamp.
 conversion toDateTime(millis: int) -> Result<DateTime, TimeError> {
-    if millis < -62167219200000 or millis > 253402300799999 {
-        return Err(TimeError.OutOfRange(reason: "the moment is outside the years 0000 to 9999"))
+    if (millis < -62167219200000 || millis > 253402300799999) {
+        return Err(TimeError.OutOfRange(reason: "the moment is outside the years 0000 to 9999"));
     }
-    days: int = millis / 86400000
-    msOfDay: int = millis % 86400000
-    if msOfDay < 0 {
-        days = days - 1
-        msOfDay = msOfDay + 86400000
+
+    days: int = millis / 86400000;
+    msOfDay: int = millis % 86400000;
+    if (msOfDay < 0) {
+        days = days - 1;
+        msOfDay = msOfDay + 86400000;
     }
-    shifted = days + 719468
-    era: int = shifted / 146097
-    if shifted < 0 {
-        era = (shifted - 146096) / 146097
+
+    shifted = days + 719468;
+    era: int = shifted / 146097;
+    if (shifted < 0) {
+        era = (shifted - 146096) / 146097;
     }
-    dayOfEra = shifted - era * 146097
-    yearOfEra = (dayOfEra - dayOfEra / 1460 + dayOfEra / 36524 - dayOfEra / 146096) / 365
-    dayOfYear = dayOfEra - (365 * yearOfEra + yearOfEra / 4 - yearOfEra / 100)
-    monthIndex = (5 * dayOfYear + 2) / 153
-    day = dayOfYear - (153 * monthIndex + 2) / 5 + 1
-    month: int = monthIndex + 3
-    if monthIndex >= 10 {
-        month = monthIndex - 9
+
+    dayOfEra = shifted - era * 146097;
+    yearOfEra = (dayOfEra - dayOfEra / 1460 + dayOfEra / 36524 - dayOfEra / 146096) / 365;
+    dayOfYear = dayOfEra - (365 * yearOfEra + yearOfEra / 4 - yearOfEra / 100);
+    monthIndex = (5 * dayOfYear + 2) / 153;
+    day = dayOfYear - (153 * monthIndex + 2) / 5 + 1;
+    month: int = monthIndex + 3;
+    if (monthIndex >= 10) {
+        month = monthIndex - 9;
     }
-    year: int = yearOfEra + era * 400
-    if month <= 2 {
-        year = year + 1
+
+    year: int = yearOfEra + era * 400;
+    if (month <= 2) {
+        year = year + 1;
     }
-    hour = msOfDay / 3600000
-    minute = (msOfDay % 3600000) / 60000
-    second = (msOfDay % 60000) / 1000
-    millisecond = msOfDay % 1000
+
+    hour = msOfDay / 3600000;
+    minute = (msOfDay % 3600000) / 60000;
+    second = (msOfDay % 60000) / 1000;
+    millisecond = msOfDay % 1000;
     return Ok(
-        DateTime(year: year, month: month, day: day, hour: hour, minute: minute, second: second, millisecond: millisecond),
-    )
+        DateTime(
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute,
+            second: second,
+            millisecond: millisecond,
+        ),
+    );
 }

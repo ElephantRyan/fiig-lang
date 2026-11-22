@@ -8,35 +8,41 @@
 // chunk's size that would take it past, this answers TooLarge without
 // waiting for the bytes.
 conversion readReply(buffer: bytes, method: Method, closed: bool, maxBytes: int) -> ReplyRead {
-    if buffer.length() > maxBytes {
-        return ReplyRead.TooLarge
+    if (buffer.length() > maxBytes) {
+        return ReplyRead.TooLarge;
     }
-    rest: bytes = buffer
-    while true {
-        end = headEnd(rest)
-        if end < 0 {
-            if rest.length() > 1048576 {
-                return ReplyRead.Malformed(reason: "the reply's headers are longer than 1 MiB")
+
+    rest: bytes = buffer;
+    while (true) {
+        end = headEnd(rest);
+        if (end < 0) {
+            if (rest.length() > 1048576) {
+                return ReplyRead.Malformed(reason: "the reply's headers are longer than 1 MiB");
             }
-            if closed and rest.length() == 0 {
+
+            if (closed && rest.length() == 0) {
                 return ReplyRead.Malformed(
                     reason: "the server closed the connection without replying",
-                )
+                );
             }
-            return waiting(closed, "inside the reply's headers")
+
+            return waiting(closed, "inside the reply's headers");
         }
-        match parseHead(rest.slice(0, end)) {
+
+        match (parseHead(rest.slice(0, end))) {
             Err(reason) -> {
-                return ReplyRead.Malformed(reason: reason)
+                return ReplyRead.Malformed(reason: reason);
             }
+
             Ok(head) -> {
-                body = rest.slice(end + 4, rest.length())
-                if head.status >= 200 or head.status == 101 {
+                body = rest.slice(end + 4, rest.length());
+                if (head.status >= 200 || head.status == 101) {
                     // The bytes before the body count toward maxBytes too.
-                    room = maxBytes - (buffer.length() - body.length())
-                    return readBody(head, body, method, closed, room)
+                    room = maxBytes - (buffer.length() - body.length());
+                    return readBody(head, body, method, closed, room);
                 }
-                rest = body
+
+                rest = body;
             }
         }
     }
@@ -53,37 +59,42 @@ private {
 
     // Where the blank line ending the headers starts, or -1.
     headEnd(data: bytes) -> int {
-        i: int = 0
-        while i + 3 < data.length() {
-            if data.at(i) == 13 and data.at(i + 1) == 10 and data.at(i + 2) == 13 and data.at(i + 3) == 10 {
-                return i
+        i: int = 0;
+        while (i + 3 < data.length()) {
+            if (data.at(i) == 13 && data.at(i + 1) == 10 && data.at(i + 2) == 13 && data.at(i + 3) == 10) {
+                return i;
             }
-            i = i + 1
+
+            i = i + 1;
         }
-        return -1
+
+        return -1;
     }
 
     // Where the next CRLF at or after from starts, or -1.
     lineEnd(data: bytes, from: int) -> int {
-        i: int = from
-        while i + 1 < data.length() {
-            if data.at(i) == 13 and data.at(i + 1) == 10 {
-                return i
+        i: int = from;
+        while (i + 1 < data.length()) {
+            if (data.at(i) == 13 && data.at(i + 1) == 10) {
+                return i;
             }
-            i = i + 1
+
+            i = i + 1;
         }
-        return -1
+
+        return -1;
     }
 
     waiting(closed: bool, where: string) -> ReplyRead {
-        if closed {
-            return ReplyRead.Malformed(reason: "the server closed the connection ${where}")
+        if (closed) {
+            return ReplyRead.Malformed(reason: "the server closed the connection ${where}");
         }
-        return ReplyRead.NeedMore
+
+        return ReplyRead.NeedMore;
     }
 
     parseHead(head: bytes) -> Result<Head, string> {
-        match head.utf8() {
+        return match (head.utf8()) {
             None -> Err("the reply's headers aren't UTF-8")
             text -> parseHeadText(text)
         }
@@ -93,109 +104,128 @@ private {
     // space or tab continues the one before (obsolete folding, RFC 9112
     // §5.2), joined with a space.
     parseHeadText(text: string) -> Result<Head, string> {
-        lines = text.split("\r\n")
-        status = statusOf(lines.first())
-        if status < 0 {
+        lines = text.split("\r\n");
+        status = statusOf(lines.first());
+        if (status < 0) {
             return Err(
                 "the status line \"${lines.first()}\" isn't HTTP/1.1 and a three-digit status",
-            )
+            );
         }
-        headers: List<Header> = []
-        i: int = 1
-        while i < lines.length() {
-            line = lines.at(i)
-            if line.startsWith(" ") or line.startsWith("\t") {
-                if headers.length() == 0 {
-                    return Err("the first header line starts with a space")
+
+        headers: List<Header> = [];
+        i: int = 1;
+        while (i < lines.length()) {
+            line = lines.at(i);
+            if (line.startsWith(" ") || line.startsWith("\t")) {
+                if (headers.length() == 0) {
+                    return Err("the first header line starts with a space");
                 }
-                last = headers.last()
+
+                last = headers.last();
                 headers = append(
                     headers.slice(0, headers.length() - 1),
                     Header(name: last.name, value: "${last.value} ${line.trim()}"),
-                )
+                );
             } else {
-                parts = line.split(":")
-                if parts.length() < 2 {
-                    return Err("the header line \"${line}\" has no colon")
+                parts = line.split(":");
+                if (parts.length() < 2) {
+                    return Err("the header line \"${line}\" has no colon");
                 }
-                name = parts.first()
-                if not isToken(name) {
-                    return Err("the header name \"${name}\" isn't an HTTP token")
+
+                name = parts.first();
+                if (!isToken(name)) {
+                    return Err("the header name \"${name}\" isn't an HTTP token");
                 }
+
                 headers = append(
                     headers,
                     Header(name: name, value: parts.slice(1, parts.length()).join(":").trim()),
-                )
+                );
             }
-            i = i + 1
+
+            i = i + 1;
         }
+
         return Ok(
             Head(status: status, headers: headers, http11: lines.first().startsWith("HTTP/1.1 ")),
-        )
+        );
     }
 
     // HTTP/1.1 or HTTP/1.0, a space, three digits; the reason phrase is
     // ignored. -1 for anything else.
     statusOf(line: string) -> int {
-        parts = line.split(" ")
-        if parts.length() < 2 {
-            return -1
+        parts = line.split(" ");
+        if (parts.length() < 2) {
+            return -1;
         }
-        if parts.first() != "HTTP/1.1" and parts.first() != "HTTP/1.0" {
-            return -1
+
+        if (parts.first() != "HTTP/1.1" && parts.first() != "HTTP/1.0") {
+            return -1;
         }
-        code = parts.at(1)
-        if code.length() != 3 {
-            return -1
+
+        code = parts.at(1);
+        if (code.length() != 3) {
+            return -1;
         }
-        status = digitsValue(code)
-        if status < 100 {
-            return -1
+
+        status = digitsValue(code);
+        if (status < 100) {
+            return -1;
         }
-        return status
+
+        return status;
     }
 
     // room is how many of maxBytes are left for the body.
     readBody(head: Head, rest: bytes, method: Method, closed: bool, room: int) -> ReplyRead {
-        if method == Method.Head or head.status == 204 or head.status == 304 or head.status == 101 {
-            return done(head, <<>>, rest.length() == 0 and head.status != 101)
+        if (method == Method.Head || head.status == 204 || head.status == 304 || head.status == 101) {
+            return done(head, <<>>, rest.length() == 0 && head.status != 101);
         }
-        coding = lastCoding(head.headers)
-        if coding == "chunked" {
-            return readChunked(head, rest, closed, room)
+
+        coding = lastCoding(head.headers);
+        if (coding == "chunked") {
+            return readChunked(head, rest, closed, room);
         }
-        if coding != "" {
-            return untilClose(head, rest, closed)
+
+        if (coding != "") {
+            return untilClose(head, rest, closed);
         }
-        length = contentLength(head.headers)
-        if length == -2 {
+
+        length = contentLength(head.headers);
+        if (length == -2) {
             return ReplyRead.Malformed(
                 reason: "the reply's Content-Length headers disagree, or one isn't a number",
-            )
+            );
         }
-        if length < 0 {
-            return untilClose(head, rest, closed)
+
+        if (length < 0) {
+            return untilClose(head, rest, closed);
         }
+
         // Refused on its word, before the body is read (§7a).
-        if length > room {
-            return ReplyRead.TooLarge
+        if (length > room) {
+            return ReplyRead.TooLarge;
         }
-        if rest.length() >= length {
-            return done(head, rest.slice(0, length), rest.length() == length)
+
+        if (rest.length() >= length) {
+            return done(head, rest.slice(0, length), rest.length() == length);
         }
-        if closed {
+
+        if (closed) {
             return ReplyRead.Malformed(
                 reason: "the server closed the connection after ${rest.length()} of the ${length} bytes its Content-Length promised",
-            )
+            );
         }
-        return ReplyRead.NeedMore
+
+        return ReplyRead.NeedMore;
     }
 
     untilClose(head: Head, rest: bytes, closed: bool) -> ReplyRead {
-        if closed {
-            return done(head, rest, false)
+        if (closed) {
+            return done(head, rest, false);
         }
-        return ReplyRead.NeedMore
+
+        return ReplyRead.NeedMore;
     }
 
     // framed says the reply ended where its own length said, with nothing
@@ -203,56 +233,60 @@ private {
     done(head: Head, body: bytes, framed: bool) -> ReplyRead {
         return ReplyRead.Done(
             reply: Reply(status: head.status, headers: head.headers, body: body),
-            keep: framed and head.http11 and not asksToClose(head.headers),
-        )
+            keep: framed && head.http11 && !asksToClose(head.headers),
+        );
     }
 
     // A Connection header naming close (RFC 9112 §9.6).
     asksToClose(headers: List<Header>) -> bool {
-        for header in headers {
-            if header.name.equalsIgnoringCase("Connection") {
-                for option in header.value.split(",") {
-                    if option.trim().equalsIgnoringCase("close") {
-                        return true
+        for (header in headers) {
+            if (header.name.equalsIgnoringCase("Connection")) {
+                for (option in header.value.split(",")) {
+                    if (option.trim().equalsIgnoringCase("close")) {
+                        return true;
                     }
                 }
             }
         }
-        return false
+
+        return false;
     }
 
     // The last transfer coding named across every Transfer-Encoding
     // header, lowercased; "" when there is none.
     lastCoding(headers: List<Header>) -> string {
-        coding: string = ""
-        for header in headers {
-            if header.name.equalsIgnoringCase("Transfer-Encoding") {
-                for part in header.value.split(",") {
-                    if not part.isBlank() {
-                        coding = part.trim().lowercase()
+        coding: string = "";
+        for (header in headers) {
+            if (header.name.equalsIgnoringCase("Transfer-Encoding")) {
+                for (part in header.value.split(",")) {
+                    if (!part.isBlank()) {
+                        coding = part.trim().lowercase();
                     }
                 }
             }
         }
-        return coding
+
+        return coding;
     }
 
     // The Content-Length every such header agrees on; -1 when there is
     // none, -2 when they disagree or one isn't a number (RFC 9112 §6.3).
     contentLength(headers: List<Header>) -> int {
-        length: int = -1
-        for header in headers {
-            if header.name.equalsIgnoringCase("Content-Length") {
-                for part in header.value.split(",") {
-                    value = digitsValue(part.trim())
-                    if value < 0 or (length >= 0 and value != length) {
-                        return -2
+        length: int = -1;
+        for (header in headers) {
+            if (header.name.equalsIgnoringCase("Content-Length")) {
+                for (part in header.value.split(",")) {
+                    value = digitsValue(part.trim());
+                    if (value < 0 || (length >= 0 && value != length)) {
+                        return -2;
                     }
-                    length = value
+
+                    length = value;
                 }
             }
         }
-        return length
+
+        return length;
     }
 
     // RFC 9112 §7.1: size in hex, optional extensions after ;, CRLF, the
@@ -260,79 +294,95 @@ private {
     // blank line. A chunk whose size would end it past room is TooLarge
     // before its data is read (§7a).
     readChunked(head: Head, rest: bytes, closed: bool, room: int) -> ReplyRead {
-        body: bytes = <<>>
-        pos: int = 0
-        while true {
-            end = lineEnd(rest, pos)
-            if end < 0 {
-                return waiting(closed, "inside a chunk's size line")
+        body: bytes = <<>>;
+        pos: int = 0;
+        while (true) {
+            end = lineEnd(rest, pos);
+            if (end < 0) {
+                return waiting(closed, "inside a chunk's size line");
             }
-            size = chunkSize(rest.slice(pos, end))
-            if size < 0 {
-                return ReplyRead.Malformed(reason: "a chunk's size isn't hexadecimal")
+
+            size = chunkSize(rest.slice(pos, end));
+            if (size < 0) {
+                return ReplyRead.Malformed(reason: "a chunk's size isn't hexadecimal");
             }
-            pos = end + 2
-            if pos + size > room {
-                return ReplyRead.TooLarge
+
+            pos = end + 2;
+            if (pos + size > room) {
+                return ReplyRead.TooLarge;
             }
-            if size == 0 {
-                while true {
-                    trailer = lineEnd(rest, pos)
-                    if trailer < 0 {
-                        return waiting(closed, "inside the chunked body's trailers")
+
+            if (size == 0) {
+                while (true) {
+                    trailer = lineEnd(rest, pos);
+                    if (trailer < 0) {
+                        return waiting(closed, "inside the chunked body's trailers");
                     }
-                    if trailer == pos {
-                        return done(head, body, trailer + 2 == rest.length())
+
+                    if (trailer == pos) {
+                        return done(head, body, trailer + 2 == rest.length());
                     }
-                    pos = trailer + 2
+
+                    pos = trailer + 2;
                 }
             }
-            if rest.length() < pos + size + 2 {
-                return waiting(closed, "inside a chunk")
+
+            if (rest.length() < pos + size + 2) {
+                return waiting(closed, "inside a chunk");
             }
-            if rest.at(pos + size) != 13 or rest.at(pos + size + 1) != 10 {
-                return ReplyRead.Malformed(reason: "a chunk doesn't end with CRLF")
+
+            if (rest.at(pos + size) != 13 || rest.at(pos + size + 1) != 10) {
+                return ReplyRead.Malformed(reason: "a chunk doesn't end with CRLF");
             }
-            body = <<body: bytes, rest.slice(pos, pos + size): bytes>>
-            pos = pos + size + 2
+
+            body = <<body: bytes, rest.slice(pos, pos + size): bytes>>;
+            pos = pos + size + 2;
         }
     }
 
     // A chunk-size line's hex number, up to any ; and trailing spaces or
     // tabs; -1 when it isn't one, or has more than 15 digits.
     chunkSize(line: bytes) -> int {
-        size: int = 0
-        count: int = 0
-        for b in line {
-            if b == 59 {
-                break
+        size: int = 0;
+        count: int = 0;
+        for (b in line) {
+            if (b == 59) {
+                break;
             }
-            digit = hexValue(b)
-            if digit < 0 {
-                if b == 32 or b == 9 {
-                    break
+
+            digit = hexValue(b);
+            if (digit < 0) {
+                if (b == 32 || b == 9) {
+                    break;
                 }
-                return -1
+
+                return -1;
             }
-            size = size * 16 + digit
-            count = count + 1
+
+            size = size * 16 + digit;
+            count = count + 1;
         }
-        if count == 0 or count > 15 {
-            return -1
+
+        if (count == 0 || count > 15) {
+            return -1;
         }
-        return size
+
+        return size;
     }
 
     hexValue(b: int) -> int {
-        if b >= 48 and b <= 57 {
-            return b - 48
+        if (b >= 48 && b <= 57) {
+            return b - 48;
         }
-        if b >= 65 and b <= 70 {
-            return b - 55
+
+        if (b >= 65 && b <= 70) {
+            return b - 55;
         }
-        if b >= 97 and b <= 102 {
-            return b - 87
+
+        if (b >= 97 && b <= 102) {
+            return b - 87;
         }
-        return -1
+
+        return -1;
     }
 }

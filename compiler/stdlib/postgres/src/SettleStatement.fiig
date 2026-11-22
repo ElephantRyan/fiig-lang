@@ -6,22 +6,24 @@ use fiig.sql as db
 // cache; one the server no longer knows as cached (staleStatement) is
 // marked to be parsed again.
 conversion settleStatement(plan: StatementPlan, reply: Reply) -> db.SqlConnection {
-    if plan.name == "" {
-        return plan.connection
+    if (plan.name == "") {
+        return plan.connection;
     }
-    kept: List<db.SqlStatement> = []
-    for statement in plan.connection.statements {
-        if statement.name != plan.name {
-            kept = append(kept, statement)
-        } else if plan.parsing {
-            if reply.parsed {
-                kept = append(kept, copy(statement, prepared: true))
+
+    kept: List<db.SqlStatement> = [];
+    for (statement in plan.connection.statements) {
+        if (statement.name != plan.name) {
+            kept = append(kept, statement);
+        } else if (plan.parsing) {
+            if (reply.parsed) {
+                kept = append(kept, copy(statement, prepared: true));
             }
-        } else if staleStatement(reply.failed) {
-            kept = append(kept, copy(statement, prepared: false))
+        } else if (staleStatement(reply.failed)) {
+            kept = append(kept, copy(statement, prepared: false));
         } else {
-            kept = append(kept, statement)
+            kept = append(kept, statement);
         }
     }
-    return copy(plan.connection, statements: kept)
+
+    return copy(plan.connection, statements: kept);
 }

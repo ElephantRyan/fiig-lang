@@ -2,7 +2,7 @@
 // 0071 §2), and checks a delivery's signature with it. A delivery with
 // no signature doesn't match.
 activity signatureMatches(body: bytes, header: string | None) -> bool {
-    match header {
+    return match (header) {
         None -> false
         sent -> signatureValid(secret: Inbox.webhookSecret, body: body, header: sent)
     }

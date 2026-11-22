@@ -10,12 +10,13 @@ use fiig.sql as db
 // itself (§3, §5); the program only calls Database.
 capability SqlRelay provides db.SqlDriver {
     gateway connect(settings: Map<string, string>) -> Result<Connection, db.DatabaseError>
-        requires Socket
-    {
-        match readRelayAddress(settings) {
-            None -> Err(db.DatabaseError.Protocol(reason: "the relay's settings need host and port"))
+            requires Socket {
+        return match (readRelayAddress(settings)) {
+            None -> Err(
+                db.DatabaseError.Protocol(reason: "the relay's settings need host and port"),
+            )
             address -> {
-                match Socket.connect(address.host, address.port) {
+                return match (Socket.connect(address.host, address.port)) {
                     Ok(connection) -> Ok(connection)
                     Err(failure) -> Err(db.DatabaseError.Broken(failure: failure))
                 }
@@ -23,41 +24,45 @@ capability SqlRelay provides db.SqlDriver {
         }
     }
 
-    gateway run(connection: Connection, sql: string, values: List<db.SqlValue>) -> Result<db.SqlResult, db.DatabaseError>
-        requires Socket
-    {
-        request = json.encode(RelayRequest(sql: sql, values: values))
-        size = request.length()
-        match Socket.write(connection, <<size: i32be, request: bytes>>) {
+    gateway run(
+        connection: Connection,
+        sql: string,
+        values: List<db.SqlValue>,
+    ) -> Result<db.SqlResult, db.DatabaseError> requires Socket {
+        request = json.encode(RelayRequest(sql: sql, values: values));
+        size = request.length();
+        match (Socket.write(connection, <<size: i32be, request: bytes>>)) {
             Err(failure) -> {
-                return Err(db.DatabaseError.Broken(failure: failure))
+                return Err(db.DatabaseError.Broken(failure: failure));
             }
+
             Ok(_) -> None
         }
-        buffer: bytes = <<>>
-        while true {
-            match readRelayFrame(buffer) {
+
+        buffer: bytes = <<>>;
+        while (true) {
+            match (readRelayFrame(buffer)) {
                 None -> {
-                    match Socket.read(connection) {
+                    match (Socket.read(connection)) {
                         Ok(chunk) -> {
-                            buffer = <<buffer: bytes, chunk: bytes>>
+                            buffer = <<buffer: bytes, chunk: bytes>>;
                         }
+
                         Err(failure) -> {
-                            return Err(db.DatabaseError.Broken(failure: failure))
+                            return Err(db.DatabaseError.Broken(failure: failure));
                         }
                     }
                 }
+
                 body -> {
-                    return relayReply(body)
+                    return relayReply(body);
                 }
             }
         }
     }
 
-    gateway close(connection: Connection) -> None
-        requires Socket
-    {
-        Socket.close(connection)
-        return None
+    gateway close(connection: Connection) -> None requires Socket {
+        Socket.close(connection);
+        return None;
     }
 }

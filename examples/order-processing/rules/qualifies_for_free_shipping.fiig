@@ -3,9 +3,10 @@
 // rather than repeating `total >= 10000` in each branch, and the
 // final `true` is the first attested boolean literal in the corpus.
 rule qualifiesForFreeShipping(total: int, region: Region) -> bool {
-    isLargeOrder = total >= 10000
-    if isLargeOrder and region == Region.US {
-        return true
+    isLargeOrder = total >= 10000;
+    if (isLargeOrder && region == Region.US) {
+        return true;
     }
-    return isLargeOrder and region == Region.EU
+
+    return isLargeOrder && region == Region.EU;
 }

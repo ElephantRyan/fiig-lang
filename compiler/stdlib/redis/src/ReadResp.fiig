@@ -4,171 +4,210 @@
 // Slicing makes a view, not a copy, so handing the rest of the bytes on to
 // the next element costs nothing.
 conversion readResp(buffer: bytes) -> RespRead {
-    return replyAt(buffer, 0)
+    return replyAt(buffer, 0);
 }
 
 private {
     // A server that nests arrays without end shouldn't exhaust the stack.
     // Real replies go three deep (EXEC around SCAN around a pair).
     maxDepth() -> int {
-        return 32
+        return 32;
     }
 
     // The longest line a reply may start with. A bulk string's body can be
     // longer, but its length line isn't.
     maxLine() -> int {
-        return 65536
+        return 65536;
     }
 
     // Where the first CRLF starts, or -1.
     lineEnd(data: bytes) -> int {
-        i: int = 1
-        while i + 1 < data.length() {
-            if data.at(i) == 13 and data.at(i + 1) == 10 {
-                return i
+        i: int = 1;
+        while (i + 1 < data.length()) {
+            if (data.at(i) == 13 && data.at(i + 1) == 10) {
+                return i;
             }
-            i = i + 1
+
+            i = i + 1;
         }
-        return -1
+
+        return -1;
     }
 
     // An integer written as an optional minus and 1 to 18 digits, or None.
     // Redis's own integers are 64 bits, so a 19-digit one is read as
     // malformed, not as a fault in the program (ADR 0063).
     numberOf(line: bytes) -> int | None {
-        negative: bool = false
-        start: int = 0
-        if line.length() > 0 and line.at(0) == 45 {
-            negative = true
-            start = 1
+        negative: bool = false;
+        start: int = 0;
+        if (line.length() > 0 && line.at(0) == 45) {
+            negative = true;
+            start = 1;
         }
-        digits = line.length() - start
-        if digits < 1 or digits > 18 {
-            return None
+
+        digits = line.length() - start;
+        if (digits < 1 || digits > 18) {
+            return None;
         }
-        value: int = 0
-        i: int = start
-        while i < line.length() {
-            b = line.at(i)
-            if b < 48 or b > 57 {
-                return None
+
+        value: int = 0;
+        i: int = start;
+        while (i < line.length()) {
+            b = line.at(i);
+            if (b < 48 || b > 57) {
+                return None;
             }
-            value = value * 10 + b - 48
-            i = i + 1
+
+            value = value * 10 + b - 48;
+            i = i + 1;
         }
-        if negative {
-            return 0 - value
+
+        if (negative) {
+            return 0 - value;
         }
-        return value
+
+        return value;
     }
 
     // The reply that data starts with, and the bytes after it.
     replyAt(data: bytes, depth: int) -> RespRead {
-        if data.length() == 0 {
-            return RespRead.NeedMore
+        if (data.length() == 0) {
+            return RespRead.NeedMore;
         }
-        end = lineEnd(data)
-        if end < 0 {
-            if data.length() > maxLine() {
-                return RespRead.Malformed(reason: "a reply's first line is longer than 64 KiB")
+
+        end = lineEnd(data);
+        if (end < 0) {
+            if (data.length() > maxLine()) {
+                return RespRead.Malformed(reason: "a reply's first line is longer than 64 KiB");
             }
-            return RespRead.NeedMore
+
+            return RespRead.NeedMore;
         }
-        kind = data.at(0)
-        line = data.slice(1, end)
-        after = data.slice(end + 2, data.length())
-        if kind == 43 or kind == 45 {
-            match line.utf8() {
+
+        kind = data.at(0);
+        line = data.slice(1, end);
+        after = data.slice(end + 2, data.length());
+        if (kind == 43 || kind == 45) {
+            match (line.utf8()) {
                 None -> {
-                    return RespRead.Malformed(reason: "a status or error line isn't UTF-8")
+                    return RespRead.Malformed(reason: "a status or error line isn't UTF-8");
                 }
+
                 text -> {
-                    if kind == 43 {
-                        return RespRead.Done(value: RespValue.Simple(text: text), rest: after)
+                    if (kind == 43) {
+                        return RespRead.Done(value: RespValue.Simple(text: text), rest: after);
                     }
-                    return RespRead.Done(value: RespValue.Error(text: text), rest: after)
+
+                    return RespRead.Done(value: RespValue.Error(text: text), rest: after);
                 }
             }
         }
-        if kind == 58 {
-            match numberOf(line) {
+
+        if (kind == 58) {
+            match (numberOf(line)) {
                 None -> {
-                    return RespRead.Malformed(reason: "an integer reply isn't a number of up to 18 digits")
+                    return RespRead.Malformed(
+                        reason: "an integer reply isn't a number of up to 18 digits",
+                    );
                 }
+
                 number -> {
-                    return RespRead.Done(value: RespValue.Integer(value: number), rest: after)
+                    return RespRead.Done(value: RespValue.Integer(value: number), rest: after);
                 }
             }
         }
-        if kind == 36 {
-            return bulkAt(line, after)
+
+        if (kind == 36) {
+            return bulkAt(line, after);
         }
-        if kind == 42 {
-            return arrayAt(line, after, depth)
+
+        if (kind == 42) {
+            return arrayAt(line, after, depth);
         }
-        return RespRead.Malformed(reason: "a reply starts with byte ${kind}, which RESP2 doesn't use")
+
+        return RespRead.Malformed(
+            reason: "a reply starts with byte ${kind}, which RESP2 doesn't use",
+        );
     }
 
     // A bulk string: its length on the first line, then that many bytes and CRLF.
     bulkAt(line: bytes, after: bytes) -> RespRead {
-        match numberOf(line) {
+        return match (numberOf(line)) {
             None -> {
-                return RespRead.Malformed(reason: "a bulk string's length isn't a number")
+                return RespRead.Malformed(reason: "a bulk string's length isn't a number");
             }
+
             size -> {
-                if size == -1 {
-                    return RespRead.Done(value: RespValue.Null, rest: after)
+                if (size == -1) {
+                    return RespRead.Done(value: RespValue.Null, rest: after);
                 }
-                if size < 0 or size > 536870912 {
-                    return RespRead.Malformed(reason: "a bulk string's length is ${size}, outside 0 to 512 MiB")
+
+                if (size < 0 || size > 536870912) {
+                    return RespRead.Malformed(
+                        reason: "a bulk string's length is ${size}, outside 0 to 512 MiB",
+                    );
                 }
-                if after.length() < size + 2 {
-                    return RespRead.NeedMore
+
+                if (after.length() < size + 2) {
+                    return RespRead.NeedMore;
                 }
-                if after.at(size) != 13 or after.at(size + 1) != 10 {
-                    return RespRead.Malformed(reason: "a bulk string isn't followed by CRLF")
+
+                if (after.at(size) != 13 || after.at(size + 1) != 10) {
+                    return RespRead.Malformed(reason: "a bulk string isn't followed by CRLF");
                 }
+
                 return RespRead.Done(
                     value: RespValue.Bulk(data: after.slice(0, size)),
                     rest: after.slice(size + 2, after.length()),
-                )
+                );
             }
         }
     }
 
     // An array: its count on the first line, then that many replies.
     arrayAt(line: bytes, after: bytes, depth: int) -> RespRead {
-        match numberOf(line) {
+        return match (numberOf(line)) {
             None -> {
-                return RespRead.Malformed(reason: "an array's count isn't a number")
+                return RespRead.Malformed(reason: "an array's count isn't a number");
             }
+
             count -> {
-                if count == -1 {
-                    return RespRead.Done(value: RespValue.Null, rest: after)
+                if (count == -1) {
+                    return RespRead.Done(value: RespValue.Null, rest: after);
                 }
-                if count < 0 or count > 4194304 {
-                    return RespRead.Malformed(reason: "an array's count is ${count}, outside 0 to 4194304")
+
+                if (count < 0 || count > 4194304) {
+                    return RespRead.Malformed(
+                        reason: "an array's count is ${count}, outside 0 to 4194304",
+                    );
                 }
-                if depth >= maxDepth() {
-                    return RespRead.Malformed(reason: "arrays are nested more than ${maxDepth()} deep")
+
+                if (depth >= maxDepth()) {
+                    return RespRead.Malformed(
+                        reason: "arrays are nested more than ${maxDepth()} deep",
+                    );
                 }
-                items: List<RespValue> = []
-                rest: bytes = after
-                while items.length() < count {
-                    match replyAt(rest, depth + 1) {
+
+                items: List<RespValue> = [];
+                rest: bytes = after;
+                while (items.length() < count) {
+                    match (replyAt(rest, depth + 1)) {
                         RespRead.NeedMore -> {
-                            return RespRead.NeedMore
+                            return RespRead.NeedMore;
                         }
+
                         RespRead.Malformed(reason) -> {
-                            return RespRead.Malformed(reason: reason)
+                            return RespRead.Malformed(reason: reason);
                         }
+
                         RespRead.Done(value, remaining) -> {
-                            items = append(items, value)
-                            rest = remaining
+                            items = append(items, value);
+                            rest = remaining;
                         }
                     }
                 }
-                return RespRead.Done(value: RespValue.Array(items: items), rest: rest)
+
+                return RespRead.Done(value: RespValue.Array(items: items), rest: rest);
             }
         }
     }

@@ -2,7 +2,7 @@
 // as safe: RFC 9112 §9.3.1 lets a client send these again on a new
 // connection when a kept one fails (ADR 0109 §6).
 conversion safeToResend(method: Method) -> bool {
-    match method {
+    return match (method) {
         Method.Post -> false
         Method.Patch -> false
         _ -> true

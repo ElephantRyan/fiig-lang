@@ -2,16 +2,27 @@
 // member's own id and its epoch, the one topic it subscribes to, and the
 // partitions of it the member owns now. Epoch 0 joins the group, and -1
 // leaves it. No instance id, rack, regex, or server assignor.
-conversion heartbeatRequest(clientId: string, correlation: int, group: string, memberId: string, epoch: int, topic: string, topicId: bytes, owned: List<int>) -> bytes {
+conversion heartbeatRequest(
+    clientId: string,
+    correlation: int,
+    group: string,
+    memberId: string,
+    epoch: int,
+    topic: string,
+    topicId: bytes,
+    owned: List<int>,
+) -> bytes {
     // TopicPartitions: none yet, or the topic's owned partitions.
-    partitions: bytes = uvarint(1)
-    if topicId.length() == 16 and owned.length() > 0 {
-        ids: bytes = uvarint(owned.length() + 1)
-        for p in owned {
-            ids = <<ids: bytes, p: i32be>>
+    partitions: bytes = uvarint(1);
+    if (topicId.length() == 16 && owned.length() > 0) {
+        ids: bytes = uvarint(owned.length() + 1);
+        for (p in owned) {
+            ids = <<ids: bytes, p: i32be>>;
         }
-        partitions = <<uvarint(2): bytes, topicId: bytes, ids: bytes, 0: u8>>
+
+        partitions = <<uvarint(2): bytes, topicId: bytes, ids: bytes, 0: u8>>;
     }
+
     body = <<
         compactString(group): bytes,
         compactString(memberId): bytes,
@@ -25,6 +36,6 @@ conversion heartbeatRequest(clientId: string, correlation: int, group: string, m
         0: u8,
         partitions: bytes,
         0: u8,
-    >>
-    return kafkaFlexRequest(68, 1, correlation, clientId, body)
+    >>;
+    return kafkaFlexRequest(68, 1, correlation, clientId, body);
 }

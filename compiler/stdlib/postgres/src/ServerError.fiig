@@ -4,47 +4,51 @@ use fiig.sql as db
 // t, and c the constraint, table, and column a conflict is in, when the
 // server names them (ADR 0087 §4).
 conversion serverError(body: bytes) -> db.DatabaseError {
-    code: string = "XX000"
-    message: string = "the server reported an error"
-    constraint: string | None = None
-    table: string | None = None
-    column: string | None = None
-    rest: bytes = body
-    while rest.length() > 0 {
-        match rest {
+    code: string = "XX000";
+    message: string = "the server reported an error";
+    constraint: string | None = None;
+    table: string | None = None;
+    column: string | None = None;
+    rest: bytes = body;
+    while (rest.length() > 0) {
+        match (rest) {
             <<field: u8, after: bytes>> -> {
-                end = cStringEnd(after)
-                if field == 0 or end < 0 {
-                    break
+                end = cStringEnd(after);
+                if (field == 0 || end < 0) {
+                    break;
                 }
-                match after.slice(0, end).utf8() {
+
+                match (after.slice(0, end).utf8()) {
                     None -> None
                     value -> {
-                        if field == 67 {
-                            code = value
-                        } else if field == 77 {
-                            message = value
-                        } else if field == 110 {
-                            constraint = value
-                        } else if field == 116 {
-                            table = value
-                        } else if field == 99 {
-                            column = value
+                        if (field == 67) {
+                            code = value;
+                        } else if (field == 77) {
+                            message = value;
+                        } else if (field == 110) {
+                            constraint = value;
+                        } else if (field == 116) {
+                            table = value;
+                        } else if (field == 99) {
+                            column = value;
                         }
                     }
                 }
-                rest = after.slice(end + 1, after.length())
+
+                rest = after.slice(end + 1, after.length());
             }
+
             _ -> {
-                break
+                break;
             }
         }
     }
+
     return db.DatabaseError.Server(
         code: code,
         message: message,
         constraint: constraint,
         table: table,
         column: column,
-    )
+    );
 }

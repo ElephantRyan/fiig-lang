@@ -3,5 +3,5 @@ use fiig.stream
 // A session that broke or didn't answer in time: the stream adapter waits
 // and receives again (ADR 0111 §1).
 conversion unavailable(failure: SessionError) -> stream.SourceError {
-    return stream.SourceError.Unavailable(reason: "${failure}")
+    return stream.SourceError.Unavailable(reason: "${failure}");
 }

@@ -5,7 +5,7 @@
 // HttpResponse is the prelude's envelope (ADR 0069 §3): a conflict carries
 // the error as its body, the other responses carry none.
 conversion customerErrorToHttpResponse(error: CustomerError) -> HttpResponse<CustomerError> {
-    match error {
+    return match (error) {
         CustomerError.NotFound(_) -> HttpResponse(status: 404)
         CustomerError.EmailAlreadyInUse(_) -> HttpResponse(status: 409, body: error)
         error -> HttpResponse(status: 500)

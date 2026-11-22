@@ -1,15 +1,17 @@
 // ADR 0059: scan to the first CRLF CRLF and return what follows it.
 conversion bodyAfterHeaders(response: bytes) -> bytes {
-    rest: bytes = response
-    while rest.length() > 0 {
-        match rest {
+    rest: bytes = response;
+    while (rest.length() > 0) {
+        match (rest) {
             <<13: u8, 10: u8, 13: u8, 10: u8, body: bytes>> -> {
-                return body
+                return body;
             }
+
             _ -> {
-                rest = rest.slice(1, rest.length())
+                rest = rest.slice(1, rest.length());
             }
         }
     }
-    return rest
+
+    return rest;
 }

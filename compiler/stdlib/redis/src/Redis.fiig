@@ -4,201 +4,225 @@
 // the setup is sent and its replies read before the command is written,
 // so a refused SELECT never lets the command run on database 0 (§3).
 capability Redis {
-    gateway send(args: List<string>) -> Result<RespValue, RedisError>
-        requires Socket
-    {
-        if args.length() == 0 {
-            return Err(RedisError.InvalidCommand(reason: "a command has at least its name"))
+    gateway send(args: List<string>) -> Result<RespValue, RedisError> requires Socket {
+        if (args.length() == 0) {
+            return Err(RedisError.InvalidCommand(reason: "a command has at least its name"));
         }
-        words: List<bytes> = []
-        for word in args {
-            words = append(words, word.utf8())
+
+        words: List<bytes> = [];
+        for (word in args) {
+            words = append(words, word.utf8());
         }
-        target = parseRedisUrl(RedisServer.url.reveal())?
-        until: int = Clock.now() + RedisServer.timeoutMillis
-        session = sessionOf(target)
+
+        target = parseRedisUrl(RedisServer.url.reveal())?;
+        until: int = Clock.now() + RedisServer.timeoutMillis;
+        session = sessionOf(target);
         reused: Connection | None = Socket.reuse(
             target.host,
             target.port,
             tls: target.secure,
             session: session,
-        )
-        phases: List<RedisRequest> = []
-        opened: Result<Connection, SocketError> = Err(SocketError.Closed)
-        match reused {
+        );
+        phases: List<RedisRequest> = [];
+        opened: Result<Connection, SocketError> = Err(SocketError.Closed);
+        match (reused) {
             None -> {
-                setup = setupRequest(target)
-                if setup.replies > 0 {
-                    phases = [setup]
+                setup = setupRequest(target);
+                if (setup.replies > 0) {
+                    phases = [setup];
                 }
-                if target.secure {
-                    opened = Socket.connectTls(target.host, target.port, deadline: until)
+
+                if (target.secure) {
+                    opened = Socket.connectTls(target.host, target.port, deadline: until);
                 } else {
-                    opened = Socket.connect(target.host, target.port, deadline: until)
+                    opened = Socket.connect(target.host, target.port, deadline: until);
                 }
             }
+
             kept -> {
-                opened = Ok(kept)
+                opened = Ok(kept);
             }
         }
-        phases = append(phases, commandRequest(words))
-        connection = mapErr(e in opened): RedisError.Socket(failure: e)?
-        buffer: bytes = <<>>
-        replies: List<RespValue> = []
-        phase: int = 0
-        while phase < phases.length() {
-            request = phases.at(phase)
-            match Socket.write(connection, request.data, deadline: until) {
+
+        phases = append(phases, commandRequest(words));
+        connection = mapErr(e in opened): RedisError.Socket(failure: e)?;
+        buffer: bytes = <<>>;
+        replies: List<RespValue> = [];
+        phase: int = 0;
+        while (phase < phases.length()) {
+            request = phases.at(phase);
+            match (Socket.write(connection, request.data, deadline: until)) {
                 Err(failure) -> {
-                    Socket.close(connection)
-                    return Err(RedisError.Socket(failure: failure))
+                    Socket.close(connection);
+                    return Err(RedisError.Socket(failure: failure));
                 }
+
                 Ok(_) -> None
             }
-            replies = []
-            while replies.length() < request.replies {
-                match readResp(buffer) {
+
+            replies = [];
+            while (replies.length() < request.replies) {
+                match (readResp(buffer)) {
                     RespRead.Done(value, rest) -> {
-                        replies = append(replies, value)
-                        buffer = rest
+                        replies = append(replies, value);
+                        buffer = rest;
                     }
+
                     RespRead.Malformed(reason) -> {
-                        Socket.close(connection)
-                        return Err(RedisError.MalformedReply(reason: reason))
+                        Socket.close(connection);
+                        return Err(RedisError.MalformedReply(reason: reason));
                     }
+
                     RespRead.NeedMore -> {
-                        match Socket.read(connection, deadline: until) {
+                        match (Socket.read(connection, deadline: until)) {
                             Ok(chunk) -> {
-                                buffer = <<buffer: bytes, chunk: bytes>>
+                                buffer = <<buffer: bytes, chunk: bytes>>;
                             }
+
                             Err(failure) -> {
-                                Socket.close(connection)
-                                return Err(RedisError.Socket(failure: failure))
+                                Socket.close(connection);
+                                return Err(RedisError.Socket(failure: failure));
                             }
                         }
                     }
                 }
             }
-            if phase + 1 < phases.length() {
-                match setupRefusal(replies) {
+
+            if (phase + 1 < phases.length()) {
+                match (setupRefusal(replies)) {
                     None -> None
                     refused -> {
-                        Socket.close(connection)
-                        return Err(refused)
+                        Socket.close(connection);
+                        return Err(refused);
                     }
                 }
             }
-            phase = phase + 1
+
+            phase = phase + 1;
         }
-        if buffer.length() == 0 and keepsConnection(args.first()) {
-            Socket.keep(connection, session: session)
+
+        if (buffer.length() == 0 && keepsConnection(args.first())) {
+            Socket.keep(connection, session: session);
         } else {
-            Socket.close(connection)
+            Socket.close(connection);
         }
-        return commandReply(replies.first())
+
+        return commandReply(replies.first());
     }
 
     // send, with each argument as bytes: Redis strings are binary-safe, so
     // a value that isn't UTF-8, such as a stream payload being moved to a
     // dead-letter stream, goes as it is (ADR 0110 §1a). The body is send's,
     // since a gateway can't call another.
-    gateway sendBytes(args: List<bytes>) -> Result<RespValue, RedisError>
-        requires Socket
-    {
-        if args.length() == 0 {
-            return Err(RedisError.InvalidCommand(reason: "a command has at least its name"))
+    gateway sendBytes(args: List<bytes>) -> Result<RespValue, RedisError> requires Socket {
+        if (args.length() == 0) {
+            return Err(RedisError.InvalidCommand(reason: "a command has at least its name"));
         }
-        name: string = ""
-        match args.first().utf8() {
+
+        name: string = "";
+        match (args.first().utf8()) {
             None -> None
             text -> {
-                name = text
+                name = text;
             }
         }
-        target = parseRedisUrl(RedisServer.url.reveal())?
-        until: int = Clock.now() + RedisServer.timeoutMillis
-        session = sessionOf(target)
+
+        target = parseRedisUrl(RedisServer.url.reveal())?;
+        until: int = Clock.now() + RedisServer.timeoutMillis;
+        session = sessionOf(target);
         reused: Connection | None = Socket.reuse(
             target.host,
             target.port,
             tls: target.secure,
             session: session,
-        )
-        phases: List<RedisRequest> = []
-        opened: Result<Connection, SocketError> = Err(SocketError.Closed)
-        match reused {
+        );
+        phases: List<RedisRequest> = [];
+        opened: Result<Connection, SocketError> = Err(SocketError.Closed);
+        match (reused) {
             None -> {
-                setup = setupRequest(target)
-                if setup.replies > 0 {
-                    phases = [setup]
+                setup = setupRequest(target);
+                if (setup.replies > 0) {
+                    phases = [setup];
                 }
-                if target.secure {
-                    opened = Socket.connectTls(target.host, target.port, deadline: until)
+
+                if (target.secure) {
+                    opened = Socket.connectTls(target.host, target.port, deadline: until);
                 } else {
-                    opened = Socket.connect(target.host, target.port, deadline: until)
+                    opened = Socket.connect(target.host, target.port, deadline: until);
                 }
             }
+
             kept -> {
-                opened = Ok(kept)
+                opened = Ok(kept);
             }
         }
-        phases = append(phases, commandRequest(args))
-        connection = mapErr(e in opened): RedisError.Socket(failure: e)?
-        buffer: bytes = <<>>
-        replies: List<RespValue> = []
-        phase: int = 0
-        while phase < phases.length() {
-            request = phases.at(phase)
-            match Socket.write(connection, request.data, deadline: until) {
+
+        phases = append(phases, commandRequest(args));
+        connection = mapErr(e in opened): RedisError.Socket(failure: e)?;
+        buffer: bytes = <<>>;
+        replies: List<RespValue> = [];
+        phase: int = 0;
+        while (phase < phases.length()) {
+            request = phases.at(phase);
+            match (Socket.write(connection, request.data, deadline: until)) {
                 Err(failure) -> {
-                    Socket.close(connection)
-                    return Err(RedisError.Socket(failure: failure))
+                    Socket.close(connection);
+                    return Err(RedisError.Socket(failure: failure));
                 }
+
                 Ok(_) -> None
             }
-            replies = []
-            while replies.length() < request.replies {
-                match readResp(buffer) {
+
+            replies = [];
+            while (replies.length() < request.replies) {
+                match (readResp(buffer)) {
                     RespRead.Done(value, rest) -> {
-                        replies = append(replies, value)
-                        buffer = rest
+                        replies = append(replies, value);
+                        buffer = rest;
                     }
+
                     RespRead.Malformed(reason) -> {
-                        Socket.close(connection)
-                        return Err(RedisError.MalformedReply(reason: reason))
+                        Socket.close(connection);
+                        return Err(RedisError.MalformedReply(reason: reason));
                     }
+
                     RespRead.NeedMore -> {
-                        match Socket.read(connection, deadline: until) {
+                        match (Socket.read(connection, deadline: until)) {
                             Ok(chunk) -> {
-                                buffer = <<buffer: bytes, chunk: bytes>>
+                                buffer = <<buffer: bytes, chunk: bytes>>;
                             }
+
                             Err(failure) -> {
-                                Socket.close(connection)
-                                return Err(RedisError.Socket(failure: failure))
+                                Socket.close(connection);
+                                return Err(RedisError.Socket(failure: failure));
                             }
                         }
                     }
                 }
             }
-            if phase + 1 < phases.length() {
-                match setupRefusal(replies) {
+
+            if (phase + 1 < phases.length()) {
+                match (setupRefusal(replies)) {
                     None -> None
                     refused -> {
-                        Socket.close(connection)
-                        return Err(refused)
+                        Socket.close(connection);
+                        return Err(refused);
                     }
                 }
             }
-            phase = phase + 1
+
+            phase = phase + 1;
         }
+
         // A name that isn't text is no command Redis has, so the
         // connection isn't trusted further.
-        if buffer.length() == 0 and name != "" and keepsConnection(name) {
-            Socket.keep(connection, session: session)
+        if (buffer.length() == 0 && name != "" && keepsConnection(name)) {
+            Socket.keep(connection, session: session);
         } else {
-            Socket.close(connection)
+            Socket.close(connection);
         }
-        return commandReply(replies.first())
+
+        return commandReply(replies.first());
     }
 
     // Commands pipelined (ADR 0110 open question 1, as amended
@@ -209,208 +233,240 @@ capability Redis {
     // failure or a malformed reply fails the whole call. The body is
     // sendBytes's, as sendBytes's is send's.
     gateway sendAll(commands: List<List<string>>) -> Result<List<RespValue>, RedisError>
-        requires Socket
-    {
-        if commands.length() == 0 {
-            return Ok([])
+            requires Socket {
+        if (commands.length() == 0) {
+            return Ok([]);
         }
-        lists: List<List<bytes>> = []
-        position: int = 0
-        for args in commands {
-            position = position + 1
-            if args.length() == 0 {
+
+        lists: List<List<bytes>> = [];
+        position: int = 0;
+        for (args in commands) {
+            position = position + 1;
+            if (args.length() == 0) {
                 return Err(
-                    RedisError.InvalidCommand(reason: "command ${position} of the pipeline has no name"),
-                )
+                    RedisError.InvalidCommand(
+                        reason: "command ${position} of the pipeline has no name",
+                    ),
+                );
             }
-            words: List<bytes> = []
-            for word in args {
-                words = append(words, word.utf8())
+
+            words: List<bytes> = [];
+            for (word in args) {
+                words = append(words, word.utf8());
             }
-            lists = append(lists, words)
+
+            lists = append(lists, words);
         }
-        target = parseRedisUrl(RedisServer.url.reveal())?
-        until: int = Clock.now() + RedisServer.timeoutMillis
-        session = sessionOf(target)
+
+        target = parseRedisUrl(RedisServer.url.reveal())?;
+        until: int = Clock.now() + RedisServer.timeoutMillis;
+        session = sessionOf(target);
         reused: Connection | None = Socket.reuse(
             target.host,
             target.port,
             tls: target.secure,
             session: session,
-        )
-        phases: List<RedisRequest> = []
-        opened: Result<Connection, SocketError> = Err(SocketError.Closed)
-        match reused {
+        );
+        phases: List<RedisRequest> = [];
+        opened: Result<Connection, SocketError> = Err(SocketError.Closed);
+        match (reused) {
             None -> {
-                setup = setupRequest(target)
-                if setup.replies > 0 {
-                    phases = [setup]
+                setup = setupRequest(target);
+                if (setup.replies > 0) {
+                    phases = [setup];
                 }
-                if target.secure {
-                    opened = Socket.connectTls(target.host, target.port, deadline: until)
+
+                if (target.secure) {
+                    opened = Socket.connectTls(target.host, target.port, deadline: until);
                 } else {
-                    opened = Socket.connect(target.host, target.port, deadline: until)
+                    opened = Socket.connect(target.host, target.port, deadline: until);
                 }
             }
+
             kept -> {
-                opened = Ok(kept)
+                opened = Ok(kept);
             }
         }
-        phases = append(phases, pipelineRequest(lists))
-        connection = mapErr(e in opened): RedisError.Socket(failure: e)?
-        buffer: bytes = <<>>
-        replies: List<RespValue> = []
-        phase: int = 0
-        while phase < phases.length() {
-            request = phases.at(phase)
-            match Socket.write(connection, request.data, deadline: until) {
+
+        phases = append(phases, pipelineRequest(lists));
+        connection = mapErr(e in opened): RedisError.Socket(failure: e)?;
+        buffer: bytes = <<>>;
+        replies: List<RespValue> = [];
+        phase: int = 0;
+        while (phase < phases.length()) {
+            request = phases.at(phase);
+            match (Socket.write(connection, request.data, deadline: until)) {
                 Err(failure) -> {
-                    Socket.close(connection)
-                    return Err(RedisError.Socket(failure: failure))
+                    Socket.close(connection);
+                    return Err(RedisError.Socket(failure: failure));
                 }
+
                 Ok(_) -> None
             }
-            replies = []
-            while replies.length() < request.replies {
-                match readResp(buffer) {
+
+            replies = [];
+            while (replies.length() < request.replies) {
+                match (readResp(buffer)) {
                     RespRead.Done(value, rest) -> {
-                        replies = append(replies, value)
-                        buffer = rest
+                        replies = append(replies, value);
+                        buffer = rest;
                     }
+
                     RespRead.Malformed(reason) -> {
-                        Socket.close(connection)
-                        return Err(RedisError.MalformedReply(reason: reason))
+                        Socket.close(connection);
+                        return Err(RedisError.MalformedReply(reason: reason));
                     }
+
                     RespRead.NeedMore -> {
-                        match Socket.read(connection, deadline: until) {
+                        match (Socket.read(connection, deadline: until)) {
                             Ok(chunk) -> {
-                                buffer = <<buffer: bytes, chunk: bytes>>
+                                buffer = <<buffer: bytes, chunk: bytes>>;
                             }
+
                             Err(failure) -> {
-                                Socket.close(connection)
-                                return Err(RedisError.Socket(failure: failure))
+                                Socket.close(connection);
+                                return Err(RedisError.Socket(failure: failure));
                             }
                         }
                     }
                 }
             }
-            if phase + 1 < phases.length() {
-                match setupRefusal(replies) {
+
+            if (phase + 1 < phases.length()) {
+                match (setupRefusal(replies)) {
                     None -> None
                     refused -> {
-                        Socket.close(connection)
-                        return Err(refused)
+                        Socket.close(connection);
+                        return Err(refused);
                     }
                 }
             }
-            phase = phase + 1
+
+            phase = phase + 1;
         }
-        if buffer.length() == 0 and pipelineKeeps(lists) {
-            Socket.keep(connection, session: session)
+
+        if (buffer.length() == 0 && pipelineKeeps(lists)) {
+            Socket.keep(connection, session: session);
         } else {
-            Socket.close(connection)
+            Socket.close(connection);
         }
-        return Ok(replies)
+
+        return Ok(replies);
     }
 
     // sendAll, with each argument as bytes (ADR 0110 §1a). The body is
     // sendAll's.
     gateway sendAllBytes(commands: List<List<bytes>>) -> Result<List<RespValue>, RedisError>
-        requires Socket
-    {
-        if commands.length() == 0 {
-            return Ok([])
+            requires Socket {
+        if (commands.length() == 0) {
+            return Ok([]);
         }
-        position: int = 0
-        for args in commands {
-            position = position + 1
-            if args.length() == 0 {
+
+        position: int = 0;
+        for (args in commands) {
+            position = position + 1;
+            if (args.length() == 0) {
                 return Err(
-                    RedisError.InvalidCommand(reason: "command ${position} of the pipeline has no name"),
-                )
+                    RedisError.InvalidCommand(
+                        reason: "command ${position} of the pipeline has no name",
+                    ),
+                );
             }
         }
-        target = parseRedisUrl(RedisServer.url.reveal())?
-        until: int = Clock.now() + RedisServer.timeoutMillis
-        session = sessionOf(target)
+
+        target = parseRedisUrl(RedisServer.url.reveal())?;
+        until: int = Clock.now() + RedisServer.timeoutMillis;
+        session = sessionOf(target);
         reused: Connection | None = Socket.reuse(
             target.host,
             target.port,
             tls: target.secure,
             session: session,
-        )
-        phases: List<RedisRequest> = []
-        opened: Result<Connection, SocketError> = Err(SocketError.Closed)
-        match reused {
+        );
+        phases: List<RedisRequest> = [];
+        opened: Result<Connection, SocketError> = Err(SocketError.Closed);
+        match (reused) {
             None -> {
-                setup = setupRequest(target)
-                if setup.replies > 0 {
-                    phases = [setup]
+                setup = setupRequest(target);
+                if (setup.replies > 0) {
+                    phases = [setup];
                 }
-                if target.secure {
-                    opened = Socket.connectTls(target.host, target.port, deadline: until)
+
+                if (target.secure) {
+                    opened = Socket.connectTls(target.host, target.port, deadline: until);
                 } else {
-                    opened = Socket.connect(target.host, target.port, deadline: until)
+                    opened = Socket.connect(target.host, target.port, deadline: until);
                 }
             }
+
             kept -> {
-                opened = Ok(kept)
+                opened = Ok(kept);
             }
         }
-        phases = append(phases, pipelineRequest(commands))
-        connection = mapErr(e in opened): RedisError.Socket(failure: e)?
-        buffer: bytes = <<>>
-        replies: List<RespValue> = []
-        phase: int = 0
-        while phase < phases.length() {
-            request = phases.at(phase)
-            match Socket.write(connection, request.data, deadline: until) {
+
+        phases = append(phases, pipelineRequest(commands));
+        connection = mapErr(e in opened): RedisError.Socket(failure: e)?;
+        buffer: bytes = <<>>;
+        replies: List<RespValue> = [];
+        phase: int = 0;
+        while (phase < phases.length()) {
+            request = phases.at(phase);
+            match (Socket.write(connection, request.data, deadline: until)) {
                 Err(failure) -> {
-                    Socket.close(connection)
-                    return Err(RedisError.Socket(failure: failure))
+                    Socket.close(connection);
+                    return Err(RedisError.Socket(failure: failure));
                 }
+
                 Ok(_) -> None
             }
-            replies = []
-            while replies.length() < request.replies {
-                match readResp(buffer) {
+
+            replies = [];
+            while (replies.length() < request.replies) {
+                match (readResp(buffer)) {
                     RespRead.Done(value, rest) -> {
-                        replies = append(replies, value)
-                        buffer = rest
+                        replies = append(replies, value);
+                        buffer = rest;
                     }
+
                     RespRead.Malformed(reason) -> {
-                        Socket.close(connection)
-                        return Err(RedisError.MalformedReply(reason: reason))
+                        Socket.close(connection);
+                        return Err(RedisError.MalformedReply(reason: reason));
                     }
+
                     RespRead.NeedMore -> {
-                        match Socket.read(connection, deadline: until) {
+                        match (Socket.read(connection, deadline: until)) {
                             Ok(chunk) -> {
-                                buffer = <<buffer: bytes, chunk: bytes>>
+                                buffer = <<buffer: bytes, chunk: bytes>>;
                             }
+
                             Err(failure) -> {
-                                Socket.close(connection)
-                                return Err(RedisError.Socket(failure: failure))
+                                Socket.close(connection);
+                                return Err(RedisError.Socket(failure: failure));
                             }
                         }
                     }
                 }
             }
-            if phase + 1 < phases.length() {
-                match setupRefusal(replies) {
+
+            if (phase + 1 < phases.length()) {
+                match (setupRefusal(replies)) {
                     None -> None
                     refused -> {
-                        Socket.close(connection)
-                        return Err(refused)
+                        Socket.close(connection);
+                        return Err(refused);
                     }
                 }
             }
-            phase = phase + 1
+
+            phase = phase + 1;
         }
-        if buffer.length() == 0 and pipelineKeeps(commands) {
-            Socket.keep(connection, session: session)
+
+        if (buffer.length() == 0 && pipelineKeeps(commands)) {
+            Socket.keep(connection, session: session);
         } else {
-            Socket.close(connection)
+            Socket.close(connection);
         }
-        return Ok(replies)
+
+        return Ok(replies);
     }
 }

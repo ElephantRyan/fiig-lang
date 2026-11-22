@@ -1,42 +1,54 @@
 // ADR 0117 §4: the partitions a poll gave, grouped by the broker that
 // leads each, in the order the brokers first appear.
-conversion fetchPlans(layout: TopicLayout, partitions: List<AssignedPartition>) -> Result<List<LeaderFetch>, KafkaError> {
-    plans: List<LeaderFetch> = []
-    for p in partitions {
-        if p.partition < 0 or p.partition >= layout.leaders.length() {
+conversion fetchPlans(
+    layout: TopicLayout,
+    partitions: List<AssignedPartition>,
+) -> Result<List<LeaderFetch>, KafkaError> {
+    plans: List<LeaderFetch> = [];
+    for (p in partitions) {
+        if (p.partition < 0 || p.partition >= layout.leaders.length()) {
             return Err(
-                KafkaError.MalformedReply(reason: "Metadata has no partition ${p.partition}, which the group assigned"),
-            )
+                KafkaError.MalformedReply(
+                    reason: "Metadata has no partition ${p.partition}, which the group assigned",
+                ),
+            );
         }
-        leader = layout.leaders.at(p.partition)
-        broker = leaderOf(layout, leader)?
-        placed: bool = false
-        grown: List<LeaderFetch> = []
-        for plan in plans {
-            if plan.broker.id == leader {
-                grown = append(grown, copy(plan, partitions: append(plan.partitions, p)))
-                placed = true
+
+        leader = layout.leaders.at(p.partition);
+        broker = leaderOf(layout, leader)?;
+        placed: bool = false;
+        grown: List<LeaderFetch> = [];
+        for (plan in plans) {
+            if (plan.broker.id == leader) {
+                grown = append(grown, copy(plan, partitions: append(plan.partitions, p)));
+                placed = true;
             } else {
-                grown = append(grown, plan)
+                grown = append(grown, plan);
             }
         }
-        if not placed {
-            grown = append(grown, LeaderFetch(broker: broker, partitions: [p]))
+
+        if (!placed) {
+            grown = append(grown, LeaderFetch(broker: broker, partitions: [p]));
         }
-        plans = grown
+
+        plans = grown;
     }
-    return Ok(plans)
+
+    return Ok(plans);
 }
 
 private {
     leaderOf(layout: TopicLayout, id: int) -> Result<BrokerNode, KafkaError> {
-        for broker in layout.brokers {
-            if broker.id == id {
-                return Ok(broker)
+        for (broker in layout.brokers) {
+            if (broker.id == id) {
+                return Ok(broker);
             }
         }
+
         return Err(
-            KafkaError.MalformedReply(reason: "Metadata names leader ${id}, which isn't among its brokers"),
-        )
+            KafkaError.MalformedReply(
+                reason: "Metadata names leader ${id}, which isn't among its brokers",
+            ),
+        );
     }
 }

@@ -1,4 +1,4 @@
 // Required example 1: read one customer.
 workflow readCustomer(id: string) -> Result<Customer, CustomerError> {
-    return loadCustomer(id)
+    return loadCustomer(id);
 }

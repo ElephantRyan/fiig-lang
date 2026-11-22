@@ -1,9 +1,17 @@
 // ADR 0117 §5: OffsetCommit v9 (API key 8), the first a KIP-848 member
 // may send: the member's id and epoch, and the next offset to read in
 // each partition of topic.
-conversion offsetCommitRequest(clientId: string, correlation: int, group: string, memberId: string, epoch: int, topic: string, offsets: List<PartitionOffset>) -> bytes {
-    partitions: bytes = uvarint(offsets.length() + 1)
-    for o in offsets {
+conversion offsetCommitRequest(
+    clientId: string,
+    correlation: int,
+    group: string,
+    memberId: string,
+    epoch: int,
+    topic: string,
+    offsets: List<PartitionOffset>,
+) -> bytes {
+    partitions: bytes = uvarint(offsets.length() + 1);
+    for (o in offsets) {
         partitions = <<
             partitions: bytes,
             o.partition: i32be,
@@ -11,8 +19,9 @@ conversion offsetCommitRequest(clientId: string, correlation: int, group: string
             0 - 1: i32be,
             0: u8,
             0: u8,
-        >>
+        >>;
     }
+
     body = <<
         compactString(group): bytes,
         epoch: i32be,
@@ -23,6 +32,6 @@ conversion offsetCommitRequest(clientId: string, correlation: int, group: string
         partitions: bytes,
         0: u8,
         0: u8,
-    >>
-    return kafkaFlexRequest(8, 9, correlation, clientId, body)
+    >>;
+    return kafkaFlexRequest(8, 9, correlation, clientId, body);
 }

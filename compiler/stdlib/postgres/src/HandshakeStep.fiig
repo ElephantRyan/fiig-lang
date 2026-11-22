@@ -5,35 +5,43 @@ use fiig.sql as db
 // BackendKeyData is kept for a CancelRequest (ADR 0084 §3a), and
 // ParameterStatus and notices are skipped.
 conversion handshakeStep(state: Handshake, kind: int, body: bytes) -> Handshake {
-    if kind == 75 {
-        return copy(state, send: <<>>, cancelKey: body)
+    if (kind == 75) {
+        return copy(state, send: <<>>, cancelKey: body);
     }
-    if kind == 69 {
-        return copy(state, send: <<>>, failed: serverError(body))
+
+    if (kind == 69) {
+        return copy(state, send: <<>>, failed: serverError(body));
     }
-    if kind == 90 {
-        if state.expectSignature.length() > 0 and not state.verified {
+
+    if (kind == 90) {
+        if (state.expectSignature.length() > 0 && !state.verified) {
             return copy(
                 state,
                 send: <<>>,
-                failed: db.DatabaseError.Protocol(reason: "the server finished without proving it knows the password"),
-            )
+                failed: db.DatabaseError.Protocol(
+                    reason: "the server finished without proving it knows the password",
+                ),
+            );
         }
-        return copy(state, send: <<>>, ready: true)
+
+        return copy(state, send: <<>>, ready: true);
     }
-    if kind != 82 {
-        return copy(state, send: <<>>)
+
+    if (kind != 82) {
+        return copy(state, send: <<>>);
     }
-    match body {
+
+    return match (body) {
         <<code: i32be, data: bytes>> -> {
-            return authStep(state, code, data)
+            return authStep(state, code, data);
         }
+
         _ -> {
             return copy(
                 state,
                 send: <<>>,
                 failed: db.DatabaseError.Protocol(reason: "an authentication message is too short"),
-            )
+            );
         }
     }
 }

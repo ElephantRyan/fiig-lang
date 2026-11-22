@@ -2,16 +2,16 @@
 // Database, and a transaction block nested inside another.
 workflow reserveAndCharge(orderId: string, amount: int) -> Result<None, OrderError> {
     transaction Database {
-        reserveInventory(orderId)?
-        chargePayment(orderId, amount)? // rejected: network gateway inside transaction Database
+        reserveInventory(orderId)?;
+        chargePayment(orderId, amount)?; // rejected: network gateway inside transaction Database
     }
 }
 
 workflow doubleReserve(orderId: string) -> Result<None, OrderError> {
     transaction Database {
-        reserveInventory(orderId)?
-        transaction Database {               // rejected: transaction blocks may not nest
-            releaseInventory(orderId)?
+        reserveInventory(orderId)?;
+        transaction Database { // rejected: transaction blocks may not nest
+            releaseInventory(orderId)?;
         }
     }
 }
@@ -21,9 +21,9 @@ workflow doubleReserve(orderId: string) -> Result<None, OrderError> {
 // when (unlike chargePayment above) it isn't a network call.
 workflow createAndEmailInTransaction(input: NewCustomer) -> Result<Customer, CustomerError> {
     transaction Database {
-        customer = insertCustomer(input)?
-        sendEmail(customer.email, "Welcome!", "Hi!")? // rejected: sendEmail requires EmailSender, not Database
-        return Ok(customer)
+        customer = insertCustomer(input)?;
+        sendEmail(customer.email, "Welcome!", "Hi!")?; // rejected: sendEmail requires EmailSender, not Database
+        return Ok(customer);
     }
 }
 
@@ -31,9 +31,12 @@ workflow createAndEmailInTransaction(input: NewCustomer) -> Result<Customer, Cus
 // blocks, distinct from the network-gateway case above. (A workflow call is
 // rejected everywhere, ADR 0044; an activity is the next-most-composite thing
 // that could still appear here.)
-workflow changeEmailAndReread(id: string, newEmail: string) -> Result<CustomerSummary, CustomerError> {
+workflow changeEmailAndReread(
+    id: string,
+    newEmail: string,
+) -> Result<CustomerSummary, CustomerError> {
     transaction Database {
-        updateCustomerEmail(id, newEmail)?
-        return summarizeCustomer(id) // rejected: summarizeCustomer is an activity call inside transaction
+        updateCustomerEmail(id, newEmail)?;
+        return summarizeCustomer(id); // rejected: summarizeCustomer is an activity call inside transaction
     }
 }

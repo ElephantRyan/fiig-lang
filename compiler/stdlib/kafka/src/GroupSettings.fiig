@@ -5,26 +5,35 @@ use fiig.stream
 // group, topic, and commit interval its protocol reads. The other
 // bootstrap servers are its "alternates", which the runtime tries in order
 // when the first can't be reached (§2, as amended 2026-11-21).
-conversion groupSettings(subscription: stream.Subscription, bootstrap: string, tls: bool, clientId: string, commitMillis: int) -> Result<Map<string, string>, stream.SourceError> {
-    match bootstrapOf(bootstrap) {
+conversion groupSettings(
+    subscription: stream.Subscription,
+    bootstrap: string,
+    tls: bool,
+    clientId: string,
+    commitMillis: int,
+) -> Result<Map<string, string>, stream.SourceError> {
+    return match (bootstrapOf(bootstrap)) {
         Err(failure) -> {
-            return Err(consumerError(failure))
+            return Err(consumerError(failure));
         }
+
         Ok(servers) -> {
-            first = servers.first()
-            alternates: string = ""
-            seen: int = 0
-            for server in servers {
-                if seen == 1 {
-                    alternates = serverText(server)
-                } else if seen > 1 {
-                    alternates = "${alternates},${serverText(server)}"
+            first = servers.first();
+            alternates: string = "";
+            seen: int = 0;
+            for (server in servers) {
+                if (seen == 1) {
+                    alternates = serverText(server);
+                } else if (seen > 1) {
+                    alternates = "${alternates},${serverText(server)}";
                 }
-                seen = seen + 1
+
+                seen = seen + 1;
             }
+
             return Ok(
                 ["host": first.host, "port": "${first.port}", "alternates": alternates, "tls": "${tls}", "role": "group", "clientId": clientId, "group": subscription.group, "topic": subscription.source, "commitMillis": "${commitMillis}"],
-            )
+            );
         }
     }
 }
@@ -33,9 +42,10 @@ private {
     // A server as an alternate names it: host:port, an IPv6 host in
     // brackets as bootstrapOf reads it.
     serverText(server: BrokerNode) -> string {
-        if server.host.contains(":") {
-            return "[${server.host}]:${server.port}"
+        if (server.host.contains(":")) {
+            return "[${server.host}]:${server.port}";
         }
-        return "${server.host}:${server.port}"
+
+        return "${server.host}:${server.port}";
     }
 }

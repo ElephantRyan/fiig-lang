@@ -1,28 +1,31 @@
 // Everyone a mail is sent to, a RCPT TO each (ADR 0120 §2a): to, then cc,
 // then bcc, each address once however many lists it is in.
 conversion recipientsOf(mail: Mail) -> List<string> {
-    all: List<string> = []
-    for address in mail.to {
-        if not all.contains(address) {
-            all = append(all, address)
+    all: List<string> = [];
+    for (address in mail.to) {
+        if (!all.contains(address)) {
+            all = append(all, address);
         }
     }
-    for address in listOf(mail.cc) {
-        if not all.contains(address) {
-            all = append(all, address)
+
+    for (address in listOf(mail.cc)) {
+        if (!all.contains(address)) {
+            all = append(all, address);
         }
     }
-    for address in listOf(mail.bcc) {
-        if not all.contains(address) {
-            all = append(all, address)
+
+    for (address in listOf(mail.bcc)) {
+        if (!all.contains(address)) {
+            all = append(all, address);
         }
     }
-    return all
+
+    return all;
 }
 
 private {
     listOf(addresses: List<string> | None) -> List<string> {
-        match addresses {
+        return match (addresses) {
             None -> []
             given -> given
         }

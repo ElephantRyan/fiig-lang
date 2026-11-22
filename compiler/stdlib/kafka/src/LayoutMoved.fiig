@@ -4,15 +4,17 @@
 // NOT_LEADER_OR_FOLLOWER, as the Java client reads them, or a leader that
 // couldn't be reached.
 conversion layoutMoved(failure: KafkaError) -> bool {
-    match failure {
+    return match (failure) {
         KafkaError.Broker(code, _, _, _) -> {
-            return code == 3 or code == 5 or code == 6
+            return code == 3 || code == 5 || code == 6;
         }
+
         KafkaError.Session(_) -> {
-            return true
+            return true;
         }
+
         _ -> {
-            return false
+            return false;
         }
     }
 }

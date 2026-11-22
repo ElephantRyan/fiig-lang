@@ -1,5 +1,5 @@
 // Run once to create the tables and an account:
 // fiig run -caps caps.json -args '{"name": "ada", "email": "ada@example.com", "key": "open-sesame"}' . setupAccounts
 workflow setupAccounts(name: string, email: string, key: string) -> Account {
-    return createFirstAccount(name, email, key)
+    return createFirstAccount(name, email, key);
 }

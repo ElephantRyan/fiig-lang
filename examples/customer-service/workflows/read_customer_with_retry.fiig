@@ -1,5 +1,5 @@
 // ADR 0014: the retry itself is in loadCustomerRetrying, beside the
 // gateway it retries.
 workflow readCustomerWithRetry(id: string) -> Result<Customer, CustomerError> {
-    return loadCustomerRetrying(id)
+    return loadCustomerRetrying(id);
 }

@@ -1,17 +1,20 @@
 // Whether ApiVersions v0's list of (key, min, max) six-byte entries covers
 // API key at version.
 conversion apiSupports(entries: bytes, count: int, key: int, version: int) -> bool {
-    i: int = 0
-    while i < count {
-        match entries.slice(i * 6, i * 6 + 6) {
+    i: int = 0;
+    while (i < count) {
+        match (entries.slice(i * 6, i * 6 + 6)) {
             <<apiKey: i16be, low: i16be, high: i16be>> -> {
-                if apiKey == key {
-                    return low <= version and version <= high
+                if (apiKey == key) {
+                    return low <= version && version <= high;
                 }
             }
+
             _ -> None
         }
-        i = i + 1
+
+        i = i + 1;
     }
-    return false
+
+    return false;
 }

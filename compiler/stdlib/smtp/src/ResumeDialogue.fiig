@@ -7,5 +7,5 @@ conversion resumeDialogue(target: SmtpTarget, mail: Mail, hello: string, data: b
         startDialogue(target, mail, hello, data),
         phase: SmtpPhase.Reset,
         secure: target.security != SmtpSecurity.Plain,
-    )
+    );
 }

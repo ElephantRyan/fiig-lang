@@ -5,97 +5,109 @@
 // the last byte (§5), and HTTP_CLIENT_MAX_REPLY_BYTES bounds how much of
 // it is read (§7a).
 capability HttpClient {
-    gateway send(request: Request) -> Result<Reply, HttpError>
-        requires Socket
-    {
-        outgoing = outgoingRequest(request)?
-        maxBytes = HttpClientSettings.maxReplyBytes
-        if maxBytes <= 0 {
+    gateway send(request: Request) -> Result<Reply, HttpError> requires Socket {
+        outgoing = outgoingRequest(request)?;
+        maxBytes = HttpClientSettings.maxReplyBytes;
+        if (maxBytes <= 0) {
             return Err(
-                HttpError.InvalidRequest(reason: "HTTP_CLIENT_MAX_REPLY_BYTES is ${maxBytes}; it must be more than 0"),
-            )
+                HttpError.InvalidRequest(
+                    reason: "HTTP_CLIENT_MAX_REPLY_BYTES is ${maxBytes}; it must be more than 0",
+                ),
+            );
         }
-        until: int = Clock.now() + outgoing.timeoutMillis
+
+        until: int = Clock.now() + outgoing.timeoutMillis;
         reused: Connection | None = Socket.reuse(
             outgoing.host,
             outgoing.port,
             tls: outgoing.secure,
             session: "",
-        )
+        );
         // A kept connection the server closed while it sat idle fails
         // before any reply byte. The request is sent again, once, on a new
         // connection when its method is safe to send twice; a new
         // connection never is, so this loop runs at most twice.
-        while true {
-            resend: bool = false
-            opened: Result<Connection, SocketError> = Err(SocketError.Closed)
-            match reused {
+        while (true) {
+            resend: bool = false;
+            opened: Result<Connection, SocketError> = Err(SocketError.Closed);
+            match (reused) {
                 None -> {
-                    if outgoing.secure {
-                        opened = Socket.connectTls(outgoing.host, outgoing.port, deadline: until)
+                    if (outgoing.secure) {
+                        opened = Socket.connectTls(outgoing.host, outgoing.port, deadline: until);
                     } else {
-                        opened = Socket.connect(outgoing.host, outgoing.port, deadline: until)
+                        opened = Socket.connect(outgoing.host, outgoing.port, deadline: until);
                     }
                 }
+
                 kept -> {
-                    opened = Ok(kept)
-                    resend = safeToResend(request.method)
+                    opened = Ok(kept);
+                    resend = safeToResend(request.method);
                 }
             }
-            reused = None
-            connection = mapErr(e in opened): HttpError.Socket(failure: e)?
-            stale: bool = false
-            match Socket.write(connection, outgoing.data, deadline: until) {
+
+            reused = None;
+            connection = mapErr(e in opened): HttpError.Socket(failure: e)?;
+            stale: bool = false;
+            match (Socket.write(connection, outgoing.data, deadline: until)) {
                 Err(failure) -> {
-                    Socket.close(connection)
-                    if not resend {
-                        return Err(HttpError.Socket(failure: failure))
+                    Socket.close(connection);
+                    if (!resend) {
+                        return Err(HttpError.Socket(failure: failure));
                     }
-                    stale = true
+
+                    stale = true;
                 }
+
                 Ok(_) -> None
             }
+
             // readReply never asks for more once closed is true, so this
             // loop ends.
-            buffer: bytes = <<>>
-            closed: bool = false
-            while not stale {
-                match readReply(buffer, request.method, closed, maxBytes) {
+            buffer: bytes = <<>>;
+            closed: bool = false;
+            while (!stale) {
+                match (readReply(buffer, request.method, closed, maxBytes)) {
                     ReplyRead.Done(reply, keep) -> {
-                        if keep {
-                            Socket.keep(connection, session: "")
+                        if (keep) {
+                            Socket.keep(connection, session: "");
                         } else {
-                            Socket.close(connection)
+                            Socket.close(connection);
                         }
-                        return Ok(reply)
+
+                        return Ok(reply);
                     }
+
                     ReplyRead.Malformed(reason) -> {
-                        Socket.close(connection)
-                        return Err(HttpError.MalformedReply(reason: reason))
+                        Socket.close(connection);
+                        return Err(HttpError.MalformedReply(reason: reason));
                     }
+
                     // The rest of the reply is unread, so the connection
                     // can't carry another request.
                     ReplyRead.TooLarge -> {
-                        Socket.close(connection)
-                        return Err(HttpError.ReplyTooLarge(limit: maxBytes))
+                        Socket.close(connection);
+                        return Err(HttpError.ReplyTooLarge(limit: maxBytes));
                     }
+
                     ReplyRead.NeedMore -> {
-                        match Socket.read(connection, deadline: until) {
+                        match (Socket.read(connection, deadline: until)) {
                             Ok(chunk) -> {
-                                buffer = <<buffer: bytes, chunk: bytes>>
+                                buffer = <<buffer: bytes, chunk: bytes>>;
                             }
+
                             Err(failure) -> {
-                                if resend and buffer.length() == 0 and closedByServer(failure) {
-                                    Socket.close(connection)
-                                    stale = true
+                                if (resend && buffer.length() == 0 && closedByServer(failure)) {
+                                    Socket.close(connection);
+                                    stale = true;
                                 } else {
-                                    match failure {
+                                    match (failure) {
                                         SocketError.Closed -> {
-                                            closed = true
+                                            closed = true;
                                         }
+
                                         _ -> {
-                                            Socket.close(connection)
-                                            return Err(HttpError.Socket(failure: failure))
+                                            Socket.close(connection);
+                                            return Err(HttpError.Socket(failure: failure));
                                         }
                                     }
                                 }

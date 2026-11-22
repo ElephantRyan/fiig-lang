@@ -2,17 +2,15 @@
 // sends an SSLRequest (length 8, code 80877103), and reads one byte: 'S'
 // means the TLS handshake now runs on this same connection. This example
 // insists on TLS, so 'N' is treated as a refusal.
-gateway openSecure(host: string, port: int) -> Result<Connection, SocketError>
-    requires Socket
-{
-    connection = Socket.connect(host, port)?
-    Socket.write(connection, <<8: i32be, 80877103: i32be>>)?
-    answer = Socket.read(connection)?
-    match answer {
+gateway openSecure(host: string, port: int) -> Result<Connection, SocketError> requires Socket {
+    connection = Socket.connect(host, port)?;
+    Socket.write(connection, <<8: i32be, 80877103: i32be>>)?;
+    answer = Socket.read(connection)?;
+    return match (answer) {
         <<83: u8>> -> Socket.startTls(connection, host)
         _ -> {
-            Socket.close(connection)
-            return Err(SocketError.Refused)
+            Socket.close(connection);
+            return Err(SocketError.Refused);
         }
     }
 }

@@ -2,9 +2,9 @@
 rule perUnitShare(total: decimal, units: decimal) -> decimal {
     // A1: one third has no exact decimal value (§7). Write the digits you
     // mean, or keep it a float.
-    third: decimal = 1.0 / 3.0
+    third: decimal = 1.0 / 3.0;
     // A1: most quotients have no exact decimal value either, so `/` is not
     // defined on decimal; math.divide names the places and the rounding
     // (§3).
-    return total / units * third
+    return total / units * third;
 }

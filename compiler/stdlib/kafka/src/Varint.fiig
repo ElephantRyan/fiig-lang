@@ -2,14 +2,16 @@
 // numbers stay short, then seven bits a byte, low first, with the high
 // bit set on every byte but the last (Kafka's VARINT and VARLONG).
 conversion varint(value: int) -> bytes {
-    zigzag: int = value * 2
-    if value < 0 {
-        zigzag = (0 - value) * 2 - 1
+    zigzag: int = value * 2;
+    if (value < 0) {
+        zigzag = (0 - value) * 2 - 1;
     }
-    out: bytes = <<>>
-    while zigzag >= 128 {
-        out = <<out: bytes, zigzag % 128 + 128: u8>>
-        zigzag = zigzag / 128
+
+    out: bytes = <<>>;
+    while (zigzag >= 128) {
+        out = <<out: bytes, zigzag % 128 + 128: u8>>;
+        zigzag = zigzag / 128;
     }
-    return <<out: bytes, zigzag: u8>>
+
+    return <<out: bytes, zigzag: u8>>;
 }

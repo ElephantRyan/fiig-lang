@@ -1,5 +1,4 @@
 // Required example 8 (HTTP half): expose readCustomer over HTTP.
 adapter http customerHttpApi {
-    GET "/customers/{id}" -> readCustomer(id: string)
-        produces "application/json"
+    GET "/customers/{id}" -> readCustomer(id: string) produces "application/json"
 }

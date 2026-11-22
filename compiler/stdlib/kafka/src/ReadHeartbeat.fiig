@@ -3,85 +3,110 @@
 // its message, the member's id and epoch, the heartbeat interval, and the
 // assignment, a nullable struct (-1 for none) of compact arrays.
 conversion readHeartbeat(frame: bytes) -> Result<HeartbeatAnswer, string> {
-    afterHeader = need(afterTags(frame, 4))?
-    code = need(i16At(frame, afterHeader + 4))?
-    message = textOf(compactStringAt(frame, afterHeader + 6))?
-    member = textOf(compactStringAt(frame, message.next))?
-    epoch = need(i32At(frame, member.next))?
-    interval = need(i32At(frame, member.next + 4))?
-    pos = member.next + 8
-    if pos >= frame.length() {
-        return Err(short())
+    afterHeader = need(afterTags(frame, 4))?;
+    code = need(i16At(frame, afterHeader + 4))?;
+    message = textOf(compactStringAt(frame, afterHeader + 6))?;
+    member = textOf(compactStringAt(frame, message.next))?;
+    epoch = need(i32At(frame, member.next))?;
+    interval = need(i32At(frame, member.next + 4))?;
+    pos = member.next + 8;
+    if (pos >= frame.length()) {
+        return Err(short());
     }
-    if frame.at(pos) == 255 {
+
+    if (frame.at(pos) == 255) {
         return Ok(
-            HeartbeatAnswer(code: code, message: message.text, epoch: epoch, intervalMillis: interval, assigned: false, topicId: <<>>, partitions: []),
-        )
+            HeartbeatAnswer(
+                code: code,
+                message: message.text,
+                epoch: epoch,
+                intervalMillis: interval,
+                assigned: false,
+                topicId: <<>>,
+                partitions: [],
+            ),
+        );
     }
-    topics = countOf(uvarintAt(frame, pos + 1))?
-    at: int = topics.next
-    topicId: bytes = <<>>
-    partitions: List<int> = []
-    t: int = 0
-    while t < topics.value {
-        if at + 16 > frame.length() {
-            return Err(short())
+
+    topics = countOf(uvarintAt(frame, pos + 1))?;
+    at: int = topics.next;
+    topicId: bytes = <<>>;
+    partitions: List<int> = [];
+    t: int = 0;
+    while (t < topics.value) {
+        if (at + 16 > frame.length()) {
+            return Err(short());
         }
-        topicId = frame.slice(at, at + 16)
-        ids = countOf(uvarintAt(frame, at + 16))?
-        at = ids.next
-        i: int = 0
-        while i < ids.value {
-            partitions = append(partitions, need(i32At(frame, at))?)
-            at = at + 4
-            i = i + 1
+
+        topicId = frame.slice(at, at + 16);
+        ids = countOf(uvarintAt(frame, at + 16))?;
+        at = ids.next;
+        i: int = 0;
+        while (i < ids.value) {
+            partitions = append(partitions, need(i32At(frame, at))?);
+            at = at + 4;
+            i = i + 1;
         }
-        at = need(afterTags(frame, at))?
-        t = t + 1
+
+        at = need(afterTags(frame, at))?;
+        t = t + 1;
     }
+
     return Ok(
-        HeartbeatAnswer(code: code, message: message.text, epoch: epoch, intervalMillis: interval, assigned: true, topicId: topicId, partitions: partitions),
-    )
+        HeartbeatAnswer(
+            code: code,
+            message: message.text,
+            epoch: epoch,
+            intervalMillis: interval,
+            assigned: true,
+            topicId: topicId,
+            partitions: partitions,
+        ),
+    );
 }
 
 private {
     short() -> string {
-        return "a ConsumerGroupHeartbeat response ends early"
+        return "a ConsumerGroupHeartbeat response ends early";
     }
 
     need(read: int | None) -> Result<int, string> {
-        match read {
+        return match (read) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             found -> {
-                return Ok(found)
+                return Ok(found);
             }
         }
     }
 
     textOf(read: TextAt | None) -> Result<TextAt, string> {
-        match read {
+        return match (read) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             found -> {
-                return Ok(found)
+                return Ok(found);
             }
         }
     }
 
     // A compact array's length, from its length plus one.
     countOf(read: IntAt | None) -> Result<IntAt, string> {
-        match read {
+        return match (read) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             found -> {
-                if found.value == 0 {
-                    return Ok(IntAt(value: 0, next: found.next))
+                if (found.value == 0) {
+                    return Ok(IntAt(value: 0, next: found.next));
                 }
-                return Ok(IntAt(value: found.value - 1, next: found.next))
+
+                return Ok(IntAt(value: found.value - 1, next: found.next));
             }
         }
     }

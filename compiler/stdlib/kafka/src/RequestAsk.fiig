@@ -1,4 +1,4 @@
 // A whole Kafka request as the ask a session sends on (ADR 0117 §3).
 conversion requestAsk(data: bytes) -> bytes {
-    return json.encode(KafkaAsk.Request(data: data))
+    return json.encode(KafkaAsk.Request(data: data));
 }

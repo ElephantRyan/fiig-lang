@@ -3,26 +3,27 @@
 // nobody has, so it takes as long as a wrong key and the time doesn't say
 // which names exist.
 gateway findAccountByKey(credentials: Credentials) -> Result<Account, AccountError>
-    requires Database
-    idempotent
-{
+        requires Database
+        idempotent {
     row: StoredAccount | None = Database.queryOne(
         "SELECT name, email, key_hash AS keyHash FROM accounts WHERE name = ?",
         credentials.name,
-    )
-    match row {
+    );
+    return match (row) {
         None -> {
             crypto.passwordMatches(
                 credentials.key,
                 stored: "$argon2id$v=19$m=19456,t=2,p=1$bm8tc3VjaC1hY2NvdW50$Rjc8Ou31Bqaj4G0fqgDCm6Zg8D4Ozp+2cn17Fd8tY0o",
-            )
-            return Err(AccountError.BadCredentials)
+            );
+            return Err(AccountError.BadCredentials);
         }
+
         found -> {
-            if not crypto.passwordMatches(credentials.key, stored: found.keyHash) {
-                return Err(AccountError.BadCredentials)
+            if (!crypto.passwordMatches(credentials.key, stored: found.keyHash)) {
+                return Err(AccountError.BadCredentials);
             }
-            return Ok(Account(name: found.name, email: found.email))
+
+            return Ok(Account(name: found.name, email: found.email));
         }
     }
 }

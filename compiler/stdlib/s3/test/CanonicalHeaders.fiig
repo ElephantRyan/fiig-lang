@@ -5,24 +5,24 @@ test theAlwaysSignedHeadersAreSortedWithAnOperationsOwn {
         http.Header(name: "x-amz-meta-run", value: "7"),
         http.Header(name: "Range", value: "bytes=0-9"),
         http.Header(name: "x-amz-checksum-sha256", value: "c"),
-    ]
-    expect canonicalHeaders("h", "p", "d", "t", extra) is Ok(headers)
-    expect signedHeaderList(headers) == "host;range;x-amz-checksum-sha256;x-amz-content-sha256;x-amz-date;x-amz-meta-run;x-amz-security-token"
+    ];
+    expect canonicalHeaders("h", "p", "d", "t", extra) is Ok(headers);
+    expect signedHeaderList(headers) == "host;range;x-amz-checksum-sha256;x-amz-content-sha256;x-amz-date;x-amz-meta-run;x-amz-security-token";
 }
 
 test aValueIsTrimmedAndItsRunsOfSpacesMadeOne {
-    expect canonicalHeaders("h", "p", "d", "", [http.Header(name: "x-amz-meta-note", value: "  a   b  c ")]) is Ok(headers)
-    expect headers.at(3) == http.Header(name: "x-amz-meta-note", value: "a b c")
+    expect canonicalHeaders("h", "p", "d", "", [http.Header(name: "x-amz-meta-note", value: "  a   b  c ")]) is Ok(headers);
+    expect headers.at(3) == http.Header(name: "x-amz-meta-note", value: "a b c");
 }
 
 test twoHeadersOfOneNameAreRefused {
     extra = [
         http.Header(name: "x-amz-meta-a", value: "1"),
         http.Header(name: "X-Amz-Meta-A", value: "2"),
-    ]
-    expect canonicalHeaders("h", "p", "d", "", extra) is Err(S3Error.InvalidRequest(reason))
+    ];
+    expect canonicalHeaders("h", "p", "d", "", extra) is Err(S3Error.InvalidRequest(reason));
 }
 
 test anOperationCantReplaceAnAlwaysSignedHeader {
-    expect canonicalHeaders("h", "p", "d", "", [http.Header(name: "Host", value: "elsewhere")]) is Err(S3Error.InvalidRequest(reason))
+    expect canonicalHeaders("h", "p", "d", "", [http.Header(name: "Host", value: "elsewhere")]) is Err(S3Error.InvalidRequest(reason));
 }

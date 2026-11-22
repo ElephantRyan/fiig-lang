@@ -3,39 +3,45 @@ use fiig.sql as db
 // A DataRow's values, each read by its column's type (§8). A length of -1
 // is NULL.
 conversion dataRow(body: bytes, types: List<int>) -> List<db.SqlValue> | None {
-    match body {
+    return match (body) {
         <<count: i16be, cells: bytes>> -> {
-            if count != types.length() {
-                return None
+            if (count != types.length()) {
+                return None;
             }
-            values: List<db.SqlValue> = []
-            rest: bytes = cells
-            i: int = 0
-            while i < count {
-                match rest {
+
+            values: List<db.SqlValue> = [];
+            rest: bytes = cells;
+            i: int = 0;
+            while (i < count) {
+                match (rest) {
                     <<length: i32be, after: bytes>> -> {
-                        if length < 0 {
-                            values = append(values, db.SqlValue.Null)
-                            rest = after
+                        if (length < 0) {
+                            values = append(values, db.SqlValue.Null);
+                            rest = after;
                         } else {
-                            if length > after.length() {
-                                return None
+                            if (length > after.length()) {
+                                return None;
                             }
+
                             values = append(
                                 values,
                                 columnValue(after.slice(0, length), types.at(i)),
-                            )
-                            rest = after.slice(length, after.length())
+                            );
+                            rest = after.slice(length, after.length());
                         }
                     }
+
                     _ -> {
-                        return None
+                        return None;
                     }
                 }
-                i = i + 1
+
+                i = i + 1;
             }
-            return values
+
+            return values;
         }
+
         _ -> None
     }
 }

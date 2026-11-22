@@ -5,93 +5,120 @@ use fiig.stream
 // entry's element is its payload field. Retried and unsettled entries are
 // claimed again once pending for REDIS_STREAM_RETRY_AFTER_MS.
 capability RedisStreams provides stream.StreamSource {
-    gateway receive(subscription: stream.Subscription, batchSize: int) -> Result<List<stream.Delivery>, stream.SourceError>
-        requires Redis
-    {
-        source = subscription.source
-        group = subscription.group
-        retryAfter = RedisStreamSettings.retryAfterMillis
-        idle = "${retryAfter}"
+    gateway receive(
+        subscription: stream.Subscription,
+        batchSize: int,
+    ) -> Result<List<stream.Delivery>, stream.SourceError> requires Redis {
+        source = subscription.source;
+        group = subscription.group;
+        retryAfter = RedisStreamSettings.retryAfterMillis;
+        idle = "${retryAfter}";
         // An entry this receive hands out is reclaimed by another consumer
         // once it has been pending retryAfter, so take no more than can be
         // handled, one after another, within that (ADR 0111 §5a).
-        count = fitBatch(batchSize, retryAfter, subscription.handleMillis)?
-        match Redis.send(["XPENDING", source, group, "IDLE", idle, "-", "+", "${count}"]) {
+        count = fitBatch(batchSize, retryAfter, subscription.handleMillis)?;
+        match (Redis.send(["XPENDING", source, group, "IDLE", idle, "-", "+", "${count}"])) {
             Err(failure) -> {
-                if isNoGroup(failure) {
+                if (isNoGroup(failure)) {
                     // The first receive: the group starts where the route
                     // says (ADR 0111 §3a), at the stream's first entry (0)
                     // or after its last ($).
-                    startId: string = "0"
-                    match subscription.start {
+                    startId: string = "0";
+                    match (subscription.start) {
                         stream.StartAt.Latest -> {
-                            startId = "$"
+                            startId = "$";
                         }
+
                         stream.StartAt.Earliest -> None
                     }
-                    match Redis.send(["XGROUP", "CREATE", source, group, startId, "MKSTREAM"]) {
+
+                    match (Redis.send(["XGROUP", "CREATE", source, group, startId, "MKSTREAM"])) {
                         Err(RedisError.Server(message)) -> {
-                            if not message.startsWith("BUSYGROUP") {
-                                return Err(stream.SourceError.Protocol(reason: message))
+                            if (!message.startsWith("BUSYGROUP")) {
+                                return Err(stream.SourceError.Protocol(reason: message));
                             }
                         }
+
                         Err(other) -> {
-                            return Err(sourceErrorOf(other))
+                            return Err(sourceErrorOf(other));
                         }
+
                         Ok(_) -> None
                     }
-                    return Ok([])
+
+                    return Ok([]);
                 }
-                return Err(sourceErrorOf(failure))
+
+                return Err(sourceErrorOf(failure));
             }
+
             Ok(reply) -> {
-                pending = pendingEntries(reply)
-                if pending.length() > 0 {
-                    claim: List<string> = ["XCLAIM", source, group, subscription.consumer, idle]
-                    counts: Map<string, int> = [:]
-                    for entry in pending {
-                        claim = append(claim, entry.id)
+                pending = pendingEntries(reply);
+                if (pending.length() > 0) {
+                    claim: List<string> = ["XCLAIM", source, group, subscription.consumer, idle];
+                    counts: Map<string, int> = [:];
+                    for (entry in pending) {
+                        claim = append(claim, entry.id);
                         // XCLAIM counts this delivery too.
-                        counts = counts.put(entry.id, entry.deliveries + 1)
+                        counts = counts.put(entry.id, entry.deliveries + 1);
                     }
-                    claimed = mapErr(e in Redis.send(claim)): sourceErrorOf(e)?
-                    match claimed {
+
+                    claimed = mapErr(e in Redis.send(claim)): sourceErrorOf(e)?;
+                    match (claimed) {
                         RespValue.Array(entries) -> {
-                            return Ok(streamDeliveries(entries, counts))
+                            return Ok(streamDeliveries(entries, counts));
                         }
+
                         _ -> {
-                            return Ok([])
+                            return Ok([]);
                         }
                     }
                 }
             }
         }
+
         read = Redis.send(
-            ["XREADGROUP", "GROUP", group, subscription.consumer, "COUNT", "${count}", "BLOCK", "${subscription.waitMillis}", "STREAMS", source, ">"],
-        )
-        reply = mapErr(e in read): sourceErrorOf(e)?
+            [
+                "XREADGROUP",
+                "GROUP",
+                group,
+                subscription.consumer,
+                "COUNT",
+                "${count}",
+                "BLOCK",
+                "${subscription.waitMillis}",
+                "STREAMS",
+                source,
+                ">",
+            ],
+        );
+        reply = mapErr(e in read): sourceErrorOf(e)?;
         // [[stream name, [entry, ...]]], or Null when nothing came in time.
-        match reply {
+        return match (reply) {
             RespValue.Array(streams) -> {
-                for named in streams {
-                    match named {
+                for (named in streams) {
+                    match (named) {
                         RespValue.Array(pair) -> {
-                            if pair.length() == 2 {
-                                match pair.last() {
+                            if (pair.length() == 2) {
+                                match (pair.last()) {
                                     RespValue.Array(entries) -> {
-                                        return Ok(streamDeliveries(entries, [:]))
+                                        return Ok(streamDeliveries(entries, [:]));
                                     }
+
                                     _ -> None
                                 }
                             }
                         }
+
                         _ -> None
                     }
                 }
-                return Ok([])
+
+                return Ok([]);
             }
+
             _ -> {
-                return Ok([])
+                return Ok([]);
             }
         }
     }
@@ -99,35 +126,54 @@ capability RedisStreams provides stream.StreamSource {
     // One entry by its id, for replay (ADR 0111 open question 1, as
     // amended 2026-11-21): XRANGE for the entry and XPENDING for how often
     // the group has had it, pipelined. It neither claims nor acks it.
-    gateway fetch(subscription: stream.Subscription, id: string) -> Result<stream.Delivery | None, stream.SourceError>
-        requires Redis
-    {
+    gateway fetch(
+        subscription: stream.Subscription,
+        id: string,
+    ) -> Result<stream.Delivery | None, stream.SourceError> requires Redis {
         asked = Redis.sendAll(
-            [["XRANGE", subscription.source, id, id], ["XPENDING", subscription.source, subscription.group, "IDLE", "0", id, id, "1"]],
-        )
-        replies = mapErr(e in asked): sourceErrorOf(e)?
-        return fetchedEntry(id, replies.first(), replies.last())
+            [
+                ["XRANGE", subscription.source, id, id],
+                ["XPENDING", subscription.source, subscription.group, "IDLE", "0", id, id, "1"],
+            ],
+        );
+        replies = mapErr(e in asked): sourceErrorOf(e)?;
+        return fetchedEntry(id, replies.first(), replies.last());
     }
 
-    gateway settle(subscription: stream.Subscription, delivery: stream.Delivery, outcome: stream.Outcome) -> Result<None, stream.SourceError>
-        requires Redis
-    {
-        match outcome {
+    gateway settle(
+        subscription: stream.Subscription,
+        delivery: stream.Delivery,
+        outcome: stream.Outcome,
+    ) -> Result<None, stream.SourceError> requires Redis {
+        match (outcome) {
             stream.Outcome.Retry -> {
                 // Left pending, so a receive claims it after the delay.
-                return Ok(None)
+                return Ok(None);
             }
+
             stream.Outcome.DeadLetter(target) -> {
                 // As bytes, so a payload that isn't UTF-8 moves as it is.
                 moved = Redis.sendBytes(
-                    ["XADD".utf8(), target.utf8(), "*".utf8(), "payload".utf8(), delivery.payload, "source".utf8(), subscription.source.utf8(), "id".utf8(), delivery.id.utf8()],
-                )
-                mapErr(e in moved): sourceErrorOf(e)?
+                    [
+                        "XADD".utf8(),
+                        target.utf8(),
+                        "*".utf8(),
+                        "payload".utf8(),
+                        delivery.payload,
+                        "source".utf8(),
+                        subscription.source.utf8(),
+                        "id".utf8(),
+                        delivery.id.utf8(),
+                    ],
+                );
+                mapErr(e in moved): sourceErrorOf(e)?;
             }
+
             stream.Outcome.Ack -> None
         }
-        acked = Redis.send(["XACK", subscription.source, subscription.group, delivery.id])
-        mapErr(e in acked): sourceErrorOf(e)?
-        return Ok(None)
+
+        acked = Redis.send(["XACK", subscription.source, subscription.group, delivery.id]);
+        mapErr(e in acked): sourceErrorOf(e)?;
+        return Ok(None);
     }
 }

@@ -2,15 +2,17 @@
 // Moved here from rules/ (ADR 0029 made Rule fully isolated again; this
 // coordinates validateEmail, which is exactly Activity's job).
 activity validateNewCustomer(input: NewCustomer) -> Result<NewCustomer, CustomerError> {
-    name = input.name.trim()
-    if name.isBlank() {
-        return Err(CustomerError.Invalid("name", "must not be blank"))
+    name = input.name.trim();
+    if (name.isBlank()) {
+        return Err(CustomerError.Invalid("name", "must not be blank"));
     }
+
     // ADR 0067 §1: length() counts what a reader sees, so a name of 80
     // emoji with skin tones is 80, not 160.
-    if name.length() > 80 {
-        return Err(CustomerError.Invalid("name", "must be at most 80 characters"))
+    if (name.length() > 80) {
+        return Err(CustomerError.Invalid("name", "must be at most 80 characters"));
     }
-    email = validateEmail(input.email)?
-    return Ok(copy(input, name: name, email: email))
+
+    email = validateEmail(input.email)?;
+    return Ok(copy(input, name: name, email: email));
 }

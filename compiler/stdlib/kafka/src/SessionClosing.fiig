@@ -4,18 +4,20 @@ use fiig.session
 // was acked and leaves its group (epoch -1), so its partitions move at
 // once rather than after the session timeout.
 conversion sessionClosing(state: bytes, now: int) -> session.Step {
-    decoded: Result<KafkaSessionState, JsonError> = json.decode(state)
-    match decoded {
+    decoded: Result<KafkaSessionState, JsonError> = json.decode(state);
+    return match (decoded) {
         Err(_) -> {
-            return failedStep("fiig.kafka's session state doesn't decode")
+            return failedStep("fiig.kafka's session state doesn't decode");
         }
+
         Ok(s) -> {
-            turn = SessionTurn(state: s, write: <<>>, replies: [], close: None)
-            if s.role != "group" or s.phase != "member" {
-                return sessionStep(turn, None)
+            turn = SessionTurn(state: s, write: <<>>, replies: [], close: None);
+            if (s.role != "group" || s.phase != "member") {
+                return sessionStep(turn, None);
             }
-            committed = commitAll(turn)
-            c = committed.state
+
+            committed = commitAll(turn);
+            c = committed.state;
             leave = heartbeatRequest(
                 c.clientId,
                 c.nextCorrelation,
@@ -25,13 +27,13 @@ conversion sessionClosing(state: bytes, now: int) -> session.Step {
                 c.topic,
                 c.topicId,
                 [],
-            )
+            );
             left = copy(
                 committed,
                 state: copy(tracked(c, "leave"), phase: "leaving"),
                 write: <<committed.write: bytes, leave: bytes>>,
-            )
-            return sessionStep(left, None)
+            );
+            return sessionStep(left, None);
         }
     }
 }

@@ -1,142 +1,142 @@
 test formatBasicat1970_1_1_0_0_0 {
-    expect formatBasic(0) is Ok(text)
-    expect text == "19700101T000000Z"
+    expect formatBasic(0) is Ok(text);
+    expect text == "19700101T000000Z";
 }
 
 test formatBasicat1969_12_31_23_59_59_999 {
-    expect formatBasic(-1) is Ok(text)
-    expect text == "19691231T235959Z"
+    expect formatBasic(-1) is Ok(text);
+    expect text == "19691231T235959Z";
 }
 
 test formatBasicat1969_12_31_0_0_0 {
-    expect formatBasic(-86400000) is Ok(text)
-    expect text == "19691231T000000Z"
+    expect formatBasic(-86400000) is Ok(text);
+    expect text == "19691231T000000Z";
 }
 
 test formatBasicat1900_1_1_0_0_0 {
-    expect formatBasic(-2208988800000) is Ok(text)
-    expect text == "19000101T000000Z"
+    expect formatBasic(-2208988800000) is Ok(text);
+    expect text == "19000101T000000Z";
 }
 
 test formatBasicat1900_2_28_12_0_0 {
-    expect formatBasic(-2203934400000) is Ok(text)
-    expect text == "19000228T120000Z"
+    expect formatBasic(-2203934400000) is Ok(text);
+    expect text == "19000228T120000Z";
 }
 
 test formatBasicat1900_3_1_0_0_0 {
-    expect formatBasic(-2203891200000) is Ok(text)
-    expect text == "19000301T000000Z"
+    expect formatBasic(-2203891200000) is Ok(text);
+    expect text == "19000301T000000Z";
 }
 
 test formatBasicat2000_2_29_23_59_59_999 {
-    expect formatBasic(951868799999) is Ok(text)
-    expect text == "20000229T235959Z"
+    expect formatBasic(951868799999) is Ok(text);
+    expect text == "20000229T235959Z";
 }
 
 test formatBasicat2000_3_1_0_0_0 {
-    expect formatBasic(951868800000) is Ok(text)
-    expect text == "20000301T000000Z"
+    expect formatBasic(951868800000) is Ok(text);
+    expect text == "20000301T000000Z";
 }
 
 test formatBasicat2024_2_29_6_7_8_9 {
-    expect formatBasic(1709186828009) is Ok(text)
-    expect text == "20240229T060708Z"
+    expect formatBasic(1709186828009) is Ok(text);
+    expect text == "20240229T060708Z";
 }
 
 test formatBasicat2026_11_20_13_59_58 {
-    expect formatBasic(1795183198000) is Ok(text)
-    expect text == "20261120T135958Z"
+    expect formatBasic(1795183198000) is Ok(text);
+    expect text == "20261120T135958Z";
 }
 
 test formatBasicat2026_12_31_23_59_59_999 {
-    expect formatBasic(1798761599999) is Ok(text)
-    expect text == "20261231T235959Z"
+    expect formatBasic(1798761599999) is Ok(text);
+    expect text == "20261231T235959Z";
 }
 
 test formatBasicat2027_1_1_0_0_0 {
-    expect formatBasic(1798761600000) is Ok(text)
-    expect text == "20270101T000000Z"
+    expect formatBasic(1798761600000) is Ok(text);
+    expect text == "20270101T000000Z";
 }
 
 test formatBasicat2100_2_28_0_0_0 {
-    expect formatBasic(4107456000000) is Ok(text)
-    expect text == "21000228T000000Z"
+    expect formatBasic(4107456000000) is Ok(text);
+    expect text == "21000228T000000Z";
 }
 
 test formatBasicat2100_3_1_0_0_0 {
-    expect formatBasic(4107542400000) is Ok(text)
-    expect text == "21000301T000000Z"
+    expect formatBasic(4107542400000) is Ok(text);
+    expect text == "21000301T000000Z";
 }
 
 test formatBasicat2400_2_29_0_0_0 {
-    expect formatBasic(13574563200000) is Ok(text)
-    expect text == "24000229T000000Z"
+    expect formatBasic(13574563200000) is Ok(text);
+    expect text == "24000229T000000Z";
 }
 
 test formatBasicat1600_2_29_0_0_0 {
-    expect formatBasic(-11670998400000) is Ok(text)
-    expect text == "16000229T000000Z"
+    expect formatBasic(-11670998400000) is Ok(text);
+    expect text == "16000229T000000Z";
 }
 
 test formatBasicat1582_10_15_0_0_0 {
-    expect formatBasic(-12219292800000) is Ok(text)
-    expect text == "15821015T000000Z"
+    expect formatBasic(-12219292800000) is Ok(text);
+    expect text == "15821015T000000Z";
 }
 
 test formatBasicat1000_1_1_0_0_0 {
-    expect formatBasic(-30610224000000) is Ok(text)
-    expect text == "10000101T000000Z"
+    expect formatBasic(-30610224000000) is Ok(text);
+    expect text == "10000101T000000Z";
 }
 
 test formatBasicat1_1_1_0_0_0 {
-    expect formatBasic(-62135596800000) is Ok(text)
-    expect text == "00010101T000000Z"
+    expect formatBasic(-62135596800000) is Ok(text);
+    expect text == "00010101T000000Z";
 }
 
 test formatBasicat9999_12_31_23_59_59_999 {
-    expect formatBasic(253402300799999) is Ok(text)
-    expect text == "99991231T235959Z"
+    expect formatBasic(253402300799999) is Ok(text);
+    expect text == "99991231T235959Z";
 }
 
 test formatBasicat2038_1_19_3_14_7 {
-    expect formatBasic(2147483647000) is Ok(text)
-    expect text == "20380119T031407Z"
+    expect formatBasic(2147483647000) is Ok(text);
+    expect text == "20380119T031407Z";
 }
 
 test formatBasicat2001_9_9_1_46_40 {
-    expect formatBasic(1000000000000) is Ok(text)
-    expect text == "20010909T014640Z"
+    expect formatBasic(1000000000000) is Ok(text);
+    expect text == "20010909T014640Z";
 }
 
 test formatBasicat1923_7_4_5_6_7_8 {
-    expect formatBasic(-1467312832992) is Ok(text)
-    expect text == "19230704T050607Z"
+    expect formatBasic(-1467312832992) is Ok(text);
+    expect text == "19230704T050607Z";
 }
 
 test formatBasicat8000_6_15_12_30_0_500 {
-    expect formatBasic(190302784200500) is Ok(text)
-    expect text == "80000615T123000Z"
+    expect formatBasic(190302784200500) is Ok(text);
+    expect text == "80000615T123000Z";
 }
 
 test formatBasicat0_1_1_0_0_0 {
-    expect formatBasic(-62167219200000) is Ok(text)
-    expect text == "00000101T000000Z"
+    expect formatBasic(-62167219200000) is Ok(text);
+    expect text == "00000101T000000Z";
 }
 
 test formatBasicat0_2_29_0_0_0 {
-    expect formatBasic(-62162121600000) is Ok(text)
-    expect text == "00000229T000000Z"
+    expect formatBasic(-62162121600000) is Ok(text);
+    expect text == "00000229T000000Z";
 }
 
 test formatBasicat0_12_31_23_59_59_999 {
-    expect formatBasic(-62135596800001) is Ok(text)
-    expect text == "00001231T235959Z"
+    expect formatBasic(-62135596800001) is Ok(text);
+    expect text == "00001231T235959Z";
 }
 
 test formatBasicRefusesAMomentBeforeYearZero {
-    expect formatBasic(-62167219200001) is Err(TimeError.OutOfRange(reason))
+    expect formatBasic(-62167219200001) is Err(TimeError.OutOfRange(reason));
 }
 
 test formatBasicRefusesAMomentAfterYear9999 {
-    expect formatBasic(253402300800000) is Err(TimeError.OutOfRange(reason))
+    expect formatBasic(253402300800000) is Err(TimeError.OutOfRange(reason));
 }

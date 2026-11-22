@@ -3,6 +3,6 @@
 // is a model, so this is real structural decoding, not a raw pass-through.
 adapter http customerCreateApi {
     POST "/customers" -> createCustomer(input: NewCustomer)
-        consumes "application/json"
-        produces "application/json"
+            consumes "application/json"
+            produces "application/json"
 }

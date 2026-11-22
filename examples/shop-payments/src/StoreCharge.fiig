@@ -1,5 +1,5 @@
 use shop.kernel
 
 activity storeCharge(id: string, reference: string, charged: kernel.Money) -> None {
-    return recordCharge(id: id, reference: reference, charged: charged)
+    return recordCharge(id: id, reference: reference, charged: charged);
 }

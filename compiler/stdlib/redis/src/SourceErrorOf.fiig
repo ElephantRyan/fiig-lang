@@ -3,21 +3,25 @@ use fiig.stream
 // A failed command as the stream runtime reads it (ADR 0111 §1): the
 // server out of reach is Unavailable, an answer it can't use is Protocol.
 conversion sourceErrorOf(failure: RedisError) -> stream.SourceError {
-    match failure {
+    return match (failure) {
         RedisError.Socket(failure) -> {
-            return stream.SourceError.Unavailable(reason: "Redis can't be reached: ${failure}")
+            return stream.SourceError.Unavailable(reason: "Redis can't be reached: ${failure}");
         }
+
         RedisError.InvalidUrl(reason) -> {
-            return stream.SourceError.Unavailable(reason: reason)
+            return stream.SourceError.Unavailable(reason: reason);
         }
+
         RedisError.Server(message) -> {
-            return stream.SourceError.Protocol(reason: message)
+            return stream.SourceError.Protocol(reason: message);
         }
+
         RedisError.MalformedReply(reason) -> {
-            return stream.SourceError.Protocol(reason: reason)
+            return stream.SourceError.Protocol(reason: reason);
         }
+
         RedisError.InvalidCommand(reason) -> {
-            return stream.SourceError.Protocol(reason: reason)
+            return stream.SourceError.Protocol(reason: reason);
         }
     }
 }

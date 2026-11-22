@@ -6,72 +6,92 @@
 // the password gives, so a broker that doesn't know it is refused. Once
 // logged in, a broker session is ready and a group session asks for its
 // coordinator (ADR 0117 §3).
-conversion saslAnswered(turn: SessionTurn, kind: string, frame: bytes, login: SaslLogin) -> SessionTurn {
-    s = turn.state
-    match login.mechanism {
+conversion saslAnswered(
+    turn: SessionTurn,
+    kind: string,
+    frame: bytes,
+    login: SaslLogin,
+) -> SessionTurn {
+    s = turn.state;
+    return match (login.mechanism) {
         None -> {
-            return refused(turn, "the broker answered a SASL request this session didn't make")
+            return refused(turn, "the broker answered a SASL request this session didn't make");
         }
+
         mechanism -> {
-            if kind == "saslHandshake" {
-                match readSaslHandshake(frame, saslMechanismName(mechanism)) {
+            if (kind == "saslHandshake") {
+                match (readSaslHandshake(frame, saslMechanismName(mechanism))) {
                     Err(reason) -> {
-                        return refused(turn, reason)
+                        return refused(turn, reason);
                     }
+
                     Ok(_) -> None
                 }
-                if mechanism == SaslMechanism.Plain {
-                    plain = <<0: u8, login.username.utf8(): bytes, 0: u8, login.password: bytes>>
-                    return sent(turn, "saslPlain", plain)
+
+                if (mechanism == SaslMechanism.Plain) {
+                    plain = <<0: u8, login.username.utf8(): bytes, 0: u8, login.password: bytes>>;
+                    return sent(turn, "saslPlain", plain);
                 }
-                bare = "n=${scramName(login.username)},r=${s.scramNonce}"
-                first = sent(turn, "saslFirst", "n,,${bare}".utf8())
-                return copy(first, state: copy(first.state, scramFirstBare: bare))
+
+                bare = "n=${scramName(login.username)},r=${s.scramNonce}";
+                first = sent(turn, "saslFirst", "n,,${bare}".utf8());
+                return copy(first, state: copy(first.state, scramFirstBare: bare));
             }
-            match readSaslAuthenticate(frame) {
+
+            return match (readSaslAuthenticate(frame)) {
                 Err(reason) -> {
-                    return refused(turn, reason)
+                    return refused(turn, reason);
                 }
+
                 Ok(message) -> {
-                    if kind == "saslPlain" {
-                        return loggedIn(turn)
+                    if (kind == "saslPlain") {
+                        return loggedIn(turn);
                     }
-                    match message.utf8() {
+
+                    return match (message.utf8()) {
                         None -> {
-                            return refused(turn, "the broker's SCRAM message isn't text")
+                            return refused(turn, "the broker's SCRAM message isn't text");
                         }
+
                         text -> {
-                            if kind == "saslFirst" {
-                                match computeScramFinal(mechanism, login.password, s.scramFirstBare, s.scramNonce, text) {
+                            if (kind == "saslFirst") {
+                                match (computeScramFinal(mechanism, login.password, s.scramFirstBare, s.scramNonce, text)) {
                                     Err(reason) -> {
-                                        return refused(turn, reason)
+                                        return refused(turn, reason);
                                     }
+
                                     Ok(final) -> {
-                                        proof = sent(turn, "saslFinal", final.message.utf8())
+                                        proof = sent(turn, "saslFinal", final.message.utf8());
                                         return copy(
                                             proof,
-                                            state: copy(proof.state, scramSignature: final.serverSignature),
-                                        )
+                                            state: copy(
+                                                proof.state,
+                                                scramSignature: final.serverSignature,
+                                            ),
+                                        );
                                     }
                                 }
                             }
-                            if text.startsWith("e=") {
-                                return refused(turn, "the broker says ${text.removePrefix("e=")}")
+
+                            if (text.startsWith("e=")) {
+                                return refused(turn, "the broker says ${text.removePrefix("e=")}");
                             }
-                            if text.startsWith("v=") and s.scramSignature.length() > 0 {
-                                match text.removePrefix("v=").fromBase64() {
+
+                            if (text.startsWith("v=") && s.scramSignature.length() > 0) {
+                                match (text.removePrefix("v=").fromBase64()) {
                                     None -> None
                                     signature -> {
-                                        if crypto.equal(signature, s.scramSignature) {
-                                            return loggedIn(turn)
+                                        if (crypto.equal(signature, s.scramSignature)) {
+                                            return loggedIn(turn);
                                         }
                                     }
                                 }
                             }
+
                             return refused(
                                 turn,
                                 "the broker's SCRAM signature is wrong, so it doesn't know the password",
-                            )
+                            );
                         }
                     }
                 }
@@ -82,27 +102,28 @@ conversion saslAnswered(turn: SessionTurn, kind: string, frame: bytes, login: Sa
 
 private {
     refused(turn: SessionTurn, reason: string) -> SessionTurn {
-        return copy(turn, state: saslRefused(turn.state, reason))
+        return copy(turn, state: saslRefused(turn.state, reason));
     }
 
     // turn with SaslAuthenticate of message written, its answer read as
     // kind.
     sent(turn: SessionTurn, kind: string, message: bytes) -> SessionTurn {
-        s = turn.state
-        request = saslAuthenticateRequest(s.clientId, s.nextCorrelation, message)
-        return copy(turn, state: tracked(s, kind), write: <<turn.write: bytes, request: bytes>>)
+        s = turn.state;
+        request = saslAuthenticateRequest(s.clientId, s.nextCorrelation, message);
+        return copy(turn, state: tracked(s, kind), write: <<turn.write: bytes, request: bytes>>);
     }
 
     loggedIn(turn: SessionTurn) -> SessionTurn {
-        s = copy(turn.state, scramSignature: <<>>)
-        if s.role != "group" {
-            return copy(turn, state: copy(s, phase: "broker"))
+        s = copy(turn.state, scramSignature: <<>>);
+        if (s.role != "group") {
+            return copy(turn, state: copy(s, phase: "broker"));
         }
-        coordinator = findCoordinatorRequest(s.clientId, s.nextCorrelation, s.group)
+
+        coordinator = findCoordinatorRequest(s.clientId, s.nextCorrelation, s.group);
         return copy(
             turn,
             state: copy(tracked(s, "coordinator"), phase: "finding"),
             write: <<turn.write: bytes, coordinator: bytes>>,
-        )
+        );
     }
 }

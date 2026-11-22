@@ -1,7 +1,7 @@
 // Required example 5: update and reread data inside one transaction block.
 activity changeEmail(id: string, newEmail: string) -> Result<Customer, CustomerError> {
     transaction Database {
-        updateCustomerEmail(id, newEmail)?
-        return getCustomer(id)
+        updateCustomerEmail(id, newEmail)?;
+        return getCustomer(id);
     }
 }

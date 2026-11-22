@@ -10,16 +10,16 @@ wire Billing {
 // B10: a rule reading config; its answer would depend on the deployment,
 // not its arguments, so it takes the value as a parameter instead.
 rule retryLimit() -> int {
-    return Billing.retries
+    return Billing.retries;
 }
 
 // S1: a Secret interpolated into a string, which a log line would show.
 activity describeKey(key: Secret) -> string {
-    return "using ${key}"
+    return "using ${key}";
 }
 
 // S2: only a gateway reveals a Secret, where it leaves for the outside
 // world; an activity returning the text could hand it to anything.
 activity keyText(key: Secret) -> string {
-    return key.reveal()
+    return key.reveal();
 }

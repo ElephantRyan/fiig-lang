@@ -4,17 +4,23 @@ use fiig.http
 // metadata included), when the server says 200. A reply with no Content-Length is malformed: the size is
 // the point of asking.
 conversion headResult(reply: http.Reply) -> Result<ObjectInfo, S3Error> {
-    if reply.status != 200 {
-        return Err(errorOf(reply))
+    if (reply.status != 200) {
+        return Err(errorOf(reply));
     }
-    match headerValue(reply, "Content-Length").toIntOrNone() {
+
+    return match (headerValue(reply, "Content-Length").toIntOrNone()) {
         None -> {
             return Err(
-                S3Error.Http(failure: http.HttpError.MalformedReply(reason: "a HEAD reply has no readable Content-Length")),
-            )
+                S3Error.Http(
+                    failure: http.HttpError.MalformedReply(
+                        reason: "a HEAD reply has no readable Content-Length",
+                    ),
+                ),
+            );
         }
+
         size -> {
-            return Ok(objectInfoOf(reply, size))
+            return Ok(objectInfoOf(reply, size));
         }
     }
 }
@@ -22,11 +28,12 @@ conversion headResult(reply: http.Reply) -> Result<ObjectInfo, S3Error> {
 private {
     // The first header of that name, in any case, or "".
     headerValue(reply: http.Reply, name: string) -> string {
-        for header in reply.headers {
-            if header.name.equalsIgnoringCase(name) {
-                return header.value
+        for (header in reply.headers) {
+            if (header.name.equalsIgnoringCase(name)) {
+                return header.value;
             }
         }
-        return ""
+
+        return "";
     }
 }

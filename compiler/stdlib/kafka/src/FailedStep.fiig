@@ -10,5 +10,5 @@ conversion failedStep(reason: string) -> session.Step {
         replies: [],
         nextTickAt: None,
         close: session.SessionClose.Failed(reason: reason),
-    )
+    );
 }

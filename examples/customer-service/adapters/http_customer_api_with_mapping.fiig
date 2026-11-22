@@ -2,9 +2,7 @@
 // status-code shorthand; the Err arm reuses customerErrorToHttpResponse
 // instead of repeating its mapping inline.
 adapter http customerHttpApiWithMapping {
-    GET "/customers/{id}" -> readCustomer(id: string)
-        produces "application/json"
-    {
+    GET "/customers/{id}" -> readCustomer(id: string) produces "application/json" {
         Ok(customer) -> 200 customer
         Err(error) -> customerErrorToHttpResponse(error)
     }

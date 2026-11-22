@@ -3,12 +3,11 @@
 // itself cannot run inside transaction Database — it's a network gateway.
 activity placeOrder(orderId: string, customerId: string, total: int) -> Result<Order, OrderError> {
     transaction Database {
-        reserveInventory(orderId)?
+        reserveInventory(orderId)?;
     }
 
-    paymentReference = chargePayment(orderId, total)?
-
+    paymentReference = chargePayment(orderId, total)?;
     transaction Database {
-        return recordOrder(orderId, customerId, total, paymentReference)
+        return recordOrder(orderId, customerId, total, paymentReference);
     }
 }

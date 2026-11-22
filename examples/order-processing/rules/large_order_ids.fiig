@@ -2,11 +2,12 @@
 // literal its element type, and `append` returns a new list each time;
 // appending to the newest version costs constant time per element.
 rule largeOrderIds(orders: List<Order>, threshold: int) -> List<string> {
-    ids: List<string> = []
-    for order in orders {
-        if order.total >= threshold {
-            ids = append(ids, order.id)
+    ids: List<string> = [];
+    for (order in orders) {
+        if (order.total >= threshold) {
+            ids = append(ids, order.id);
         }
     }
-    return ids
+
+    return ids;
 }

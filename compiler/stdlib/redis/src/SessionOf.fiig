@@ -1,12 +1,13 @@
 // What AUTH and SELECT leave on a connection, which a kept one must match
 // to serve a command (ADR 0109 §2, ADR 0110 §3).
 conversion sessionOf(target: RedisTarget) -> string {
-    user: string = "default"
-    match target.user {
+    user: string = "default";
+    match (target.user) {
         None -> None
         name -> {
-            user = name
+            user = name;
         }
     }
-    return "user=${user} db=${target.database}"
+
+    return "user=${user} db=${target.database}";
 }

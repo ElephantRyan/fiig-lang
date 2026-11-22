@@ -3,6 +3,10 @@
 // depend on the postcode.
 workflow domesticRate(speed: Speed, weightGrams: int) -> Result<int, QuoteError> {
     return quoteCents(
-        QuoteRequest(weightGrams: weightGrams, speed: speed, destination: Destination.Domestic(postcode: "")),
-    )
+        QuoteRequest(
+            weightGrams: weightGrams,
+            speed: speed,
+            destination: Destination.Domestic(postcode: ""),
+        ),
+    );
 }

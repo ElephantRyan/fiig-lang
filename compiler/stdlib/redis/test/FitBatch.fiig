@@ -2,13 +2,13 @@ use fiig.stream
 
 test aBatchFitsInsideTheRedeliveryDelay {
     // Defaults: 5 minutes, and 30 s + 10 s an element.
-    expect fitBatch(16, 300000, 40000) is Ok(count)
-    expect count == 7
-    expect fitBatch(16, 300000, 1000) is Ok(full)
-    expect full == 16
+    expect fitBatch(16, 300000, 40000) is Ok(count);
+    expect count == 7;
+    expect fitBatch(16, 300000, 1000) is Ok(full);
+    expect full == 16;
 }
 
 test noBatchFitsIsMisconfigured {
-    expect fitBatch(16, 30000, 40000) is Err(stream.SourceError.Misconfigured(reason))
-    expect reason.contains("REDIS_STREAM_RETRY_AFTER_MS is 30000")
+    expect fitBatch(16, 30000, 40000) is Err(stream.SourceError.Misconfigured(reason));
+    expect reason.contains("REDIS_STREAM_RETRY_AFTER_MS is 30000");
 }

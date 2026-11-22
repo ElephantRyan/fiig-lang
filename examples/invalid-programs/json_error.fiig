@@ -3,7 +3,7 @@
 // Two declarations in one file, so G1 also fires, incidentally but
 // correctly.
 rule readCounts(body: string) -> Result<Map<int, int>, JsonError> {
-    return json.decode(body)
+    return json.decode(body);
 }
 
 // §7b: J2, two fields reading one JSON member. Decoding would fill both
@@ -24,7 +24,7 @@ enum ShipmentState {
 // "Lost", so decoding would take whichever is written first. Spell one
 // (`Lost from json "parcel_lost"`), or wrap them in an enum of your own.
 rule readLoss(body: string) -> Result<ParcelError | LetterError, JsonError> {
-    return json.decode(body)
+    return json.decode(body);
 }
 
 enum ParcelError {

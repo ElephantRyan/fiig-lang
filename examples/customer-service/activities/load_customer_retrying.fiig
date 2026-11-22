@@ -3,5 +3,5 @@
 // so it's marked idempotent, and retrying it here is legal. The retry sits
 // in the activity, beside the gateway it retries (ADR 0107).
 activity loadCustomerRetrying(id: string) -> Result<Customer, CustomerError> {
-    return retry(attempts: 3): getCustomer(id)
+    return retry(attempts: 3): getCustomer(id);
 }

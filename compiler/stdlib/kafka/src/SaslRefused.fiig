@@ -5,14 +5,15 @@
 // Neither tries again on this connection: a login that failed once fails
 // the same way until the settings change.
 conversion saslRefused(s: KafkaSessionState, reason: string) -> KafkaSessionState {
-    why = "SASL authentication failed: ${reason}"
-    if s.role == "group" {
-        return copy(s, phase: "refused", fatal: why, scramSignature: <<>>)
+    why = "SASL authentication failed: ${reason}";
+    if (s.role == "group") {
+        return copy(s, phase: "refused", fatal: why, scramSignature: <<>>);
     }
+
     return copy(
         s,
         phase: "broker",
         refused: KafkaError.Authentication(reason: why),
         scramSignature: <<>>,
-    )
+    );
 }

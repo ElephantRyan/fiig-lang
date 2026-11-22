@@ -7,23 +7,23 @@ use acme.http.Client
 use acme.payments
 
 capability Stripe provides payments.PaymentProvider {
-    gateway charge(request: payments.ChargeRequest) -> Result<string, string>
-        requires Client
-    {
+    gateway charge(request: payments.ChargeRequest) -> Result<string, string> requires Client {
         outbound = http.WebRequest(
             host: "api.stripe.com",
             path: "/v1/charges",
             body: "${request.orderId}:${request.amount}",
             authorization: "Bearer ${StripeAccount.apiKey.reveal()}",
-        )
-        reply = Client.send(outbound)
-        match reply {
+        );
+        reply = Client.send(outbound);
+        return match (reply) {
             Ok(sent) -> {
-                if sent.status != 200 {
-                    return Err("HTTP ${sent.status} from api.stripe.com")
+                if (sent.status != 200) {
+                    return Err("HTTP ${sent.status} from api.stripe.com");
                 }
-                return Ok("stripe:${sent.body}")
+
+                return Ok("stripe:${sent.body}");
             }
+
             Err(failure) -> Err(http.describeSocketError(failure))
         }
     }

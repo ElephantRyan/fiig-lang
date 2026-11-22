@@ -1,8 +1,6 @@
 // Compensation for reserveInventory — used by the candidate 11th example,
 // never called inside a transaction block since the reservation already committed.
-gateway releaseInventory(orderId: string) -> Result<None, OrderError>
-    requires Database
-{
-    Database.execute("DELETE FROM inventory_reservations WHERE order_id = ?", orderId)
-    return Ok(None)
+gateway releaseInventory(orderId: string) -> Result<None, OrderError> requires Database {
+    Database.execute("DELETE FROM inventory_reservations WHERE order_id = ?", orderId);
+    return Ok(None);
 }

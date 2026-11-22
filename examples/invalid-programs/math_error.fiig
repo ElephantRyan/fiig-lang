@@ -3,10 +3,10 @@
 rule withinBudget(spent: int, budget: float) -> bool {
     // A1: math.max has an int form and a float form, and no (int, float)
     // form; convert spent with math.toFloat.
-    worst = math.max(spent, budget)
+    worst = math.max(spent, budget);
     // Untagged: relative passed by position, so 0.01 could be either
     // tolerance.
-    return math.closeTo(worst, budget, 0.01, absolute: 0.5)
+    return math.closeTo(worst, budget, 0.01, absolute: 0.5);
 }
 
 private {

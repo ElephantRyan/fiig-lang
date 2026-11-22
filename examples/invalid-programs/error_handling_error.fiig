@@ -2,6 +2,6 @@
 // dropped — every Result needs either `?` to propagate it or a `match` to
 // handle it. Here it's neither.
 workflow createCustomerIgnoringFailure(input: NewCustomer) -> Result<None, CustomerError> {
-    registerCustomer(input) // rejected: the Result is neither propagated with `?` nor matched
-    return Ok(None)
+    registerCustomer(input); // rejected: the Result is neither propagated with `?` nor matched
+    return Ok(None);
 }

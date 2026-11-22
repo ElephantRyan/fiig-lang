@@ -5,8 +5,9 @@ use fiig.http
 // memory (known limitations), so a very large one belongs in a streaming
 // download, which fiig.http can't do yet.
 conversion getResult(reply: http.Reply) -> Result<bytes, S3Error> {
-    if reply.status == 200 {
-        return Ok(reply.body)
+    if (reply.status == 200) {
+        return Ok(reply.body);
     }
-    return Err(errorOf(reply))
+
+    return Err(errorOf(reply));
 }

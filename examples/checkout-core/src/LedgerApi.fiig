@@ -4,18 +4,17 @@
 // site changed.
 // ADR 0060: one line per entry over a plain connection to the ledger.
 capability LedgerApi {
-    gateway record(entry: string) -> Result<None, string>
-        requires Socket
-    {
-        match Socket.connect("ledger.internal", 7000) {
+    gateway record(entry: string) -> Result<None, string> requires Socket {
+        return match (Socket.connect("ledger.internal", 7000)) {
             Ok(connection) -> {
-                sent = Socket.write(connection, "${entry}\n".utf8())
-                Socket.close(connection)
-                match sent {
+                sent = Socket.write(connection, "${entry}\n".utf8());
+                Socket.close(connection);
+                return match (sent) {
                     Ok(_) -> Ok(None)
                     Err(_) -> Err("ledger write failed")
                 }
             }
+
             Err(_) -> Err("ledger unreachable")
         }
     }

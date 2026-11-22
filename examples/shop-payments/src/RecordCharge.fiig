@@ -3,14 +3,13 @@ use shop.kernel
 // Payments' own table. In the monolith, the caps file's "packages" section
 // gives Payments its own Database (ADR 0079 §6a).
 gateway recordCharge(id: string, reference: string, charged: kernel.Money) -> None
-    requires Database
-{
+        requires Database {
     Database.execute(
         "INSERT INTO charges (id, reference, amount, currency) VALUES (?, ?, ?, ?)",
         id,
         reference,
         charged.amount,
         charged.currency,
-    )
-    return None
+    );
+    return None;
 }

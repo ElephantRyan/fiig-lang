@@ -1,5 +1,5 @@
 // A Kafka STRING: its length in two bytes, then its UTF-8.
 conversion kafkaString(text: string) -> bytes {
-    data = text.utf8()
-    return <<data.length(): i16be, data: bytes>>
+    data = text.utf8();
+    return <<data.length(): i16be, data: bytes>>;
 }

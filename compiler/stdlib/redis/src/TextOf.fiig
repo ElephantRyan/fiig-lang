@@ -1,14 +1,16 @@
 // A bulk or status reply as text, or None for anything else.
 conversion textOf(reply: RespValue) -> string | None {
-    match reply {
+    return match (reply) {
         RespValue.Bulk(data) -> {
-            return data.utf8()
+            return data.utf8();
         }
+
         RespValue.Simple(text) -> {
-            return text
+            return text;
         }
+
         _ -> {
-            return None
+            return None;
         }
     }
 }

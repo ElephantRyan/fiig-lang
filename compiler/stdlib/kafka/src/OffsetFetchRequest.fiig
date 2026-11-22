@@ -1,10 +1,17 @@
 // ADR 0117 §3: OffsetFetch v1 (API key 9): the group's committed offsets
 // for partitions of topic.
-conversion offsetFetchRequest(clientId: string, correlation: int, group: string, topic: string, partitions: List<int>) -> bytes {
-    ids: bytes = <<partitions.length(): i32be>>
-    for p in partitions {
-        ids = <<ids: bytes, p: i32be>>
+conversion offsetFetchRequest(
+    clientId: string,
+    correlation: int,
+    group: string,
+    topic: string,
+    partitions: List<int>,
+) -> bytes {
+    ids: bytes = <<partitions.length(): i32be>>;
+    for (p in partitions) {
+        ids = <<ids: bytes, p: i32be>>;
     }
-    body = <<kafkaString(group): bytes, 1: i32be, kafkaString(topic): bytes, ids: bytes>>
-    return kafkaRequest(9, 1, correlation, clientId, body)
+
+    body = <<kafkaString(group): bytes, 1: i32be, kafkaString(topic): bytes, ids: bytes>>;
+    return kafkaRequest(9, 1, correlation, clientId, body);
 }

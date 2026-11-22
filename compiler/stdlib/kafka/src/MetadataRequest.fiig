@@ -1,5 +1,11 @@
 // ADR 0113 §4: Metadata v4 (API key 3) for one topic, never creating it:
 // a misspelled topic is UnknownTopic, not a new topic.
 conversion metadataRequest(clientId: string, correlation: int, topic: string) -> bytes {
-    return kafkaRequest(3, 4, correlation, clientId, <<1: i32be, kafkaString(topic): bytes, 0: u8>>)
+    return kafkaRequest(
+        3,
+        4,
+        correlation,
+        clientId,
+        <<1: i32be, kafkaString(topic): bytes, 0: u8>>,
+    );
 }

@@ -1,5 +1,5 @@
 // The step a workflow takes to read a customer (ADR 0107: workflows reach
 // gateways through activities).
 activity loadCustomer(id: string) -> Result<Customer, CustomerError> {
-    return getCustomer(id)
+    return getCustomer(id);
 }

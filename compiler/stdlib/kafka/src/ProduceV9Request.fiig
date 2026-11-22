@@ -4,17 +4,24 @@
 // partition's batch as COMPACT_RECORDS, its length plus one then the
 // batch. timeoutMillis is how long the leader may wait for the in-sync
 // replicas.
-conversion produceV9Request(clientId: string, correlation: int, topic: string, timeoutMillis: int, batches: List<PartitionBatch>) -> bytes {
-    partitions: bytes = uvarint(batches.length() + 1)
-    for batch in batches {
+conversion produceV9Request(
+    clientId: string,
+    correlation: int,
+    topic: string,
+    timeoutMillis: int,
+    batches: List<PartitionBatch>,
+) -> bytes {
+    partitions: bytes = uvarint(batches.length() + 1);
+    for (batch in batches) {
         partitions = <<
             partitions: bytes,
             batch.partition: i32be,
             uvarint(batch.batch.length() + 1): bytes,
             batch.batch: bytes,
             0: u8,
-        >>
+        >>;
     }
+
     body = <<
         0: u8,
         0 - 1: i16be,
@@ -24,6 +31,6 @@ conversion produceV9Request(clientId: string, correlation: int, topic: string, t
         partitions: bytes,
         0: u8,
         0: u8,
-    >>
-    return kafkaFlexRequest(0, 9, correlation, clientId, body)
+    >>;
+    return kafkaFlexRequest(0, 9, correlation, clientId, body);
 }

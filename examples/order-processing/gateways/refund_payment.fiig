@@ -1,7 +1,6 @@
 // Compensation for chargePayment — used by the candidate 11th example.
 gateway refundPayment(paymentReference: string) -> Result<None, OrderError>
-    requires PaymentGateway
-{
-    PaymentGateway.refund(paymentReference)
-    return Ok(None)
+        requires PaymentGateway {
+    PaymentGateway.refund(paymentReference);
+    return Ok(None);
 }

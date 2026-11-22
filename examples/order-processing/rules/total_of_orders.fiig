@@ -2,9 +2,10 @@
 // the typed declaration that makes `total` reassignable; each `Order` stays
 // immutable and only the local name is rebound.
 rule totalOfOrders(orders: List<Order>) -> int {
-    total: int = 0
-    for order in orders {
-        total = total + order.total
+    total: int = 0;
+    for (order in orders) {
+        total = total + order.total;
     }
-    return total
+
+    return total;
 }

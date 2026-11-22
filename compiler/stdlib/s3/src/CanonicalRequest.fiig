@@ -6,14 +6,22 @@ use fiig.http
 // alphabetical. An operation with headers of its own (a checksum, metadata,
 // a copy source, a range) goes through canonicalHeaders and
 // canonicalRequestOf, as signedRequest does.
-conversion canonicalRequest(method: string, path: string, host: string, payloadHash: string, stamp: string, token: string) -> string {
+conversion canonicalRequest(
+    method: string,
+    path: string,
+    host: string,
+    payloadHash: string,
+    stamp: string,
+    token: string,
+) -> string {
     headers: List<http.Header> = [
         http.Header(name: "host", value: host),
         http.Header(name: "x-amz-content-sha256", value: payloadHash),
         http.Header(name: "x-amz-date", value: stamp),
-    ]
-    if token != "" {
-        headers = append(headers, http.Header(name: "x-amz-security-token", value: token))
+    ];
+    if (token != "") {
+        headers = append(headers, http.Header(name: "x-amz-security-token", value: token));
     }
-    return canonicalRequestOf(method, path, headers, payloadHash)
+
+    return canonicalRequestOf(method, path, headers, payloadHash);
 }

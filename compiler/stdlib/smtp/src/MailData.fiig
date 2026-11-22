@@ -7,38 +7,42 @@
 // Bcc is never written (§2a). A mail with HTML or attachments is multipart
 // (§2b), its boundaries made from the Message-ID's random token.
 conversion mailData(mail: Mail, date: string, messageId: string) -> bytes {
-    names: Map<string, string> = [:]
-    match mail.names {
+    names: Map<string, string> = [:];
+    match (mail.names) {
         None -> None
         given -> {
-            names = given
+            names = given;
         }
     }
-    headers: List<string> = [addressHeader("From", [mail.from], names)]
-    if mail.to.length() > 0 {
-        headers = append(headers, addressHeader("To", mail.to, names))
+
+    headers: List<string> = [addressHeader("From", [mail.from], names)];
+    if (mail.to.length() > 0) {
+        headers = append(headers, addressHeader("To", mail.to, names));
     }
-    match mail.cc {
+
+    match (mail.cc) {
         None -> None
         cc -> {
-            if cc.length() > 0 {
-                headers = append(headers, addressHeader("Cc", cc, names))
+            if (cc.length() > 0) {
+                headers = append(headers, addressHeader("Cc", cc, names));
             }
         }
     }
-    match mail.replyTo {
+
+    match (mail.replyTo) {
         None -> None
         address -> {
-            headers = append(headers, addressHeader("Reply-To", [address], names))
+            headers = append(headers, addressHeader("Reply-To", [address], names));
         }
     }
-    headers = append(headers, "Subject: ${subjectHeader(mail.subject)}")
-    headers = append(headers, "Date: ${date}")
-    headers = append(headers, "Message-ID: <${messageId}>")
-    headers = append(headers, "MIME-Version: 1.0")
-    head = headers.join("\r\n")
-    text = "${head}\r\n${entityOf(mail, messageId)}.\r\n"
-    return text.utf8()
+
+    headers = append(headers, "Subject: ${subjectHeader(mail.subject)}");
+    headers = append(headers, "Date: ${date}");
+    headers = append(headers, "Message-ID: <${messageId}>");
+    headers = append(headers, "MIME-Version: 1.0");
+    head = headers.join("\r\n");
+    text = "${head}\r\n${entityOf(mail, messageId)}.\r\n";
+    return text.utf8();
 }
 
 private {
@@ -51,74 +55,84 @@ private {
     // other, and a text part that holds either goes as base64, which can't
     // hold `=_`.
     entityOf(mail: Mail, messageId: string) -> string {
-        html: string = ""
-        hasHtml: bool = false
-        match mail.html {
+        html: string = "";
+        hasHtml: bool = false;
+        match (mail.html) {
             None -> None
             given -> {
-                html = given
-                hasHtml = true
+                html = given;
+                hasHtml = true;
             }
         }
-        attachments: List<Attachment> = []
-        match mail.attachments {
+
+        attachments: List<Attachment> = [];
+        match (mail.attachments) {
             None -> None
             given -> {
-                attachments = given
+                attachments = given;
             }
         }
-        if not hasHtml and attachments.length() == 0 {
-            return textEntity(mail.body, "plain", [])
+
+        if (!hasHtml && attachments.length() == 0) {
+            return textEntity(mail.body, "plain", []);
         }
-        token = messageId.split("@").first()
-        mixed = "=_m.${token}"
-        alternative = "=_a.${token}"
-        avoid = [mixed, alternative]
-        body: string = textEntity(mail.body, "plain", avoid)
-        if hasHtml {
-            body = multipart("alternative", alternative, [body, textEntity(html, "html", avoid)])
+
+        token = messageId.split("@").first();
+        mixed = "=_m.${token}";
+        alternative = "=_a.${token}";
+        avoid = [mixed, alternative];
+        body: string = textEntity(mail.body, "plain", avoid);
+        if (hasHtml) {
+            body = multipart("alternative", alternative, [body, textEntity(html, "html", avoid)]);
         }
-        if attachments.length() == 0 {
-            return body
+
+        if (attachments.length() == 0) {
+            return body;
         }
-        parts: List<string> = [body]
-        for attachment in attachments {
-            parts = append(parts, attachmentEntity(attachment))
+
+        parts: List<string> = [body];
+        for (attachment in attachments) {
+            parts = append(parts, attachmentEntity(attachment));
         }
-        return multipart("mixed", mixed, parts)
+
+        return multipart("mixed", mixed, parts);
     }
 
     // A text part: 7bit when it can go so, base64 when it can't or when it
     // holds a boundary.
     textEntity(text: string, subtype: string, boundaries: List<string>) -> string {
-        plain = text.replaceAll("\r\n", "\n").replaceAll("\r", "\n")
-        rows: List<string> = plain.split("\n")
-        if rows.length() > 1 and rows.last() == "" {
-            rows = rows.slice(0, rows.length() - 1)
+        plain = text.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+        rows: List<string> = plain.split("\n");
+        if (rows.length() > 1 && rows.last() == "") {
+            rows = rows.slice(0, rows.length() - 1);
         }
-        encoded: bool = needsBase64(plain, rows)
-        for boundary in boundaries {
-            if plain.contains(boundary) {
-                encoded = true
+
+        encoded: bool = needsBase64(plain, rows);
+        for (boundary in boundaries) {
+            if (plain.contains(boundary)) {
+                encoded = true;
             }
         }
-        encoding: string = "7bit"
-        body: string = plainLines(rows)
-        if encoded {
-            encoding = "base64"
-            body = base64Lines(rows)
+
+        encoding: string = "7bit";
+        body: string = plainLines(rows);
+        if (encoded) {
+            encoding = "base64";
+            body = base64Lines(rows);
         }
-        return "Content-Type: text/${subtype}; charset=utf-8\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n${body}"
+
+        return "Content-Type: text/${subtype}; charset=utf-8\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n${body}";
     }
 
     // Parts between boundary lines, each part ending in CRLF so the next
     // line starts with the boundary (RFC 2046 §5.1.1).
     multipart(kind: string, boundary: string, parts: List<string>) -> string {
-        out: string = "Content-Type: multipart/${kind};\r\n boundary=\"${boundary}\"\r\n\r\n"
-        for part in parts {
-            out = "${out}--${boundary}\r\n${part}"
+        out: string = "Content-Type: multipart/${kind};\r\n boundary=\"${boundary}\"\r\n\r\n";
+        for (part in parts) {
+            out = "${out}--${boundary}\r\n${part}";
         }
-        return "${out}--${boundary}--\r\n"
+
+        return "${out}--${boundary}--\r\n";
     }
 
     // A file as an attachment, in base64. Its name goes twice, as mail
@@ -127,87 +141,93 @@ private {
     // as RFC 2047 encoded words in Content-Type's name, which is what older
     // readers (Outlook among them) understand.
     attachmentEntity(attachment: Attachment) -> string {
-        name = attachment.name
-        typeName: string = quotedString(name)
-        fileName: string = "filename=${typeName}"
-        if not printableAscii(name) {
-            typeName = "\"${encodedWords(name)}\""
-            fileName = "filename*=utf-8''${percentEncoded(name)}"
+        name = attachment.name;
+        typeName: string = quotedString(name);
+        fileName: string = "filename=${typeName}";
+        if (!printableAscii(name)) {
+            typeName = "\"${encodedWords(name)}\"";
+            fileName = "filename*=utf-8''${percentEncoded(name)}";
         }
-        typeLine = "Content-Type: ${attachment.contentType};\r\n name=${typeName}\r\n"
-        disposition = "Content-Disposition: attachment;\r\n ${fileName}\r\n"
-        return "${typeLine}${disposition}Content-Transfer-Encoding: base64\r\n\r\n${wrapped(attachment.data.toBase64())}"
+
+        typeLine = "Content-Type: ${attachment.contentType};\r\n name=${typeName}\r\n";
+        disposition = "Content-Disposition: attachment;\r\n ${fileName}\r\n";
+        return "${typeLine}${disposition}Content-Transfer-Encoding: base64\r\n\r\n${wrapped(attachment.data.toBase64())}";
     }
 
     printableAscii(text: string) -> bool {
-        for b in text.utf8() {
-            if b < 32 or b > 126 {
-                return false
+        for (b in text.utf8()) {
+            if (b < 32 || b > 126) {
+                return false;
             }
         }
-        return true
+
+        return true;
     }
 
     quotedString(text: string) -> string {
-        escaped = text.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")
-        return "\"${escaped}\""
+        escaped = text.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"");
+        return "\"${escaped}\"";
     }
 
     // RFC 2231 §7's value: UTF-8 bytes, each but its attribute characters
     // (letters, digits, and ! # $ & + - . ^ _ ` | ~) as %XX.
     percentEncoded(text: string) -> string {
-        out: string = ""
-        for b in text.utf8() {
-            if b >= 48 and b <= 57 or b >= 65 and b <= 90 or b >= 97 and b <= 122 or b == 33 or b == 35 or b == 36 or b == 38 or b == 43 or b == 45 or b == 46 or b == 94 or b == 95 or b == 96 or b == 124 or b == 126 {
-                one: bytes = <<b: u8>>
-                match one.utf8() {
+        out: string = "";
+        for (b in text.utf8()) {
+            if (b >= 48 && b <= 57 || b >= 65 && b <= 90 || b >= 97 && b <= 122 || b == 33 || b == 35 || b == 36 || b == 38 || b == 43 || b == 45 || b == 46 || b == 94 || b == 95 || b == 96 || b == 124 || b == 126) {
+                one: bytes = <<b: u8>>;
+                match (one.utf8()) {
                     None -> None
                     c -> {
-                        out = "${out}${c}"
+                        out = "${out}${c}";
                     }
                 }
             } else {
-                one: bytes = <<b: u8>>
-                out = "${out}%${one.toHex().uppercase()}"
+                one: bytes = <<b: u8>>;
+                out = "${out}%${one.toHex().uppercase()}";
             }
         }
-        return out
+
+        return out;
     }
 
     // Whether the body can't go as 7bit text: a byte outside printable ASCII
     // and the usual controls, or a line SMTP won't carry.
     needsBase64(plain: string, rows: List<string>) -> bool {
-        for b in plain.utf8() {
-            if b >= 128 or b == 0 {
-                return true
+        for (b in plain.utf8()) {
+            if (b >= 128 || b == 0) {
+                return true;
             }
         }
-        for row in rows {
-            if row.utf8().length() > 998 {
-                return true
+
+        for (row in rows) {
+            if (row.utf8().length() > 998) {
+                return true;
             }
         }
-        return false
+
+        return false;
     }
 
     plainLines(rows: List<string>) -> string {
-        stuffed: List<string> = []
-        for row in rows {
-            if row.startsWith(".") {
-                stuffed = append(stuffed, ".${row}")
+        stuffed: List<string> = [];
+        for (row in rows) {
+            if (row.startsWith(".")) {
+                stuffed = append(stuffed, ".${row}");
             } else {
-                stuffed = append(stuffed, row)
+                stuffed = append(stuffed, row);
             }
         }
-        joined = stuffed.join("\r\n")
-        return "${joined}\r\n"
+
+        joined = stuffed.join("\r\n");
+        return "${joined}\r\n";
     }
 
     // The body as CRLF text in base64, wrapped at 76 characters.
     base64Lines(rows: List<string>) -> string {
-        joined = rows.join("\r\n")
-        text = "${joined}\r\n"
-        return wrapped(text.utf8().toBase64())
+        joined = rows.join("\r\n");
+        text = "${joined}\r\n";
+        return wrapped(text.utf8().toBase64());
     }
 
     // Base64 in lines of 76 characters (RFC 2045 §6.8), each ending in CRLF.
@@ -215,78 +235,87 @@ private {
     // length and slice count characters from its start, so an attachment of
     // megabytes doesn't take time in the square of its size.
     wrapped(encoded: string) -> string {
-        raw = encoded.utf8()
-        lines: List<string> = []
-        start: int = 0
-        while start < raw.length() {
-            stop: int = start + 76
-            if stop > raw.length() {
-                stop = raw.length()
+        raw = encoded.utf8();
+        lines: List<string> = [];
+        start: int = 0;
+        while (start < raw.length()) {
+            stop: int = start + 76;
+            if (stop > raw.length()) {
+                stop = raw.length();
             }
-            match raw.slice(start, stop).utf8() {
+
+            match (raw.slice(start, stop).utf8()) {
                 None -> None
                 line -> {
-                    lines = append(lines, line)
+                    lines = append(lines, line);
                 }
             }
-            start = stop
+
+            start = stop;
         }
-        wrapped = lines.join("\r\n")
-        return "${wrapped}\r\n"
+
+        wrapped = lines.join("\r\n");
+        return "${wrapped}\r\n";
     }
 
     // The subject as it goes in the header: itself when it is printable
     // ASCII, else encoded words.
     subjectHeader(subject: string) -> string {
-        for b in subject.utf8() {
-            if b < 32 or b > 126 {
-                return encodedWords(subject)
+        for (b in subject.utf8()) {
+            if (b < 32 || b > 126) {
+                return encodedWords(subject);
             }
         }
-        return subject
+
+        return subject;
     }
 
     // =?UTF-8?B?...?= words of at most 42 bytes each, cut only between
     // characters (a continuation byte never starts a word), folded with CRLF
     // and a space (RFC 2047 §2, RFC 5322 §2.2.3).
     encodedWords(text: string) -> string {
-        raw = text.utf8()
-        words: List<string> = []
-        start: int = 0
-        i: int = 0
-        while i < raw.length() {
-            i = i + 1
-            if i - start >= 42 and (i == raw.length() or not continuation(raw.at(i))) {
-                words = append(words, word(raw.slice(start, i)))
-                start = i
+        raw = text.utf8();
+        words: List<string> = [];
+        start: int = 0;
+        i: int = 0;
+        while (i < raw.length()) {
+            i = i + 1;
+            if (i - start >= 42 && (i == raw.length() || !continuation(raw.at(i)))) {
+                words = append(words, word(raw.slice(start, i)));
+                start = i;
             }
         }
-        if start < raw.length() {
-            words = append(words, word(raw.slice(start, raw.length())))
+
+        if (start < raw.length()) {
+            words = append(words, word(raw.slice(start, raw.length())));
         }
-        return words.join("\r\n ")
+
+        return words.join("\r\n ");
     }
 
     // A header of addresses, each with its display name when names has one,
     // separated by commas and folded before an address that would take the
     // line past 78 characters (RFC 5322 §2.1.1, §3.4).
     addressHeader(field: string, addresses: List<string>, names: Map<string, string>) -> string {
-        text: string = "${field}:"
-        first: bool = true
-        for address in addresses {
-            entry = mailbox(address, names.atOr(address, ""))
-            if not first {
-                text = "${text},"
+        text: string = "${field}:";
+        first: bool = true;
+        for (address in addresses) {
+            entry = mailbox(address, names.atOr(address, ""));
+            if (!first) {
+                text = "${text},";
             }
-            width = entry.split("\r\n").first().utf8().length()
-            if not first and text.split("\r\n").last().utf8().length() + 1 + width > 78 {
-                text = "${text}\r\n ${entry}"
+
+            width = entry.split("\r\n").first().utf8().length();
+            if (!first && text.split("\r\n").last().utf8().length() + 1 + width > 78) {
+                text = "${text}\r\n ${entry}";
             } else {
-                text = "${text} ${entry}"
+                text = "${text} ${entry}";
             }
-            first = false
+
+            first = false;
         }
-        return text
+
+        return text;
     }
 
     // An address as a header writes it: bare, or after its display name in
@@ -295,40 +324,45 @@ private {
     // would decode) is quoted; one that isn't printable ASCII is encoded
     // words (RFC 5322 §3.4, RFC 2047 §5).
     mailbox(address: string, name: string) -> string {
-        if name == "" {
-            return address
+        if (name == "") {
+            return address;
         }
-        for b in name.utf8() {
-            if b < 32 or b > 126 {
-                return "${encodedWords(name)} <${address}>"
+
+        for (b in name.utf8()) {
+            if (b < 32 || b > 126) {
+                return "${encodedWords(name)} <${address}>";
             }
         }
-        if plainPhrase(name) {
-            return "${name} <${address}>"
+
+        if (plainPhrase(name)) {
+            return "${name} <${address}>";
         }
-        quoted = name.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")
-        return "\"${quoted}\" <${address}>"
+
+        quoted = name.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"");
+        return "\"${quoted}\" <${address}>";
     }
 
     // Letters, digits, spaces, and the symbols RFC 5322's atoms allow.
     plainPhrase(name: string) -> bool {
-        if name.contains("=?") {
-            return false
+        if (name.contains("=?")) {
+            return false;
         }
-        for b in name.utf8() {
-            if b == 34 or b == 40 or b == 41 or b == 44 or b == 46 or b == 58 or b == 59 or b == 60 or b == 62 or b == 64 or b == 91 or b == 92 or b == 93 {
-                return false
+
+        for (b in name.utf8()) {
+            if (b == 34 || b == 40 || b == 41 || b == 44 || b == 46 || b == 58 || b == 59 || b == 60 || b == 62 || b == 64 || b == 91 || b == 92 || b == 93) {
+                return false;
             }
         }
-        return true
+
+        return true;
     }
 
     word(part: bytes) -> string {
-        return "=?UTF-8?B?${part.toBase64()}?="
+        return "=?UTF-8?B?${part.toBase64()}?=";
     }
 
     // The second to fourth byte of a UTF-8 character.
     continuation(b: int) -> bool {
-        return b >= 128 and b < 192
+        return b >= 128 && b < 192;
     }
 }

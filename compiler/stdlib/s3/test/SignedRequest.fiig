@@ -8,13 +8,13 @@ test aSignedGetMatchesTheReference {
         body: <<>>,
         contentType: "",
         headers: [],
-    )
-    expect signedRequest(call, S3Account(endpoint: "https://s3.amazonaws.com", region: "us-east-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE", secret: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", token: "", pathStyle: false, timeoutMillis: 30000), 1369353600000) is Ok(request)
-    expect request.url == "https://examplebucket.s3.amazonaws.com/test.txt"
-    expect request.method == http.Method.Get
-    expect header(request, "Authorization") == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=14f6a0997b2b70a86f4726658a6575b5109092ccb5fd328f51b369c44b4ac958"
-    expect header(request, "x-amz-date") == "20130524T000000Z"
-    expect header(request, "x-amz-content-sha256") == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
+    expect signedRequest(call, S3Account(endpoint: "https://s3.amazonaws.com", region: "us-east-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE", secret: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", token: "", pathStyle: false, timeoutMillis: 30000), 1369353600000) is Ok(request);
+    expect request.url == "https://examplebucket.s3.amazonaws.com/test.txt";
+    expect request.method == http.Method.Get;
+    expect header(request, "Authorization") == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=14f6a0997b2b70a86f4726658a6575b5109092ccb5fd328f51b369c44b4ac958";
+    expect header(request, "x-amz-date") == "20130524T000000Z";
+    expect header(request, "x-amz-content-sha256") == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 }
 
 test aSignedPutSignsItsBody {
@@ -25,17 +25,17 @@ test aSignedPutSignsItsBody {
         body: "Welcome to Amazon S3.".utf8(),
         contentType: "text/plain",
         headers: [],
-    )
-    expect signedRequest(call, S3Account(endpoint: "https://s3.amazonaws.com", region: "us-east-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE", secret: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", token: "", pathStyle: false, timeoutMillis: 30000), 1369353600000) is Ok(request)
-    expect request.url == "https://examplebucket.s3.amazonaws.com/test%24file.text"
-    expect request.method == http.Method.Put
-    expect header(request, "Authorization") == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=769f3130565ef181c3dd2a106911a4baed0ccbd8f1afe0519c6875fd9364f9f7"
-    expect header(request, "Content-Type") == "text/plain"
-    expect header(request, "x-amz-content-sha256") == "44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072"
+    );
+    expect signedRequest(call, S3Account(endpoint: "https://s3.amazonaws.com", region: "us-east-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE", secret: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", token: "", pathStyle: false, timeoutMillis: 30000), 1369353600000) is Ok(request);
+    expect request.url == "https://examplebucket.s3.amazonaws.com/test%24file.text";
+    expect request.method == http.Method.Put;
+    expect header(request, "Authorization") == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=769f3130565ef181c3dd2a106911a4baed0ccbd8f1afe0519c6875fd9364f9f7";
+    expect header(request, "Content-Type") == "text/plain";
+    expect header(request, "x-amz-content-sha256") == "44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072";
 }
 
 test aCallsOwnHeadersAreSentAndSigned {
-    body = "Welcome to Amazon S3.".utf8()
+    body = "Welcome to Amazon S3.".utf8();
     call = S3Call(
         method: "PUT",
         bucket: "examplebucket",
@@ -43,11 +43,11 @@ test aCallsOwnHeadersAreSentAndSigned {
         body: body,
         contentType: "",
         headers: [http.Header(name: "x-amz-meta-colour", value: "blue"), checksumHeader(body)],
-    )
-    expect signedRequest(call, S3Account(endpoint: "https://s3.amazonaws.com", region: "us-east-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE", secret: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", token: "", pathStyle: false, timeoutMillis: 30000), 1369353600000) is Ok(request)
-    expect header(request, "Authorization") == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-checksum-sha256;x-amz-content-sha256;x-amz-date;x-amz-meta-colour, Signature=247dd8fe912f0508098961b3b68bf98484ec8233b30ed7e47553976f5e90ca59"
-    expect header(request, "x-amz-meta-colour") == "blue"
-    expect header(request, "x-amz-checksum-sha256") == "RM591nyVng01JP+sF3Hfu6h9K2tLTpnkIDSouAP4sHI="
+    );
+    expect signedRequest(call, S3Account(endpoint: "https://s3.amazonaws.com", region: "us-east-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE", secret: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", token: "", pathStyle: false, timeoutMillis: 30000), 1369353600000) is Ok(request);
+    expect header(request, "Authorization") == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-checksum-sha256;x-amz-content-sha256;x-amz-date;x-amz-meta-colour, Signature=247dd8fe912f0508098961b3b68bf98484ec8233b30ed7e47553976f5e90ca59";
+    expect header(request, "x-amz-meta-colour") == "blue";
+    expect header(request, "x-amz-checksum-sha256") == "RM591nyVng01JP+sF3Hfu6h9K2tLTpnkIDSouAP4sHI=";
 }
 
 test aSessionTokenIsSentAndSigned {
@@ -58,11 +58,11 @@ test aSessionTokenIsSentAndSigned {
         body: <<>>,
         contentType: "",
         headers: [],
-    )
-    expect signedRequest(call, S3Account(endpoint: "https://s3.eu-west-1.amazonaws.com", region: "eu-west-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE", secret: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", token: "TOKEN123", pathStyle: true, timeoutMillis: 30000), 1700000000000) is Ok(request)
-    expect request.url == "https://s3.eu-west-1.amazonaws.com/abc/dir/b.txt"
-    expect header(request, "x-amz-security-token") == "TOKEN123"
-    expect header(request, "Authorization") == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20231114/eu-west-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-security-token, Signature=22e328cee69ef6f5edf2cea921a02953ffd5459ad79b1a0a5a93805d56691417"
+    );
+    expect signedRequest(call, S3Account(endpoint: "https://s3.eu-west-1.amazonaws.com", region: "eu-west-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE", secret: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", token: "TOKEN123", pathStyle: true, timeoutMillis: 30000), 1700000000000) is Ok(request);
+    expect request.url == "https://s3.eu-west-1.amazonaws.com/abc/dir/b.txt";
+    expect header(request, "x-amz-security-token") == "TOKEN123";
+    expect header(request, "Authorization") == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20231114/eu-west-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-security-token, Signature=22e328cee69ef6f5edf2cea921a02953ffd5459ad79b1a0a5a93805d56691417";
 }
 
 test aPathStyleKeyWithASpaceAndAnAccent {
@@ -73,10 +73,10 @@ test aPathStyleKeyWithASpaceAndAnAccent {
         body: "hello".utf8(),
         contentType: "image/png",
         headers: [],
-    )
-    expect signedRequest(call, S3Account(endpoint: "http://localhost:19000", region: "us-east-1", accessKeyId: "minioadmin", secret: "minioadmin", token: "", pathStyle: true, timeoutMillis: 30000), 1700000000000) is Ok(request)
-    expect request.url == "http://localhost:19000/photos/2026/cat%20%C3%A9.png"
-    expect header(request, "Authorization") == "AWS4-HMAC-SHA256 Credential=minioadmin/20231114/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=08eb42ff61e9d98f3007b08a18773ca6a6f4cf8d4acf6f4d1b4455c871c787dc"
+    );
+    expect signedRequest(call, S3Account(endpoint: "http://localhost:19000", region: "us-east-1", accessKeyId: "minioadmin", secret: "minioadmin", token: "", pathStyle: true, timeoutMillis: 30000), 1700000000000) is Ok(request);
+    expect request.url == "http://localhost:19000/photos/2026/cat%20%C3%A9.png";
+    expect header(request, "Authorization") == "AWS4-HMAC-SHA256 Credential=minioadmin/20231114/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=08eb42ff61e9d98f3007b08a18773ca6a6f4cf8d4acf6f4d1b4455c871c787dc";
 }
 
 test onlyFourOperationsExist {
@@ -87,8 +87,8 @@ test onlyFourOperationsExist {
         body: <<>>,
         contentType: "",
         headers: [],
-    )
-    expect signedRequest(call, S3Account(endpoint: "https://s3.amazonaws.com", region: "us-east-1", accessKeyId: "a", secret: "s", token: "", pathStyle: true, timeoutMillis: 30000), 0) is Err(S3Error.InvalidRequest(reason))
+    );
+    expect signedRequest(call, S3Account(endpoint: "https://s3.amazonaws.com", region: "us-east-1", accessKeyId: "a", secret: "s", token: "", pathStyle: true, timeoutMillis: 30000), 0) is Err(S3Error.InvalidRequest(reason));
 }
 
 test aBadEndpointIsRefusedBeforeSigning {
@@ -99,22 +99,23 @@ test aBadEndpointIsRefusedBeforeSigning {
         body: <<>>,
         contentType: "",
         headers: [],
-    )
-    expect signedRequest(call, S3Account(endpoint: "ftp://s3.example", region: "us-east-1", accessKeyId: "a", secret: "s", token: "", pathStyle: true, timeoutMillis: 30000), 0) is Err(S3Error.InvalidConfig(reason))
+    );
+    expect signedRequest(call, S3Account(endpoint: "ftp://s3.example", region: "us-east-1", accessKeyId: "a", secret: "s", token: "", pathStyle: true, timeoutMillis: 30000), 0) is Err(S3Error.InvalidConfig(reason));
 }
 
 private {
     // A request header's value, or "" when it has none.
     header(request: http.Request, name: string) -> string {
-        match request.headers {
+        return match (request.headers) {
             None -> ""
             given -> {
-                for each in given {
-                    if each.name == name {
-                        return each.value
+                for (each in given) {
+                    if (each.name == name) {
+                        return each.value;
                     }
                 }
-                return ""
+
+                return "";
             }
         }
     }

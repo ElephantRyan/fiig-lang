@@ -1,6 +1,3 @@
-gateway listAccounts() -> List<Account>
-    requires Database
-    idempotent
-{
-    return Database.queryMany("SELECT name, email FROM accounts ORDER BY name")
+gateway listAccounts() -> List<Account> requires Database idempotent {
+    return Database.queryMany("SELECT name, email FROM accounts ORDER BY name");
 }

@@ -1,6 +1,5 @@
 gateway sendEmail(to: string, subject: string, body: string) -> Result<None, CustomerError>
-    requires EmailSender
-{
-    EmailSender.send(to, subject, body)
-    return Ok(None)
+        requires EmailSender {
+    EmailSender.send(to, subject, body);
+    return Ok(None);
 }

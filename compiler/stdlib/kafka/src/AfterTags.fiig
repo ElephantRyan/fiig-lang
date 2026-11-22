@@ -2,35 +2,41 @@
 // each field's tag, size, and that many bytes. None when they run past the
 // end.
 conversion afterTags(data: bytes, at: int) -> int | None {
-    match uvarintAt(data, at) {
+    return match (uvarintAt(data, at)) {
         None -> {
-            return None
+            return None;
         }
+
         count -> {
-            pos: int = count.next
-            i: int = 0
-            while i < count.value {
-                match uvarintAt(data, pos) {
+            pos: int = count.next;
+            i: int = 0;
+            while (i < count.value) {
+                match (uvarintAt(data, pos)) {
                     None -> {
-                        return None
+                        return None;
                     }
+
                     tag -> {
-                        match uvarintAt(data, tag.next) {
+                        match (uvarintAt(data, tag.next)) {
                             None -> {
-                                return None
+                                return None;
                             }
+
                             size -> {
-                                pos = size.next + size.value
+                                pos = size.next + size.value;
                             }
                         }
                     }
                 }
-                i = i + 1
+
+                i = i + 1;
             }
-            if pos > data.length() {
-                return None
+
+            if (pos > data.length()) {
+                return None;
             }
-            return pos
+
+            return pos;
         }
     }
 }

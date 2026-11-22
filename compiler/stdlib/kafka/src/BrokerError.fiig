@@ -2,12 +2,12 @@
 // (errorName) and the retriable flag the protocol gives it
 // (kafka.apache.org's error table).
 conversion brokerError(code: int, during: string) -> KafkaError {
-    name = errorName(code)
-    retriable = [2, 3, 5, 6, 7, 19, 20, 56].contains(code)
+    name = errorName(code);
+    retriable = [2, 3, 5, 6, 7, 19, 20, 56].contains(code);
     return KafkaError.Broker(
         code: code,
         name: name,
         retriable: retriable,
         message: "${during}: ${name}",
-    )
+    );
 }

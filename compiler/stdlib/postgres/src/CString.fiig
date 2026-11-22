@@ -1,4 +1,4 @@
 // Text as the protocol writes it: UTF-8 and a zero byte.
 conversion cString(text: string) -> bytes {
-    return <<text: utf8, 0: u8>>
+    return <<text: utf8, 0: u8>>;
 }

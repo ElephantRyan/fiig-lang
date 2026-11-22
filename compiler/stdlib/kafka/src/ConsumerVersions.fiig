@@ -3,28 +3,33 @@
 // ConsumerGroupHeartbeat v1 is Kafka 4.0's; the rest are the versions the
 // consumer sends.
 conversion consumerVersions(frame: bytes) -> string {
-    match frame {
+    return match (frame) {
         <<_: i32be, code: i16be, count: i32be, rest: bytes>> -> {
-            if code != 0 {
-                return "ApiVersions: ${errorName(code)}"
+            if (code != 0) {
+                return "ApiVersions: ${errorName(code)}";
             }
-            if count < 0 or rest.length() < count * 6 {
-                return "an ApiVersions response lists ${count} APIs in ${rest.length()} bytes"
+
+            if (count < 0 || rest.length() < count * 6) {
+                return "an ApiVersions response lists ${count} APIs in ${rest.length()} bytes";
             }
-            if not apiSupports(rest, count, 68, 1) {
-                return "the broker doesn't take ConsumerGroupHeartbeat v1 (KIP-848); fiig.kafka's consumer needs Kafka 4.0 or later (ADR 0117 §1)"
+
+            if (!apiSupports(rest, count, 68, 1)) {
+                return "the broker doesn't take ConsumerGroupHeartbeat v1 (KIP-848); fiig.kafka's consumer needs Kafka 4.0 or later (ADR 0117 §1)";
             }
+
             // Fetch v11, ListOffsets v2, Metadata v4, OffsetCommit v9,
             // OffsetFetch v1, FindCoordinator v1, Produce v8.
-            for wanted in [[1, 11], [2, 2], [3, 4], [8, 9], [9, 1], [10, 1], [0, 8]] {
-                if not apiSupports(rest, count, wanted.first(), wanted.last()) {
-                    return "the broker doesn't take API ${wanted.first()} v${wanted.last()}, which fiig.kafka's consumer sends (ADR 0117 §1)"
+            for (wanted in [[1, 11], [2, 2], [3, 4], [8, 9], [9, 1], [10, 1], [0, 8]]) {
+                if (!apiSupports(rest, count, wanted.first(), wanted.last())) {
+                    return "the broker doesn't take API ${wanted.first()} v${wanted.last()}, which fiig.kafka's consumer sends (ADR 0117 §1)";
                 }
             }
-            return ""
+
+            return "";
         }
+
         _ -> {
-            return "an ApiVersions response is shorter than its header"
+            return "an ApiVersions response is shorter than its header";
         }
     }
 }

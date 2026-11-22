@@ -6,9 +6,8 @@ use shop.kernel
 // are under /payments, so they don't move when it does.
 adapter http paymentsApi {
     POST "/payments/{reference}" -> capturePayment(reference: string, amount: kernel.Money)
-        consumes "application/json"
-        produces "application/json"
-    {
+            consumes "application/json"
+            produces "application/json" {
         Ok(receipt) -> 200 receipt
         Err(error) -> 422 error
     }

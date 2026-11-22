@@ -1,154 +1,154 @@
 test toDateTimeat1970_1_1_0_0_0 {
-    expect toDateTime(0) is Ok(t)
-    expect t == DateTime(year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(0) is Ok(t);
+    expect t == DateTime(year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat1969_12_31_23_59_59_999 {
-    expect toDateTime(-1) is Ok(t)
-    expect t == DateTime(year: 1969, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999)
+    expect toDateTime(-1) is Ok(t);
+    expect t == DateTime(year: 1969, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999);
 }
 
 test toDateTimeat1969_12_31_0_0_0 {
-    expect toDateTime(-86400000) is Ok(t)
-    expect t == DateTime(year: 1969, month: 12, day: 31, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(-86400000) is Ok(t);
+    expect t == DateTime(year: 1969, month: 12, day: 31, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat1900_1_1_0_0_0 {
-    expect toDateTime(-2208988800000) is Ok(t)
-    expect t == DateTime(year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(-2208988800000) is Ok(t);
+    expect t == DateTime(year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat1900_2_28_12_0_0 {
-    expect toDateTime(-2203934400000) is Ok(t)
-    expect t == DateTime(year: 1900, month: 2, day: 28, hour: 12, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(-2203934400000) is Ok(t);
+    expect t == DateTime(year: 1900, month: 2, day: 28, hour: 12, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat1900_3_1_0_0_0 {
-    expect toDateTime(-2203891200000) is Ok(t)
-    expect t == DateTime(year: 1900, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(-2203891200000) is Ok(t);
+    expect t == DateTime(year: 1900, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat2000_2_29_23_59_59_999 {
-    expect toDateTime(951868799999) is Ok(t)
-    expect t == DateTime(year: 2000, month: 2, day: 29, hour: 23, minute: 59, second: 59, millisecond: 999)
+    expect toDateTime(951868799999) is Ok(t);
+    expect t == DateTime(year: 2000, month: 2, day: 29, hour: 23, minute: 59, second: 59, millisecond: 999);
 }
 
 test toDateTimeat2000_3_1_0_0_0 {
-    expect toDateTime(951868800000) is Ok(t)
-    expect t == DateTime(year: 2000, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(951868800000) is Ok(t);
+    expect t == DateTime(year: 2000, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat2024_2_29_6_7_8_9 {
-    expect toDateTime(1709186828009) is Ok(t)
-    expect t == DateTime(year: 2024, month: 2, day: 29, hour: 6, minute: 7, second: 8, millisecond: 9)
+    expect toDateTime(1709186828009) is Ok(t);
+    expect t == DateTime(year: 2024, month: 2, day: 29, hour: 6, minute: 7, second: 8, millisecond: 9);
 }
 
 test toDateTimeat2026_11_20_13_59_58 {
-    expect toDateTime(1795183198000) is Ok(t)
-    expect t == DateTime(year: 2026, month: 11, day: 20, hour: 13, minute: 59, second: 58, millisecond: 0)
+    expect toDateTime(1795183198000) is Ok(t);
+    expect t == DateTime(year: 2026, month: 11, day: 20, hour: 13, minute: 59, second: 58, millisecond: 0);
 }
 
 test toDateTimeat2026_12_31_23_59_59_999 {
-    expect toDateTime(1798761599999) is Ok(t)
-    expect t == DateTime(year: 2026, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999)
+    expect toDateTime(1798761599999) is Ok(t);
+    expect t == DateTime(year: 2026, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999);
 }
 
 test toDateTimeat2027_1_1_0_0_0 {
-    expect toDateTime(1798761600000) is Ok(t)
-    expect t == DateTime(year: 2027, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(1798761600000) is Ok(t);
+    expect t == DateTime(year: 2027, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat2100_2_28_0_0_0 {
-    expect toDateTime(4107456000000) is Ok(t)
-    expect t == DateTime(year: 2100, month: 2, day: 28, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(4107456000000) is Ok(t);
+    expect t == DateTime(year: 2100, month: 2, day: 28, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat2100_3_1_0_0_0 {
-    expect toDateTime(4107542400000) is Ok(t)
-    expect t == DateTime(year: 2100, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(4107542400000) is Ok(t);
+    expect t == DateTime(year: 2100, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat2400_2_29_0_0_0 {
-    expect toDateTime(13574563200000) is Ok(t)
-    expect t == DateTime(year: 2400, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(13574563200000) is Ok(t);
+    expect t == DateTime(year: 2400, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat1600_2_29_0_0_0 {
-    expect toDateTime(-11670998400000) is Ok(t)
-    expect t == DateTime(year: 1600, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(-11670998400000) is Ok(t);
+    expect t == DateTime(year: 1600, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat1582_10_15_0_0_0 {
-    expect toDateTime(-12219292800000) is Ok(t)
-    expect t == DateTime(year: 1582, month: 10, day: 15, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(-12219292800000) is Ok(t);
+    expect t == DateTime(year: 1582, month: 10, day: 15, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat1000_1_1_0_0_0 {
-    expect toDateTime(-30610224000000) is Ok(t)
-    expect t == DateTime(year: 1000, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(-30610224000000) is Ok(t);
+    expect t == DateTime(year: 1000, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat1_1_1_0_0_0 {
-    expect toDateTime(-62135596800000) is Ok(t)
-    expect t == DateTime(year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(-62135596800000) is Ok(t);
+    expect t == DateTime(year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat9999_12_31_23_59_59_999 {
-    expect toDateTime(253402300799999) is Ok(t)
-    expect t == DateTime(year: 9999, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999)
+    expect toDateTime(253402300799999) is Ok(t);
+    expect t == DateTime(year: 9999, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999);
 }
 
 test toDateTimeat2038_1_19_3_14_7 {
-    expect toDateTime(2147483647000) is Ok(t)
-    expect t == DateTime(year: 2038, month: 1, day: 19, hour: 3, minute: 14, second: 7, millisecond: 0)
+    expect toDateTime(2147483647000) is Ok(t);
+    expect t == DateTime(year: 2038, month: 1, day: 19, hour: 3, minute: 14, second: 7, millisecond: 0);
 }
 
 test toDateTimeat2001_9_9_1_46_40 {
-    expect toDateTime(1000000000000) is Ok(t)
-    expect t == DateTime(year: 2001, month: 9, day: 9, hour: 1, minute: 46, second: 40, millisecond: 0)
+    expect toDateTime(1000000000000) is Ok(t);
+    expect t == DateTime(year: 2001, month: 9, day: 9, hour: 1, minute: 46, second: 40, millisecond: 0);
 }
 
 test toDateTimeat1923_7_4_5_6_7_8 {
-    expect toDateTime(-1467312832992) is Ok(t)
-    expect t == DateTime(year: 1923, month: 7, day: 4, hour: 5, minute: 6, second: 7, millisecond: 8)
+    expect toDateTime(-1467312832992) is Ok(t);
+    expect t == DateTime(year: 1923, month: 7, day: 4, hour: 5, minute: 6, second: 7, millisecond: 8);
 }
 
 test toDateTimeat8000_6_15_12_30_0_500 {
-    expect toDateTime(190302784200500) is Ok(t)
-    expect t == DateTime(year: 8000, month: 6, day: 15, hour: 12, minute: 30, second: 0, millisecond: 500)
+    expect toDateTime(190302784200500) is Ok(t);
+    expect t == DateTime(year: 8000, month: 6, day: 15, hour: 12, minute: 30, second: 0, millisecond: 500);
 }
 
 test toDateTimeat0_1_1_0_0_0 {
-    expect toDateTime(-62167219200000) is Ok(t)
-    expect t == DateTime(year: 0, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(-62167219200000) is Ok(t);
+    expect t == DateTime(year: 0, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat0_2_29_0_0_0 {
-    expect toDateTime(-62162121600000) is Ok(t)
-    expect t == DateTime(year: 0, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0)
+    expect toDateTime(-62162121600000) is Ok(t);
+    expect t == DateTime(year: 0, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0);
 }
 
 test toDateTimeat0_12_31_23_59_59_999 {
-    expect toDateTime(-62135596800001) is Ok(t)
-    expect t == DateTime(year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999)
+    expect toDateTime(-62135596800001) is Ok(t);
+    expect t == DateTime(year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999);
 }
 
 test toDateTimeRefusesBeforeYearZero {
-    expect toDateTime(-62167219200001) is Err(TimeError.OutOfRange(reason))
+    expect toDateTime(-62167219200001) is Err(TimeError.OutOfRange(reason));
 }
 
 test toDateTimeRefusesAfterYear9999 {
-    expect toDateTime(253402300800000) is Err(TimeError.OutOfRange(reason))
+    expect toDateTime(253402300800000) is Err(TimeError.OutOfRange(reason));
 }
 
 test toDateTimeSweepRoundTripsEveryFourYears {
     // About every four years and a bit across the whole range, the way back
     // from a reading is the moment it came from.
-    at: int = -62167219200000
-    while at <= 253402300799999 {
-        expect toDateTime(at) is Ok(t)
-        expect toMillis(t) is Ok(back)
-        expect back == at
-        at = at + 126227704231
+    at: int = -62167219200000;
+    while (at <= 253402300799999) {
+        expect toDateTime(at) is Ok(t);
+        expect toMillis(t) is Ok(back);
+        expect back == at;
+        at = at + 126227704231;
     }
 }

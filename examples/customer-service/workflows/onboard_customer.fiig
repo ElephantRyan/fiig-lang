@@ -1,7 +1,7 @@
 // Required example 7: compose two child activities (registerCustomer,
 // sendWelcomeEmail) into a parent workflow.
 workflow onboardCustomer(input: NewCustomer) -> Result<Customer, CustomerError> {
-    customer = registerCustomer(input)?
-    sendWelcomeEmail(customer)?
-    return Ok(customer)
+    customer = registerCustomer(input)?;
+    sendWelcomeEmail(customer)?;
+    return Ok(customer);
 }

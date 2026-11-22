@@ -1,9 +1,10 @@
 // The day of the week a moment falls on in UTC: 0 is Sunday and 6 is
 // Saturday, as in cron (ADR 0112) and JavaScript. The epoch was a Thursday.
 conversion weekday(millis: int) -> int {
-    days: int = millis / 86400000
-    if millis % 86400000 < 0 {
-        days = days - 1
+    days: int = millis / 86400000;
+    if (millis % 86400000 < 0) {
+        days = days - 1;
     }
-    return ((days % 7) + 11) % 7
+
+    return ((days % 7) + 11) % 7;
 }

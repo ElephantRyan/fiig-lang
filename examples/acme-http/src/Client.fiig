@@ -3,26 +3,27 @@
 // the network through it. ADR 0060: an HTTP/1.1 POST over a TLS connection,
 // read until the server closes it (`Connection: close`).
 capability Client {
-    gateway send(request: WebRequest) -> Result<WebReply, SocketError>
-        requires Socket
-    {
-        connection = Socket.connectTls(request.host, 443)?
-        Socket.write(connection, httpRequest(request))?
-        response: bytes = <<>>
-        while true {
-            match Socket.read(connection) {
+    gateway send(request: WebRequest) -> Result<WebReply, SocketError> requires Socket {
+        connection = Socket.connectTls(request.host, 443)?;
+        Socket.write(connection, httpRequest(request))?;
+        response: bytes = <<>>;
+        while (true) {
+            match (Socket.read(connection)) {
                 Ok(chunk) -> {
-                    response = <<response: bytes, chunk: bytes>>
+                    response = <<response: bytes, chunk: bytes>>;
                 }
+
                 Err(SocketError.Closed) -> {
-                    break
+                    break;
                 }
+
                 Err(failure) -> {
-                    return Err(failure)
+                    return Err(failure);
                 }
             }
         }
-        Socket.close(connection)
-        return Ok(readWebReply(response))
+
+        Socket.close(connection);
+        return Ok(readWebReply(response));
     }
 }

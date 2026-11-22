@@ -1,142 +1,142 @@
 test formatIsoat1970_1_1_0_0_0 {
-    expect formatIso(0) is Ok(text)
-    expect text == "1970-01-01T00:00:00.000Z"
+    expect formatIso(0) is Ok(text);
+    expect text == "1970-01-01T00:00:00.000Z";
 }
 
 test formatIsoat1969_12_31_23_59_59_999 {
-    expect formatIso(-1) is Ok(text)
-    expect text == "1969-12-31T23:59:59.999Z"
+    expect formatIso(-1) is Ok(text);
+    expect text == "1969-12-31T23:59:59.999Z";
 }
 
 test formatIsoat1969_12_31_0_0_0 {
-    expect formatIso(-86400000) is Ok(text)
-    expect text == "1969-12-31T00:00:00.000Z"
+    expect formatIso(-86400000) is Ok(text);
+    expect text == "1969-12-31T00:00:00.000Z";
 }
 
 test formatIsoat1900_1_1_0_0_0 {
-    expect formatIso(-2208988800000) is Ok(text)
-    expect text == "1900-01-01T00:00:00.000Z"
+    expect formatIso(-2208988800000) is Ok(text);
+    expect text == "1900-01-01T00:00:00.000Z";
 }
 
 test formatIsoat1900_2_28_12_0_0 {
-    expect formatIso(-2203934400000) is Ok(text)
-    expect text == "1900-02-28T12:00:00.000Z"
+    expect formatIso(-2203934400000) is Ok(text);
+    expect text == "1900-02-28T12:00:00.000Z";
 }
 
 test formatIsoat1900_3_1_0_0_0 {
-    expect formatIso(-2203891200000) is Ok(text)
-    expect text == "1900-03-01T00:00:00.000Z"
+    expect formatIso(-2203891200000) is Ok(text);
+    expect text == "1900-03-01T00:00:00.000Z";
 }
 
 test formatIsoat2000_2_29_23_59_59_999 {
-    expect formatIso(951868799999) is Ok(text)
-    expect text == "2000-02-29T23:59:59.999Z"
+    expect formatIso(951868799999) is Ok(text);
+    expect text == "2000-02-29T23:59:59.999Z";
 }
 
 test formatIsoat2000_3_1_0_0_0 {
-    expect formatIso(951868800000) is Ok(text)
-    expect text == "2000-03-01T00:00:00.000Z"
+    expect formatIso(951868800000) is Ok(text);
+    expect text == "2000-03-01T00:00:00.000Z";
 }
 
 test formatIsoat2024_2_29_6_7_8_9 {
-    expect formatIso(1709186828009) is Ok(text)
-    expect text == "2024-02-29T06:07:08.009Z"
+    expect formatIso(1709186828009) is Ok(text);
+    expect text == "2024-02-29T06:07:08.009Z";
 }
 
 test formatIsoat2026_11_20_13_59_58 {
-    expect formatIso(1795183198000) is Ok(text)
-    expect text == "2026-11-20T13:59:58.000Z"
+    expect formatIso(1795183198000) is Ok(text);
+    expect text == "2026-11-20T13:59:58.000Z";
 }
 
 test formatIsoat2026_12_31_23_59_59_999 {
-    expect formatIso(1798761599999) is Ok(text)
-    expect text == "2026-12-31T23:59:59.999Z"
+    expect formatIso(1798761599999) is Ok(text);
+    expect text == "2026-12-31T23:59:59.999Z";
 }
 
 test formatIsoat2027_1_1_0_0_0 {
-    expect formatIso(1798761600000) is Ok(text)
-    expect text == "2027-01-01T00:00:00.000Z"
+    expect formatIso(1798761600000) is Ok(text);
+    expect text == "2027-01-01T00:00:00.000Z";
 }
 
 test formatIsoat2100_2_28_0_0_0 {
-    expect formatIso(4107456000000) is Ok(text)
-    expect text == "2100-02-28T00:00:00.000Z"
+    expect formatIso(4107456000000) is Ok(text);
+    expect text == "2100-02-28T00:00:00.000Z";
 }
 
 test formatIsoat2100_3_1_0_0_0 {
-    expect formatIso(4107542400000) is Ok(text)
-    expect text == "2100-03-01T00:00:00.000Z"
+    expect formatIso(4107542400000) is Ok(text);
+    expect text == "2100-03-01T00:00:00.000Z";
 }
 
 test formatIsoat2400_2_29_0_0_0 {
-    expect formatIso(13574563200000) is Ok(text)
-    expect text == "2400-02-29T00:00:00.000Z"
+    expect formatIso(13574563200000) is Ok(text);
+    expect text == "2400-02-29T00:00:00.000Z";
 }
 
 test formatIsoat1600_2_29_0_0_0 {
-    expect formatIso(-11670998400000) is Ok(text)
-    expect text == "1600-02-29T00:00:00.000Z"
+    expect formatIso(-11670998400000) is Ok(text);
+    expect text == "1600-02-29T00:00:00.000Z";
 }
 
 test formatIsoat1582_10_15_0_0_0 {
-    expect formatIso(-12219292800000) is Ok(text)
-    expect text == "1582-10-15T00:00:00.000Z"
+    expect formatIso(-12219292800000) is Ok(text);
+    expect text == "1582-10-15T00:00:00.000Z";
 }
 
 test formatIsoat1000_1_1_0_0_0 {
-    expect formatIso(-30610224000000) is Ok(text)
-    expect text == "1000-01-01T00:00:00.000Z"
+    expect formatIso(-30610224000000) is Ok(text);
+    expect text == "1000-01-01T00:00:00.000Z";
 }
 
 test formatIsoat1_1_1_0_0_0 {
-    expect formatIso(-62135596800000) is Ok(text)
-    expect text == "0001-01-01T00:00:00.000Z"
+    expect formatIso(-62135596800000) is Ok(text);
+    expect text == "0001-01-01T00:00:00.000Z";
 }
 
 test formatIsoat9999_12_31_23_59_59_999 {
-    expect formatIso(253402300799999) is Ok(text)
-    expect text == "9999-12-31T23:59:59.999Z"
+    expect formatIso(253402300799999) is Ok(text);
+    expect text == "9999-12-31T23:59:59.999Z";
 }
 
 test formatIsoat2038_1_19_3_14_7 {
-    expect formatIso(2147483647000) is Ok(text)
-    expect text == "2038-01-19T03:14:07.000Z"
+    expect formatIso(2147483647000) is Ok(text);
+    expect text == "2038-01-19T03:14:07.000Z";
 }
 
 test formatIsoat2001_9_9_1_46_40 {
-    expect formatIso(1000000000000) is Ok(text)
-    expect text == "2001-09-09T01:46:40.000Z"
+    expect formatIso(1000000000000) is Ok(text);
+    expect text == "2001-09-09T01:46:40.000Z";
 }
 
 test formatIsoat1923_7_4_5_6_7_8 {
-    expect formatIso(-1467312832992) is Ok(text)
-    expect text == "1923-07-04T05:06:07.008Z"
+    expect formatIso(-1467312832992) is Ok(text);
+    expect text == "1923-07-04T05:06:07.008Z";
 }
 
 test formatIsoat8000_6_15_12_30_0_500 {
-    expect formatIso(190302784200500) is Ok(text)
-    expect text == "8000-06-15T12:30:00.500Z"
+    expect formatIso(190302784200500) is Ok(text);
+    expect text == "8000-06-15T12:30:00.500Z";
 }
 
 test formatIsoat0_1_1_0_0_0 {
-    expect formatIso(-62167219200000) is Ok(text)
-    expect text == "0000-01-01T00:00:00.000Z"
+    expect formatIso(-62167219200000) is Ok(text);
+    expect text == "0000-01-01T00:00:00.000Z";
 }
 
 test formatIsoat0_2_29_0_0_0 {
-    expect formatIso(-62162121600000) is Ok(text)
-    expect text == "0000-02-29T00:00:00.000Z"
+    expect formatIso(-62162121600000) is Ok(text);
+    expect text == "0000-02-29T00:00:00.000Z";
 }
 
 test formatIsoat0_12_31_23_59_59_999 {
-    expect formatIso(-62135596800001) is Ok(text)
-    expect text == "0000-12-31T23:59:59.999Z"
+    expect formatIso(-62135596800001) is Ok(text);
+    expect text == "0000-12-31T23:59:59.999Z";
 }
 
 test formatIsoRefusesAMomentBeforeYearZero {
-    expect formatIso(-62167219200001) is Err(TimeError.OutOfRange(reason))
+    expect formatIso(-62167219200001) is Err(TimeError.OutOfRange(reason));
 }
 
 test formatIsoRefusesAMomentAfterYear9999 {
-    expect formatIso(253402300800000) is Err(TimeError.OutOfRange(reason))
+    expect formatIso(253402300800000) is Err(TimeError.OutOfRange(reason));
 }

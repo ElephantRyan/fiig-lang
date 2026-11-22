@@ -12,34 +12,40 @@ conversion sessionStep(turn: SessionTurn, accepted: int | None) -> session.Step 
         replies: turn.replies,
         nextTickAt: nextTickOf(turn.state),
         close: turn.close,
-    )
+    );
 }
 
 private {
     nextTickOf(s: KafkaSessionState) -> int | None {
-        if s.role != "group" {
-            return None
+        if (s.role != "group") {
+            return None;
         }
-        times: List<int> = []
-        if s.phase == "member" and not s.heartbeatInFlight and s.fatal == "" {
-            times = append(times, s.nextHeartbeatAt)
+
+        times: List<int> = [];
+        if (s.phase == "member" && !s.heartbeatInFlight && s.fatal == "") {
+            times = append(times, s.nextHeartbeatAt);
         }
-        if s.commitAt > 0 {
-            times = append(times, s.commitAt)
+
+        if (s.commitAt > 0) {
+            times = append(times, s.commitAt);
         }
-        for poll in s.polls {
-            times = append(times, poll.until)
+
+        for (poll in s.polls) {
+            times = append(times, poll.until);
         }
-        if s.polls.length() > 0 {
-            for p in s.partitions {
-                if p.resumeAt > 0 {
-                    times = append(times, p.resumeAt)
+
+        if (s.polls.length() > 0) {
+            for (p in s.partitions) {
+                if (p.resumeAt > 0) {
+                    times = append(times, p.resumeAt);
                 }
             }
         }
-        if times.length() == 0 {
-            return None
+
+        if (times.length() == 0) {
+            return None;
         }
-        return times.sorted().first()
+
+        return times.sorted().first();
     }
 }

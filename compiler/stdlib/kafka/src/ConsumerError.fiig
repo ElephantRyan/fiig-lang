@@ -5,15 +5,19 @@ use fiig.stream
 // never work, such as an unknown dead-letter topic, is Misconfigured and
 // halts the route; a reply this package can't read is Protocol.
 conversion consumerError(failure: KafkaError) -> stream.SourceError {
-    match failure {
+    return match (failure) {
         KafkaError.Session(cause) -> stream.SourceError.Unavailable(reason: "${cause}")
         KafkaError.Broker(_, name, retriable, message) -> {
-            if retriable {
-                return stream.SourceError.Unavailable(reason: message)
+            if (retriable) {
+                return stream.SourceError.Unavailable(reason: message);
             }
-            return stream.SourceError.Protocol(reason: "${message} (${name})")
+
+            return stream.SourceError.Protocol(reason: "${message} (${name})");
         }
-        KafkaError.UnknownTopic(topic) -> stream.SourceError.Misconfigured(reason: "topic ${topic} doesn't exist")
+
+        KafkaError.UnknownTopic(topic) -> stream.SourceError.Misconfigured(
+            reason: "topic ${topic} doesn't exist",
+        )
         KafkaError.Unsupported(reason) -> stream.SourceError.Misconfigured(reason: reason)
         KafkaError.InvalidConfig(reason) -> stream.SourceError.Misconfigured(reason: reason)
         KafkaError.Authentication(reason) -> stream.SourceError.Misconfigured(reason: reason)

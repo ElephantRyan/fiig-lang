@@ -10,5 +10,5 @@ conversion afterUpgrade(d: Dialogue) -> Dialogue {
         authLogin: false,
         authXOAuth2: false,
         sizeLimit: 0,
-    )
+    );
 }

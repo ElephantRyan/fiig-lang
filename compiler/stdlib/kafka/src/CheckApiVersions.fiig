@@ -2,34 +2,47 @@
 // response, takes the versions this producer sends: Metadata v12 and
 // Produce v9, the flexible ones (as amended 2026-11-21).
 conversion checkApiVersions(frame: bytes, correlation: int) -> Result<None, KafkaError> {
-    match frame {
+    return match (frame) {
         <<got: i32be, code: i16be, count: i32be, rest: bytes>> -> {
-            if got != correlation {
+            if (got != correlation) {
                 return Err(
-                    KafkaError.MalformedReply(reason: "ApiVersions answered correlation ${got}, not ${correlation}"),
-                )
+                    KafkaError.MalformedReply(
+                        reason: "ApiVersions answered correlation ${got}, not ${correlation}",
+                    ),
+                );
             }
-            if code != 0 {
-                return Err(brokerError(code, "ApiVersions"))
+
+            if (code != 0) {
+                return Err(brokerError(code, "ApiVersions"));
             }
-            if count < 0 or rest.length() < count * 6 {
+
+            if (count < 0 || rest.length() < count * 6) {
                 return Err(
-                    KafkaError.MalformedReply(reason: "ApiVersions lists ${count} APIs in ${rest.length()} bytes"),
-                )
+                    KafkaError.MalformedReply(
+                        reason: "ApiVersions lists ${count} APIs in ${rest.length()} bytes",
+                    ),
+                );
             }
-            metadata = apiSupports(rest, count, 3, 12)
-            produce = apiSupports(rest, count, 0, 9)
-            if not metadata or not produce {
+
+            metadata = apiSupports(rest, count, 3, 12);
+            produce = apiSupports(rest, count, 0, 9);
+            if (!metadata || !produce) {
                 return Err(
-                    KafkaError.Unsupported(reason: "the broker doesn't take Metadata v12 and Produce v9, which fiig.kafka sends (ADR 0113 §4)"),
-                )
+                    KafkaError.Unsupported(
+                        reason: "the broker doesn't take Metadata v12 and Produce v9, which fiig.kafka sends (ADR 0113 §4)",
+                    ),
+                );
             }
-            return Ok(None)
+
+            return Ok(None);
         }
+
         _ -> {
             return Err(
-                KafkaError.MalformedReply(reason: "an ApiVersions response is shorter than its header"),
-            )
+                KafkaError.MalformedReply(
+                    reason: "an ApiVersions response is shorter than its header",
+                ),
+            );
         }
     }
 }

@@ -1,5 +1,5 @@
 // ADR 0085 §3: Parse, preparing sql as the statement named name ("" the
 // unnamed one), every parameter type left for the server to infer.
 conversion parseMessage(name: string, sql: string) -> bytes {
-    return pgMessage(80, <<cString(name): bytes, cString(sql): bytes, 0: i16be>>)
+    return pgMessage(80, <<cString(name): bytes, cString(sql): bytes, 0: i16be>>);
 }

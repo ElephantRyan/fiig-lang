@@ -10,22 +10,25 @@ capability Postgres provides db.SqlConnectionDriver {
     // and authenticate until the server is ready for a query. The server's
     // BackendKeyData becomes the connection's cancelKey (ADR 0084 §3a).
     gateway open(settings: Map<string, string>) -> Result<db.SqlConnection, db.DatabaseError>
-        requires Socket
-    {
-        pg = readSettings(settings)?
-        connection: Connection = connectionOr(Socket.connect(pg.host, pg.port))?
-        if pg.secure {
-            writtenOr(Socket.write(connection, <<8: i32be, 80877103: i32be>>))?
-            answer = bytesOr(Socket.read(connection))?
-            if answer.length() != 1 or answer.at(0) != 83 {
+            requires Socket {
+        pg = readSettings(settings)?;
+        connection: Connection = connectionOr(Socket.connect(pg.host, pg.port))?;
+        if (pg.secure) {
+            writtenOr(Socket.write(connection, <<8: i32be, 80877103: i32be>>))?;
+            answer = bytesOr(Socket.read(connection))?;
+            if (answer.length() != 1 || answer.at(0) != 83) {
                 return Err(
-                    db.DatabaseError.Protocol(reason: "the server at ${pg.host} doesn't offer TLS; set sslmode to disable to connect without it"),
-                )
+                    db.DatabaseError.Protocol(
+                        reason: "the server at ${pg.host} doesn't offer TLS; set sslmode to disable to connect without it",
+                    ),
+                );
             }
-            connection = connectionOr(Socket.startTls(connection, pg.host))?
+
+            connection = connectionOr(Socket.startTls(connection, pg.host))?;
         }
-        writtenOr(Socket.write(connection, startupMessage(pg)))?
-        nonce = Random.bytes(18).toBase64()
+
+        writtenOr(Socket.write(connection, startupMessage(pg)))?;
+        nonce = Random.bytes(18).toBase64();
         state: Handshake = Handshake(
             settings: pg,
             clientNonce: nonce,
@@ -36,30 +39,39 @@ capability Postgres provides db.SqlConnectionDriver {
             failed: None,
             ready: false,
             cancelKey: <<>>,
-        )
-        buffer: bytes = <<>>
-        while true {
-            match nextFrame(buffer) {
+        );
+        buffer: bytes = <<>>;
+        while (true) {
+            match (nextFrame(buffer)) {
                 None -> {
-                    chunk = bytesOr(Socket.read(connection))?
-                    buffer = <<buffer: bytes, chunk: bytes>>
+                    chunk = bytesOr(Socket.read(connection))?;
+                    buffer = <<buffer: bytes, chunk: bytes>>;
                 }
+
                 frame -> {
-                    buffer = frame.rest
-                    state = handshakeStep(state, frame.kind, frame.body)
-                    match state.failed {
+                    buffer = frame.rest;
+                    state = handshakeStep(state, frame.kind, frame.body);
+                    match (state.failed) {
                         None -> None
                         failure -> {
-                            return Err(failure)
+                            return Err(failure);
                         }
                     }
-                    if state.ready {
+
+                    if (state.ready) {
                         return Ok(
-                            db.SqlConnection(connection: connection, cancelKey: state.cancelKey, statements: [], named: 0, cacheSize: pg.statementCacheSize),
-                        )
+                            db.SqlConnection(
+                                connection: connection,
+                                cancelKey: state.cancelKey,
+                                statements: [],
+                                named: 0,
+                                cacheSize: pg.statementCacheSize,
+                            ),
+                        );
                     }
-                    if state.send.length() > 0 {
-                        writtenOr(Socket.write(connection, state.send))?
+
+                    if (state.send.length() > 0) {
+                        writtenOr(Socket.write(connection, state.send))?;
                     }
                 }
             }
@@ -72,22 +84,22 @@ capability Postgres provides db.SqlConnectionDriver {
     // one the server stopped knowing is prepared again and sent once
     // more, when no transaction would refuse it.
     gateway execute(on: db.SqlConnection, sql: string, values: List<db.SqlValue>) -> db.SqlRun
-        requires Socket
-    {
-        current: db.SqlConnection = on
-        again: bool = true
-        while true {
-            plan = planStatement(current, sql, values)
-            current = plan.connection
-            match Socket.write(on.connection, plan.write) {
+            requires Socket {
+        current: db.SqlConnection = on;
+        again: bool = true;
+        while (true) {
+            plan = planStatement(current, sql, values);
+            current = plan.connection;
+            match (Socket.write(on.connection, plan.write)) {
                 Ok(_) -> None
                 Err(failure) -> {
                     return db.SqlRun(
                         connection: current,
                         result: Err(db.DatabaseError.Broken(failure: failure)),
-                    )
+                    );
                 }
             }
+
             state: Reply = Reply(
                 columns: [],
                 types: [],
@@ -97,52 +109,63 @@ capability Postgres provides db.SqlConnectionDriver {
                 ready: false,
                 parsed: false,
                 status: 0,
-            )
-            rows: List<List<db.SqlValue>> = []
-            buffer: bytes = <<>>
-            while not state.ready {
-                match nextFrame(buffer) {
+            );
+            rows: List<List<db.SqlValue>> = [];
+            buffer: bytes = <<>>;
+            while (!state.ready) {
+                match (nextFrame(buffer)) {
                     None -> {
-                        match Socket.read(on.connection) {
+                        match (Socket.read(on.connection)) {
                             Ok(chunk) -> {
-                                buffer = <<buffer: bytes, chunk: bytes>>
+                                buffer = <<buffer: bytes, chunk: bytes>>;
                             }
+
                             Err(failure) -> {
                                 return db.SqlRun(
                                     connection: current,
                                     result: Err(db.DatabaseError.Broken(failure: failure)),
-                                )
+                                );
                             }
                         }
                     }
+
                     frame -> {
-                        buffer = frame.rest
-                        state = replyStep(state, frame.kind, frame.body)
-                        match state.row {
+                        buffer = frame.rest;
+                        state = replyStep(state, frame.kind, frame.body);
+                        match (state.row) {
                             None -> None
                             row -> {
-                                rows = append(rows, row)
+                                rows = append(rows, row);
                             }
                         }
                     }
                 }
             }
-            current = settleStatement(plan, state)
+
+            current = settleStatement(plan, state);
             // 73 is idle: outside a transaction, the statement can run
             // again; inside one, the server refuses all until ROLLBACK.
-            if again and not plan.parsing and state.status == 73 and staleStatement(state.failed) {
-                again = false
-                continue
+            if (again && !plan.parsing && state.status == 73 && staleStatement(state.failed)) {
+                again = false;
+                continue;
             }
-            match state.failed {
+
+            match (state.failed) {
                 None -> {
                     return db.SqlRun(
                         connection: current,
-                        result: Ok(db.SqlResult(columns: state.columns, rows: rows, affected: state.affected)),
-                    )
+                        result: Ok(
+                            db.SqlResult(
+                                columns: state.columns,
+                                rows: rows,
+                                affected: state.affected,
+                            ),
+                        ),
+                    );
                 }
+
                 failure -> {
-                    return db.SqlRun(connection: current, result: Err(failure))
+                    return db.SqlRun(connection: current, result: Err(failure));
                 }
             }
         }
@@ -154,34 +177,33 @@ capability Postgres provides db.SqlConnectionDriver {
     // closes the connection once it has read the request, so the one read
     // waits for that, as libpq's does. A cancel that can't be sent changes
     // nothing: the pool discards the connection either way.
-    gateway cancel(settings: Map<string, string>, key: bytes) -> None
-        requires Socket
-    {
-        if key.length() == 0 {
-            return None
+    gateway cancel(settings: Map<string, string>, key: bytes) -> None requires Socket {
+        if (key.length() == 0) {
+            return None;
         }
-        match readSettings(settings) {
+
+        match (readSettings(settings)) {
             Err(_) -> None
             Ok(pg) -> {
-                match Socket.connect(pg.host, pg.port) {
+                match (Socket.connect(pg.host, pg.port)) {
                     Err(_) -> None
                     Ok(opened) -> {
-                        connection: Connection = opened
-                        ready: bool = true
-                        if pg.secure {
-                            ready = false
-                            match Socket.write(connection, <<8: i32be, 80877103: i32be>>) {
+                        connection: Connection = opened;
+                        ready: bool = true;
+                        if (pg.secure) {
+                            ready = false;
+                            match (Socket.write(connection, <<8: i32be, 80877103: i32be>>)) {
                                 Err(_) -> None
                                 Ok(_) -> {
-                                    match Socket.read(connection) {
+                                    match (Socket.read(connection)) {
                                         Err(_) -> None
                                         Ok(answer) -> {
-                                            if answer.length() == 1 and answer.at(0) == 83 {
-                                                match Socket.startTls(connection, pg.host) {
+                                            if (answer.length() == 1 && answer.at(0) == 83) {
+                                                match (Socket.startTls(connection, pg.host)) {
                                                     Err(_) -> None
                                                     Ok(upgraded) -> {
-                                                        connection = upgraded
-                                                        ready = true
+                                                        connection = upgraded;
+                                                        ready = true;
                                                     }
                                                 }
                                             }
@@ -190,36 +212,38 @@ capability Postgres provides db.SqlConnectionDriver {
                                 }
                             }
                         }
-                        if ready {
-                            length = key.length() + 8
-                            match Socket.write(connection, <<length: i32be, 80877102: i32be, key: bytes>>) {
+
+                        if (ready) {
+                            length = key.length() + 8;
+                            match (Socket.write(connection, <<length: i32be, 80877102: i32be, key: bytes>>)) {
                                 Err(_) -> None
                                 Ok(_) -> {
-                                    match Socket.read(connection) {
+                                    match (Socket.read(connection)) {
                                         Ok(_) -> None
                                         Err(_) -> None
                                     }
                                 }
                             }
                         }
-                        Socket.close(connection)
+
+                        Socket.close(connection);
                     }
                 }
             }
         }
-        return None
+
+        return None;
     }
 
     // Terminate, then close. A failed write changes nothing: the socket
     // closes either way.
-    gateway close(connection: Connection) -> None
-        requires Socket
-    {
-        match Socket.write(connection, <<88: u8, 4: i32be>>) {
+    gateway close(connection: Connection) -> None requires Socket {
+        match (Socket.write(connection, <<88: u8, 4: i32be>>)) {
             Ok(_) -> None
             Err(_) -> None
         }
-        Socket.close(connection)
-        return None
+
+        Socket.close(connection);
+        return None;
     }
 }

@@ -1,6 +1,8 @@
 // The startup message names the user and database (ADR 0058's builder).
-gateway sendStartup(connection: Connection, user: string, database: string) -> Result<None, SocketError>
-    requires Socket
-{
-    return Socket.write(connection, startupMessage(user, database))
+gateway sendStartup(
+    connection: Connection,
+    user: string,
+    database: string,
+) -> Result<None, SocketError> requires Socket {
+    return Socket.write(connection, startupMessage(user, database));
 }

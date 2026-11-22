@@ -6,15 +6,16 @@ use fiig.http
 // body), so a 200 whose body holds `<Error>` is Refused with that
 // document's code and message. A missing source key is NotFound.
 conversion copyResult(reply: http.Reply) -> Result<None, S3Error> {
-    if reply.status == 200 and not textOf(reply.body).contains("<Error>") {
-        return Ok(None)
+    if (reply.status == 200 && !textOf(reply.body).contains("<Error>")) {
+        return Ok(None);
     }
-    return Err(errorOf(reply))
+
+    return Err(errorOf(reply));
 }
 
 private {
     textOf(body: bytes) -> string {
-        match body.utf8() {
+        return match (body.utf8()) {
             None -> ""
             text -> text
         }

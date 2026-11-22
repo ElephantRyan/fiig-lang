@@ -4,6 +4,6 @@ use order.processing.shipping
 // Crossing from float to int is always a call that names its rounding
 // (ADR 0048 §2.7); here, up.
 rule billedKilograms(parcel: Parcel) -> int {
-    dimensional = shipping.dimensionalWeightKg(parcel.lengthCm, parcel.widthCm, parcel.heightCm)
-    return math.ceilToInt(math.max(dimensional, parcel.weightKg))
+    dimensional = shipping.dimensionalWeightKg(parcel.lengthCm, parcel.widthCm, parcel.heightCm);
+    return math.ceilToInt(math.max(dimensional, parcel.weightKg));
 }

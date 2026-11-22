@@ -8,17 +8,18 @@ conversion objectInfoOf(reply: http.Reply, size: int) -> ObjectInfo {
         contentType: headerValue(reply, "Content-Type"),
         etag: headerValue(reply, "ETag"),
         metadata: metadataOf(reply.headers),
-    )
+    );
 }
 
 private {
     // The first header of that name, in any case, or "".
     headerValue(reply: http.Reply, name: string) -> string {
-        for header in reply.headers {
-            if header.name.equalsIgnoringCase(name) {
-                return header.value
+        for (header in reply.headers) {
+            if (header.name.equalsIgnoringCase(name)) {
+                return header.value;
             }
         }
-        return ""
+
+        return "";
     }
 }

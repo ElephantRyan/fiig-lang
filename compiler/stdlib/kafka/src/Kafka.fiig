@@ -8,63 +8,71 @@
 // so the next send reads it again.
 capability Kafka {
     gateway send(topic: string, records: List<KafkaRecord>) -> Result<List<Sent>, KafkaError>
-        requires Session
-    {
-        if records.length() == 0 {
-            return Ok([])
+            requires Session {
+        if (records.length() == 0) {
+            return Ok([]);
         }
-        clientId = KafkaServer.clientId
-        bootstrap = bootstrapSettings(KafkaServer.bootstrap, KafkaServer.tls, clientId)?
-        compression: Compression = Compression.None
-        match KafkaServer.compression {
+
+        clientId = KafkaServer.clientId;
+        bootstrap = bootstrapSettings(KafkaServer.bootstrap, KafkaServer.tls, clientId)?;
+        compression: Compression = Compression.None;
+        match (KafkaServer.compression) {
             None -> None
             chosen -> {
-                compression = chosen
+                compression = chosen;
             }
         }
-        now = Clock.now()
-        until = now + KafkaServer.timeoutMillis
-        ask = KafkaAsk.Layout(topic: topic, maxAgeMillis: KafkaServer.metadataMaxAgeMillis)
-        described = mapErr(e in Session.call(bootstrap, json.encode(ask), deadline: until)): KafkaError.Session(failure: e)?
-        layout = layoutOf(described)?
-        sent: List<SentAt> = []
-        for call in producePlan(layout, records, now, compression)? {
-            request = produceV9Request(clientId, 1, topic, KafkaServer.timeoutMillis, call.batches)
-            leader = brokerSettings(call.broker, KafkaServer.tls, clientId)
-            failure: KafkaError | None = None
-            match Session.call(leader, requestAsk(request), deadline: until) {
+
+        now = Clock.now();
+        until = now + KafkaServer.timeoutMillis;
+        ask = KafkaAsk.Layout(topic: topic, maxAgeMillis: KafkaServer.metadataMaxAgeMillis);
+        described = mapErr(e in Session.call(bootstrap, json.encode(ask), deadline: until)): KafkaError.Session(
+            failure: e,
+        )?;
+        layout = layoutOf(described)?;
+        sent: List<SentAt> = [];
+        for (call in producePlan(layout, records, now, compression)?) {
+            request = produceV9Request(clientId, 1, topic, KafkaServer.timeoutMillis, call.batches);
+            leader = brokerSettings(call.broker, KafkaServer.tls, clientId);
+            failure: KafkaError | None = None;
+            match (Session.call(leader, requestAsk(request), deadline: until)) {
                 Err(e) -> {
-                    failure = KafkaError.Session(failure: e)
+                    failure = KafkaError.Session(failure: e);
                 }
+
                 Ok(parts) -> {
-                    match readProduceV9(parts.first(), 1, call) {
+                    match (readProduceV9(parts.first(), 1, call)) {
                         Err(e) -> {
-                            failure = e
+                            failure = e;
                         }
+
                         Ok(placed) -> {
-                            for s in placed {
-                                sent = append(sent, s)
+                            for (s in placed) {
+                                sent = append(sent, s);
                             }
                         }
                     }
                 }
             }
-            match failure {
+
+            match (failure) {
                 None -> None
                 found -> {
                     // A produce that fails is the caller's to send again
                     // (§1); a stale layout isn't kept for that send.
-                    if layoutMoved(found) {
-                        forget = KafkaAsk.Forget(topic: topic)
-                        match Session.call(bootstrap, json.encode(forget), deadline: until) {
+                    if (layoutMoved(found)) {
+                        forget = KafkaAsk.Forget(topic: topic);
+                        match (Session.call(bootstrap, json.encode(forget), deadline: until)) {
                             Ok(_) -> None
                             Err(_) -> None
                         }
                     }
-                    return Err(found)
+
+                    return Err(found);
                 }
             }
         }
-        return inOrder(sent, records.length())
+
+        return inOrder(sent, records.length());
     }
 }

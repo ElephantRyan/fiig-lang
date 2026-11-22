@@ -2,15 +2,15 @@
 // file: {"host": "127.0.0.1", "port": "5433"}. None when either is
 // missing, or the port isn't a number.
 conversion readRelayAddress(settings: Map<string, string>) -> RelayAddress | None {
-    host = settings.atOrNone("host")
-    port = settings.atOrNone("port")
-    match host {
+    host = settings.atOrNone("host");
+    port = settings.atOrNone("port");
+    return match (host) {
         None -> None
         givenHost -> {
-            match port {
+            return match (port) {
                 None -> None
                 givenPort -> {
-                    match givenPort.toIntOrNone() {
+                    return match (givenPort.toIntOrNone()) {
                         None -> None
                         number -> RelayAddress(host: givenHost, port: number)
                     }

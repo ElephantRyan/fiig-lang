@@ -3,27 +3,34 @@ use fiig.stream
 test theRecordWithExactlyThatOffset {
     // A fetch at 5 returns the whole batch from 4.
     parts = [
-        FetchedPartition(partition: 2, code: 0, records: [FetchedRecord(offset: 4, value: "a".utf8()), FetchedRecord(offset: 5, value: "b".utf8())]),
-    ]
-    expect recordAt(parts, PartitionOffset(partition: 2, offset: 5)) is Ok(delivery)
-    expect delivery == stream.Delivery(id: "2/5", payload: "b".utf8(), attempt: 1, order: "2")
+        FetchedPartition(
+            partition: 2,
+            code: 0,
+            records: [
+                FetchedRecord(offset: 4, value: "a".utf8()),
+                FetchedRecord(offset: 5, value: "b".utf8()),
+            ],
+        ),
+    ];
+    expect recordAt(parts, PartitionOffset(partition: 2, offset: 5)) is Ok(delivery);
+    expect delivery == stream.Delivery(id: "2/5", payload: "b".utf8(), attempt: 1, order: "2");
 }
 
 test aRecordThePartitionNoLongerHoldsIsNone {
-    gone = [FetchedPartition(partition: 0, code: 1, records: [])]
-    expect recordAt(gone, PartitionOffset(partition: 0, offset: 3)) is Ok(None)
+    gone = [FetchedPartition(partition: 0, code: 1, records: [])];
+    expect recordAt(gone, PartitionOffset(partition: 0, offset: 3)) is Ok(None);
     // Compacted away: the batch skips it.
     compacted = [
         FetchedPartition(partition: 0, code: 0, records: [FetchedRecord(offset: 4, value: <<>>)]),
-    ]
-    expect recordAt(compacted, PartitionOffset(partition: 0, offset: 3)) is Ok(None)
+    ];
+    expect recordAt(compacted, PartitionOffset(partition: 0, offset: 3)) is Ok(None);
     // Past the end: nothing comes back.
-    expect recordAt([FetchedPartition(partition: 0, code: 0, records: [])], PartitionOffset(partition: 0, offset: 9)) is Ok(None)
+    expect recordAt([FetchedPartition(partition: 0, code: 0, records: [])], PartitionOffset(partition: 0, offset: 9)) is Ok(None);
 }
 
 test anotherErrorIsTheBrokers {
-    parts = [FetchedPartition(partition: 0, code: 6, records: [])]
-    expect recordAt(parts, PartitionOffset(partition: 0, offset: 3)) is Err(KafkaError.Broker(code, name, retriable, message))
-    expect name == "NOT_LEADER_OR_FOLLOWER"
-    expect retriable
+    parts = [FetchedPartition(partition: 0, code: 6, records: [])];
+    expect recordAt(parts, PartitionOffset(partition: 0, offset: 3)) is Err(KafkaError.Broker(code, name, retriable, message));
+    expect name == "NOT_LEADER_OR_FOLLOWER";
+    expect retriable;
 }

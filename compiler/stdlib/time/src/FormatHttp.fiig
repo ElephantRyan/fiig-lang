@@ -3,8 +3,8 @@
 // `Date` header, a cookie's `Expires`, and `Retry-After` write. Whole
 // seconds: the milliseconds are dropped (ADR 0123 §2).
 conversion formatHttp(millis: int) -> Result<string, TimeError> {
-    t = toDateTime(millis)?
-    weekdays: List<string> = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    t = toDateTime(millis)?;
+    weekdays: List<string> = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     months: List<string> = [
         "Jan",
         "Feb",
@@ -18,9 +18,9 @@ conversion formatHttp(millis: int) -> Result<string, TimeError> {
         "Oct",
         "Nov",
         "Dec",
-    ]
-    clock = "${zeroPad(t.hour, 2)}:${zeroPad(t.minute, 2)}:${zeroPad(t.second, 2)}"
+    ];
+    clock = "${zeroPad(t.hour, 2)}:${zeroPad(t.minute, 2)}:${zeroPad(t.second, 2)}";
     return Ok(
         "${weekdays.at(weekday(millis))}, ${zeroPad(t.day, 2)} ${months.at(t.month - 1)} ${zeroPad(t.year, 4)} ${clock} GMT",
-    )
+    );
 }

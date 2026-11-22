@@ -1,5 +1,5 @@
 // ADR 0117 §3: FindCoordinator v1 (API key 10) for a consumer group (key
 // type 0): which broker coordinates it. Any broker answers.
 conversion findCoordinatorRequest(clientId: string, correlation: int, group: string) -> bytes {
-    return kafkaRequest(10, 1, correlation, clientId, <<kafkaString(group): bytes, 0: u8>>)
+    return kafkaRequest(10, 1, correlation, clientId, <<kafkaString(group): bytes, 0: u8>>);
 }

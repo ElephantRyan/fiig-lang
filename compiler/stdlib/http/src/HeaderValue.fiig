@@ -2,15 +2,16 @@
 // Request's headers as they are, so None, a request built with no
 // headers, has none to find.
 conversion headerValue(headers: List<Header> | None, name: string) -> string | None {
-    match headers {
+    return match (headers) {
         None -> None
         given -> {
-            for header in given {
-                if header.name.equalsIgnoringCase(name) {
-                    return header.value
+            for (header in given) {
+                if (header.name.equalsIgnoringCase(name)) {
+                    return header.value;
                 }
             }
-            return None
+
+            return None;
         }
     }
 }

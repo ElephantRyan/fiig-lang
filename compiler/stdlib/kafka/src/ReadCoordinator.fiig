@@ -1,47 +1,51 @@
 // A FindCoordinator v1 response as the coordinating broker, or why there
 // is none yet.
 conversion readCoordinator(frame: bytes) -> Result<BrokerNode, string> {
-    match frame {
+    return match (frame) {
         <<_: i32be, _: i32be, code: i16be, rest: bytes>> -> {
-            if code != 0 {
-                return Err("FindCoordinator: ${errorName(code)}")
+            if (code != 0) {
+                return Err("FindCoordinator: ${errorName(code)}");
             }
+
             // After the error message, the node's id, host, and port.
-            message = textOf(stringAt(rest, 0))?
-            id = numberOf(i32At(rest, message.next))?
-            host = textOf(stringAt(rest, message.next + 4))?
-            port = numberOf(i32At(rest, host.next))?
-            return Ok(BrokerNode(id: id, host: host.text, port: port))
+            message = textOf(stringAt(rest, 0))?;
+            id = numberOf(i32At(rest, message.next))?;
+            host = textOf(stringAt(rest, message.next + 4))?;
+            port = numberOf(i32At(rest, host.next))?;
+            return Ok(BrokerNode(id: id, host: host.text, port: port));
         }
+
         _ -> {
-            return Err(short())
+            return Err(short());
         }
     }
 }
 
 private {
     short() -> string {
-        return "a FindCoordinator response ends early"
+        return "a FindCoordinator response ends early";
     }
 
     textOf(read: TextAt | None) -> Result<TextAt, string> {
-        match read {
+        return match (read) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             found -> {
-                return Ok(found)
+                return Ok(found);
             }
         }
     }
 
     numberOf(read: int | None) -> Result<int, string> {
-        match read {
+        return match (read) {
             None -> {
-                return Err(short())
+                return Err(short());
             }
+
             found -> {
-                return Ok(found)
+                return Ok(found);
             }
         }
     }

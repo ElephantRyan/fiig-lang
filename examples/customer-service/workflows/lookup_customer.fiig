@@ -2,5 +2,5 @@
 // its parameter arrives as a decoded request body rather than a path
 // segment.
 workflow lookupCustomer(criteria: CustomerLookup) -> Result<Customer, CustomerError> {
-    return loadCustomer(criteria.id)
+    return loadCustomer(criteria.id);
 }

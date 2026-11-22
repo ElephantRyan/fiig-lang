@@ -1,5 +1,5 @@
 // The adapter boundary for required example 4 (ADR 0044): the line the HTTP
 // adapter attaches to, and where the published error contract is pinned.
 workflow createCustomer(input: NewCustomer) -> Result<Customer, CustomerError> {
-    return registerCustomer(input)
+    return registerCustomer(input);
 }

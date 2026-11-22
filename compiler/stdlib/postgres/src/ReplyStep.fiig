@@ -6,60 +6,72 @@ use fiig.sql as db
 // ReadyForQuery's transaction status kept. Notices, ParameterStatus and
 // the other Complete messages are skipped.
 conversion replyStep(state: Reply, kind: int, body: bytes) -> Reply {
-    if kind == 84 {
-        match rowDescription(body) {
+    if (kind == 84) {
+        match (rowDescription(body)) {
             None -> {
                 return copy(
                     state,
                     row: None,
                     failed: db.DatabaseError.Protocol(reason: "a RowDescription is malformed"),
                     ready: true,
-                )
+                );
             }
+
             shape -> {
-                return copy(state, row: None, columns: shape.names, types: shape.types)
+                return copy(state, row: None, columns: shape.names, types: shape.types);
             }
         }
     }
-    if kind == 68 {
-        match dataRow(body, state.types) {
+
+    if (kind == 68) {
+        match (dataRow(body, state.types)) {
             None -> {
                 return copy(
                     state,
                     row: None,
-                    failed: db.DatabaseError.Protocol(reason: "a DataRow doesn't match its RowDescription"),
+                    failed: db.DatabaseError.Protocol(
+                        reason: "a DataRow doesn't match its RowDescription",
+                    ),
                     ready: true,
-                )
+                );
             }
+
             row -> {
-                return copy(state, row: row)
+                return copy(state, row: row);
             }
         }
     }
-    if kind == 67 {
-        end = cStringEnd(body)
-        if end >= 0 {
-            match body.slice(0, end).utf8() {
+
+    if (kind == 67) {
+        end = cStringEnd(body);
+        if (end >= 0) {
+            match (body.slice(0, end).utf8()) {
                 None -> None
                 tag -> {
-                    return copy(state, row: None, affected: commandCount(tag))
+                    return copy(state, row: None, affected: commandCount(tag));
                 }
             }
         }
-        return copy(state, row: None)
+
+        return copy(state, row: None);
     }
-    if kind == 69 {
-        return copy(state, row: None, failed: serverError(body))
+
+    if (kind == 69) {
+        return copy(state, row: None, failed: serverError(body));
     }
-    if kind == 49 {
-        return copy(state, row: None, parsed: true)
+
+    if (kind == 49) {
+        return copy(state, row: None, parsed: true);
     }
-    if kind == 90 {
-        status: int = 0
-        if body.length() > 0 {
-            status = body.at(0)
+
+    if (kind == 90) {
+        status: int = 0;
+        if (body.length() > 0) {
+            status = body.at(0);
         }
-        return copy(state, row: None, ready: true, status: status)
+
+        return copy(state, row: None, ready: true, status: status);
     }
-    return copy(state, row: None)
+
+    return copy(state, row: None);
 }

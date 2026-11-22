@@ -7,20 +7,21 @@ use fiig.http
 // when it has none (a HEAD has no body). The document is read by looking for
 // its two tags, not as XML, since the body is the server's to shape.
 conversion errorOf(reply: http.Reply) -> S3Error {
-    text = textOf(reply.body)
-    code = tagText(text, "Code")
+    text = textOf(reply.body);
+    code = tagText(text, "Code");
     // A key that isn't there is an answer; a bucket that isn't there is a
     // mistake in the call or the settings, so it stays an error. A HEAD has
     // no body to tell them apart by, and is NotFound.
-    if reply.status == 404 and code != "NoSuchBucket" {
-        return S3Error.NotFound
+    if (reply.status == 404 && code != "NoSuchBucket") {
+        return S3Error.NotFound;
     }
-    return S3Error.Refused(status: reply.status, code: code, message: tagText(text, "Message"))
+
+    return S3Error.Refused(status: reply.status, code: code, message: tagText(text, "Message"));
 }
 
 private {
     textOf(body: bytes) -> string {
-        match body.utf8() {
+        return match (body.utf8()) {
             None -> ""
             text -> text
         }
@@ -28,10 +29,11 @@ private {
 
     // What is between <name> and </name>, or "".
     tagText(text: string, name: string) -> string {
-        parts = text.split("<${name}>")
-        if parts.length() < 2 {
-            return ""
+        parts = text.split("<${name}>");
+        if (parts.length() < 2) {
+            return "";
         }
-        return parts.at(1).split("</${name}>").first()
+
+        return parts.at(1).split("</${name}>").first();
     }
 }

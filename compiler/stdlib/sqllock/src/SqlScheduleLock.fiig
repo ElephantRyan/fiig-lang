@@ -20,60 +20,66 @@ use fiig.schedule
 // `fiig serve -check`, which applies no migration, can still ask. Expiry is
 // measured on each replica's clock, as a schedule's firing times already are.
 capability SqlScheduleLock provides schedule.ScheduleLock {
-    gateway claim(job: string, firedAt: int, holder: string, holdMillis: int) -> Result<bool, schedule.LockError>
-        requires Database
-    {
+    gateway claim(
+        job: string,
+        firedAt: int,
+        holder: string,
+        holdMillis: int,
+    ) -> Result<bool, schedule.LockError> requires Database {
         Database.execute(
             "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)",
-        )
-        now: int = Clock.now()
+        );
+        now: int = Clock.now();
         // Expired rows go first (ADR 0125, amended 2026-11-21). Every gateway already
         // reads a row at or past expires_at as absent, a claim as free and a
         // done row as forgotten, so deleting one changes no answer and needs
         // no transaction with the insert below.
-        Database.execute("DELETE FROM fiig_locks WHERE expires_at <= ?", now)
+        Database.execute("DELETE FROM fiig_locks WHERE expires_at <= ?", now);
         changed: int = Database.execute(
             "INSERT INTO fiig_locks (lock_key, holder, expires_at) VALUES (?, ?, ?) ON CONFLICT (lock_key) DO UPDATE SET holder = excluded.holder, expires_at = excluded.expires_at WHERE fiig_locks.expires_at <= ?",
             "fiig:schedule:${job}:${firedAt}",
             holder,
             now + holdMillis,
             now,
-        )
-        return Ok(changed > 0)
+        );
+        return Ok(changed > 0);
     }
 
-    gateway complete(job: string, firedAt: int, holder: string, retainMillis: int) -> Result<bool, schedule.LockError>
-        requires Database
-    {
+    gateway complete(
+        job: string,
+        firedAt: int,
+        holder: string,
+        retainMillis: int,
+    ) -> Result<bool, schedule.LockError> requires Database {
         Database.execute(
             "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)",
-        )
+        );
         changed: int = Database.execute(
             "INSERT INTO fiig_locks (lock_key, holder, expires_at) VALUES (?, ?, ?) ON CONFLICT (lock_key) DO UPDATE SET holder = excluded.holder, expires_at = excluded.expires_at",
             "fiig:schedule:${job}:${firedAt}:done",
             holder,
             Clock.now() + retainMillis,
-        )
-        return Ok(changed > 0)
+        );
+        return Ok(changed > 0);
     }
 
     gateway completed(job: string, firedAt: int) -> Result<bool, schedule.LockError>
-        requires Database
-    {
+            requires Database {
         Database.execute(
             "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)",
-        )
+        );
         row: LockRow | None = Database.queryOne(
             "SELECT holder FROM fiig_locks WHERE lock_key = ? AND expires_at > ?",
             "fiig:schedule:${job}:${firedAt}:done",
             Clock.now(),
-        )
-        match row {
+        );
+        return match (row) {
             None -> {
-                return Ok(false)
+                return Ok(false);
             }
+
             _ -> {
-                return Ok(true)
+                return Ok(true);
             }
         }
     }

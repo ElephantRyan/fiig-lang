@@ -1,5 +1,6 @@
 // Required example 2: concurrently retrieve many customers with partial failures.
-workflow retrieveCustomers(customerIds: List<string>) -> BatchResult<string, Customer, CustomerError> {
-    concurrent(customerId in customerIds):
-        loadCustomer(customerId)
+workflow retrieveCustomers(
+    customerIds: List<string>,
+) -> BatchResult<string, Customer, CustomerError> {
+    return concurrent(customerId in customerIds): loadCustomer(customerId);
 }
