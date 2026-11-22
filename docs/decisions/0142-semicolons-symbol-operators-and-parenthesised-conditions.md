@@ -1,8 +1,8 @@
 # ADR 0142: Semicolons, Symbol Operators, and Parenthesised Conditions
 
-Status: Proposed (2026-11-21). The owner chose these directions on
-2026-11-21, including `return match` (§2); this records them and the
-details they need.
+Status: Accepted (2026-11-21; the owner asked for it to be implemented).
+Step 1 (§5) in progress: the new forms parse beside the old ones, except
+`match` as an expression (§2).
 Date: 2026-11-21
 Amends: ADR 0011 (boolean operators), ADR 0099 (`or` gives a default),
 ADR 0013 (`if`/`else` chains), ADR 0053 (`for`), ADR 0059 (`while`).

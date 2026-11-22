@@ -538,7 +538,7 @@ program can't declare any of the three names (K2).
 ## 5. Statements and expressions
 
 ```ebnf
-block ::= '{' { statement } '}'
+block ::= '{' { statement [ ';' ] } '}'                               -- ADR 0142 §1: `;` ends a statement; optional until §5 step 2
 
 statement ::= binding
             | if-statement
@@ -553,7 +553,8 @@ statement ::= binding
 
 binding         ::= identifier [ ':' type ] '=' expression    -- ADR 0053: typed form declares a reassignable local
 if-statement    ::= 'if' expression block { 'else' 'if' expression block } [ 'else' block ]
-for-statement   ::= [ identifier ':' ] 'for' loop-name [ ',' loop-name ] 'in' expression block   -- ADR 0053; two names over a Map, ADR 0065 §7
+for-statement   ::= [ identifier ':' ] 'for' ( for-head | '(' for-head ')' ) block   -- ADR 0142 §4: parenthesised; bare until §5 step 2
+for-head        ::= loop-name [ ',' loop-name ] 'in' expression   -- ADR 0053; two names over a Map, ADR 0065 §7
 loop-name       ::= identifier | '_'
 while-statement ::= [ identifier ':' ] 'while' expression block                -- ADR 0059
 break-statement ::= 'break' [ identifier ]                                   -- label on the same line
@@ -654,9 +655,10 @@ whichever order the arms are in, as `None` never does. Attested:
 ### Calls, field access, error propagation
 
 ```ebnf
-expression      ::= or-expression
-or-expression   ::= and-expression { 'or' and-expression }
-and-expression  ::= comparison { 'and' comparison }
+expression      ::= default-expression
+default-expression ::= or-expression { '??' or-expression }      -- ADR 0142 §3: a default for `T | None`; beside `&&`/`||` it needs parentheses
+or-expression   ::= and-expression { ( '||' | 'or' ) and-expression }   -- `||` is bool only; `or` until §5 step 2
+and-expression  ::= comparison { ( '&&' | 'and' ) comparison }
 comparison      ::= additive [ comparison-op additive ] [ '?' ]
 comparison-op   ::= '==' | '!=' | '<' | '<=' | '>' | '>='
 additive        ::= multiplicative { ( '+' | '-' ) multiplicative }
@@ -665,7 +667,7 @@ unary           ::= '-' unary | postfix-expression
 postfix-expression ::= primary { '.' field-name | '(' [ arguments ] ')' }
 arguments  ::= argument { ',' argument } [ ',' ]
 argument   ::= [ field-name ':' ] expression
-primary    ::= identifier | literal | list-literal | map-literal | sorted-expr | list-form | '(' expression ')' | 'not' primary
+primary    ::= identifier | literal | list-literal | map-literal | sorted-expr | list-form | '(' expression ')' | ( '!' | 'not' ) primary
 literal    ::= string-literal | integer-literal | float-literal
 list-literal ::= '[' [ expression { ',' expression } [ ',' ] ] ']'
 map-literal  ::= '[' ':' ']' | '[' expression ':' expression { ',' expression ':' expression } [ ',' ] ']'

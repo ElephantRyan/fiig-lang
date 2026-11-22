@@ -336,6 +336,19 @@ func (l *Lexer) scanPunct(start Pos) Token {
 		l.advance()
 		l.advance()
 		return Token{Kind: GtEq, Text: ">=", Start: start, End: l.here()}
+	case "&&", "||", "??":
+		// ADR 0142 §3. `??` is read before `?`, so `f()??x` is a default;
+		// `f()? ?? x` propagates first.
+		l.advance()
+		l.advance()
+		kind := QuestionQuestion
+		switch two {
+		case "&&":
+			kind = AndAnd
+		case "||":
+			kind = OrOr
+		}
+		return Token{Kind: kind, Text: two, Start: start, End: l.here()}
 	}
 
 	r := l.advance()
@@ -389,6 +402,11 @@ func (l *Lexer) scanPunct(start Pos) Token {
 		return Token{Kind: Slash, Text: "/", Start: start, End: l.here()}
 	case '%':
 		return Token{Kind: Percent, Text: "%", Start: start, End: l.here()}
+	case ';':
+		return Token{Kind: Semicolon, Text: ";", Start: start, End: l.here()}
+	case '!':
+		// `!=` was read above as one token.
+		return Token{Kind: Bang, Text: "!", Start: start, End: l.here()}
 	}
 
 	l.errorf(start, "unexpected character %q", r)

@@ -337,39 +337,38 @@ func (c *checker) inferBinary(e *syntax.BinaryExpr, env map[string]types.Type) t
 		// float, fixed, non-overloadable, and never mixes the two.
 		lt, rt := c.operands(e, env)
 		return c.arithmetic(e, lt, rt)
+	case syntax.OpDefault:
+		// ADR 0142 §3: `??` is ADR 0099's default, spelled apart from `||`.
+		lt := c.inferExpr(e.Left, env)
+		if !isUnknown(lt) && !admitsNone(lt) {
+			start, _ := e.Left.(syntax.Spanned).Bounds()
+			c.report(start, "A1", "type mismatch: `??` gives a `T | None` a default, and this is %s, which is never None", lt)
+			c.inferExpr(e.Right, env)
+			return lt
+		}
+		return c.inferDefault(e, lt, "??", env)
 	case syntax.OpOr:
 		// ADR 0099: an `or` whose left side may be None is its default:
-		// `input.note or ""` is the note, or "" when there is none.
+		// `input.note or ""` is the note, or "" when there is none. A `||`
+		// is bool only (ADR 0142 §3).
 		lt := c.inferExpr(e.Left, env)
+		if admitsNone(lt) && !e.Symbol {
+			return c.inferDefault(e, lt, "or", env)
+		}
 		if admitsNone(lt) {
-			e.OrDefault = true
-			want := withoutNone(lt)
-			switch e.Right.(type) {
-			case *syntax.ListLit, *syntax.MapLit:
-				// Typed by context, as `[]` is (A12).
-				c.checkExpected(e.Right, want, env)
-				return want
-			}
-			if isConstant(e.Right) {
-				c.checkExpected(e.Right, want, env)
-				return want
-			}
-			// `x or y or ""`: a default that may itself be None keeps the
-			// result optional, for the next `or` to settle.
-			rt := c.inferExpr(e.Right, env)
-			switch {
-			case isUnknown(rt) || types.AssignableTo(rt, want):
-				return want
-			case types.AssignableTo(rt, lt):
-				return lt
-			}
-			start, _ := e.Right.(syntax.Spanned).Bounds()
-			c.report(start, "A1", "type mismatch: the default after `or` is %s, expected %s", rt, want)
-			return want
+			// Surely meant as a default: say so once, and check the rest as
+			// the `??` it should be, so no cascade follows.
+			start, _ := e.Left.(syntax.Spanned).Bounds()
+			c.report(start, "A1", "type mismatch: `||` is bool only, and this is %s; a default for a `T | None` is `??` (ADR 0142)", lt)
+			return c.inferDefault(e, lt, "||", env)
 		}
 		if !isUnknown(lt) && !types.Equal(lt, types.Primitive{Name: "bool"}) {
 			start, _ := e.Left.(syntax.Spanned).Bounds()
-			c.report(start, "A1", "type mismatch: got %s, expected bool (or `T | None`, which `or` gives a default)", lt)
+			if e.Symbol {
+				c.report(start, "A1", "type mismatch: got %s, expected bool", lt)
+			} else {
+				c.report(start, "A1", "type mismatch: got %s, expected bool (or `T | None`, which `or` gives a default)", lt)
+			}
 		}
 		c.checkExpected(e.Right, types.Primitive{Name: "bool"}, env)
 		return types.Primitive{Name: "bool"}
@@ -386,6 +385,36 @@ func (c *checker) inferBinary(e *syntax.BinaryExpr, env map[string]types.Type) t
 		c.checkComparable(e, lt, rt)
 		return types.Primitive{Name: "bool"}
 	}
+}
+
+// inferDefault is `x or d` (ADR 0099) and `x ?? d` (ADR 0142 §3), for an x
+// of type lt that may be None: x, or d when x is None. op is how it was
+// written, for the message.
+func (c *checker) inferDefault(e *syntax.BinaryExpr, lt types.Type, op string, env map[string]types.Type) types.Type {
+	e.OrDefault = true
+	want := withoutNone(lt)
+	switch e.Right.(type) {
+	case *syntax.ListLit, *syntax.MapLit:
+		// Typed by context, as `[]` is (A12).
+		c.checkExpected(e.Right, want, env)
+		return want
+	}
+	if isConstant(e.Right) {
+		c.checkExpected(e.Right, want, env)
+		return want
+	}
+	// `x ?? y ?? ""`: a default that may itself be None keeps the result
+	// optional, for the next one to settle.
+	rt := c.inferExpr(e.Right, env)
+	switch {
+	case isUnknown(rt) || types.AssignableTo(rt, want):
+		return want
+	case types.AssignableTo(rt, lt):
+		return lt
+	}
+	start, _ := e.Right.(syntax.Spanned).Bounds()
+	c.report(start, "A1", "type mismatch: the default after `%s` is %s, expected %s", op, rt, want)
+	return want
 }
 
 func (c *checker) inferTry(e *syntax.TryExpr, env map[string]types.Type) types.Type {

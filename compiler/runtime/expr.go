@@ -163,7 +163,7 @@ func (in *Interp) evalBinary(ctx context.Context, e *syntax.BinaryExpr, env *Env
 	// attested anywhere these appear (validate_new_customer.fiig's `not
 	// ... .contains(...)`  doesn't even exercise and/or, but nothing in the
 	// corpus needs the right side evaluated unconditionally).
-	if e.Op == syntax.OpAnd || e.Op == syntax.OpOr {
+	if e.Op == syntax.OpAnd || e.Op == syntax.OpOr || e.Op == syntax.OpDefault {
 		left, earlyReturn, fault := in.evalExpr(ctx, e.Left, env)
 		if fault != nil || earlyReturn {
 			return left, earlyReturn, fault

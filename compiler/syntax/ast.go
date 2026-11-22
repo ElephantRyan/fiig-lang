@@ -1181,10 +1181,12 @@ type CallExpr struct {
 	HandlesConflicts bool
 }
 
-// NotExpr is the prefix `not` (grammar.md §5 `primary`).
+// NotExpr is the prefix `not`, or `!` (ADR 0142 §3; grammar.md §5
+// `primary`).
 type NotExpr struct {
 	Span
 	Operand Expr
+	Bang    bool // written `!`
 }
 
 // NegExpr is the prefix unary `-` (ADR 0019) — kept as its own node rather
@@ -1206,6 +1208,9 @@ const (
 	OpGe  BinaryOp = ">="
 	OpAnd BinaryOp = "and"
 	OpOr  BinaryOp = "or"
+	// OpDefault is `x ?? d` (ADR 0142 §3): x, or d when x is None. It is
+	// ADR 0099's default `or`, spelled apart from the boolean one.
+	OpDefault BinaryOp = "??"
 	// Arithmetic (ADR 0019) — int-only, fixed meaning, never overloadable.
 	OpAdd BinaryOp = "+"
 	OpSub BinaryOp = "-"
@@ -1221,8 +1226,12 @@ type BinaryExpr struct {
 	Left  Expr
 	Right Expr
 	// OrDefault is set by the checker on an `or` whose left side may be
-	// None (ADR 0099): `x or d` is x, or d when x is None.
+	// None (ADR 0099): `x or d` is x, or d when x is None. A `??` always
+	// has it.
 	OrDefault bool
+	// Symbol is an `and` or `or` written `&&` or `||` (ADR 0142 §3). A
+	// `||` is bool only.
+	Symbol bool
 }
 
 // TryExpr is the postfix `?` (error propagation).

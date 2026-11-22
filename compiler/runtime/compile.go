@@ -616,7 +616,7 @@ func compileFieldAccess(e *syntax.FieldAccess) cexpr {
 
 func compileBinary(e *syntax.BinaryExpr) cexpr {
 	switch e.Op {
-	case syntax.OpAnd, syntax.OpOr:
+	case syntax.OpAnd, syntax.OpOr, syntax.OpDefault: // `??` always has OrDefault
 		left, right := compileExpr(e.Left), compileExpr(e.Right)
 		return func(in *Interp, ctx context.Context, env *Env) (Value, bool, *Fault) {
 			l, earlyReturn, fault := left(in, ctx, env)

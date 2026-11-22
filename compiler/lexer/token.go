@@ -103,6 +103,12 @@ const (
 	Minus    // -
 	Slash    // /
 	Percent  // %
+	// ADR 0142: a statement's end, and the symbol operators.
+	Semicolon        // ;
+	Bang             // !
+	AndAnd           // &&
+	OrOr             // ||
+	QuestionQuestion // ??
 )
 
 var keywords = map[string]Kind{
@@ -272,6 +278,16 @@ func (k Kind) String() string {
 		return "/"
 	case Percent:
 		return "%"
+	case Semicolon:
+		return ";"
+	case Bang:
+		return "!"
+	case AndAnd:
+		return "&&"
+	case OrOr:
+		return "||"
+	case QuestionQuestion:
+		return "??"
 	default:
 		for text, kind := range keywords {
 			if kind == k {

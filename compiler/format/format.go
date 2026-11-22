@@ -1318,11 +1318,18 @@ func printExpr(e syntax.Expr) string {
 	case *syntax.CallExpr:
 		return printExpr(e.Callee) + "(" + printArgs(e.Args) + ")"
 	case *syntax.NotExpr:
+		if e.Bang {
+			return "!" + printExpr(e.Operand)
+		}
 		return "not " + printExpr(e.Operand)
 	case *syntax.NegExpr:
 		return "-" + printExpr(e.Operand)
 	case *syntax.BinaryExpr:
-		return printExpr(e.Left) + " " + string(e.Op) + " " + printExpr(e.Right)
+		op := string(e.Op)
+		if e.Symbol {
+			op = map[syntax.BinaryOp]string{syntax.OpAnd: "&&", syntax.OpOr: "||"}[e.Op]
+		}
+		return printExpr(e.Left) + " " + op + " " + printExpr(e.Right)
 	case *syntax.TryExpr:
 		return printExpr(e.Operand) + "?"
 	case *syntax.ParenExpr:

@@ -58,13 +58,7 @@ func hintAt(w []lexer.Token, j int, firstMsg string) (string, bool) {
 	lineStart := j == 0 || w[j-1].Start.Line != t.Start.Line
 	switch {
 	case t.Kind == lexer.Illegal && t.Text == "&":
-		return "`&&` and `&` aren't operators; write `and` (conditions are `a and b`, `a or b`, `not a`)", true
-	case t.Kind == lexer.Pipe && next.Kind == lexer.Pipe && adjacent(t, next):
-		return "`||` isn't an operator; write `or` (conditions are `a and b`, `a or b`, `not a`)", true
-	case t.Kind == lexer.Illegal && t.Text == "!":
-		return "`!` isn't an operator; write `not` (conditions are `a and b`, `a or b`, `not a`)", true
-	case t.Kind == lexer.Illegal && t.Text == ";":
-		return "a statement ends at the end of its line; remove the `;`", true
+		return "`&` isn't an operator; write `&&` (conditions are `a && b`, `a || b`, `!a`, ADR 0142)", true
 	case (t.Kind == lexer.Plus || t.Kind == lexer.Minus) && next.Kind == t.Kind && adjacent(t, next):
 		op := "+"
 		if t.Kind == lexer.Minus {
@@ -79,12 +73,27 @@ func hintAt(w []lexer.Token, j int, firstMsg string) (string, bool) {
 		return "there is no `cond ? a : b`; write an `if` statement, or use `math.max` and `math.min` (`if` is a statement, not a value)", true
 	case t.Kind == lexer.LBrace && strings.Contains(firstMsg, "got {") && isExprStart(prev):
 		return "a map literal is written with square brackets, `[\"a\": 1, \"b\": 2]`, and `[:]` is empty (ADR 0065); braces hold a block", true
-	case t.Kind == lexer.KwFor && next.Kind == lexer.LParen:
-		return "`for` takes a name and a list, with no parentheses: `for x in xs { ... }` (ADR 0053)", true
+	case t.Kind == lexer.KwFor && next.Kind == lexer.LParen && !isForHead(w, j+2):
+		return "a `for` takes a name and a list: `for (x in xs) { ... }` (ADR 0053, ADR 0142); there is no C-style `for`", true
 	case t.Kind == lexer.Ident && isIdentHint(t.Text, lineStart):
 		return identHint(t.Text), true
 	}
 	return "", false
+}
+
+// isForHead reports whether w[i:] starts a `for` head, `x in` or
+// `key, value in` (ADR 0142 §4), rather than a C-style `for`.
+func isForHead(w []lexer.Token, i int) bool {
+	name := func(k int) bool {
+		return k < len(w) && (w[k].Kind == lexer.Ident || w[k].Kind == lexer.Underscore)
+	}
+	if !name(i) {
+		return false
+	}
+	if i+2 < len(w) && w[i+1].Kind == lexer.Comma && name(i+2) {
+		i += 2
+	}
+	return i+1 < len(w) && w[i+1].Kind == lexer.KwIn
 }
 
 // hasBefore reports whether a token of kind k precedes w[j] on its line.

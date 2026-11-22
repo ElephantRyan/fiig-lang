@@ -1696,6 +1696,11 @@ func (p *Parser) parseBlock() *syntax.Block {
 			p.errorf(p.cur().Start, "unexpected token %s in statement", p.cur().Kind)
 			p.advance()
 		}
+		// ADR 0142 §1: a statement ends with `;`. Until the old form is
+		// retired (§5), it may also end without one.
+		if p.at(lexer.Semicolon) {
+			p.advance()
+		}
 	}
 	end := p.expect(lexer.RBrace).End
 	return &syntax.Block{Span: syntax.Span{Start: start, End: end}, Stmts: stmts}
@@ -1721,7 +1726,7 @@ func (p *Parser) parseStatement() syntax.Stmt {
 		return p.parseContinueStmt()
 	case p.atExpect():
 		start := p.advance().Start // 'expect'
-		cond := p.parseOr()        // not parseExpression, which refuses a trailing `is`
+		cond := p.parseDefault()   // not parseExpression, which refuses a trailing `is`
 		var pat syntax.Pattern
 		if p.atContextual("is") && p.cur().Start.Line == p.peek(-1).End.Line {
 			p.advance() // 'is'
@@ -1802,6 +1807,12 @@ func (p *Parser) parseTypedBinding() *syntax.Binding {
 // which is the label when there is one.
 func (p *Parser) parseForStmt(label string, start lexer.Pos) *syntax.ForStmt {
 	p.expect(lexer.KwFor)
+	// ADR 0142 §4: the head is parenthesised, `for (x in xs)`. Until the
+	// old form is retired (§5), it may also be bare.
+	parens := p.at(lexer.LParen)
+	if parens {
+		p.advance()
+	}
 	name := p.loopName()
 	value := ""
 	if p.at(lexer.Comma) { // `for key, value in m` (ADR 0065 §7)
@@ -1810,6 +1821,9 @@ func (p *Parser) parseForStmt(label string, start lexer.Pos) *syntax.ForStmt {
 	}
 	p.expect(lexer.KwIn)
 	iterable := p.parseExpression()
+	if parens {
+		p.expect(lexer.RParen)
+	}
 	body := p.parseBlock()
 	return &syntax.ForStmt{Span: syntax.Span{Start: start, End: body.End}, Label: label, Var: name, Value: value, Iterable: iterable, Body: body}
 }
@@ -1878,7 +1892,7 @@ func (p *Parser) parseIfStmt() *syntax.IfStmt {
 
 func (p *Parser) parseReturnStmt() *syntax.ReturnStmt {
 	start := p.advance().Start // 'return'
-	if p.at(lexer.RBrace) {
+	if p.at(lexer.RBrace) || p.at(lexer.Semicolon) {
 		return &syntax.ReturnStmt{Span: syntax.Span{Start: start, End: p.cur().Start}}
 	}
 	val := p.parseExpression()
@@ -2024,7 +2038,7 @@ func (p *Parser) parseBody() syntax.Body {
 // ---- expressions -----------------------------------------------------
 
 func (p *Parser) parseExpression() syntax.Expr {
-	e := p.parseOr()
+	e := p.parseDefault()
 	if p.atContextual("is") && p.sameLine() {
 		// abs-recommendations GAPS G20: `is` reads like a boolean test,
 		// but only `expect` takes a pattern this way.
@@ -2060,22 +2074,59 @@ func exprBounds(e syntax.Expr) (lexer.Pos, lexer.Pos) {
 	return lexer.Pos{}, lexer.Pos{}
 }
 
-func (p *Parser) parseOr() syntax.Expr {
-	left := p.parseAnd()
-	for p.at(lexer.KwOr) {
-		p.advance()
-		right := p.parseAnd()
-		left = binaryExpr(syntax.OpOr, left, right)
+// parseDefault is `x ?? d` (ADR 0142 §3), the loosest operator. Mixing it
+// with `&&` or `||` needs parentheses, as in JavaScript, because which
+// grouping was meant is never obvious.
+func (p *Parser) parseDefault() syntax.Expr {
+	left := p.parseOr()
+	for p.at(lexer.QuestionQuestion) {
+		op := p.advance()
+		p.refuseUngroupedLogic(left, op)
+		right := p.parseOr()
+		p.refuseUngroupedLogic(right, op)
+		left = binaryExpr(syntax.OpDefault, left, right)
 	}
 	return left
 }
 
+// refuseUngroupedLogic reports an `&&` or `||` operand of `??` that isn't
+// in parentheses.
+func (p *Parser) refuseUngroupedLogic(e syntax.Expr, op lexer.Token) {
+	if b, ok := e.(*syntax.BinaryExpr); ok && (b.Op == syntax.OpAnd || b.Op == syntax.OpOr) {
+		p.errorf(op.Start, "`??` beside `%s` needs parentheses to say which comes first (ADR 0142 §3)", logicSpelling(b))
+	}
+}
+
+func logicSpelling(b *syntax.BinaryExpr) string {
+	switch {
+	case b.Op == syntax.OpAnd && b.Symbol:
+		return "&&"
+	case b.Op == syntax.OpOr && b.Symbol:
+		return "||"
+	}
+	return string(b.Op)
+}
+
+// parseOr is `||`, or the older `or` (ADR 0142 §3).
+func (p *Parser) parseOr() syntax.Expr {
+	left := p.parseAnd()
+	for p.at(lexer.KwOr) || p.at(lexer.OrOr) {
+		symbol := p.advance().Kind == lexer.OrOr
+		right := p.parseAnd()
+		left = binaryExpr(syntax.OpOr, left, right)
+		left.(*syntax.BinaryExpr).Symbol = symbol
+	}
+	return left
+}
+
+// parseAnd is `&&`, or the older `and` (ADR 0142 §3).
 func (p *Parser) parseAnd() syntax.Expr {
 	left := p.parseComparison()
-	for p.at(lexer.KwAnd) {
-		p.advance()
+	for p.at(lexer.KwAnd) || p.at(lexer.AndAnd) {
+		symbol := p.advance().Kind == lexer.AndAnd
 		right := p.parseComparison()
 		left = binaryExpr(syntax.OpAnd, left, right)
+		left.(*syntax.BinaryExpr).Symbol = symbol
 	}
 	return left
 }
@@ -2248,17 +2299,18 @@ func (p *Parser) parsePrimary() syntax.Expr {
 	case lexer.LShift:
 		segs, span := p.parseSegments(false)
 		return &syntax.BytesLit{Span: span, Segments: segs}
-	case lexer.KwNot:
-		// Binds to the full postfix chain, not just the bare primary: `not
+	case lexer.KwNot, lexer.Bang:
+		// `!` is ADR 0142 §3's spelling of `not`. Either binds to the full
+		// postfix chain, not just the bare primary: `not
 		// input.email.value.contains("@")` (validate_new_customer.fiig) is
 		// `not (input.email.value.contains("@"))`, never `(not
 		// input).email.value.contains("@")`. parsePostfix, not parsePrimary
 		// — postfix access/calls bind tighter than `not`, same as every
 		// other prefix operator in this grammar (parseUnary's own doc
 		// comment makes the identical point for unary `-`).
-		p.advance()
+		bang := p.advance().Kind == lexer.Bang
 		operand := p.parsePostfix()
-		return &syntax.NotExpr{Span: syntax.Span{Start: start, End: p.cur().Start}, Operand: operand}
+		return &syntax.NotExpr{Span: syntax.Span{Start: start, End: p.cur().Start}, Operand: operand, Bang: bang}
 	case lexer.KwConcurrent:
 		return p.parseConcurrentExpr()
 	case lexer.KwRetry:

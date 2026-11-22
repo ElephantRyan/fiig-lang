@@ -10,17 +10,14 @@ import (
 func TestALeftOutConstructIsOneErrorThatSaysWhatToWrite(t *testing.T) {
 	rule := func(body string) string { return "rule r(a: int, b: bool) -> int {\n" + body + "\n    return 1\n}" }
 	cases := []struct{ name, src, fragment string }{
-		{"&&", rule("    c = b && b"), "write `and`"},
-		{"||", rule("    c = b || b"), "write `or`"},
-		{"!", rule("    c = !b"), "write `not`"},
-		{";", rule("    n = 1;"), "remove the `;`"},
+		{"&", rule("    c = b & b"), "write `&&`"},
 		{"++", rule("    n: int = 0\n    n++"), "write `n = n + 1`"},
 		{"--", rule("    n: int = 0\n    n--"), "write `n = n - 1`"},
 		{"+=", rule("    n: int = 0\n    n += 1"), "no compound assignment"},
 		{"=>", rule("    c = [1].map(x => x + 1)"), "there are no lambdas"},
 		{"ternary", rule("    c = a > 1 ? 2 : 3"), "there is no `cond ? a : b`"},
 		{"map literal", rule("    m = {\"a\": 1}"), "[\"a\": 1, \"b\": 2]"},
-		{"c for", rule("    for (i = 0; i < 3; i++) {\n    }"), "`for x in xs { ... }`"},
+		{"c for", rule("    for (i = 0; i < 3; i++) {\n    }"), "`for (x in xs) { ... }`"},
 		{"elif", "rule r(a: int) -> int {\n    if a > 1 {\n        return 1\n    } elif a > 0 {\n        return 2\n    }\n    return 3\n}", "write `else if`"},
 		{"switch", rule("    switch a {\n    }"), "write a `match`"},
 		{"const", "const MAX = 3", "there are no constants of their own"},
@@ -39,8 +36,8 @@ func TestALeftOutConstructIsOneErrorThatSaysWhatToWrite(t *testing.T) {
 // The errors before the hint are kept, and a program with none of these is
 // unchanged.
 func TestAHintKeepsTheErrorsBeforeIt(t *testing.T) {
-	_, errs := Parse("model M {\n    a: \n}\nrule r(b: bool) -> bool {\n    return b && b\n}")
-	if len(errs) < 2 || !strings.Contains(errs[len(errs)-1].Msg, "write `and`") {
+	_, errs := Parse("model M {\n    a: \n}\nrule r(b: bool) -> bool {\n    return b & b\n}")
+	if len(errs) < 2 || !strings.Contains(errs[len(errs)-1].Msg, "write `&&`") {
 		t.Errorf("errs = %v, want the model's error and then the hint", errs)
 	}
 	if _, errs := Parse("rule r(a: bool, b: bool) -> bool {\n    return a and not b\n}"); len(errs) != 0 {
