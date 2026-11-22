@@ -3,8 +3,8 @@
 // with json.decode; any other status is the caller's to judge (§3). The
 // bytes sent are signed as GitHub signs a delivery (ADR 0075 §1), and the
 // inbox checks the signature over those same bytes (ADR 0077).
-use fiig.http
-use fiig.http.HttpClient
+use fiig.http;
+use fiig.http.HttpClient;
 
 gateway sendInvoicePaid(
     inboxUrl: string,
@@ -32,7 +32,7 @@ gateway sendInvoicePaid(
         ),
     );
     return match (sent) {
-        Err(failure) -> Err(SendError.Unreachable(failure: failure))
+        Err(failure) -> Err(SendError.Unreachable(failure: failure)),
         Ok(reply) -> {
             if (reply.status != 200) {
                 return Err(SendError.Rejected(status: reply.status, body: replyText(reply.body)));
@@ -40,18 +40,18 @@ gateway sendInvoicePaid(
 
             answer: Result<InboxEvent, JsonError> = json.decode(reply.body);
             return match (answer) {
-                Ok(received) -> Ok(received)
-                Err(failure) -> Err(SendError.Unreadable(failure: failure))
+                Ok(received) -> Ok(received),
+                Err(failure) -> Err(SendError.Unreadable(failure: failure)),
             }
-        }
+        },
     }
 }
 
 private {
     replyText(raw: bytes) -> string {
         return match (raw.utf8()) {
-            None -> "(not UTF-8)"
-            text -> text
+            None -> "(not UTF-8)",
+            text -> text,
         }
     }
 }

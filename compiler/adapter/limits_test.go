@@ -34,11 +34,11 @@ var limitsProgram = []string{
 	`adapter http limitsApi {
     POST "/echo" -> echo(text: string)
         consumes "text/plain"
-        produces "text/plain"
+        produces "text/plain";
     GET "/spin" -> spin()
-        produces "application/json"
+        produces "application/json";
     GET "/hello" -> hello()
-        produces "text/plain"
+        produces "text/plain";
 }`,
 }
 

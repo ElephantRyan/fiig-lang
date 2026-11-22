@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // A DELETE is done when the server says 204 (or 200). S3 answers 204 for a
 // key that was never there, so a delete is safe to repeat.

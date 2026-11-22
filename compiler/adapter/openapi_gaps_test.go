@@ -45,12 +45,12 @@ func responseSchema(t *testing.T, doc map[string]any, path, code string) map[str
 // with a name (`status -> 200 status`) describes that value, not `{}`.
 func TestAPlainValueWorkflowHasItsSchema(t *testing.T) {
 	u, files := universeOf(t, `model Health {
-    ok: bool
+    ok: bool;
 }`, `workflow healthCheck() -> Health {
     return Health(ok: true);
 }`, `adapter http healthApi {
     GET "/health" -> healthCheck() {
-        status -> 200 status
+        status -> 200 status,
     }
 }`)
 	doc, err := GenerateOpenAPI(findAdapter(t, files, "healthApi"), u)
@@ -68,28 +68,28 @@ func TestAPlainValueWorkflowHasItsSchema(t *testing.T) {
 // still lists the statuses that conversion builds.
 func TestAResponseBuiltInAnotherPackageKeepsItsStatuses(t *testing.T) {
 	common, _ := universeOf(t, `enum Refusal {
-    Missing
-    Denied
+    Missing,
+    Denied,
 }`, `conversion refusalResponse(error: Refusal) -> HttpResponse<string> {
     return match (error) {
         Refusal.Missing -> {
             return HttpResponse(status: 404, body: "missing");
-        }
+        },
         Refusal.Denied -> {
             return HttpResponse(status: 403, body: "denied");
-        }
+        },
     }
 }`)
-	app, files := universeOf(t, `use shop.common
+	app, files := universeOf(t, `use shop.common;
 
 model Item {
-    name: string
+    name: string;
 }`, `workflow readItem() -> Result<Item, common.Refusal> {
     return Ok(Item(name: "x"));
 }`, `adapter http itemApi {
     GET "/item" -> readItem() {
-        Ok(item) -> 200 item
-        Err(error) -> common.refusalResponse(error)
+        Ok(item) -> 200 item,
+        Err(error) -> common.refusalResponse(error),
     }
 }`)
 	pkg := &types.Package{Path: "shop.items", Universe: app, Imports: map[string]*types.Universe{"common": common}}
@@ -121,22 +121,22 @@ func keys(m map[string]any) []string {
 // answers with that conversion's statuses too.
 func TestAResponseFromANestedConversionKeepsItsStatus(t *testing.T) {
 	u, files := universeOf(t,
-		"enum IdentityError {\n    NotSignedIn\n}",
-		"enum RatingError {\n    Session(cause: IdentityError)\n    NoRating\n}",
+		"enum IdentityError {\n    NotSignedIn,\n}",
+		"enum RatingError {\n    Session(cause: IdentityError),\n    NoRating,\n}",
 		"workflow deleteMine(token: string) -> Result<string, RatingError> {\n    return Err(RatingError.NoRating);\n}",
 		"conversion identityErrorResponse(error: IdentityError) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"sign in first\");\n}",
 		`conversion ratingErrorResponse(error: RatingError) -> HttpResponse<string> {
     return match (error) {
-        RatingError.Session(cause) -> identityErrorResponse(cause)
-        RatingError.NoRating -> HttpResponse(status: 404, body: "no rating")
+        RatingError.Session(cause) -> identityErrorResponse(cause),
+        RatingError.NoRating -> HttpResponse(status: 404, body: "no rating"),
     }
 }`,
 		`adapter http api {
     GET "/mine/{token}" -> deleteMine(token: string)
         produces "application/json"
     {
-        Ok(who) -> 200 who
-        Err(error) -> ratingErrorResponse(error)
+        Ok(who) -> 200 who,
+        Err(error) -> ratingErrorResponse(error),
     }
 }`)
 	doc, err := GenerateOpenAPI(findAdapter(t, files, "api"), u)

@@ -1,5 +1,5 @@
-use fiig.http
-use fiig.http.HttpClient
+use fiig.http;
+use fiig.http.HttpClient;
 
 // ADR 0121: an S3-compatible object store, written in fiig over fiig.http.
 // Each operation signs its request (AWS Signature Version 4), sends it with
@@ -21,10 +21,10 @@ capability S3 {
     ) -> Result<None, S3Error> requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
-            None -> None
+            None -> None,
             given -> {
                 token = given.reveal();
-            }
+            },
         }
 
         account = S3Account(
@@ -52,10 +52,10 @@ capability S3 {
     gateway get(bucket: string, key: string) -> Result<bytes, S3Error> requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
-            None -> None
+            None -> None,
             given -> {
                 token = given.reveal();
-            }
+            },
         }
 
         account = S3Account(
@@ -83,10 +83,10 @@ capability S3 {
     gateway head(bucket: string, key: string) -> Result<ObjectInfo, S3Error> requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
-            None -> None
+            None -> None,
             given -> {
                 token = given.reveal();
-            }
+            },
         }
 
         account = S3Account(
@@ -114,10 +114,10 @@ capability S3 {
     gateway delete(bucket: string, key: string) -> Result<None, S3Error> requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
-            None -> None
+            None -> None,
             given -> {
                 token = given.reveal();
-            }
+            },
         }
 
         account = S3Account(
@@ -151,10 +151,10 @@ capability S3 {
     ) -> Result<None, S3Error> requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
-            None -> None
+            None -> None,
             given -> {
                 token = given.reveal();
-            }
+            },
         }
 
         account = S3Account(
@@ -184,10 +184,10 @@ capability S3 {
             requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
-            None -> None
+            None -> None,
             given -> {
                 token = given.reveal();
-            }
+            },
         }
 
         account = S3Account(
@@ -220,10 +220,10 @@ capability S3 {
     ) -> Result<bytes, S3Error> requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
-            None -> None
+            None -> None,
             given -> {
                 token = given.reveal();
-            }
+            },
         }
 
         account = S3Account(
@@ -257,10 +257,10 @@ capability S3 {
     ) -> Result<None, S3Error> requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
-            None -> None
+            None -> None,
             given -> {
                 token = given.reveal();
-            }
+            },
         }
 
         account = S3Account(
@@ -300,10 +300,10 @@ capability S3 {
     ) -> Result<string, S3Error> requires HttpClient {
         token: string = "";
         match (S3Settings.sessionToken) {
-            None -> None
+            None -> None,
             given -> {
                 token = given.reveal();
-            }
+            },
         }
 
         account = S3Account(

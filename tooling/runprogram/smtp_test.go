@@ -27,16 +27,16 @@ var smtpProgram = map[string]string{
     "dependencies": { "fiig.smtp": "1.0.0" },
     "capabilities": ["Socket"]
 }`,
-	"send_welcome.fiig": `use fiig.smtp
-use fiig.smtp.Smtp
+	"send_welcome.fiig": `use fiig.smtp;
+use fiig.smtp.Smtp;
 
 gateway sendWelcome(to: string, subject: string) -> Result<None, smtp.SmtpError>
     requires Smtp
 {
     return Smtp.send(smtp.Mail(from: "noreply@shop.example", to: [to], subject: subject, body: "Thanks for signing up."));
 }`,
-	"send_report.fiig": `use fiig.smtp
-use fiig.smtp.Smtp
+	"send_report.fiig": `use fiig.smtp;
+use fiig.smtp.Smtp;
 
 gateway sendReport() -> Result<None, smtp.SmtpError>
     requires Smtp
@@ -54,8 +54,8 @@ gateway sendReport() -> Result<None, smtp.SmtpError>
         ),
     );
 }`,
-	"send_invoice.fiig": `use fiig.smtp
-use fiig.smtp.Smtp
+	"send_invoice.fiig": `use fiig.smtp;
+use fiig.smtp.Smtp;
 
 gateway sendInvoice(pdf: bytes) -> Result<None, smtp.SmtpError>
     requires Smtp

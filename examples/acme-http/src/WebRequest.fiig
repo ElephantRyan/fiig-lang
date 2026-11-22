@@ -4,8 +4,8 @@
 // one; the gateway that builds the request reveals its key into it (ADR
 // 0071 §4).
 model WebRequest {
-    host: string
-    path: string
-    body: string
-    authorization: string | None
+    host: string;
+    path: string;
+    body: string;
+    authorization: string | None;
 }

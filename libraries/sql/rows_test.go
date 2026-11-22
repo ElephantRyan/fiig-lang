@@ -19,16 +19,16 @@ import (
 
 var parcelSources = []string{
 	`model Parcel {
-    id: string
-    weight: decimal
-    note: string | None
-    state: ParcelState
-    fragile: bool
-    label: bytes
+    id: string;
+    weight: decimal;
+    note: string | None;
+    state: ParcelState;
+    fragile: bool;
+    label: bytes;
 }`,
 	`enum ParcelState {
-    Packed
-    Sent from json "sent"
+    Packed,
+    Sent from json "sent",
 }`,
 	`gateway saveParcel(p: Parcel) -> int
     requires Database

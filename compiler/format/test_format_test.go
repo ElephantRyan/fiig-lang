@@ -14,7 +14,7 @@ func TestFormatTestDecl(t *testing.T) {
     }
 
     fake Account {
-        apiKey: "sk_test_1"
+        apiKey: "sk_test_1";
     }
 
     result = pay("a");

@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // One authentication request (§6): AuthenticationOk, a cleartext password
 // on TLS only, or SCRAM-SHA-256's three steps. MD5 is refused by name.
@@ -37,11 +37,11 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                         reason: "the server asks for a password, and the settings have none",
                     ),
                 );
-            }
+            },
 
             password -> {
                 return copy(state, send: pgMessage(112, cString(password)));
-            }
+            },
         }
     }
 
@@ -84,7 +84,7 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                         reason: "the server asks for a password, and the settings have none",
                     ),
                 );
-            }
+            },
 
             password -> {
                 match (data.utf8()) {
@@ -96,7 +96,7 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                                 reason: "the server's SCRAM message isn't text",
                             ),
                         );
-                    }
+                    },
 
                     serverFirst -> {
                         match (computeScramFinal(password.utf8(), state.clientFirstBare, state.clientNonce, serverFirst)) {
@@ -106,7 +106,7 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                                     send: <<>>,
                                     failed: db.DatabaseError.Protocol(reason: reason),
                                 );
-                            }
+                            },
 
                             Ok(final) -> {
                                 return copy(
@@ -114,11 +114,11 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                                     send: pgMessage(112, final.message.utf8()),
                                     expectSignature: final.serverSignature,
                                 );
-                            }
+                            },
                         }
-                    }
+                    },
                 }
-            }
+            },
         }
     }
 
@@ -134,19 +134,19 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
         }
 
         match (data.utf8()) {
-            None -> None
+            None -> None,
             text -> {
                 if (text.startsWith("v=")) {
                     match (text.removePrefix("v=").fromBase64()) {
-                        None -> None
+                        None -> None,
                         signature -> {
                             if (crypto.equal(signature, state.expectSignature)) {
                                 return copy(state, send: <<>>, verified: true);
                             }
-                        }
+                        },
                     }
                 }
-            }
+            },
         }
 
         return copy(

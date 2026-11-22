@@ -2,7 +2,7 @@
 // hash (ADR 0075). A query reads its rows into this model by column name,
 // so the key_hash column is renamed keyHash in the SELECT (ADR 0082 §6).
 model StoredAccount {
-    name: string
-    email: string
-    keyHash: string
+    name: string;
+    email: string;
+    keyHash: string;
 }

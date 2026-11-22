@@ -1,4 +1,4 @@
 // The Square account a deployment charges through (ADR 0071 §5).
 wire SquareAccount {
-    accessToken: Secret from env "SQUARE_ACCESS_TOKEN"
+    accessToken: Secret from env "SQUARE_ACCESS_TOKEN";
 }

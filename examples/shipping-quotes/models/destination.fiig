@@ -2,6 +2,6 @@
 // naming its variant beside the payload's fields:
 // {"variant": "International", "country": "NZ", "postcode": "6011"}.
 enum Destination {
-    Domestic(postcode: string)
-    International(country: string, postcode: string)
+    Domestic(postcode: string),
+    International(country: string, postcode: string),
 }

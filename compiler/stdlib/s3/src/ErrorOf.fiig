@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // A reply the caller didn't ask for, as an error (ADR 0121 §4): a 404 for a
 // missing key is NotFound, and any other status (and a 404 for a missing
@@ -22,8 +22,8 @@ conversion errorOf(reply: http.Reply) -> S3Error {
 private {
     textOf(body: bytes) -> string {
         return match (body.utf8()) {
-            None -> ""
-            text -> text
+            None -> "",
+            text -> text,
         }
     }
 

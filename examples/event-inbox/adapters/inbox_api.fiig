@@ -5,8 +5,8 @@ adapter http inboxApi {
     POST "/events" -> receiveEvent(envelope: Envelope)
             consumes "application/json"
             produces "application/json" {
-        Ok(event) -> 200 event
-        Err(error) -> 422 error
+        Ok(event) -> 200 event,
+        Err(error) -> 422 error,
     }
 
     POST "/events/signed" -> receiveSignedEvent(
@@ -15,7 +15,7 @@ adapter http inboxApi {
     )
             consumes "application/json"
             produces "application/json" {
-        Ok(event) -> 200 event
-        Err(error) -> inboxErrorResponse(error)
+        Ok(event) -> 200 event,
+        Err(error) -> inboxErrorResponse(error),
     }
 }

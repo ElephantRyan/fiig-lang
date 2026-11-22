@@ -34,15 +34,15 @@ func consumerProgram(topic string) map[string]string {
     "capabilities": ["Socket", "Session"]
 }`,
 		"order_placed.fiig": `model OrderPlaced {
-    orderId: string
-    quantity: int
+    orderId: string;
+    quantity: int;
 }`,
 		"order_error.fiig": `enum OrderError {
-    OutOfStock(sku: string)
-    Invalid(reason: string)
-    Unrecorded(reason: string)
+    OutOfStock(sku: string),
+    Invalid(reason: string),
+    Unrecorded(reason: string),
 }`,
-		"mark_handled.fiig": `use fiig.redis.Redis
+		"mark_handled.fiig": `use fiig.redis.Redis;
 
 gateway markHandled(orderId: string) -> Result<None, OrderError>
     requires Redis
@@ -50,10 +50,10 @@ gateway markHandled(orderId: string) -> Result<None, OrderError>
     return match (Redis.send(["XADD", "handled", "*", "payload", orderId])) {
         Ok(_) -> {
             return Ok(None);
-        }
+        },
         Err(_) -> {
             return Err(OrderError.Unrecorded(reason: "Redis refused"));
-        }
+        },
     }
 }`,
 		"record.fiig": `activity record(order: OrderPlaced) -> Result<None, OrderError> {
@@ -69,8 +69,8 @@ gateway markHandled(orderId: string) -> Result<None, OrderError>
     }
     return Ok(None);
 }`,
-		"publish.fiig": `use fiig.kafka
-use fiig.kafka.Kafka
+		"publish.fiig": `use fiig.kafka;
+use fiig.kafka.Kafka;
 
 activity publish(topic: string, values: List<string>) -> Result<List<kafka.Sent>, kafka.KafkaError> {
     records: List<kafka.KafkaRecord> = [];

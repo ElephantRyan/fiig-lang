@@ -50,7 +50,7 @@ func TestSocketOperationsAreTyped(t *testing.T) {
 // enum, with exhaustiveness (A9) applying.
 func TestSocketErrorIsAPreludeEnum(t *testing.T) {
 	describe := "conversion describe(failure: SocketError) -> string {\n\treturn match (failure) {\n" +
-		"\t\tSocketError.Tls(reason) -> reason\n\t\tSocketError.Closed -> \"closed\"\n\t}\n}"
+		"\t\tSocketError.Tls(reason) -> reason,\n\t\tSocketError.Closed -> \"closed\",\n\t}\n}"
 	if got := rules(checkSources(t, describe))["A9"]; got != 1 {
 		t.Errorf("got %d A9 for a non-exhaustive SocketError match, want 1", got)
 	}
@@ -61,8 +61,8 @@ func TestSocketErrorIsAPreludeEnum(t *testing.T) {
 }
 
 func TestConnectionInWorkflowSignatureIsH5(t *testing.T) {
-	session := "model Session {\n\tconnection: Connection\n\tuser: string\n}"
-	wrapper := "model Wrapper {\n\tsession: Session\n}"
+	session := "model Session {\n\tconnection: Connection;\n\tuser: string;\n}"
+	wrapper := "model Wrapper {\n\tsession: Session;\n}"
 	cases := map[string]string{
 		"param":  "workflow w(connection: Connection) -> int {\n\treturn 0;\n}",
 		"nested": "workflow w(sessions: List<Wrapper>) -> int {\n\treturn 0;\n}",

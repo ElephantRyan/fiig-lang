@@ -21,23 +21,23 @@ import (
 
 var enumProgram = []string{
 	`enum Region {
-    US
-    EU
+    US,
+    EU,
 }`,
 	`enum Problem {
-    NotFound(id: string)
-    Late(id: string, days: int | None)
-    Unknown
+    NotFound(id: string),
+    Late(id: string, days: int | None),
+    Unknown,
 }`,
 	`enum Source(key code: string) {
-    Acme(code: "ACME")
-    Globex(code: "GLBX")
+    Acme(code: "ACME"),
+    Globex(code: "GLBX"),
 }`,
 	`model Shipment {
-    region: Region
-    problem: Problem
-    outcome: Result<int, Problem>
-    source: Source
+    region: Region;
+    problem: Problem;
+    outcome: Result<int, Problem>;
+    source: Source;
 }`,
 	`workflow echoShipment(shipment: Shipment) -> Shipment {
     return shipment;
@@ -48,10 +48,10 @@ var enumProgram = []string{
 	`adapter http enumApi {
     POST "/echo" -> echoShipment(shipment: Shipment)
         consumes "application/json"
-        produces "application/json"
+        produces "application/json";
     POST "/code" -> sourceCode(shipment: Shipment)
         consumes "application/json"
-        produces "text/plain"
+        produces "text/plain";
 }`,
 }
 

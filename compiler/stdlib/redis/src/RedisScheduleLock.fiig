@@ -1,4 +1,4 @@
-use fiig.schedule
+use fiig.schedule;
 
 // ADR 0112 §4: a schedule lock in Redis. A firing is claimed by setting a
 // key named by the job and the firing time, only if nobody has, for as long
@@ -20,15 +20,15 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
         return match (Redis.send(["SET", key, holder, "NX", "PX", "${holdMillis}"])) {
             Ok(RespValue.Simple(_)) -> {
                 return Ok(true);
-            }
+            },
 
             Ok(_) -> {
                 return Ok(false);
-            }
+            },
 
             Err(failure) -> {
                 return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"));
-            }
+            },
         }
     }
 
@@ -42,15 +42,15 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
         return match (Redis.send(["SET", key, holder, "PX", "${retainMillis}"])) {
             Ok(RespValue.Simple(_)) -> {
                 return Ok(true);
-            }
+            },
 
             Ok(_) -> {
                 return Ok(false);
-            }
+            },
 
             Err(failure) -> {
                 return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"));
-            }
+            },
         }
     }
 
@@ -60,15 +60,15 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
         return match (Redis.send(["EXISTS", key])) {
             Ok(RespValue.Integer(count)) -> {
                 return Ok(count > 0);
-            }
+            },
 
             Ok(_) -> {
                 return Ok(false);
-            }
+            },
 
             Err(failure) -> {
                 return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"));
-            }
+            },
         }
     }
 }

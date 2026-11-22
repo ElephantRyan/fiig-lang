@@ -27,18 +27,18 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 		{
 			name: "model declaration (multiple fields)",
 			src: `model Customer {
-    id: CustomerId
-    name: string
-    email: EmailAddress
+    id: CustomerId;
+    name: string;
+    email: EmailAddress;
 }
 `,
 		},
 		{
 			name: "enum declaration (multiple variants)",
 			src: `enum CustomerError {
-    NotFound(id: CustomerId)
-    EmailAlreadyInUse(email: EmailAddress)
-    Invalid(field: string, reason: string)
+    NotFound(id: CustomerId),
+    EmailAlreadyInUse(email: EmailAddress),
+    Invalid(field: string, reason: string),
 }
 `,
 		},
@@ -71,8 +71,8 @@ func TestSyntaxFormSnapshots(t *testing.T) {
         idempotent {
     row = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id);
     return match (row) {
-        found -> Ok(Customer(id: found.id, name: found.name, email: found.email))
-        None -> Err(CustomerError.NotFound(id))
+        found -> Ok(Customer(id: found.id, name: found.name, email: found.email)),
+        None -> Err(CustomerError.NotFound(id)),
     }
 }
 `,
@@ -82,8 +82,8 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 			src: `gateway checkEmailUnique(email: EmailAddress) -> Result<None, CustomerError> requires Database {
     existing = Database.queryOne("SELECT id FROM customers WHERE email = ?", email);
     return match (existing) {
-        found -> Err(CustomerError.EmailAlreadyInUse(email))
-        None -> Ok(None)
+        found -> Err(CustomerError.EmailAlreadyInUse(email)),
+        None -> Ok(None),
     }
 }
 `,
@@ -161,23 +161,23 @@ func TestSyntaxFormSnapshots(t *testing.T) {
     return match (createCustomer(input)) {
         Err(error) -> {
             return Err(CheckoutError.Customer(error)); // wrapped unchanged
-        }
+        },
 
         found -> {
             return match (placeOrder(orderId, found.id, total)) {
                 Ok(order) -> {
                     return Ok(order);
-                }
+                },
 
                 Err(OrderError.InventoryUnavailable(_)) -> {
                     return Err(CheckoutError.OutOfStock); // reinterpreted
-                }
+                },
 
                 Err(error) -> {
                     return Err(CheckoutError.Order(error)); // wrapped unchanged
-                }
+                },
             }
-        }
+        },
     }
 }
 `,
@@ -195,7 +195,7 @@ rule addMoney(a: Money, b: Money) -> Money {
 			name: "adapter http route, path placeholder",
 			src: `// Required example 8 (HTTP half): expose readCustomer over HTTP.
 adapter http customerHttpApi {
-    GET "/customers/{id}" -> readCustomer(id: CustomerId) produces "application/json"
+    GET "/customers/{id}" -> readCustomer(id: CustomerId) produces "application/json";
 }
 `,
 		},
@@ -209,7 +209,7 @@ adapter http customerEmailApi {
         id: CustomerId,
         newEmail: EmailAddress,
     )
-            produces "application/json"
+            produces "application/json";
 }
 `,
 		},
@@ -221,7 +221,7 @@ adapter http customerEmailApi {
 adapter http customerCreateApi {
     POST "/customers" -> createCustomer(input: NewCustomer)
             consumes "application/json"
-            produces "application/json"
+            produces "application/json";
 }
 `,
 		},
@@ -234,7 +234,7 @@ adapter http customerCreateApi {
 adapter http customerQueryApi {
     QUERY "/customers/lookup" -> lookupCustomer(criteria: CustomerLookup)
             consumes "application/json"
-            produces "application/json"
+            produces "application/json";
 }
 `,
 		},
@@ -248,8 +248,8 @@ adapter http importApi {
         session: string | None from cookie "sid",
     )
             consumes "text/csv"
-            produces "application/json"
-    GET "/exports" -> exportOrders() produces "text/csv"
+            produces "application/json";
+    GET "/exports" -> exportOrders() produces "text/csv";
 }
 `,
 		},
@@ -258,7 +258,7 @@ adapter http importApi {
 			src: `// Required example 8 (CLI half): expose the same readCustomer workflow over
 // a CLI adapter — no logic is duplicated between the two adapters.
 adapter cli customerCli {
-    command "customer get {id}" -> readCustomer(id: CustomerId)
+    command "customer get {id}" -> readCustomer(id: CustomerId);
 }
 `,
 		},
@@ -269,8 +269,8 @@ adapter cli customerCli {
 // instead of repeating its mapping inline.
 adapter http customerHttpApiWithMapping {
     GET "/customers/{id}" -> readCustomer(id: CustomerId) produces "application/json" {
-        Ok(customer) -> 200 customer
-        Err(error) -> customerErrorToHttpResponse(error)
+        Ok(customer) -> 200 customer,
+        Err(error) -> customerErrorToHttpResponse(error),
     }
 }
 `,
@@ -280,8 +280,8 @@ adapter http customerHttpApiWithMapping {
 			src: `// Required example 9: import two aliased time libraries. Both packages are
 // named "time"; the aliases are the only thing that make them referenceable
 // in the same file, and each keeps its own canonical registry identity.
-use company.time as businessTime
-use standard.time as systemTime
+use company.time as businessTime;
+use standard.time as systemTime;
 
 rule computeFollowUpDate(from: systemTime.Instant) -> systemTime.Instant {
     return businessTime.addBusinessDays(from, 3);
@@ -300,7 +300,7 @@ rule summarizeOrderShape(input: { id: OrderId, total: Money }) -> string {
 		{
 			name: "union type with None on a model field (legal per §3.5, unattested elsewhere)",
 			src: `model Contact {
-    middleName: string | None
+    middleName: string | None;
 }
 `,
 		},

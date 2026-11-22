@@ -1,10 +1,10 @@
 // ADR 0074 §3: no HTTP reply to read. A status the caller didn't want is
 // not one of these; it is a Reply.
 enum HttpError {
-    InvalidRequest(reason: string)
-    Socket(failure: SocketError)
-    MalformedReply(reason: string)
+    InvalidRequest(reason: string),
+    Socket(failure: SocketError),
+    MalformedReply(reason: string),
     // §7a: the reply ran past HTTP_CLIENT_MAX_REPLY_BYTES, or its
     // Content-Length or a chunk's size said it would.
-    ReplyTooLarge(limit: int)
+    ReplyTooLarge(limit: int),
 }

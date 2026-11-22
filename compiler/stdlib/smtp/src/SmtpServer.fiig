@@ -3,9 +3,9 @@
 // SMTP_OAUTH_TOKEN is an OAuth 2.0 access token for XOAUTH2 (§3b), read
 // once at start like the rest: refreshing it is the deployment's job.
 wire SmtpServer {
-    url: Secret from env "SMTP_URL"
-    helloName: string from env "SMTP_HELO_NAME" = "localhost"
-    timeoutMillis: int from env "SMTP_TIMEOUT_MS" = 30000
-    auth: SmtpAuth | None from env "SMTP_AUTH"
-    oauthToken: Secret | None from env "SMTP_OAUTH_TOKEN"
+    url: Secret from env "SMTP_URL";
+    helloName: string from env "SMTP_HELO_NAME" = "localhost";
+    timeoutMillis: int from env "SMTP_TIMEOUT_MS" = 30000;
+    auth: SmtpAuth | None from env "SMTP_AUTH";
+    oauthToken: Secret | None from env "SMTP_OAUTH_TOKEN";
 }

@@ -1,5 +1,5 @@
 // Every way rating can fail, as values the caller must handle.
 enum RatingError {
-    NotFound(item: string)
-    Invalid(field: string, reason: string)
+    NotFound(item: string),
+    Invalid(field: string, reason: string),
 }

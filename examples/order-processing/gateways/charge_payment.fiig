@@ -2,7 +2,7 @@ gateway chargePayment(orderId: string, amount: int) -> Result<string, OrderError
         requires PaymentGateway {
     result = PaymentGateway.charge(orderId, amount);
     return match (result) {
-        Ok(reference) -> Ok(reference)
-        Err(reason) -> Err(OrderError.PaymentDeclined(reason))
+        Ok(reference) -> Ok(reference),
+        Err(reason) -> Err(OrderError.PaymentDeclined(reason)),
     }
 }

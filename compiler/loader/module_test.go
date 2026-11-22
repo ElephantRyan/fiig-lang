@@ -28,10 +28,10 @@ func writeTree(t *testing.T, files map[string]string) string {
 func appModule(extra map[string]string) map[string]string {
 	files := map[string]string{
 		"app/fiig.pkg.json":                   `{"path": "t.app", "kind": "library", "version": "1.0.0"}`,
-		"app/src/Greeting.fiig":               "use t.app.ratings\n\nconversion greeting(score: int) -> string {\n    return \"rated ${ratings.clamp(score)}\";\n}\n",
-		"app/src/ratings/Clamp.fiig":          "use t.app.ratings.limits\n\nconversion clamp(score: int) -> int {\n    return math.min(score, limits.highest());\n}\n",
+		"app/src/Greeting.fiig":               "use t.app.ratings;\n\nconversion greeting(score: int) -> string {\n    return \"rated ${ratings.clamp(score)}\";\n}\n",
+		"app/src/ratings/Clamp.fiig":          "use t.app.ratings.limits;\n\nconversion clamp(score: int) -> int {\n    return math.min(score, limits.highest());\n}\n",
 		"app/src/ratings/limits/Highest.fiig": "rule highest() -> int {\n    return 10;\n}\n",
-		"app/test/ratings/Clamp.fiig":         "use t.app.ratings\n\ntest clampsHigh {\n    expect ratings.clamp(11) == 10;\n}\n\ntest keepsLow {\n    expect ratings.clamp(3) == 3;\n}\n",
+		"app/test/ratings/Clamp.fiig":         "use t.app.ratings;\n\ntest clampsHigh {\n    expect ratings.clamp(11) == 10;\n}\n\ntest keepsLow {\n    expect ratings.clamp(3) == 3;\n}\n",
 		"app/test/Greeting.fiig":              "test greets {\n    expect greeting(4) == \"rated 4\";\n}\n",
 	}
 	for k, v := range extra {
@@ -82,8 +82,8 @@ func TestTheLayoutsRules(t *testing.T) {
 		{"code outside src", map[string]string{"app/rules/Extra.fiig": "rule extra() -> int {\n    return 1;\n}\n"}, "rules/Extra.fiig: a module's code is under src/"},
 		{"test mirrors nothing", map[string]string{"app/test/ratings/Missing.fiig": "test nothing {\n    expect 1 == 1;\n}\n"}, "src/ratings/Missing.fiig doesn't exist"},
 		{"folder name", map[string]string{"app/src/Bad_Folder/X.fiig": "rule x() -> int {\n    return 1;\n}\n"}, "src/Bad_Folder: a package folder is named in lowercase"},
-		{"cycle", map[string]string{"app/src/ratings/limits/Highest.fiig": "use t.app.ratings\n\nconversion highest() -> int {\n    return ratings.clamp(10);\n}\n"}, "import each other in a cycle"},
-		{"top-level import", map[string]string{"app/src/ratings/limits/Highest.fiig": "use t.app\n\nrule highest() -> int {\n    return 10;\n}\n"}, "the module's top-level package, which its folders can't import"},
+		{"cycle", map[string]string{"app/src/ratings/limits/Highest.fiig": "use t.app.ratings;\n\nconversion highest() -> int {\n    return ratings.clamp(10);\n}\n"}, "import each other in a cycle"},
+		{"top-level import", map[string]string{"app/src/ratings/limits/Highest.fiig": "use t.app;\n\nrule highest() -> int {\n    return 10;\n}\n"}, "the module's top-level package, which its folders can't import"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestEveryFailingPackageIsReportedInOneRun(t *testing.T) {
 		"app/src/aaa/Broken.fiig":  "rule broken() -> int {\n    return missing;\n}\n",
 		"app/src/bbb/Broken.fiig":  "rule broken() -> int {\n    return alsoMissing;\n}\n",
 		"app/src/ccc/Fine.fiig":    "rule fine() -> int {\n    return 1;\n}\n",
-		"app/src/ddd/Needs.fiig":   "use t.app.aaa\n\nconversion needs() -> int {\n    return aaa.broken();\n}\n",
+		"app/src/ddd/Needs.fiig":   "use t.app.aaa;\n\nconversion needs() -> int {\n    return aaa.broken();\n}\n",
 		"app/src/ddd/Another.fiig": "rule another() -> int {\n    return stillMissing;\n}\n",
 	})
 	_, errs := Load(filepath.Join(ws, "app"), nil)
@@ -137,9 +137,9 @@ func TestTheApplicationDeclarationIsTheTopLevelsOnlyException(t *testing.T) {
 		files := appModule(map[string]string{
 			"app/src/Greeting.fiig":      "", // an application's top level holds only the application
 			"app/test/Greeting.fiig":     "",
-			"app/src/ratings/Api.fiig":   "adapter http api {\n    GET \"/hello\" -> hello()\n        produces \"application/json\"\n}\n",
+			"app/src/ratings/Api.fiig":   "adapter http api {\n    GET \"/hello\" -> hello()\n        produces \"application/json\";\n}\n",
 			"app/src/ratings/Hello.fiig": "workflow hello() -> string {\n    return \"hi\";\n}\n",
-			"app/src/MyApp.fiig":         "use t.app.ratings\n\napplication MyApp {\n    serve {\n        ratings.api\n    }\n}\n",
+			"app/src/MyApp.fiig":         "use t.app.ratings;\n\napplication MyApp {\n    serve {\n        ratings.api;\n    }\n}\n",
 		})
 		for k, v := range extra {
 			files[k] = v
@@ -171,7 +171,7 @@ func TestTheApplicationDeclarationIsTheTopLevelsOnlyException(t *testing.T) {
 		t.Errorf("an application in a library = %v, want one O3", diags)
 	}
 	// One application to a module.
-	diags = check("application", map[string]string{"app/src/Second.fiig": "use t.app.ratings\n\napplication Second {\n    serve {\n        ratings.api\n    }\n}\n"})
+	diags = check("application", map[string]string{"app/src/Second.fiig": "use t.app.ratings;\n\napplication Second {\n    serve {\n        ratings.api;\n    }\n}\n"})
 	found := false
 	for _, d := range diags {
 		found = found || d.Rule == "O3" && strings.Contains(d.Msg, "a module has one application")

@@ -1,4 +1,4 @@
 model RelayAddress {
-    host: string
-    port: int
+    host: string;
+    port: int;
 }

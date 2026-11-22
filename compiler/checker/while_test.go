@@ -93,7 +93,7 @@ func TestBreakInConcurrentInsideWhileIsL1(t *testing.T) {
 // syntax.BodyCallNames, which must walk into a while's condition and body
 // or a cycle hidden inside one goes unreported.
 func TestActivityCycleThroughWhileBodyIsB9(t *testing.T) {
-	model := mustParse(t, "model NewCustomer {\n\tname: string\n}")
+	model := mustParse(t, "model NewCustomer {\n\tname: string;\n}")
 	inBody := mustParse(t, "activity inBody(input: NewCustomer) -> NewCustomer {\n"+
 		"\twhile (true) {\n\t\treturn inCond(input);\n\t}\n\treturn input;\n}")
 	inCond := mustParse(t, "activity inCond(input: NewCustomer) -> NewCustomer {\n"+

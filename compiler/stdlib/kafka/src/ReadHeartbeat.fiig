@@ -74,11 +74,11 @@ private {
         return match (read) {
             None -> {
                 return Err(short());
-            }
+            },
 
             found -> {
                 return Ok(found);
-            }
+            },
         }
     }
 
@@ -86,11 +86,11 @@ private {
         return match (read) {
             None -> {
                 return Err(short());
-            }
+            },
 
             found -> {
                 return Ok(found);
-            }
+            },
         }
     }
 
@@ -99,7 +99,7 @@ private {
         return match (read) {
             None -> {
                 return Err(short());
-            }
+            },
 
             found -> {
                 if (found.value == 0) {
@@ -107,7 +107,7 @@ private {
                 }
 
                 return Ok(IntAt(value: found.value - 1, next: found.next));
-            }
+            },
         }
     }
 }

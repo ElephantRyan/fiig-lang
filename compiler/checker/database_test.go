@@ -13,22 +13,22 @@ import (
 
 // twinsModel's two fields would read one column (ADR 0094 §3).
 const twinsModel = `model Twins {
-    userId: string
-    user_id: string
+    userId: string;
+    user_id: string;
 }`
 
 const shipmentModel = `model Shipment {
-    id: string
-    weight: decimal
-    note: string | None
-    state: ShipState
-    fragile: bool
-    label: bytes
+    id: string;
+    weight: decimal;
+    note: string | None;
+    state: ShipState;
+    fragile: bool;
+    label: bytes;
 }`
 
 const shipStateEnum = `enum ShipState {
-    Packed
-    Sent from json "sent"
+    Packed,
+    Sent from json "sent",
 }`
 
 func gatewayWith(body string) string {

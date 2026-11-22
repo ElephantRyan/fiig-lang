@@ -6,9 +6,9 @@ conversion setupRefusal(replies: List<RespValue>) -> RedisError | None {
         match (reply) {
             RespValue.Error(text) -> {
                 return RedisError.Server(message: text);
-            }
+            },
 
-            _ -> None
+            _ -> None,
         }
     }
 

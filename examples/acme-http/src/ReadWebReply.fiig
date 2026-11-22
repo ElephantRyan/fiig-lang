@@ -6,8 +6,8 @@ conversion readWebReply(response: bytes) -> WebReply {
         <<"HTTP/1.1 ": utf8, hundreds: u8, tens: u8, ones: u8, rest: bytes>> -> {
             status = (hundreds - 48) * 100 + (tens - 48) * 10 + (ones - 48);
             return WebReply(status: status, body: textOf(bodyAfterHeaders(rest)));
-        }
+        },
 
-        _ -> WebReply(status: 0, body: textOf(response))
+        _ -> WebReply(status: 0, body: textOf(response)),
     }
 }

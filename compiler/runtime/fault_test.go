@@ -120,12 +120,12 @@ func TestDeadlineExceededFaultsDuringConcurrentWork(t *testing.T) {
 // defense — a Fault, not a panic or a silently wrong zero value.
 func TestUnexhaustiveMatchAtRuntimeIsAFault(t *testing.T) {
 	u := universeFromSource(t, `enum E {
-    A()
-    B()
+    A(),
+    B(),
 }
 `, `rule r(e: E) -> int {
     return match (e) {
-        E.A(_) -> 1
+        E.A(_) -> 1,
     }
 }
 `)

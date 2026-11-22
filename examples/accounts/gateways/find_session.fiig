@@ -4,7 +4,7 @@ gateway findSession(token: string) -> Result<Account, AccountError> requires Dat
         tokenHash(token),
     );
     return match (row) {
-        found -> Ok(found)
-        None -> Err(AccountError.NoSession)
+        found -> Ok(found),
+        None -> Err(AccountError.NoSession),
     }
 }

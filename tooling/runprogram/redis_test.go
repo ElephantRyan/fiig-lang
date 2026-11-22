@@ -23,8 +23,8 @@ var redisProgram = map[string]string{
     "dependencies": { "fiig.redis": "1.0.0" },
     "capabilities": ["Socket"]
 }`,
-	"src/counters/Bump.fiig": `use fiig.redis
-use fiig.redis.Redis
+	"src/counters/Bump.fiig": `use fiig.redis;
+use fiig.redis.Redis;
 
 gateway bump(key: string) -> Result<redis.RespValue, redis.RedisError>
     requires Redis

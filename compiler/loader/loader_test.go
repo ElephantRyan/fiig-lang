@@ -81,10 +81,10 @@ func TestLoadRealExamples(t *testing.T) {
 // two. Both libraries must resolve to the exact same built instance.
 func TestLoadMinimumVersionSelection(t *testing.T) {
 	ws := t.TempDir()
-	writePkg(t, ws, "leaf", "leaf", "library", "1.2.0", nil, nil, "model Marker { n: int }")
-	writePkg(t, ws, "liba", "liba", "library", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "use leaf as l\nmodel AMarker { n: int }")
-	writePkg(t, ws, "libb", "libb", "library", "1.0.0", map[string]string{"leaf": "1.1.0"}, nil, "use leaf as l\nmodel BMarker { n: int }")
-	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"liba": "1.0.0", "libb": "1.0.0"}, nil, "model AppMarker { n: int }")
+	writePkg(t, ws, "leaf", "leaf", "library", "1.2.0", nil, nil, "model Marker { n: int; }")
+	writePkg(t, ws, "liba", "liba", "library", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "use leaf as l;\nmodel AMarker { n: int; }")
+	writePkg(t, ws, "libb", "libb", "library", "1.0.0", map[string]string{"leaf": "1.1.0"}, nil, "use leaf as l;\nmodel BMarker { n: int; }")
+	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"liba": "1.0.0", "libb": "1.0.0"}, nil, "model AppMarker { n: int; }")
 
 	loaded, errs := Load(app, []string{ws})
 	if len(errs) != 0 {
@@ -107,8 +107,8 @@ func TestLoadMinimumVersionSelection(t *testing.T) {
 // silent downgrade.
 func TestLoadRejectsBelowMinimum(t *testing.T) {
 	ws := t.TempDir()
-	writePkg(t, ws, "leaf", "leaf", "library", "1.0.0", nil, nil, "model Marker { n: int }")
-	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.5.0"}, nil, "model AppMarker { n: int }")
+	writePkg(t, ws, "leaf", "leaf", "library", "1.0.0", nil, nil, "model Marker { n: int; }")
+	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.5.0"}, nil, "model AppMarker { n: int; }")
 
 	_, errs := Load(app, []string{ws})
 	if len(errs) == 0 {
@@ -122,11 +122,11 @@ func TestLoadRejectsBelowMinimum(t *testing.T) {
 // dependents each pin a different major.
 func TestLoadCrossMajorCoexistence(t *testing.T) {
 	ws := t.TempDir()
-	writePkg(t, ws, "leaf-v1", "leaf", "library", "1.0.0", nil, nil, "model Marker { n: int }")
-	writePkg(t, ws, "leaf-v2", "leaf", "library", "2.0.0", nil, nil, "model Marker { n: int }")
-	writePkg(t, ws, "liba", "liba", "library", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model AMarker { n: int }")
-	writePkg(t, ws, "libb", "libb", "library", "1.0.0", map[string]string{"leaf": "2.0.0"}, nil, "model BMarker { n: int }")
-	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"liba": "1.0.0", "libb": "1.0.0"}, nil, "model AppMarker { n: int }")
+	writePkg(t, ws, "leaf-v1", "leaf", "library", "1.0.0", nil, nil, "model Marker { n: int; }")
+	writePkg(t, ws, "leaf-v2", "leaf", "library", "2.0.0", nil, nil, "model Marker { n: int; }")
+	writePkg(t, ws, "liba", "liba", "library", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model AMarker { n: int; }")
+	writePkg(t, ws, "libb", "libb", "library", "1.0.0", map[string]string{"leaf": "2.0.0"}, nil, "model BMarker { n: int; }")
+	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"liba": "1.0.0", "libb": "1.0.0"}, nil, "model AppMarker { n: int; }")
 
 	loaded, errs := Load(app, []string{ws})
 	if len(errs) != 0 {
@@ -154,7 +154,7 @@ func TestLoadRejectsUndeclaredDependencyCapability(t *testing.T) {
 	writePkg(t, ws, "leaf", "leaf", "library", "1.0.0", nil, nil, `gateway getThing() -> Result<int, int> requires Database {
     return Ok(1);
 }`)
-	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model AppMarker { n: int }")
+	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model AppMarker { n: int; }")
 
 	_, errs := Load(app, []string{ws})
 	if len(errs) == 0 {
@@ -165,7 +165,7 @@ func TestLoadRejectsUndeclaredDependencyCapability(t *testing.T) {
 	}
 	// A library's own manifest is named as a library's (abs-recommendations
 	// GAPS G13).
-	lib := writePkg(t, ws, "mid", "mid", "library", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model MidMarker { n: int }")
+	lib := writePkg(t, ws, "mid", "mid", "library", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model MidMarker { n: int; }")
 	if _, errs := Load(lib, []string{ws}); len(errs) == 0 || !strings.Contains(errs[0].Error(), "this library's manifest") {
 		t.Errorf("errs = %v, want the library named", errs)
 	}
@@ -179,7 +179,7 @@ func TestLoadAcceptsDeclaredDependencyCapability(t *testing.T) {
 	writePkg(t, ws, "leaf", "leaf", "library", "1.0.0", nil, nil, `gateway getThing() -> Result<int, int> requires Database {
     return Ok(1);
 }`)
-	app := writePkgNative(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, []string{"Database"}, []string{"Database"}, "model AppMarker { n: int }")
+	app := writePkgNative(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, []string{"Database"}, []string{"Database"}, "model AppMarker { n: int; }")
 
 	loaded, errs := Load(app, []string{ws})
 	if len(errs) != 0 {
@@ -222,8 +222,8 @@ func TestLoadMultipleWorkspaceRoots(t *testing.T) {
 	mainWS := t.TempDir()
 	internalWS := t.TempDir()
 
-	writePkg(t, internalWS, "billing-client", "acme.billingClient", "library", "1.0.0", nil, nil, "model ClientMarker { n: int }")
-	app := writePkg(t, mainWS, "app", "app", "application", "1.0.0", map[string]string{"acme.billingClient": "1.0.0"}, nil, "model AppMarker { n: int }")
+	writePkg(t, internalWS, "billing-client", "acme.billingClient", "library", "1.0.0", nil, nil, "model ClientMarker { n: int; }")
+	app := writePkg(t, mainWS, "app", "app", "application", "1.0.0", map[string]string{"acme.billingClient": "1.0.0"}, nil, "model AppMarker { n: int; }")
 
 	if _, errs := Load(app, []string{mainWS}); len(errs) == 0 {
 		t.Fatal("want an error: the internal library's own root was never searched")
@@ -256,10 +256,10 @@ func TestLoadRecordsOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.MkdirAll(filepath.Join(root, "src"), 0o755)
-	if err := os.WriteFile(filepath.Join(root, "src", "Marker.fiig"), []byte("model Marker { n: int }"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "src", "Marker.fiig"), []byte("model Marker { n: int; }"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model AppMarker { n: int }")
+	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model AppMarker { n: int; }")
 
 	loaded, errs := Load(app, []string{ws})
 	if len(errs) != 0 {
@@ -347,7 +347,7 @@ func TestLoadAcceptsPrimitiveCapabilityWithoutNativeEntry(t *testing.T) {
 func TestLoadChecksDependencies(t *testing.T) {
 	ws := t.TempDir()
 	writePkg(t, ws, "units", "units", "library", "1.0.0", nil, nil, "rule same(a: float, b: float) -> bool {\n    return a == b;\n}")
-	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"units": "1.0.0"}, nil, "model AppMarker { n: int }")
+	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"units": "1.0.0"}, nil, "model AppMarker { n: int; }")
 
 	_, errs := Load(app, []string{ws})
 	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "package units") || !strings.Contains(errs[0].Error(), "[M1]") {
@@ -359,8 +359,8 @@ func TestLoadChecksDependencies(t *testing.T) {
 // workspaces in its manifest, so no -workspace flag is needed.
 func TestLoadReadsTheManifestsWorkspaces(t *testing.T) {
 	ws := t.TempDir()
-	writePkg(t, ws, "leaf", "leaf", "library", "1.0.0", nil, nil, "model LeafMarker { n: int }")
-	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model AppMarker { n: int }")
+	writePkg(t, ws, "leaf", "leaf", "library", "1.0.0", nil, nil, "model LeafMarker { n: int; }")
+	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model AppMarker { n: int; }")
 	if _, errs := Load(app, nil); len(errs) == 0 {
 		t.Fatal("without workspaces, leaf can't be found")
 	}

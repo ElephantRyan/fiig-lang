@@ -77,7 +77,7 @@ rule greet(name: string) -> string {
 }
 
 func TestBuildCardModelAndError(t *testing.T) {
-	file, errs := parser.Parse("model Customer {\n    id: CustomerId\n    name: string\n}")
+	file, errs := parser.Parse("model Customer {\n    id: CustomerId;\n    name: string;\n}")
 	if len(errs) > 0 {
 		t.Fatalf("unexpected parse errors: %v", errs)
 	}
@@ -88,8 +88,8 @@ func TestBuildCardModelAndError(t *testing.T) {
 
 	file, errs = parser.Parse(`
 enum CustomerError {
-    NotFound(id: CustomerId)
-    Invalid
+    NotFound(id: CustomerId),
+    Invalid,
 }`)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected parse errors: %v", errs)
@@ -423,14 +423,14 @@ func TestCallersIsInverseOfDependencies(t *testing.T) {
 func TestDependenciesExcludeCapabilityCallsAndConstructions(t *testing.T) {
 	dir := t.TempDir()
 	files := map[string]string{
-		"widget.fiig": "model Widget {\n\tid: string\n\tcount: int\n}\n",
+		"widget.fiig": "model Widget {\n\tid: string;\n\tcount: int;\n}\n",
 		"get_widget.fiig": `gateway getWidget(id: string) -> Result<Widget, WidgetError>
     requires Database
 {
     row = Database.queryOne("...", id);
     return match (row) {
-        found -> Ok(copy(Widget(id: id, count: 0), count: 1))
-        None -> Err(WidgetError.NotFound(id))
+        found -> Ok(copy(Widget(id: id, count: 0), count: 1)),
+        None -> Err(WidgetError.NotFound(id)),
     }
 }
 `,
@@ -459,7 +459,7 @@ func TestDependenciesExcludeCapabilityCallsAndConstructions(t *testing.T) {
 // rather than kept as a dangling or wrong-kind edge.
 func TestGenerateDropsDependenciesOnUnknownOrNonCallableNames(t *testing.T) {
 	dir := t.TempDir()
-	widget := "model Widget {\n\tid: string\n}\n"
+	widget := "model Widget {\n\tid: string;\n}\n"
 	if err := os.WriteFile(filepath.Join(dir, "widget.fiig"), []byte(widget), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -530,7 +530,7 @@ func TestPrivateMembersGetNoCardButTheirCallsCount(t *testing.T) {
 	files := map[string]string{
 		"save.fiig": "gateway save(n: int) -> int\n\trequires Database\n{\n\treturn n;\n}\n",
 		"coordinate.fiig": "activity coordinate(n: int) -> int {\n\treturn persist(n);\n}\n\n" +
-			"private {\n\tpersist(n: int) -> int {\n\t\treturn save(n);\n\t}\n\n\tmodel Scratch {\n\t\tn: int\n\t}\n}\n",
+			"private {\n\tpersist(n: int) -> int {\n\t\treturn save(n);\n\t}\n\n\tmodel Scratch {\n\t\tn: int;\n\t}\n}\n",
 	}
 	for name, src := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644); err != nil {

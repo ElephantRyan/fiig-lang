@@ -2,7 +2,7 @@
 // corpus with no error-handling role at all, attesting that `enum` is a
 // general sum type, not special-cased syntax for typed errors.
 enum Region {
-    US
-    EU
-    APAC
+    US,
+    EU,
+    APAC,
 }

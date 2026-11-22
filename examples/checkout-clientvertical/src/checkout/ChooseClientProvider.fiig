@@ -4,9 +4,9 @@
 // `use acme.square` here fails to load, Square's code is never loaded, and
 // `fiig config` lists no Square key. checkout-app, built from the same
 // commit, keeps both.
-use acme.payments
-use acme.stripe.Stripe
-use checkout.core
+use acme.payments;
+use acme.stripe.Stripe;
+use checkout.core;
 
 rule chooseClientProvider(merchant: core.PayingMerchant) -> payments.PaymentProvider {
     return Stripe;

@@ -1,4 +1,4 @@
-use fiig.stream
+use fiig.stream;
 
 // ADR 0117 §4, §6: up to room of a fetched partition's records, from its
 // position on (a batch may start before it), as deliveries ordered by

@@ -5,11 +5,11 @@ import "testing"
 // ADR 0099: `x or d` is x, or d when x is None.
 
 const orModel = `model Input {
-    note: string | None
-    alias: string | None
-    tags: List<string> | None
-    count: int | None
-    done: bool | None
+    note: string | None;
+    alias: string | None;
+    tags: List<string> | None;
+    count: int | None;
+    done: bool | None;
 }`
 
 func TestOrDefaultChecks(t *testing.T) {

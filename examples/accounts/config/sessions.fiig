@@ -2,6 +2,6 @@
 // lasts a day unless SESSION_MAX_AGE says otherwise; the export token has
 // no default, since a default would put it in the source.
 wire Sessions {
-    maxAge: int from env "SESSION_MAX_AGE" = 24 * 60 * 60
-    exportToken: Secret from env "ACCOUNTS_EXPORT_TOKEN"
+    maxAge: int from env "SESSION_MAX_AGE" = 24 * 60 * 60;
+    exportToken: Secret from env "ACCOUNTS_EXPORT_TOKEN";
 }

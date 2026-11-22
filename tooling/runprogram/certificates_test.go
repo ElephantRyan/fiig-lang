@@ -156,24 +156,24 @@ const fetchSource = `gateway fetch(host: string, port: int) -> string
     return match (Socket.connectTls(host, port)) {
         Err(failure) -> {
             return "failed: ${failure}";
-        }
+        },
         Ok(connection) -> {
             return match (Socket.read(connection)) {
                 Ok(data) -> {
                     return match (data.utf8()) {
                         None -> {
                             return "not text";
-                        }
+                        },
                         text -> {
                             return text;
-                        }
+                        },
                     }
-                }
+                },
                 Err(failure) -> {
                     return "failed: ${failure}";
-                }
+                },
             }
-        }
+        },
     }
 }`
 

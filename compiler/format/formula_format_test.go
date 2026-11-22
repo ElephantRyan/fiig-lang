@@ -6,7 +6,7 @@ import "testing"
 // capability group does: members one level in, a blank line between them,
 // and a native member as its header line alone.
 func TestFormatFormulasGroupIsStable(t *testing.T) {
-	src := "use geo.vector\n" +
+	src := "use geo.vector;\n" +
 		"\n" +
 		"formulas shapes {\n" +
 		"    formula diagonal(v: Vector) -> int {\n" +
@@ -14,7 +14,7 @@ func TestFormatFormulasGroupIsStable(t *testing.T) {
 		"    }\n" +
 		"\n" +
 		"    // native: the compiler supplies the body\n" +
-		"    formula sqrt(x: int) -> int\n" +
+		"    formula sqrt(x: int) -> int;\n" +
 		"\n" +
 		"    formula twice(n: int) -> int {\n" +
 		"        return diagonal(Vector(x: n, y: n));\n" +

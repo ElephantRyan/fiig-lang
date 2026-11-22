@@ -10,10 +10,10 @@ conversion withLogin(
 ) -> Result<SmtpTarget, SmtpError> {
     chosen: SmtpAuth = SmtpAuth.Auto;
     match (auth) {
-        None -> None
+        None -> None,
         given -> {
             chosen = given;
-        }
+        },
     }
 
     match (token) {
@@ -25,7 +25,7 @@ conversion withLogin(
                     ),
                 );
             }
-        }
+        },
 
         given -> {
             if (given == "") {
@@ -41,7 +41,7 @@ conversion withLogin(
                     );
                 }
             }
-        }
+        },
     }
 
     if (target.user == None && (token != None || chosen != SmtpAuth.Auto)) {

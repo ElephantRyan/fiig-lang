@@ -12,29 +12,29 @@ import (
 // by its spelling, and None when an optional one is missing.
 var textFormProgram = []string{
 	`enum Speed {
-    Standard from json "standard"
-    Express from json "express"
+    Standard from json "standard",
+    Express from json "express",
 }`,
 	`workflow describe(speed: Speed | None) -> string {
     return match (speed) {
         None -> {
             return "none";
-        }
+        },
         Speed.Standard -> {
             return "standard";
-        }
+        },
         Speed.Express -> {
             return "express";
-        }
+        },
     }
 }`,
 	`adapter http speeds {
     GET "/by-query?speed={speed}" -> describe(speed: Speed | None)
-        produces "application/json"
+        produces "application/json";
     GET "/by-header" -> describe(speed: Speed | None from header "X-Speed")
-        produces "application/json"
+        produces "application/json";
     GET "/by-cookie" -> describe(speed: Speed | None from cookie "speed")
-        produces "application/json"
+        produces "application/json";
 }`,
 }
 

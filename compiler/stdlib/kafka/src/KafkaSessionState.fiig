@@ -10,30 +10,30 @@
 // whose login was refused is "refused" (ADR 0113 §6, as amended
 // 2026-11-21).
 model KafkaSessionState {
-    role: string
-    host: string
-    port: int
-    clientId: string
-    group: string
-    topic: string
-    memberId: string
-    phase: string
-    fatal: string
-    nextCorrelation: int
-    inflight: List<Inflight>
-    buffer: bytes
-    epoch: int
-    topicId: bytes
-    heartbeatMillis: int
-    nextHeartbeatAt: int
-    heartbeatInFlight: bool
-    commitMillis: int
-    commitAt: int
-    partitions: List<OwnedPartition>
-    polls: List<WaitingPoll>
-    layouts: List<CachedLayout>
-    refused: KafkaError | None
-    scramNonce: string
-    scramFirstBare: string
-    scramSignature: bytes
+    role: string;
+    host: string;
+    port: int;
+    clientId: string;
+    group: string;
+    topic: string;
+    memberId: string;
+    phase: string;
+    fatal: string;
+    nextCorrelation: int;
+    inflight: List<Inflight>;
+    buffer: bytes;
+    epoch: int;
+    topicId: bytes;
+    heartbeatMillis: int;
+    nextHeartbeatAt: int;
+    heartbeatInFlight: bool;
+    commitMillis: int;
+    commitAt: int;
+    partitions: List<OwnedPartition>;
+    polls: List<WaitingPoll>;
+    layouts: List<CachedLayout>;
+    refused: KafkaError | None;
+    scramNonce: string;
+    scramFirstBare: string;
+    scramSignature: bytes;
 }

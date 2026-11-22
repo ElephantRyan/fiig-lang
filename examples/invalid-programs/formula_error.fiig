@@ -13,7 +13,7 @@ formulas brokenChecks {
     }
 
     // K5: only the prelude math group's members, which the compiler supplies, have no body.
-    formula normalize(s: string) -> string
+    formula normalize(s: string) -> string;
 
     // B11: a formula calls only formulas. Whether an order ships free is
     // policy, so it is a rule, and a formula may not reach it.

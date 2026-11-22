@@ -87,8 +87,8 @@ func BenchmarkBuild(b *testing.B) {
 // records: building 10,000 models and reading their fields.
 func BenchmarkRecords(b *testing.B) {
 	in := benchInterp(b, `model Point {
-    x: int
-    y: int
+    x: int;
+    y: int;
 }`, `rule records(n: int) -> int {
     total: int = 0;
     i: int = 0;
@@ -172,17 +172,17 @@ func BenchmarkParse(b *testing.B) {
                         <<n: i32be, value: bytes(n), after: bytes>> -> {
                             width = width + value.length();
                             cols = after;
-                        }
+                        },
                         _ -> {
                             return 0 - 1;
-                        }
+                        },
                     }
                 }
                 rest = more;
-            }
+            },
             _ -> {
                 return 0 - 1;
-            }
+            },
         }
     }
     return width;

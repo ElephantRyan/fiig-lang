@@ -1,4 +1,4 @@
-use fiig.stream
+use fiig.stream;
 
 // ADR 0117 §3: the settings naming a route's group session: the first
 // bootstrap server, which moves it to the group's coordinator, and the
@@ -15,7 +15,7 @@ conversion groupSettings(
     return match (bootstrapOf(bootstrap)) {
         Err(failure) -> {
             return Err(consumerError(failure));
-        }
+        },
 
         Ok(servers) -> {
             first = servers.first();
@@ -34,7 +34,7 @@ conversion groupSettings(
             return Ok(
                 ["host": first.host, "port": "${first.port}", "alternates": alternates, "tls": "${tls}", "role": "group", "clientId": clientId, "group": subscription.group, "topic": subscription.source, "commitMillis": "${commitMillis}"],
             );
-        }
+        },
     }
 }
 

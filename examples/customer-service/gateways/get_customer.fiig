@@ -4,7 +4,7 @@ gateway getCustomer(id: string) -> Result<Customer, CustomerError> requires Data
         id,
     );
     return match (row) {
-        found -> Ok(found)
-        None -> Err(CustomerError.NotFound(id))
+        found -> Ok(found),
+        None -> Err(CustomerError.NotFound(id)),
     }
 }

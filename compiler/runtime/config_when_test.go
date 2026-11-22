@@ -12,13 +12,13 @@ import (
 // at startup from other config, holds.
 
 var whenSources = []string{`wire SignInConfig {
-    authMode: string from env "AUTH_MODE" = "both"
-    mirror: bool from env "MIRROR" = false
+    authMode: string from env "AUTH_MODE" = "both";
+    mirror: bool from env "MIRROR" = false;
 }`, `wire Oidc when (SignInConfig.authMode != "abs") {
-    issuer: string from env "OIDC_ISSUER"
-    secret: Secret from env "OIDC_SECRET"
+    issuer: string from env "OIDC_ISSUER";
+    secret: Secret from env "OIDC_SECRET";
 }`, `wire Mirror when (SignInConfig.mirror && SignInConfig.authMode == "both") {
-    target: string from env "MIRROR_TARGET" = "replica"
+    target: string from env "MIRROR_TARGET" = "replica";
 }`, `activity issuer() -> string {
     return Oidc.issuer;
 }`, `activity target() -> string {

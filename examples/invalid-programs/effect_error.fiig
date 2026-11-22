@@ -62,5 +62,5 @@ activity pongCustomer(id: string) -> Result<Customer, CustomerError> {
 // Effect error: adapters call exported workflows only, never a gateway
 // directly.
 adapter http customerHttpApiBroken {
-    GET "/customers/{id}" -> getCustomer(id: string) produces "application/json" // rejected: getCustomer is a gateway, not a workflow
+    GET "/customers/{id}" -> getCustomer(id: string) produces "application/json"; // rejected: getCustomer is a gateway, not a workflow
 }

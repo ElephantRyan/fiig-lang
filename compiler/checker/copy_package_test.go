@@ -15,8 +15,8 @@ import (
 func TestCopyOfAnotherPackagesModelResolvesItsFieldThere(t *testing.T) {
 	var files []*syntax.File
 	for _, src := range []string{
-		"model Item {\n    name: string\n}\n",
-		"model Shelf {\n    items: List<Item>\n    count: int\n}\n",
+		"model Item {\n    name: string;\n}\n",
+		"model Shelf {\n    items: List<Item>;\n    count: int;\n}\n",
 	} {
 		f, errs := parser.Parse(src)
 		if len(errs) > 0 {
@@ -29,7 +29,7 @@ func TestCopyOfAnotherPackagesModelResolvesItsFieldThere(t *testing.T) {
 		t.Fatalf("lib: %+v", diags)
 	}
 	sources := map[string]string{
-		"src/Restock.fiig": "use t.lib as lib\n\nconversion restock(shelf: lib.Shelf, item: lib.Item) -> lib.Shelf {\n    return copy(shelf, items: append(shelf.items, item), count: shelf.count + 1);\n}\n",
+		"src/Restock.fiig": "use t.lib as lib;\n\nconversion restock(shelf: lib.Shelf, item: lib.Item) -> lib.Shelf {\n    return copy(shelf, items: append(shelf.items, item), count: shelf.count + 1);\n}\n",
 	}
 	diags, _ = CheckSources(sources, types.Packages{"t.lib": lib}, "t.app", nil)
 	if len(diags) > 0 {

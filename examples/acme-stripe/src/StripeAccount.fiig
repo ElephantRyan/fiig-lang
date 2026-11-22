@@ -1,5 +1,5 @@
 // The Stripe account a deployment charges through. An application with a
 // different name for the variable renames it in its manifest (ADR 0071 §5).
 wire StripeAccount {
-    apiKey: Secret from env "STRIPE_API_KEY"
+    apiKey: Secret from env "STRIPE_API_KEY";
 }

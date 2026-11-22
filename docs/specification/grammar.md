@@ -132,11 +132,23 @@ remaining arguments taken unchanged from `base`
 ## 2. Files and declarations
 
 ```ebnf
-file ::= { import } declaration [ private-block ]
+file ::= { import ';' } declaration [ private-block ]
 
 import ::= 'use' package-path ['as' identifier]
 package-path ::= identifier { '.' identifier }
 ```
+
+**Separators (ADR 0145).** Nothing in a body is separated by a newline
+alone. An *item* (an import, a statement, a field, a wire, an interface
+member, a route, a `serve` entry, a fake's value) ends with `;`, unless it
+ends with a `}` it opened; the last before a closing `}` takes one too. An
+*alternative* (an enum variant, a `match` arm, a response or disposition
+arm) is followed by `,`, which is optional after the last; `fiig fmt`
+writes it when the alternatives are one per line, and a block arm takes
+it after its `}`. Lists in `( )`, `[ ]`, and `< >`, and an inline record
+type, keep `,` as before. A declaration's head (`requires`, `idempotent`,
+`consumes`, `produces`, `when`) is not an item. Until ADR 0142 §5's second
+step, the parser also accepts an item or alternative without one.
 
 A package's version is never written at the import site — it lives in
 that package's manifest (ADR 0032, `compiler/manifest`), not in source.
@@ -208,12 +220,12 @@ Attested forms across the corpus:
 ## 4. Declarations
 
 ```ebnf
-model-decl ::= 'model' identifier '{' { model-field } '}'
+model-decl ::= 'model' identifier '{' { model-field ';' } '}'
 model-field ::= field | type-name          // a bare type name embeds that model (ADR 0045)
 field      ::= field-name ':' type [ 'from' 'json' ( string-literal [ 'base64url' ] | 'base64url' ) ]   // ADR 0073 §7b, ADR 0078 §6; `from`, `json`, `base64url` contextual
 field-name ::= identifier | keyword                                  // ADR 0073 §7a
 
-enum-decl    ::= 'enum' identifier [ enum-header ] '{' { enum-variant } '}'
+enum-decl    ::= 'enum' identifier [ enum-header ] '{' [ enum-variant { ',' enum-variant } [ ',' ] ] '}'
 enum-header  ::= '(' enum-field { ',' enum-field } ')'      // ADR 0046 §4
 enum-field   ::= [ 'key' ] identifier ':' type               // `key` is contextual
 enum-variant ::= identifier [ '(' [ field { ',' field } ] ')' ] [ spelling ]   // no header: a payload
@@ -275,20 +287,20 @@ any layout.
 params ::= '(' [ param { ',' param } [ ',' ] ] ')'                        -- a trailing comma, as a call's arguments allow
 param  ::= identifier ':' type
 
-interface-decl   ::= 'interface' identifier '{' { interface-member } '}'
+interface-decl   ::= 'interface' identifier '{' { interface-member ';' } '}'
 interface-member ::= identifier params '->' type
 capability-decl  ::= 'capability' identifier '{' { gateway-decl } '}'
 
 formulas-decl  ::= 'formulas' identifier '{' { formula-member } '}'
-formula-member ::= 'formula' identifier params '->' type [ block ]
+formula-member ::= 'formula' identifier params '->' type ( block | ';' )
 
 wire-decl    ::= wire-group | wire-single                                                  // ADR 0143; `wire` is contextual
-wire-group   ::= 'wire' identifier [ 'when' '(' expression ')' ] '{' { wire-field } '}'   // `when`: ADR 0122, parenthesised (ADR 0142 §4)
+wire-group   ::= 'wire' identifier [ 'when' '(' expression ')' ] '{' { wire-field ';' } '}'   // `when`: ADR 0122, parenthesised (ADR 0142 §4)
 wire-field   ::= identifier ':' type 'from' ( field-source { '??' field-source } [ '=' expression ] | 'startup' string )
 field-source ::= 'env' string | 'setting' string [ 'on' 'restart' ]                       // setting: ADR 0140; `from`, `env`, `setting`, `on`, `restart`, `startup` are contextual
 wire-single  ::= 'wire' identifier ':' type 'from'
                  ( 'header' string-literal [ 'scheme' string-literal ] | 'cookie' string-literal | identifier )   // scheme: ADR 0144, contextual, "Bearer" only; U11
-                 'by' qualified-name 'else' qualified-name                                  // ADR 0137 §1, §2, ADR 0141; U1-U9
+                 'by' qualified-name 'else' qualified-name ';'                              // ADR 0137 §1, §2, ADR 0141; U1-U9
 ```
 
 `config` (for a group) and `principal` (for a single wire) are ADR 0143's
@@ -431,7 +443,7 @@ domain of a modular monolith asks another to do something
 
 ```ebnf
 application-decl ::= 'application' identifier '{' { serve-block } '}'   -- ADR 0132; `application` and `serve` contextual; O1-O4
-serve-block      ::= 'serve' [ identifier ] '{' { adapter-ref [ ',' ] } '}'   -- one process; the identifier is its role
+serve-block      ::= 'serve' [ identifier ] '{' { adapter-ref ';' } '}'   -- one process; the identifier is its role
 adapter-ref      ::= identifier [ '.' identifier ]   -- alias.adapter (a package imported with `use`), or an adapter of this package
 ```
 
@@ -439,13 +451,13 @@ An application is the one declaration an application's top level may hold
 (ADR 0108's H6); a library has none, and a module has one.
 
 ```ebnf
-adapter-decl  ::= 'adapter' adapter-kind identifier '{' { wire-single | wire-ref } { route } '}'   -- http only (U6)
+adapter-decl  ::= 'adapter' adapter-kind identifier '{' { wire-single | wire-ref ';' } { route } '}'   -- http only (U6)
 wire-ref      ::= 'wire' qualified-name [ 'as' identifier ]                              -- ADR 0141 §2, ADR 0143; U7, U8
 adapter-kind  ::= 'http' | 'cli' | 'stream' | 'schedule' | 'startup'                       -- stream: ADR 0111; schedule: ADR 0112; startup: ADR 0124
 route         ::= http-route | cli-route | stream-route | schedule-route | startup-route
-http-route    ::= http-method string-literal [ 'public' ] '->' route-call { media-clause } [ response-mapping ]   -- public: ADR 0137 §3, U3
+http-route    ::= http-method string-literal [ 'public' ] '->' route-call { media-clause } ( response-mapping | ';' )   -- public: ADR 0137 §3, U3
 http-method   ::= 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'QUERY'
-cli-route     ::= 'command' string-literal '->' route-call [ response-mapping ]
+cli-route     ::= 'command' string-literal '->' route-call ( response-mapping | ';' )
 stream-route  ::= 'source' string-literal 'group' string-literal 'from' ( 'earliest' | 'latest' ) [ 'key' identifier ] '->' route-call stream-mapping   -- ADR 0111 §3, §3a; I1-I4, I8
 schedule-route ::= ( 'every' | 'cron' ) string-literal '->' route-call schedule-mapping       -- ADR 0112 §1; I5-I7
 startup-route ::= 'run' [ 'once' ] [ 'within' string-literal ] '->' route-call startup-mapping   -- ADR 0124 §1, §6; I7, I9, I10
@@ -454,18 +466,18 @@ route-arg     ::= identifier ':' type [ 'from' ( 'header' | 'cookie' ) string-li
                 | identifier                                                              -- the adapter's principal of that name (ADR 0137 §1, U4)
 media-clause  ::= ( 'consumes' | 'produces' ) string-literal                              -- ADR 0069 §5
 
-response-mapping ::= '{' response-arm { response-arm } '}'
+response-mapping ::= '{' response-arm { ',' response-arm } [ ',' ] '}'
 response-arm     ::= pattern '->' response-value
 response-value   ::= integer-literal [ expression ]           -- HTTP: status code [ body ]
                     | 'exit' integer-literal [ expression ]    -- CLI: exit code [ body ]
                     | expression                               -- e.g. a call to a shared conversion
 
-stream-mapping ::= '{' { pattern '->' disposition } '}'                  -- required, exhaustive over the workflow's result (I2)
+stream-mapping ::= '{' { pattern '->' disposition ',' } '}'                  -- required, exhaustive over the workflow's result (I2)
 disposition    ::= 'ack' | 'halt' | 'deadLetter' string-literal
                  | 'retry' '(' 'attempts' ':' integer-literal ')' [ 'else' ( 'halt' | 'deadLetter' string-literal ) ]
 
-schedule-mapping ::= '{' { pattern '->' ( 'done' | 'halt' ) } '}'       -- required, exhaustive over the workflow's result (I7)
-startup-mapping ::= '{' { pattern '->' ( 'proceed' | 'degrade' | 'halt' ) } '}'     -- required, exhaustive over the workflow's result (I7); `degrade` starts the process and marks the route (ADR 0127)
+schedule-mapping ::= '{' { pattern '->' ( 'done' | 'halt' ) ',' } '}'       -- required, exhaustive over the workflow's result (I7)
+startup-mapping ::= '{' { pattern '->' ( 'proceed' | 'degrade' | 'halt' ) ',' } '}'     -- required, exhaustive over the workflow's result (I7); `degrade` starts the process and marks the route (ADR 0127)
 ```
 
 `stream`, `source`, `group`, `earliest`, `latest`, `key`, `ack`, `halt`, `deadLetter`, `schedule`,
@@ -622,7 +634,7 @@ question, not addressed here.
 ### Match
 
 ```ebnf
-match-statement ::= 'match' expression '{' match-arm { match-arm } '}'
+match-statement ::= 'match' expression '{' match-arm { ',' match-arm } [ ',' ] '}'   -- ADR 0145 §2
 match-arm       ::= pattern '->' ( expression | block )
 pattern         ::= '_' | qualified-name [ '(' [ pattern { ',' pattern } ] ')' ]
                   | literal-pattern | binary-pattern

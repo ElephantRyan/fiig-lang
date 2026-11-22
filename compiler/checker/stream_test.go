@@ -10,14 +10,14 @@ import (
 // ADR 0111: stream routes, bug classes I1-I4.
 
 const streamModels = `model OrderPlaced {
-    orderId: string
-    quantity: int
-    lines: List<string>
+    orderId: string;
+    quantity: int;
+    lines: List<string>;
 }`
 
 const streamErrors = `enum OrderError {
-    OutOfStock(sku: string)
-    Invalid(reason: string)
+    OutOfStock(sku: string),
+    Invalid(reason: string),
 }`
 
 const placeOrder = `workflow placeOrder(order: OrderPlaced) -> Result<None, OrderError> {
@@ -37,20 +37,20 @@ func TestStreamRoutesCheck(t *testing.T) {
 	good := []string{
 		`adapter stream Intake {
     source "orders" group "intake" from earliest key orderId -> placeOrder(order: OrderPlaced) {
-        Ok(_) -> ack
-        Err(OrderError.OutOfStock(_)) -> retry(attempts: 5) else deadLetter "orders.failed"
-        Err(OrderError.Invalid(reason)) -> deadLetter "orders.invalid"
+        Ok(_) -> ack,
+        Err(OrderError.OutOfStock(_)) -> retry(attempts: 5) else deadLetter "orders.failed",
+        Err(OrderError.Invalid(reason)) -> deadLetter "orders.invalid",
     }
 }`,
 		`adapter stream Intake {
     source "orders" group "intake" from earliest key quantity -> placeOrder(order: OrderPlaced) {
-        Ok(_) -> ack
-        Err(_) -> halt
+        Ok(_) -> ack,
+        Err(_) -> halt,
     }
 }`,
 		`adapter stream Raw {
     source "raw" group "intake" from earliest -> placeRaw(payload: bytes) {
-        _ -> ack
+        _ -> ack,
     }
 }`,
 	}

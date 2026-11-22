@@ -2,9 +2,9 @@
 // attributes. Its text form is Kafka's own compression.type spelling, so
 // KAFKA_COMPRESSION=lz4 reads as a Java client's setting does.
 enum Compression {
-    None from json "none"
-    Gzip from json "gzip"
-    Snappy from json "snappy"
-    Lz4 from json "lz4"
-    Zstd from json "zstd"
+    None from json "none",
+    Gzip from json "gzip",
+    Snappy from json "snappy",
+    Lz4 from json "lz4",
+    Zstd from json "zstd",
 }

@@ -1,4 +1,4 @@
-use shop.kernel
+use shop.kernel;
 
 // Payments' own table. In the monolith, the caps file's "packages" section
 // gives Payments its own Database (ADR 0079 §6a).

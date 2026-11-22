@@ -6,8 +6,8 @@
 // the error as its body, the other responses carry none.
 conversion customerErrorToHttpResponse(error: CustomerError) -> HttpResponse<CustomerError> {
     return match (error) {
-        CustomerError.NotFound(_) -> HttpResponse(status: 404)
-        CustomerError.EmailAlreadyInUse(_) -> HttpResponse(status: 409, body: error)
-        error -> HttpResponse(status: 500)
+        CustomerError.NotFound(_) -> HttpResponse(status: 404),
+        CustomerError.EmailAlreadyInUse(_) -> HttpResponse(status: 409, body: error),
+        error -> HttpResponse(status: 500),
     }
 }

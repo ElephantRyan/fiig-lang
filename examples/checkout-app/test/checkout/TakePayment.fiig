@@ -1,8 +1,8 @@
-use acme.payments
-use acme.square.Square
-use acme.stripe.Stripe
-use checkout.core
-use checkout.core.LedgerApi
+use acme.payments;
+use acme.square.Square;
+use acme.stripe.Stripe;
+use checkout.core;
+use checkout.core.LedgerApi;
 
 // takePayment's providers are faked by name: the rule picks Stripe for a
 // US merchant, and the ledger gets the reference Stripe returned. Square

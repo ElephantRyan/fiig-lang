@@ -1,5 +1,5 @@
-use fiig.http
-use fiig.time
+use fiig.http;
+use fiig.time;
 
 // An operation as a signed HTTP request (ADR 0121 §3): AWS Signature
 // Version 4 over the headers host, x-amz-content-sha256 and x-amz-date (and

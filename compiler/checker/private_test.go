@@ -24,7 +24,7 @@ private {
     }
 
     model Threshold {
-        minimum: int
+        minimum: int;
     }
 }
 `
@@ -196,7 +196,7 @@ func TestPrivateTypeInPublicSignatureIsH4(t *testing.T) {
 
 private {
     model Threshold {
-        minimum: int
+        minimum: int;
     }
 }
 `)
@@ -219,7 +219,7 @@ private {
     }
 
     model Threshold {
-        minimum: int
+        minimum: int;
     }
 }
 `)

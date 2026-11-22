@@ -75,15 +75,15 @@ var sourcesProgram = []string{
         session: string | None from cookie "sid",
         page: int | None from header "X-Page",
     )
-        produces "application/json"
+        produces "application/json";
     POST "/csv" -> echoCsv(csv: string)
         consumes "text/csv"
-        produces "text/csv"
+        produces "text/csv";
     POST "/bin" -> echoBytes(data: bytes)
         consumes "application/octet-stream"
-        produces "application/octet-stream"
+        produces "application/octet-stream";
     GET "/nothing" -> nothing()
-        produces "application/json"
+        produces "application/json";
 }`,
 }
 

@@ -9,11 +9,11 @@
 // for maxAgeMillis, and Forget drops it, after a produce that says the
 // leaders moved.
 enum KafkaAsk {
-    Request(data: bytes)
-    Poll(waitMillis: int)
-    Advance(partition: int, next: int)
-    Ack(partition: int, offset: int)
-    Retry(partition: int, offset: int, resumeAt: int)
-    Layout(topic: string, maxAgeMillis: int)
-    Forget(topic: string)
+    Request(data: bytes),
+    Poll(waitMillis: int),
+    Advance(partition: int, next: int),
+    Ack(partition: int, offset: int),
+    Retry(partition: int, offset: int, resumeAt: int),
+    Layout(topic: string, maxAgeMillis: int),
+    Forget(topic: string),
 }

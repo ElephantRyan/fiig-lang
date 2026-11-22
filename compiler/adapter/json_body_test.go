@@ -23,10 +23,10 @@ import (
 
 var webhookProgram = []string{
 	`model Hook {
-    in: string
-    contentType: string from json "content-type"
-    data: JsonValue
-    items: List<int>
+    in: string;
+    contentType: string from json "content-type";
+    data: JsonValue;
+    items: List<int>;
 }`,
 	`workflow echoHook(hook: Hook) -> Hook {
     return hook;
@@ -34,7 +34,7 @@ var webhookProgram = []string{
 	`adapter http hookApi {
     POST "/hooks" -> echoHook(hook: Hook)
         consumes "application/json"
-        produces "application/json"
+        produces "application/json";
 }`,
 }
 
@@ -187,7 +187,7 @@ var rawHookProgram = []string{
 	`adapter http rawHookApi {
     POST "/hooks" -> hookBytes(body: bytes)
         consumes "application/json"
-        produces "text/plain"
+        produces "text/plain";
 }`,
 }
 
@@ -239,8 +239,8 @@ func TestOpenAPIListsARawJsonBodyAsAnyJson(t *testing.T) {
 // program built, sent raw once checked; bytes inside a body are base64.
 var bytesBodyProgram = []string{
 	`model Report {
-    title: string
-    digest: bytes
+    title: string;
+    digest: bytes;
 }`,
 	`workflow report(title: string) -> bytes {
     return json.encode(Report(title: title, digest: crypto.sha256(title.utf8())));
@@ -253,11 +253,11 @@ var bytesBodyProgram = []string{
 }`,
 	`adapter http reportApi {
     GET "/report/{title}" -> report(title: string)
-        produces "application/json"
+        produces "application/json";
     GET "/broken" -> broken()
-        produces "application/json"
+        produces "application/json";
     GET "/nested/{title}" -> nested(title: string)
-        produces "application/json"
+        produces "application/json";
 }`,
 }
 

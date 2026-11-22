@@ -1,7 +1,7 @@
 // What the route's mapping decided for an element (ADR 0111 §1). Retry
 // brings it back from a later receive; DeadLetter moves it to target.
 enum Outcome {
-    Ack
-    Retry
-    DeadLetter(target: string)
+    Ack,
+    Retry,
+    DeadLetter(target: string),
 }

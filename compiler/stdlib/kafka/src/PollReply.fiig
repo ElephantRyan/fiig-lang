@@ -2,6 +2,6 @@
 // now, or none when the wait ran out; failure says why the group can never
 // be joined, such as a broker older than Kafka 4.0.
 model PollReply {
-    failure: string
-    partitions: List<AssignedPartition>
+    failure: string;
+    partitions: List<AssignedPartition>;
 }

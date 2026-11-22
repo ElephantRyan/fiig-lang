@@ -231,8 +231,8 @@ test aLargeAttachmentIsWrappedAt76 {
 private {
     textOf(data: bytes) -> string {
         return match (data.utf8()) {
-            None -> ""
-            text -> text
+            None -> "",
+            text -> text,
         }
     }
 

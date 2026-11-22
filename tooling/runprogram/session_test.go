@@ -48,7 +48,7 @@ var sessionLibrary = map[string]string{
         return Ok(parts.first().utf8() ?? "");
     }
 }`,
-	"line_session.fiig": `use fiig.session
+	"line_session.fiig": `use fiig.session;
 
 capability LineSession provides session.SessionProtocol {
     gateway opened(settings: Map<string, string>, now: int) -> session.Step
@@ -57,10 +57,10 @@ capability LineSession provides session.SessionProtocol {
         movePort = settings.at("movePort");
         if (movePort != "0" && settings.at("port") != movePort) {
             match (movePort.toIntOrNone()) {
-                None -> None
+                None -> None,
                 port -> {
                     return lineStep(<<1: i64be>>, <<>>, None, [], session.SessionClose.MoveTo(host: settings.at("host"), port: port));
-                }
+                },
             }
         }
         return lineStep(<<1: i64be>>, "HELLO ${settings.at("sessionId")} ${settings.at("port")}\n".utf8(), None, [], None);
@@ -84,19 +84,19 @@ capability LineSession provides session.SessionProtocol {
                         }
                         pieces = line.split(" ");
                         match (pieces.first().toIntOrNone()) {
-                            None -> None
+                            None -> None,
                             key -> {
                                 replies = append(replies, session.SessionReply(key: key, message: line.removePrefix("${key} ").utf8(), last: true));
-                            }
+                            },
                         }
                     }
                     i = i + 1;
                 }
                 return lineStep(<<next: i64be, rest.slice(start, rest.length()): bytes>>, <<>>, None, replies, None);
-            }
+            },
             _ -> {
                 return lineStep(state, <<>>, None, [], session.SessionClose.Failed(reason: "no state"));
-            }
+            },
         }
     }
 
@@ -106,10 +106,10 @@ capability LineSession provides session.SessionProtocol {
         return match (state) {
             <<next: i64be, buffered: bytes>> -> {
                 return lineStep(<<next + 1: i64be, buffered: bytes>>, <<"${next} ".utf8(): bytes, message: bytes, 10: u8>>, next, [], None);
-            }
+            },
             _ -> {
                 return lineStep(state, <<>>, None, [], session.SessionClose.Failed(reason: "no state"));
-            }
+            },
         }
     }
 
@@ -125,7 +125,7 @@ capability LineSession provides session.SessionProtocol {
         return lineStep(state, "BYE\n".utf8(), None, [], None);
     }
 }`,
-	"line_step.fiig": `use fiig.session
+	"line_step.fiig": `use fiig.session;
 
 conversion lineStep(state: bytes, write: bytes, accepted: int | None, replies: List<session.SessionReply>, close: session.SessionClose | None) -> session.Step {
     return session.Step(state: state, write: write, accepted: accepted, replies: replies, nextTickAt: None, close: close);
@@ -140,12 +140,12 @@ var sessionApp = map[string]string{
     "dependencies": { "sessiontest.lines": "1.0.0" },
     "capabilities": ["Session"]
 }`,
-	"shout.fiig": `use sessiontest.lines.Lines
+	"shout.fiig": `use sessiontest.lines.Lines;
 
 activity shout(port: int, movePort: int, text: string) -> Result<string, SessionError> {
     return Lines.shout(port, movePort, text);
 }`,
-	"shout_via.fiig": `use sessiontest.lines.Lines
+	"shout_via.fiig": `use sessiontest.lines.Lines;
 
 activity shoutVia(port: int, alternates: string, text: string) -> Result<string, SessionError> {
     return Lines.shoutVia(port, alternates, text);

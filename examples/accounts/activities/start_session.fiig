@@ -5,20 +5,20 @@ activity startSession(authorization: string | None) -> Result<Session, AccountEr
     return match (authorization) {
         None -> {
             return Err(AccountError.NoCredentials);
-        }
+        },
 
         header -> {
             return match (basicCredentials(header)) {
                 None -> {
                     return Err(AccountError.BadCredentials);
-                }
+                },
 
                 credentials -> {
                     account = findAccountByKey(credentials)?;
                     token = Random.bytes(count: 32).toBase64Url();
                     return Ok(saveSession(token: token, account: account, maxAge: Sessions.maxAge));
-                }
+                },
             }
-        }
+        },
     }
 }

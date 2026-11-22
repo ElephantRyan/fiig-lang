@@ -6,8 +6,8 @@
 // old one (§3a). A driver provides this or SqlDriver; the pool prefers
 // this one. A program never calls it.
 interface SqlConnectionDriver {
-    open(settings: Map<string, string>) -> Result<SqlConnection, DatabaseError>
-    execute(on: SqlConnection, sql: string, values: List<SqlValue>) -> SqlRun
-    cancel(settings: Map<string, string>, key: bytes) -> None
-    close(connection: Connection) -> None
+    open(settings: Map<string, string>) -> Result<SqlConnection, DatabaseError>;
+    execute(on: SqlConnection, sql: string, values: List<SqlValue>) -> SqlRun;
+    cancel(settings: Map<string, string>, key: bytes) -> None;
+    close(connection: Connection) -> None;
 }

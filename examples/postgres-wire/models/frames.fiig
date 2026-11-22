@@ -1,6 +1,6 @@
 // What one socket read splits into (ADR 0059): every complete backend
 // message it held, and the unfinished bytes left after them.
 model Frames {
-    frames: List<Frame>
-    rest: bytes
+    frames: List<Frame>;
+    rest: bytes;
 }

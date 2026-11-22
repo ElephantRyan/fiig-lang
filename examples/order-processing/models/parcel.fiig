@@ -2,8 +2,8 @@
 // 0048). Money stays whole cents in an int, and becomes decimal later; it is
 // never a float.
 model Parcel {
-    lengthCm: float
-    widthCm: float
-    heightCm: float
-    weightKg: float
+    lengthCm: float;
+    widthCm: float;
+    heightCm: float;
+    weightKg: float;
 }

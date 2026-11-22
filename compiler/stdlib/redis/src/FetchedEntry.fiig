@@ -1,4 +1,4 @@
-use fiig.stream
+use fiig.stream;
 
 // ADR 0111 open question 1, as amended 2026-11-21: what fetch's pipelined
 // XRANGE and XPENDING answered, as the entry with exactly that id, on the
@@ -12,9 +12,9 @@ conversion fetchedEntry(
     match (found) {
         RespValue.Error(message) -> {
             return Err(stream.SourceError.Protocol(reason: message));
-        }
+        },
 
-        _ -> None
+        _ -> None,
     }
 
     counts: Map<string, int> = [:];
@@ -23,13 +23,13 @@ conversion fetchedEntry(
             if (!message.startsWith("NOGROUP")) {
                 return Err(stream.SourceError.Protocol(reason: message));
             }
-        }
+        },
 
         _ -> {
             for (entry in pendingEntries(pending)) {
                 counts = counts.put(entry.id, entry.deliveries);
             }
-        }
+        },
     }
 
     match (found) {
@@ -39,9 +39,9 @@ conversion fetchedEntry(
                     return Ok(d);
                 }
             }
-        }
+        },
 
-        _ -> None
+        _ -> None,
     }
 
     return Ok(None);

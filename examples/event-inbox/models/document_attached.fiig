@@ -2,6 +2,6 @@
 // 0078). Read in either alphabet, wrapped or not, and sent back as
 // standard base64, padded.
 model DocumentAttached {
-    name: string
-    content: bytes
+    name: string;
+    content: bytes;
 }

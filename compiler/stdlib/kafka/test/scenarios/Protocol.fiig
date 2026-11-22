@@ -8,11 +8,11 @@ test aBatchCarriesItsCrcAndLength {
             expect epoch == 0 - 1;
             expect magic == 2;
             expect crc == crypto.crc32c(rest);
-        }
+        },
 
         _ -> {
             expect false;
-        }
+        },
     }
 
     expect recordBatch([], 1000, Compression.None) is Err(KafkaError.InvalidRecord(empty));

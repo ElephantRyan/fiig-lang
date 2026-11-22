@@ -37,11 +37,11 @@ private {
         return match (read) {
             None -> {
                 return Err(short());
-            }
+            },
 
             found -> {
                 return Ok(found);
-            }
+            },
         }
     }
 
@@ -49,11 +49,11 @@ private {
         return match (read) {
             None -> {
                 return Err(short());
-            }
+            },
 
             found -> {
                 return Ok(found);
-            }
+            },
         }
     }
 }

@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 test a404IsNotFound {
     expect errorOf(reply(404, "<Error><Code>NoSuchKey</Code></Error>")) == S3Error.NotFound;

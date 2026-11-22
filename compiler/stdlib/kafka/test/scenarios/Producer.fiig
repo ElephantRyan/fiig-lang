@@ -1,4 +1,4 @@
-use fiig.session
+use fiig.session;
 
 // ADR 0113 §4, as amended 2026-11-21: the producer's broker sessions,
 // which check ApiVersions, keep each topic's layout for its max age, and

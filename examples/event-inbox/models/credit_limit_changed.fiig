@@ -1,6 +1,6 @@
 // A "credit.limit_changed" payload. `limit` is a keyword, and a field may
 // still be named it (ADR 0073 §7a).
 model CreditLimitChanged {
-    account: string
-    limit: decimal
+    account: string;
+    limit: decimal;
 }

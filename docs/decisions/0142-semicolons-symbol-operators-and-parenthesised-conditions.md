@@ -1,6 +1,6 @@
 # ADR 0142: Semicolons, Symbol Operators, and Parenthesised Conditions
 
-Status: Accepted (2026-11-21; the owner asked for it to be implemented).
+Status: Accepted (2026-11-21; the owner asked for it to be implemented). §1 amended by ADR 0145: items take `;` and alternatives `,` too.
 Step 1 (§5) done in fiig-lang: the new forms parse and run beside the
 old ones, `fiig fmt` writes only the new ones, and the standard library,
 the examples and the editors are rewritten. Left for step 1: the examples

@@ -1,6 +1,6 @@
 // What readSmtpReply makes of the bytes read so far.
 enum SmtpReplyRead {
-    NeedMore
-    Done(reply: SmtpReply, rest: bytes)
-    Malformed(reason: string)
+    NeedMore,
+    Done(reply: SmtpReply, rest: bytes),
+    Malformed(reason: string),
 }

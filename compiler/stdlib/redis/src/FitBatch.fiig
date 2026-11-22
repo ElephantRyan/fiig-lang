@@ -1,4 +1,4 @@
-use fiig.stream
+use fiig.stream;
 
 // How many entries one receive may take (ADR 0111 §5a): no more than the
 // runtime asked for, and no more than it can handle one after another

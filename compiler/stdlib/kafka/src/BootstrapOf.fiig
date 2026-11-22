@@ -28,7 +28,7 @@ conversion bootstrapOf(text: string) -> Result<List<BrokerNode>, KafkaError> {
             match (portText.toIntOrNone()) {
                 None -> {
                     return Err(invalid(entry, "its port isn't a number"));
-                }
+                },
 
                 port -> {
                     if (host == "" || port < 1 || port > 65535) {
@@ -36,7 +36,7 @@ conversion bootstrapOf(text: string) -> Result<List<BrokerNode>, KafkaError> {
                     }
 
                     out = append(out, BrokerNode(id: 0 - 1, host: host, port: port));
-                }
+                },
             }
         }
     }

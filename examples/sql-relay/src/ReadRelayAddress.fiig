@@ -5,17 +5,17 @@ conversion readRelayAddress(settings: Map<string, string>) -> RelayAddress | Non
     host = settings.atOrNone("host");
     port = settings.atOrNone("port");
     return match (host) {
-        None -> None
+        None -> None,
         givenHost -> {
             return match (port) {
-                None -> None
+                None -> None,
                 givenPort -> {
                     return match (givenPort.toIntOrNone()) {
-                        None -> None
-                        number -> RelayAddress(host: givenHost, port: number)
+                        None -> None,
+                        number -> RelayAddress(host: givenHost, port: number),
                     }
-                }
+                },
             }
-        }
+        },
     }
 }

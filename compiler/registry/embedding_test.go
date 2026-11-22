@@ -14,9 +14,9 @@ import (
 func TestModelCardListsFlattenedFieldsWithProvenance(t *testing.T) {
 	var files []*syntax.File
 	for _, src := range []string{
-		"model Address {\n    city: string\n}",
-		"model ContactInfo {\n    Address\n    email: string\n}",
-		"model Customer {\n    ContactInfo\n    id: string\n}",
+		"model Address {\n    city: string;\n}",
+		"model ContactInfo {\n    Address;\n    email: string;\n}",
+		"model Customer {\n    ContactInfo;\n    id: string;\n}",
 	} {
 		f, errs := parser.Parse(src)
 		if len(errs) > 0 {

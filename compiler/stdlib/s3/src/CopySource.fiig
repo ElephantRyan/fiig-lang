@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // The x-amz-copy-source header of a copy: /bucket/key, the key's segments
 // percent-encoded once, which is the path-style path of the source object.

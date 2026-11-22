@@ -2,9 +2,9 @@
 // gateway here, charge uses the Client capability it requires, exactly as a
 // gateway would use Socket (ADR 0043 §5). Its API key is its own config
 // (ADR 0071 §5): the application sets STRIPE_API_KEY and declares nothing.
-use acme.http
-use acme.http.Client
-use acme.payments
+use acme.http;
+use acme.http.Client;
+use acme.payments;
 
 capability Stripe provides payments.PaymentProvider {
     gateway charge(request: payments.ChargeRequest) -> Result<string, string> requires Client {
@@ -22,9 +22,9 @@ capability Stripe provides payments.PaymentProvider {
                 }
 
                 return Ok("stripe:${sent.body}");
-            }
+            },
 
-            Err(failure) -> Err(http.describeSocketError(failure))
+            Err(failure) -> Err(http.describeSocketError(failure)),
         }
     }
 }

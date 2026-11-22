@@ -24,24 +24,24 @@ var httpProgram = map[string]string{
     "dependencies": { "fiig.http": "1.0.0" },
     "capabilities": ["Socket"]
 }`,
-	"get.fiig": `use fiig.http
-use fiig.http.HttpClient
+	"get.fiig": `use fiig.http;
+use fiig.http.HttpClient;
 
 gateway get(url: string) -> Result<http.Reply, http.HttpError>
     requires HttpClient
 {
     return HttpClient.send(http.Request(method: http.Method.Get, url: url));
 }`,
-	"head.fiig": `use fiig.http
-use fiig.http.HttpClient
+	"head.fiig": `use fiig.http;
+use fiig.http.HttpClient;
 
 gateway head(url: string) -> Result<http.Reply, http.HttpError>
     requires HttpClient
 {
     return HttpClient.send(http.Request(method: http.Method.Head, url: url));
 }`,
-	"post_form.fiig": `use fiig.http
-use fiig.http.HttpClient
+	"post_form.fiig": `use fiig.http;
+use fiig.http.HttpClient;
 
 gateway postForm(url: string, amount: string, note: string) -> Result<http.Reply, http.HttpError>
     requires HttpClient
@@ -59,8 +59,8 @@ gateway postForm(url: string, amount: string, note: string) -> Result<http.Reply
         ]),
     ));
 }`,
-	"with_header.fiig": `use fiig.http
-use fiig.http.HttpClient
+	"with_header.fiig": `use fiig.http;
+use fiig.http.HttpClient;
 
 gateway withHeader(url: string, name: string, value: string, timeout: int) -> Result<http.Reply, http.HttpError>
     requires HttpClient
@@ -72,11 +72,11 @@ gateway withHeader(url: string, name: string, value: string, timeout: int) -> Re
         timeoutMillis: timeout,
     ));
 }`,
-	"segments.fiig": `use fiig.http
+	"segments.fiig": `use fiig.http;
 activity segments() -> string {
     return "${http.pathSegment("b-12_x.y~")}|${http.pathSegment("../../api/users")}|${http.pathSegment("a b?c#d%e")}|${http.pathSegment("Zoë")}|${http.pathSegment("..")}|${http.pathSegment(".")}|${http.pathSegment("")}";
 }`,
-	"header_of.fiig": `use fiig.http
+	"header_of.fiig": `use fiig.http;
 activity headerOf(token: string) -> string {
     bare = http.Request(method: http.Method.Get, url: "http://x.example.com");
     sent = http.Request(method: http.Method.Get, url: "http://x.example.com", headers: [http.Header(name: "Authorization", value: token)]);
@@ -379,36 +379,36 @@ func TestFiigPrefixIsReserved(t *testing.T) {
 // names that package's declarations (reply.headers is List<Header>).
 func TestCheckingAgainstAnotherPackage(t *testing.T) {
 	cases := []struct{ name, src, want string }{
-		{"variant and field types", `use fiig.http
+		{"variant and field types", `use fiig.http;
 
 conversion firstHeader(reply: http.Reply, method: http.Method) -> string {
     match (method) {
-        http.Method.Get -> None
-        _ -> None
+        http.Method.Get -> None,
+        _ -> None,
     }
     failure = http.HttpError.MalformedReply(reason: "x");
     match (failure) {
-        http.HttpError.MalformedReply(reason) -> None
-        _ -> None
+        http.HttpError.MalformedReply(reason) -> None,
+        _ -> None,
     }
     for (header in reply.headers) {
         return header.name;
     }
     return "";
 }`, ""},
-		{"no such variant", `use fiig.http
+		{"no such variant", `use fiig.http;
 
 conversion pick() -> http.Method {
     return http.Method.Fetch;
 }`, `Method has no variant "Fetch"`},
-		{"a declaration as a value", `use fiig.http
+		{"a declaration as a value", `use fiig.http;
 
 conversion pick() -> string {
     m = http.Method;
     return "";
 }`, "http.Method is a declaration, not a value"},
 		{"an alias the file never imports", `model Holder {
-    reply: http.Reply
+    reply: http.Reply;
 }`, `unresolved type "http.Reply": this file has no use line for "http"`},
 	}
 	for _, c := range cases {

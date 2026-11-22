@@ -16,10 +16,10 @@ conversion nextFrame(buffer: bytes) -> FrameRead {
                 frame: rest.slice(0, size),
                 rest: rest.slice(size, rest.length()),
             );
-        }
+        },
 
         _ -> {
             return FrameRead.NeedMore;
-        }
+        },
     }
 }

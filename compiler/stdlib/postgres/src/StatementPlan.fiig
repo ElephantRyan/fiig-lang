@@ -1,11 +1,11 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // What execute writes for one statement (§3b): the connection with its
 // statement cache updated, the bytes, the name of the statement they run
 // ("" the unnamed one, when nothing is cached), and whether they parse it.
 model StatementPlan {
-    connection: db.SqlConnection
-    write: bytes
-    name: string
-    parsing: bool
+    connection: db.SqlConnection;
+    write: bytes;
+    name: string;
+    parsing: bool;
 }

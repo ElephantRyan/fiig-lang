@@ -1,4 +1,4 @@
-use fiig.stream
+use fiig.stream;
 
 test aBatchFitsInsideTheRedeliveryDelay {
     // Defaults: 5 minutes, and 30 s + 10 s an element.

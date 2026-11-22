@@ -26,8 +26,8 @@ var cryptoProgram = []string{
 	// §1's example: GitHub's X-Hub-Signature-256.
 	`rule signatureValid(secret: Secret, body: bytes, header: string) -> bool {
     return match (header.removePrefix("sha256=").fromHex()) {
-        None -> false
-        sent -> crypto.equal(crypto.hmacSha256(key: secret, data: body), sent)
+        None -> false,
+        sent -> crypto.equal(crypto.hmacSha256(key: secret, data: body), sent),
     }
 }`,
 	`activity hash(password: string) -> string {

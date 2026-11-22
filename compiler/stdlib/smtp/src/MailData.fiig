@@ -9,10 +9,10 @@
 conversion mailData(mail: Mail, date: string, messageId: string) -> bytes {
     names: Map<string, string> = [:];
     match (mail.names) {
-        None -> None
+        None -> None,
         given -> {
             names = given;
-        }
+        },
     }
 
     headers: List<string> = [addressHeader("From", [mail.from], names)];
@@ -21,19 +21,19 @@ conversion mailData(mail: Mail, date: string, messageId: string) -> bytes {
     }
 
     match (mail.cc) {
-        None -> None
+        None -> None,
         cc -> {
             if (cc.length() > 0) {
                 headers = append(headers, addressHeader("Cc", cc, names));
             }
-        }
+        },
     }
 
     match (mail.replyTo) {
-        None -> None
+        None -> None,
         address -> {
             headers = append(headers, addressHeader("Reply-To", [address], names));
-        }
+        },
     }
 
     headers = append(headers, "Subject: ${subjectHeader(mail.subject)}");
@@ -58,19 +58,19 @@ private {
         html: string = "";
         hasHtml: bool = false;
         match (mail.html) {
-            None -> None
+            None -> None,
             given -> {
                 html = given;
                 hasHtml = true;
-            }
+            },
         }
 
         attachments: List<Attachment> = [];
         match (mail.attachments) {
-            None -> None
+            None -> None,
             given -> {
                 attachments = given;
-            }
+            },
         }
 
         if (!hasHtml && attachments.length() == 0) {
@@ -177,10 +177,10 @@ private {
             if (b >= 48 && b <= 57 || b >= 65 && b <= 90 || b >= 97 && b <= 122 || b == 33 || b == 35 || b == 36 || b == 38 || b == 43 || b == 45 || b == 46 || b == 94 || b == 95 || b == 96 || b == 124 || b == 126) {
                 one: bytes = <<b: u8>>;
                 match (one.utf8()) {
-                    None -> None
+                    None -> None,
                     c -> {
                         out = "${out}${c}";
-                    }
+                    },
                 }
             } else {
                 one: bytes = <<b: u8>>;
@@ -245,10 +245,10 @@ private {
             }
 
             match (raw.slice(start, stop).utf8()) {
-                None -> None
+                None -> None,
                 line -> {
                     lines = append(lines, line);
-                }
+                },
             }
 
             start = stop;

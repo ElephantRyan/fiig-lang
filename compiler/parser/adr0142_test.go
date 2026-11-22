@@ -24,8 +24,8 @@ func TestTheNewStatementSyntaxParses(t *testing.T) {
         continue;
     }
     match (n) {
-        None -> 0
-        given -> given
+        None -> 0,
+        given -> given,
     }
     return n ?? x;
 }`

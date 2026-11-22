@@ -1,7 +1,7 @@
 // The authentication requests a server sends in an 'R' message. Only the
 // three this example decodes; Postgres has more.
 enum Authentication {
-    AuthenticationOk
-    CleartextPassword
-    Md5Password(salt: bytes)
+    AuthenticationOk,
+    CleartextPassword,
+    Md5Password(salt: bytes),
 }

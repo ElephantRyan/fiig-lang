@@ -9,10 +9,10 @@ import "testing"
 func TestFormatInterfaceAndCapabilityAreStable(t *testing.T) {
 	for name, src := range map[string]string{
 		"interface": "interface PaymentProvider {\n" +
-			"    charge(orderId: OrderId, amount: int) -> Result<PaymentReference, PaymentError>\n" +
-			"    refund(reference: PaymentReference) -> Result<None, PaymentError>\n" +
+			"    charge(orderId: OrderId, amount: int) -> Result<PaymentReference, PaymentError>;\n" +
+			"    refund(reference: PaymentReference) -> Result<None, PaymentError>;\n" +
 			"}\n",
-		"capability": "use acme.http.Client\n" +
+		"capability": "use acme.http.Client;\n" +
 			"\n" +
 			"capability PayrollDataApi {\n" +
 			"    gateway getEmployee(id: EmployeeId) -> Result<Employee, PayrollError> requires Client {\n" +

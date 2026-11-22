@@ -1,6 +1,6 @@
 // What a time function can refuse (ADR 0123 §2). A reason says what is wrong
 // and never repeats the text it was given.
 enum TimeError {
-    OutOfRange(reason: string)
-    Invalid(reason: string)
+    OutOfRange(reason: string),
+    Invalid(reason: string),
 }

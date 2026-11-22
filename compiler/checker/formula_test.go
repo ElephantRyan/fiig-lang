@@ -11,8 +11,8 @@ import (
 // ADR 0049: formulas groups.
 
 const vectorModel = `model Vector {
-	x: int
-	y: int
+	x: int;
+	y: int;
 }`
 
 const vectorGroup = `formulas vector {
@@ -46,11 +46,11 @@ func checkGeo(t *testing.T, srcs ...string) []Diagnostic {
 
 func TestFormulasAreCallableFromEveryKind(t *testing.T) {
 	diags := checkGeo(t,
-		"use geo.vector\n\nrule isLong(v: Vector) -> bool {\n\treturn vector.lengthSquared(v) > 100;\n}",
-		"use geo.vector\n\nconversion doubled(v: Vector) -> Vector {\n\treturn vector.scaled(v, k: 2);\n}",
-		"use geo.vector\n\nactivity area(v: Vector) -> int {\n\treturn vector.dot(a: v, b: v);\n}",
-		"use geo.vector\n\nworkflow cube(n: int) -> int {\n\treturn vector.power(n, 3);\n}",
-		"use geo.vector as vec\n\ngateway probe(v: Vector) -> int\n\trequires Socket\n{\n\treturn vec.lengthSquared(v);\n}",
+		"use geo.vector;\n\nrule isLong(v: Vector) -> bool {\n\treturn vector.lengthSquared(v) > 100;\n}",
+		"use geo.vector;\n\nconversion doubled(v: Vector) -> Vector {\n\treturn vector.scaled(v, k: 2);\n}",
+		"use geo.vector;\n\nactivity area(v: Vector) -> int {\n\treturn vector.dot(a: v, b: v);\n}",
+		"use geo.vector;\n\nworkflow cube(n: int) -> int {\n\treturn vector.power(n, 3);\n}",
+		"use geo.vector as vec;\n\ngateway probe(v: Vector) -> int\n\trequires Socket\n{\n\treturn vec.lengthSquared(v);\n}",
 	)
 	if len(diags) != 0 {
 		t.Errorf("unexpected diagnostics: %+v", diags)
@@ -59,9 +59,9 @@ func TestFormulasAreCallableFromEveryKind(t *testing.T) {
 
 func TestFormulaCallsAreTyped(t *testing.T) {
 	diags := checkGeo(t,
-		"use geo.vector\n\nrule bad(v: Vector) -> string {\n\treturn vector.lengthSquared(v);\n}",
-		"use geo.vector\n\nrule badArg(n: int) -> int {\n\treturn vector.lengthSquared(n);\n}",
-		"use geo.vector\n\nrule missing(v: Vector) -> int {\n\treturn vector.norm(v);\n}",
+		"use geo.vector;\n\nrule bad(v: Vector) -> string {\n\treturn vector.lengthSquared(v);\n}",
+		"use geo.vector;\n\nrule badArg(n: int) -> int {\n\treturn vector.lengthSquared(n);\n}",
+		"use geo.vector;\n\nrule missing(v: Vector) -> int {\n\treturn vector.norm(v);\n}",
 	)
 	if got := rules(diags)["A1"]; got != 2 {
 		t.Errorf("got %d A1, want 2 (wrong return use, wrong argument): %+v", got, diags)
@@ -73,7 +73,7 @@ func TestFormulaCallsAreTyped(t *testing.T) {
 
 func TestFormulaRestrictionsAreK3K4K5(t *testing.T) {
 	diags := checkGeo(t, `enum GeoError {
-	Bad
+	Bad,
 }`, `formulas checks {
 	formula parse(s: string) -> Result<int, GeoError> {
 		return Ok(1);
@@ -83,7 +83,7 @@ func TestFormulaRestrictionsAreK3K4K5(t *testing.T) {
 		return 1;
 	}
 
-	formula sqrt(x: int) -> int
+	formula sqrt(x: int) -> int;
 }`)
 	got := rules(diags)
 	for _, rule := range []string{"K3", "K4", "K5"} {
@@ -112,7 +112,7 @@ func TestFormulaCallsOnlyFormulasB11(t *testing.T) {
 }
 
 func TestFormulaMayCallAnotherGroup(t *testing.T) {
-	diags := checkGeo(t, "use geo.vector\n\nformulas shapes {\n\tformula diagonal(v: Vector) -> int {\n\t\treturn vector.lengthSquared(v);\n\t}\n}")
+	diags := checkGeo(t, "use geo.vector;\n\nformulas shapes {\n\tformula diagonal(v: Vector) -> int {\n\t\treturn vector.lengthSquared(v);\n\t}\n}")
 	if len(diags) != 0 {
 		t.Errorf("unexpected diagnostics: %+v", diags)
 	}
@@ -124,7 +124,7 @@ func TestFormulaMayCallAnotherGroup(t *testing.T) {
 func TestGroupMustBeImportedEvenInItsOwnPackage(t *testing.T) {
 	diags := checkGeo(t,
 		"rule isLong(v: Vector) -> bool {\n\treturn vector.lengthSquared(v) > 100;\n}",
-		"use elsewhere.vector\n\nrule isShort(v: Vector) -> bool {\n\treturn vector.lengthSquared(v) < 100;\n}",
+		"use elsewhere.vector;\n\nrule isShort(v: Vector) -> bool {\n\treturn vector.lengthSquared(v) < 100;\n}",
 	)
 	if n := countMessages(diags, "formulas group vector is not imported"); n != 2 {
 		t.Errorf("got %d not-imported reports, want 2: %+v", n, diags)
@@ -134,7 +134,7 @@ func TestGroupMustBeImportedEvenInItsOwnPackage(t *testing.T) {
 // TestMembersAreUnqualifiedOnlyInsideTheirGroup is §2.1: no formula is ever
 // reachable by a bare name outside its own group.
 func TestMembersAreUnqualifiedOnlyInsideTheirGroup(t *testing.T) {
-	diags := checkGeo(t, "use geo.vector\n\nrule isLong(v: Vector) -> bool {\n\treturn lengthSquared(v) > 100;\n}")
+	diags := checkGeo(t, "use geo.vector;\n\nrule isLong(v: Vector) -> bool {\n\treturn lengthSquared(v) > 100;\n}")
 	if !hasMessage(diags, `undefined name "lengthSquared"`) {
 		t.Errorf("bare member call outside its group not rejected: %+v", diags)
 	}
@@ -148,7 +148,7 @@ func TestGroupNameOnlyCollidesWhereImported(t *testing.T) {
 	if len(clean) != 0 {
 		t.Errorf("a local named like an unimported group was rejected: %+v", clean)
 	}
-	diags := checkGeo(t, "use geo.vector\n\nrule count(vector: List<int>) -> int {\n\treturn vector.length();\n}")
+	diags := checkGeo(t, "use geo.vector;\n\nrule count(vector: List<int>) -> int {\n\treturn vector.length();\n}")
 	if got := rules(diags)["G4"]; got != 2 {
 		t.Errorf("got %d G4, want 2 (the parameter and the import): %+v", got, diags)
 	}
@@ -157,7 +157,7 @@ func TestGroupNameOnlyCollidesWhereImported(t *testing.T) {
 func TestGroupNamesAreLowercaseN1(t *testing.T) {
 	diags := checkGeo(t,
 		"formulas Shapes {\n\tformula Area(n: int) -> int {\n\t\treturn n;\n\t}\n}",
-		"use geo.vector as Vec\n\nrule isLong(v: Vector) -> bool {\n\treturn Vec.lengthSquared(v) > 100;\n}",
+		"use geo.vector as Vec;\n\nrule isLong(v: Vector) -> bool {\n\treturn Vec.lengthSquared(v) > 100;\n}",
 	)
 	got := rules(diags)
 	if got["N1"] != 2 || got["N2"] != 1 {
@@ -166,7 +166,7 @@ func TestGroupNamesAreLowercaseN1(t *testing.T) {
 }
 
 func TestGatewayMayNotRequireAFormulasGroup(t *testing.T) {
-	diags := checkGeo(t, "use geo.vector\n\ngateway probe(v: Vector) -> int\n\trequires vector\n{\n\treturn 1;\n}")
+	diags := checkGeo(t, "use geo.vector;\n\ngateway probe(v: Vector) -> int\n\trequires vector\n{\n\treturn 1;\n}")
 	if !hasMessage(diags, "which is a formulas group, not a capability") {
 		t.Errorf("requires naming a formulas group not rejected: %+v", diags)
 	}
@@ -175,15 +175,15 @@ func TestGatewayMayNotRequireAFormulasGroup(t *testing.T) {
 func TestFormulasGroupAcrossPackages(t *testing.T) {
 	geometry := buildDep(t, "acme.geometry", nil, nil, vectorModel, vectorGroup)
 	app := types.Packages{"acme.geometry": geometry}
-	clean := mustParse(t, "use acme.geometry\nuse acme.geometry.vector\n\nrule isLong(v: geometry.Vector) -> bool {\n\treturn vector.lengthSquared(v) > 100;\n}")
+	clean := mustParse(t, "use acme.geometry;\nuse acme.geometry.vector;\n\nrule isLong(v: geometry.Vector) -> bool {\n\treturn vector.lengthSquared(v) > 100;\n}")
 	if diags := Check([]*syntax.File{clean}, app); len(diags) != 0 {
 		t.Errorf("unexpected diagnostics: %+v", diags)
 	}
-	bad := mustParse(t, "use acme.geometry.vector\n\nrule isLong(n: int) -> bool {\n\treturn vector.lengthSquared(n) > 100;\n}")
+	bad := mustParse(t, "use acme.geometry.vector;\n\nrule isLong(n: int) -> bool {\n\treturn vector.lengthSquared(n) > 100;\n}")
 	if got := rules(Check([]*syntax.File{bad}, app))["A1"]; got != 1 {
 		t.Errorf("got %d A1 for a wrong argument across packages, want 1", got)
 	}
-	missing := mustParse(t, "use acme.geometry.matrix\n\nrule isLong(n: int) -> bool {\n\treturn n > 1;\n}")
+	missing := mustParse(t, "use acme.geometry.matrix;\n\nrule isLong(n: int) -> bool {\n\treturn n > 1;\n}")
 	if !hasMessage(Check([]*syntax.File{missing}, app), `has no capability or formulas group "matrix"`) {
 		t.Errorf("import of a missing group not reported")
 	}

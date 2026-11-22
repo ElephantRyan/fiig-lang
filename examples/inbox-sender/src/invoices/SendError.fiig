@@ -1,9 +1,9 @@
 // Why an event wasn't accepted: no reply (ADR 0074 §3), a reply that said
 // no, or a reply this sender can't read.
-use fiig.http
+use fiig.http;
 
 enum SendError {
-    Unreachable(failure: http.HttpError)
-    Rejected(status: int, body: string)
-    Unreadable(failure: JsonError)
+    Unreachable(failure: http.HttpError),
+    Rejected(status: int, body: string),
+    Unreadable(failure: JsonError),
 }

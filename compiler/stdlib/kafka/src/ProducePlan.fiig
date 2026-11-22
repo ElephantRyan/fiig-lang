@@ -16,10 +16,10 @@ conversion producePlan(
     for (record in records) {
         partition: int = keyless;
         match (record.key) {
-            None -> None
+            None -> None,
             key -> {
                 partition = murmur2(key) % 2147483648 % count;
-            }
+            },
         }
 
         byPartition = byPartition.put(partition, append(byPartition.atOr(partition, []), i));

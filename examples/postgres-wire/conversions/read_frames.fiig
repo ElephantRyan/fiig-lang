@@ -8,12 +8,12 @@ conversion readFrames(buffer: bytes) -> Frames {
         match (readFrame(rest)) {
             None -> {
                 break;
-            }
+            },
 
             frame -> {
                 frames = append(frames, frame);
                 rest = frame.rest;
-            }
+            },
         }
     }
 

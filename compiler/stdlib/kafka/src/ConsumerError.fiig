@@ -1,4 +1,4 @@
-use fiig.stream
+use fiig.stream;
 
 // A KafkaError as the stream adapter takes it (ADR 0111 §1): a broker or
 // a connection that may answer later is Unavailable; a setting that can
@@ -6,23 +6,23 @@ use fiig.stream
 // halts the route; a reply this package can't read is Protocol.
 conversion consumerError(failure: KafkaError) -> stream.SourceError {
     return match (failure) {
-        KafkaError.Session(cause) -> stream.SourceError.Unavailable(reason: "${cause}")
+        KafkaError.Session(cause) -> stream.SourceError.Unavailable(reason: "${cause}"),
         KafkaError.Broker(_, name, retriable, message) -> {
             if (retriable) {
                 return stream.SourceError.Unavailable(reason: message);
             }
 
             return stream.SourceError.Protocol(reason: "${message} (${name})");
-        }
+        },
 
         KafkaError.UnknownTopic(topic) -> stream.SourceError.Misconfigured(
             reason: "topic ${topic} doesn't exist",
-        )
-        KafkaError.Unsupported(reason) -> stream.SourceError.Misconfigured(reason: reason)
-        KafkaError.InvalidConfig(reason) -> stream.SourceError.Misconfigured(reason: reason)
-        KafkaError.Authentication(reason) -> stream.SourceError.Misconfigured(reason: reason)
-        KafkaError.MalformedReply(reason) -> stream.SourceError.Protocol(reason: reason)
-        KafkaError.InvalidRecord(reason) -> stream.SourceError.Protocol(reason: reason)
-        KafkaError.Decompress(cause) -> stream.SourceError.Protocol(reason: "${cause}")
+        ),
+        KafkaError.Unsupported(reason) -> stream.SourceError.Misconfigured(reason: reason),
+        KafkaError.InvalidConfig(reason) -> stream.SourceError.Misconfigured(reason: reason),
+        KafkaError.Authentication(reason) -> stream.SourceError.Misconfigured(reason: reason),
+        KafkaError.MalformedReply(reason) -> stream.SourceError.Protocol(reason: reason),
+        KafkaError.InvalidRecord(reason) -> stream.SourceError.Protocol(reason: reason),
+        KafkaError.Decompress(cause) -> stream.SourceError.Protocol(reason: "${cause}"),
     }
 }

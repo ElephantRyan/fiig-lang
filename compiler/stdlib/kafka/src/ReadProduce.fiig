@@ -67,9 +67,9 @@ conversion readProduce(
                                 ),
                             );
                         }
-                    }
+                    },
 
-                    _ -> None
+                    _ -> None,
                 }
 
                 return Err(failure);
@@ -106,11 +106,11 @@ private {
         return match (i32At(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             value -> {
                 return Ok(value);
-            }
+            },
         }
     }
 
@@ -118,11 +118,11 @@ private {
         return match (i16At(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             value -> {
                 return Ok(value);
-            }
+            },
         }
     }
 
@@ -130,11 +130,11 @@ private {
         return match (i64At(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             value -> {
                 return Ok(value);
-            }
+            },
         }
     }
 
@@ -142,11 +142,11 @@ private {
         return match (stringAt(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             value -> {
                 return Ok(value);
-            }
+            },
         }
     }
 }

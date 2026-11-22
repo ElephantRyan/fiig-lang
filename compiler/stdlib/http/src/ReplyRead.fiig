@@ -4,8 +4,8 @@
 // the reply is, or has said it will be, more bytes than readReply's limit
 // (ADR 0074 §7a).
 enum ReplyRead {
-    NeedMore
-    Done(reply: Reply, keep: bool)
-    Malformed(reason: string)
-    TooLarge
+    NeedMore,
+    Done(reply: Reply, keep: bool),
+    Malformed(reason: string),
+    TooLarge,
 }

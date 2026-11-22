@@ -1,4 +1,4 @@
-use fiig.session
+use fiig.session;
 
 // ADR 0117 §2-§3: fiig.kafka's session protocol, which the consumer's
 // gateways reach through Session.call. Each operation is a conversion
@@ -10,10 +10,10 @@ capability KafkaSession provides session.SessionProtocol {
     gateway opened(settings: Map<string, string>, now: int) -> session.Step requires Session {
         password: bytes = <<>>;
         match (KafkaServer.saslPassword) {
-            None -> None
+            None -> None,
             given -> {
                 password = given.reveal().utf8();
-            }
+            },
         }
 
         login = SaslLogin(
@@ -27,10 +27,10 @@ capability KafkaSession provides session.SessionProtocol {
     gateway received(state: bytes, data: bytes, now: int) -> session.Step requires Session {
         password: bytes = <<>>;
         match (KafkaServer.saslPassword) {
-            None -> None
+            None -> None,
             given -> {
                 password = given.reveal().utf8();
-            }
+            },
         }
 
         login = SaslLogin(

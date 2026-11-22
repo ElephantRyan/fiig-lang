@@ -8,7 +8,7 @@ import (
 
 // ADR 0093 at run time: the list forms, sorted's keys, and Map.atOr.
 func TestListForms(t *testing.T) {
-	model := "model Rating {\n    itemId: string\n    score: int\n    recommended: bool\n    updatedAt: int\n}"
+	model := "model Rating {\n    itemId: string;\n    score: int;\n    recommended: bool;\n    updatedAt: int;\n}"
 	rule := `rule summary(ratings: List<Rating>) -> string {
     recommended = filter(r in ratings): r.recommended;
     groups = groupBy(r in recommended): r.itemId;

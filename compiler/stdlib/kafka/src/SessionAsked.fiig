@@ -1,4 +1,4 @@
-use fiig.session
+use fiig.session;
 
 // ADR 0117 §3-§5: a call's ask. A Request is written with the session's
 // own correlation id, and answered when its response comes; the group's
@@ -13,7 +13,7 @@ conversion sessionAsked(state: bytes, message: bytes, now: int) -> session.Step 
     return match (decodedState) {
         Err(_) -> {
             return failedStep("fiig.kafka's session state doesn't decode");
-        }
+        },
 
         Ok(s) -> {
             return match (decodedAsk) {
@@ -21,13 +21,13 @@ conversion sessionAsked(state: bytes, message: bytes, now: int) -> session.Step 
                     return failedStep(
                         "a fiig.kafka session was asked something that isn't a KafkaAsk",
                     );
-                }
+                },
 
                 Ok(ask) -> {
                     return askedOf(s, ask, now);
-                }
+                },
             }
-        }
+        },
     }
 }
 
@@ -67,15 +67,15 @@ private {
                             ),
                             key,
                         );
-                    }
+                    },
 
                     _ -> {
                         return failedStep(
                             "a fiig.kafka session was asked to send a request shorter than its header",
                         );
-                    }
+                    },
                 }
-            }
+            },
 
             KafkaAsk.Poll(waitMillis) -> {
                 held = copy(
@@ -83,7 +83,7 @@ private {
                     polls: append(taken.polls, WaitingPoll(key: key, until: now + waitMillis)),
                 );
                 return sessionStep(answerPolls(copy(turn, state: held), now), key);
-            }
+            },
 
             KafkaAsk.Advance(partition, next) -> {
                 moved: List<OwnedPartition> = [];
@@ -96,7 +96,7 @@ private {
                 }
 
                 return done(copy(turn, state: copy(taken, partitions: moved)), key);
-            }
+            },
 
             KafkaAsk.Ack(partition, offset) -> {
                 acked: List<OwnedPartition> = [];
@@ -132,7 +132,7 @@ private {
                     copy(turn, state: copy(taken, partitions: acked, commitAt: commitAt)),
                     key,
                 );
-            }
+            },
 
             KafkaAsk.Retry(partition, offset, resumeAt) -> {
                 // Seek back (§5): the partition is fetched again from the
@@ -161,14 +161,14 @@ private {
                 }
 
                 return done(copy(turn, state: copy(taken, partitions: retried)), key);
-            }
+            },
 
             KafkaAsk.Layout(topic, maxAgeMillis) -> {
                 match (taken.refused) {
-                    None -> None
+                    None -> None,
                     refusal -> {
                         return replied(turn, key, LayoutReply(layout: None, error: refusal));
-                    }
+                    },
                 }
 
                 for (cached in taken.layouts) {
@@ -192,12 +192,12 @@ private {
                     ),
                     key,
                 );
-            }
+            },
 
             KafkaAsk.Forget(topic) -> {
                 kept = filter(c in taken.layouts): c.topic != topic;
                 return done(copy(turn, state: copy(taken, layouts: kept)), key);
-            }
+            },
         }
     }
 

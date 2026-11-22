@@ -1,5 +1,5 @@
-use fiig.http
-use fiig.time
+use fiig.http;
+use fiig.time;
 
 // A presigned URL (ADR 0121 §5, amended 2026-11-21): SigV4 with the
 // signature in the query string instead of the Authorization header, so
@@ -71,11 +71,11 @@ private {
         return match (http.pathSegment(text)) {
             None -> {
                 return text;
-            }
+            },
 
             encoded -> {
                 return encoded;
-            }
+            },
         }
     }
 }

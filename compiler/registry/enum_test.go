@@ -19,7 +19,7 @@ func enumCard(t *testing.T, src string) *Card {
 // TestEnumCardListsHeaderAndConstants is ADR 0046's registry consequence:
 // the catalog can answer "which source has code ACME" without source.
 func TestEnumCardListsHeaderAndConstants(t *testing.T) {
-	card := enumCard(t, "enum DeductionSource(key code: string, layout: FieldLayout) {\n    Acme(layout: FieldLayout.FixedWidth, code: \"ACME\")\n}")
+	card := enumCard(t, "enum DeductionSource(key code: string, layout: FieldLayout) {\n    Acme(layout: FieldLayout.FixedWidth, code: \"ACME\"),\n}")
 	if len(card.Header) != 2 || !card.Header[0].Key || card.Header[1].Key {
 		t.Fatalf("header = %+v", card.Header)
 	}
@@ -32,10 +32,10 @@ func TestEnumCardListsHeaderAndConstants(t *testing.T) {
 // TestChangedKeyValueIsMajor: a lookup that found a variant by its old key
 // now returns None, so it breaks callers; a non-key constant does not.
 func TestChangedKeyValueIsMajor(t *testing.T) {
-	old := enumCard(t, "enum E(key code: string, label: string) {\n    A(code: \"A\", label: \"x\")\n}")
-	label := enumCard(t, "enum E(key code: string, label: string) {\n    A(code: \"A\", label: \"y\")\n}")
-	code := enumCard(t, "enum E(key code: string, label: string) {\n    A(code: \"B\", label: \"x\")\n}")
-	unkeyed := enumCard(t, "enum E(code: string, label: string) {\n    A(code: \"A\", label: \"x\")\n}")
+	old := enumCard(t, "enum E(key code: string, label: string) {\n    A(code: \"A\", label: \"x\"),\n}")
+	label := enumCard(t, "enum E(key code: string, label: string) {\n    A(code: \"A\", label: \"y\"),\n}")
+	code := enumCard(t, "enum E(key code: string, label: string) {\n    A(code: \"B\", label: \"x\"),\n}")
+	unkeyed := enumCard(t, "enum E(code: string, label: string) {\n    A(code: \"A\", label: \"x\"),\n}")
 	if bump, _ := Diff([]*Card{old}, []*Card{label}); bump != Minor {
 		t.Errorf("changed non-key constant: bump %v, want Minor", bump)
 	}
@@ -52,9 +52,9 @@ func TestChangedKeyValueIsMajor(t *testing.T) {
 // list fields matched by element and non-key fields allowed to match many.
 func TestFindConstantNamesTheVariant(t *testing.T) {
 	card := enumCard(t, "enum DeductionSource(key code: string, key aliases: List<string>, layout: FieldLayout) {\n"+
-		"    Acme(code: \"ACME\", aliases: [\"ACMEINC\"], layout: FieldLayout.FixedWidth)\n"+
-		"    Globex(code: \"GLBX\", aliases: [], layout: FieldLayout.Csv)\n"+
-		"    Initech(code: \"INIT\", aliases: [\"INITECH\"], layout: FieldLayout.Csv)\n"+
+		"    Acme(code: \"ACME\", aliases: [\"ACMEINC\"], layout: FieldLayout.FixedWidth),\n"+
+		"    Globex(code: \"GLBX\", aliases: [], layout: FieldLayout.Csv),\n"+
+		"    Initech(code: \"INIT\", aliases: [\"INITECH\"], layout: FieldLayout.Csv),\n"+
 		"}")
 	cards := []*Card{card}
 	variants := func(field, value string) []string {

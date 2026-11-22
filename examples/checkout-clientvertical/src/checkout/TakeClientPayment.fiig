@@ -1,8 +1,8 @@
 // The vertical's checkout: checkout-app's takePayment, with this
 // application's own provider rule. Everything else is checkout.core's.
-use acme.payments
-use checkout.core
-use checkout.core.LedgerApi
+use acme.payments;
+use checkout.core;
+use checkout.core.LedgerApi;
 
 activity takeClientPayment(
     merchant: core.PayingMerchant,

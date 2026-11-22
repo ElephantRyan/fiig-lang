@@ -1,12 +1,12 @@
 // ADR 0043: interfaces, capability groups, and provider values. Every
 // declaration below is rejected for one named reason.
 interface RefundProvider {
-    refund(reference: string) -> Result<None, string>
+    refund(reference: string) -> Result<None, string>;
 }
 
 // P6: a model is data and never carries a capability.
 model RefundPolicy {
-    provider: RefundProvider
+    provider: RefundProvider;
 }
 
 // P5: two groups whose gateways require each other.

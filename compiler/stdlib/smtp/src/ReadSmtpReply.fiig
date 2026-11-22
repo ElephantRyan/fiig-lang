@@ -48,11 +48,11 @@ conversion readSmtpReply(buffer: bytes) -> SmtpReplyRead {
             match (line.slice(4, line.length()).utf8()) {
                 None -> {
                     return SmtpReplyRead.Malformed(reason: "a reply line isn't UTF-8");
-                }
+                },
 
                 decoded -> {
                     text = decoded;
-                }
+                },
             }
         }
 

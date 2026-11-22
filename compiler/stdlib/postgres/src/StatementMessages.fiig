@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // ADR 0085 §3, §8: Bind, Describe, Execute and Sync for one statement,
 // the one named name ("" the unnamed one), written at once after its
@@ -12,32 +12,32 @@ conversion statementMessages(name: string, values: List<db.SqlValue>) -> bytes {
             db.SqlValue.Null -> {
                 formats = <<formats: bytes, 0: i16be>>;
                 params = <<params: bytes, -1: i32be>>;
-            }
+            },
 
             db.SqlValue.Bytes(data) -> {
                 formats = <<formats: bytes, 1: i16be>>;
                 params = withParam(params, data);
-            }
+            },
 
             db.SqlValue.Int(n) -> {
                 formats = <<formats: bytes, 0: i16be>>;
                 params = withParam(params, "${n}".utf8());
-            }
+            },
 
             db.SqlValue.Float(x) -> {
                 formats = <<formats: bytes, 0: i16be>>;
                 params = withParam(params, "${x}".utf8());
-            }
+            },
 
             db.SqlValue.Text(text) -> {
                 formats = <<formats: bytes, 0: i16be>>;
                 params = withParam(params, text.utf8());
-            }
+            },
 
             db.SqlValue.Bool(flag) -> {
                 formats = <<formats: bytes, 0: i16be>>;
                 params = withParam(params, "${flag}".utf8());
-            }
+            },
         }
     }
 

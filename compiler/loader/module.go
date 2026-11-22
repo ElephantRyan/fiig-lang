@@ -194,8 +194,13 @@ func importPaths(text string) []string {
 		if !ok {
 			continue
 		}
-		path, _, _ := strings.Cut(strings.TrimSpace(rest), " ")
-		out = append(out, path)
+		// The path ends at a space (`as`), its `;` (ADR 0145 §1), or a
+		// comment.
+		rest = strings.TrimSpace(rest)
+		if i := strings.IndexAny(rest, " ;/"); i >= 0 {
+			rest = rest[:i]
+		}
+		out = append(out, rest)
 	}
 	return out
 }

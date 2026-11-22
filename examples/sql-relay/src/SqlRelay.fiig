@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // ADR 0084: a database driver written in fiig. It speaks a small relay
 // protocol, not Postgres: each statement is one frame, a 4-byte length and
@@ -14,13 +14,13 @@ capability SqlRelay provides db.SqlDriver {
         return match (readRelayAddress(settings)) {
             None -> Err(
                 db.DatabaseError.Protocol(reason: "the relay's settings need host and port"),
-            )
+            ),
             address -> {
                 return match (Socket.connect(address.host, address.port)) {
-                    Ok(connection) -> Ok(connection)
-                    Err(failure) -> Err(db.DatabaseError.Broken(failure: failure))
+                    Ok(connection) -> Ok(connection),
+                    Err(failure) -> Err(db.DatabaseError.Broken(failure: failure)),
                 }
-            }
+            },
         }
     }
 
@@ -34,9 +34,9 @@ capability SqlRelay provides db.SqlDriver {
         match (Socket.write(connection, <<size: i32be, request: bytes>>)) {
             Err(failure) -> {
                 return Err(db.DatabaseError.Broken(failure: failure));
-            }
+            },
 
-            Ok(_) -> None
+            Ok(_) -> None,
         }
 
         buffer: bytes = <<>>;
@@ -46,17 +46,17 @@ capability SqlRelay provides db.SqlDriver {
                     match (Socket.read(connection)) {
                         Ok(chunk) -> {
                             buffer = <<buffer: bytes, chunk: bytes>>;
-                        }
+                        },
 
                         Err(failure) -> {
                             return Err(db.DatabaseError.Broken(failure: failure));
-                        }
+                        },
                     }
-                }
+                },
 
                 body -> {
                     return relayReply(body);
-                }
+                },
             }
         }
     }

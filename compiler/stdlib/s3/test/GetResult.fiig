@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 test a200IsTheObject {
     expect getResult(http.Reply(status: 200, headers: [], body: "hello".utf8())) is Ok(body);

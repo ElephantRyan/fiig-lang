@@ -17,10 +17,10 @@ func TestTextDecodings(t *testing.T) {
     return match (decoded) {
         None -> {
             return "None";
-        }
+        },
         b -> {
             return b.toHex();
-        }
+        },
     }
 }`
 	cases := []struct{ s, how, want string }{
@@ -62,17 +62,17 @@ func TestBasicAuthIsARule(t *testing.T) {
     return match (decoded) {
         None -> {
             return None;
-        }
+        },
         b -> {
             return match (b.utf8()) {
                 None -> {
                     return None;
-                }
+                },
                 text -> {
                     return text.split(separator: ":").first();
-                }
+                },
             }
-        }
+        },
     }
 }`
 	got, fault := runEach(t, src, "basicUser", map[string]Value{"header": Str("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==")})

@@ -32,7 +32,7 @@ conversion readReply(buffer: bytes, method: Method, closed: bool, maxBytes: int)
         match (parseHead(rest.slice(0, end))) {
             Err(reason) -> {
                 return ReplyRead.Malformed(reason: reason);
-            }
+            },
 
             Ok(head) -> {
                 body = rest.slice(end + 4, rest.length());
@@ -43,18 +43,18 @@ conversion readReply(buffer: bytes, method: Method, closed: bool, maxBytes: int)
                 }
 
                 rest = body;
-            }
+            },
         }
     }
 }
 
 private {
     model Head {
-        status: int
-        headers: List<Header>
+        status: int;
+        headers: List<Header>;
         // HTTP/1.0 closes after each reply unless asked not to, so only an
         // HTTP/1.1 reply leaves a connection to keep.
-        http11: bool
+        http11: bool;
     }
 
     // Where the blank line ending the headers starts, or -1.
@@ -95,8 +95,8 @@ private {
 
     parseHead(head: bytes) -> Result<Head, string> {
         return match (head.utf8()) {
-            None -> Err("the reply's headers aren't UTF-8")
-            text -> parseHeadText(text)
+            None -> Err("the reply's headers aren't UTF-8"),
+            text -> parseHeadText(text),
         }
     }
 

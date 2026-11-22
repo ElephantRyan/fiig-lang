@@ -7,7 +7,7 @@ import (
 
 // ADR 0065 §3: sorted(x in xs): key at run time.
 func TestSortedForm(t *testing.T) {
-	model := "model Parcel {\n    id: string\n    kilograms: decimal\n    region: string\n}"
+	model := "model Parcel {\n    id: string;\n    kilograms: decimal;\n    region: string;\n}"
 	rule := `activity order(parcels: List<Parcel>, descending: bool) -> string {
     if (descending) {
         heavy = sorted(p in parcels): p.kilograms descending;

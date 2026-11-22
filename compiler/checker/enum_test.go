@@ -9,14 +9,14 @@ import (
 // ADR 0046: headed enums, header constants, and key lookups.
 
 const deductionSource = `enum DeductionSource(key code: string, key aliases: List<string>, layout: FieldLayout) {
-    Acme(code: "ACME", aliases: ["ACMEINC"], layout: FieldLayout.FixedWidth)
-    Globex(code: "GLBX", aliases: [], layout: FieldLayout.Csv)
+    Acme(code: "ACME", aliases: ["ACMEINC"], layout: FieldLayout.FixedWidth),
+    Globex(code: "GLBX", aliases: [], layout: FieldLayout.Csv),
 }
 `
 
 const fieldLayout = `enum FieldLayout {
-    FixedWidth
-    Csv
+    FixedWidth,
+    Csv,
 }
 `
 
@@ -67,39 +67,39 @@ func TestLookupResultMayBeNone(t *testing.T) {
 func TestHeaderConstantErrorsAreA15(t *testing.T) {
 	cases := map[string]string{
 		"missing field": `enum E(key code: string, label: string) {
-    A(code: "A")
+    A(code: "A"),
 }
 `,
 		"unknown field": `enum E(key code: string) {
-    A(code: "A", colour: "red")
+    A(code: "A", colour: "red"),
 }
 `,
 		"positional": `enum E(key code: string) {
-    A("A")
+    A("A"),
 }
 `,
 		"supplied twice": `enum E(key code: string) {
-    A(code: "A", code: "B")
+    A(code: "A", code: "B"),
 }
 `,
 		"call is not a constant": `enum E(key code: string) {
-    A(code: makeCode())
+    A(code: makeCode()),
 }
 `,
 		"arithmetic is not a constant": `enum E(seconds: int) {
-    A(seconds: 5 * 60)
+    A(seconds: 5 * 60),
 }
 `,
 		"interpolation is not a constant": `enum E(label: string) {
-    A(label: "x${y}")
+    A(label: "x${y}"),
 }
 `,
 		"payload on a headed enum": `enum E(key code: string) {
-    A(id: string)
+    A(id: string),
 }
 `,
 		"key must be string or int": `enum E(key active: bool) {
-    A(active: true)
+    A(active: true),
 }
 `,
 	}
@@ -117,7 +117,7 @@ func TestHeaderConstantErrorsAreA15(t *testing.T) {
 // its field's type.
 func TestHeaderConstantsAreTypeChecked(t *testing.T) {
 	f := mustParse(t, `enum E(key code: string) {
-    A(code: 1)
+    A(code: 1),
 }
 `)
 	if diags := Check([]*syntax.File{f}, nil); len(diags) == 0 {
@@ -129,12 +129,12 @@ func TestHeaderConstantsAreTypeChecked(t *testing.T) {
 // literals, enum variants, and lists and models of constants.
 func TestConstantFormsAreAccepted(t *testing.T) {
 	model := mustParse(t, `model Limits {
-    min: int
-    max: int
+    min: int;
+    max: int;
 }
 `)
 	f := mustParse(t, `enum E(key code: string, flag: bool, floor: int, note: string | None, limits: Limits, tags: List<string>) {
-    A(code: "A", flag: true, floor: -1, note: None, limits: Limits(min: 1, max: 5), tags: ["x", "y"])
+    A(code: "A", flag: true, floor: -1, note: None, limits: Limits(min: 1, max: 5), tags: ["x", "y"]),
 }
 `)
 	if diags := Check([]*syntax.File{model, f}, nil); len(diags) != 0 {
@@ -146,16 +146,16 @@ func TestConstantFormsAreAccepted(t *testing.T) {
 // a list key, may name only one variant. Non-key fields may repeat.
 func TestDuplicateKeyValuesAreA16(t *testing.T) {
 	dupCode := mustParse(t, `enum E(key code: string, layout: string) {
-    A(code: "X", layout: "csv")
-    B(code: "X", layout: "csv")
+    A(code: "X", layout: "csv"),
+    B(code: "X", layout: "csv"),
 }
 `)
 	if got := rules(Check([]*syntax.File{dupCode}, nil)); got["A16"] != 1 || len(got) != 1 {
 		t.Fatalf("want exactly one A16 for the shared code (not for the shared layout), got %v", got)
 	}
 	dupAlias := mustParse(t, `enum E(key aliases: List<string>) {
-    A(aliases: ["X", "Y"])
-    B(aliases: ["Z", "Y"])
+    A(aliases: ["X", "Y"]),
+    B(aliases: ["Z", "Y"]),
 }
 `)
 	if got := rules(Check([]*syntax.File{dupAlias}, nil)); got["A16"] != 1 || len(got) != 1 {

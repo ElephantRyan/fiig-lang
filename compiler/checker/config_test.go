@@ -10,18 +10,18 @@ import (
 // ADR 0071: config declarations, where they may be read, and Secret.
 
 const sessionsConfig = `wire Sessions {
-    maxAge: int from env "SESSION_MAX_AGE" = 24 * 60 * 60
-    exportToken: Secret from env "ACCOUNTS_EXPORT_TOKEN"
-    level: Level | None from env "LOG_LEVEL"
-    name: string from env "SERVICE_NAME" = "accounts"
-    rate: decimal from env "RATE" = 1.5
-    verbose: bool from env "VERBOSE" = false
-    fallback: Level from env "FALLBACK_LEVEL" = Level.Info
+    maxAge: int from env "SESSION_MAX_AGE" = 24 * 60 * 60;
+    exportToken: Secret from env "ACCOUNTS_EXPORT_TOKEN";
+    level: Level | None from env "LOG_LEVEL";
+    name: string from env "SERVICE_NAME" = "accounts";
+    rate: decimal from env "RATE" = 1.5;
+    verbose: bool from env "VERBOSE" = false;
+    fallback: Level from env "FALLBACK_LEVEL" = Level.Info;
 }`
 
 const levelEnum = `enum Level {
-    Debug
-    Info
+    Debug,
+    Info,
 }`
 
 func TestConfigReadInActivitiesAndGateways(t *testing.T) {
@@ -69,8 +69,8 @@ func TestConfigDeclarationsAreV1(t *testing.T) {
 	for _, c := range cases {
 		wantDiag(t, checkSrc(t, "wire Settings {\n    "+c.field+"\n}"), c.rule, c.fragment)
 	}
-	wantDiag(t, checkSrc(t, "wire Settings {\n    a: int from env \"A\"\n    a: int from env \"B\"\n}"), "V1", `declares field "a" twice`)
-	wantDiag(t, checkSrc(t, "wire settings {\n    a: int from env \"A\"\n}"), "N1", `wire "settings" must be capitalized`)
+	wantDiag(t, checkSrc(t, "wire Settings {\n    a: int from env \"A\";\n    a: int from env \"B\";\n}"), "V1", `declares field "a" twice`)
+	wantDiag(t, checkSrc(t, "wire settings {\n    a: int from env \"A\";\n}"), "N1", `wire "settings" must be capitalized`)
 }
 
 func TestSecretIsNeverShown(t *testing.T) {
@@ -80,7 +80,7 @@ func TestSecretIsNeverShown(t *testing.T) {
 		{"activity a() -> string {\n    return Sessions.exportToken.reveal();\n}", "S2", "only a gateway may call .reveal()"},
 		{"rule r(token: Secret) -> string {\n    return token.reveal();\n}", "S2", "only a gateway may call .reveal()"},
 		{"workflow w(token: Secret) -> Result<string, string> {\n    return Ok(\"x\");\n}", "S1", "parameter token holds a Secret"},
-		{"model Creds {\n    key: Secret\n}", "", ""},
+		{"model Creds {\n    key: Secret;\n}", "", ""},
 	}
 	for _, c := range cases[:5] {
 		wantDiag(t, checkSrc(t, sessionsConfig, levelEnum, c.src), c.rule, c.fragment)
@@ -112,7 +112,7 @@ func TestToSecretIsLegalOnlyInAGateway(t *testing.T) {
 }
 
 func TestSecretIsAPreludeName(t *testing.T) {
-	wantDiag(t, checkSrc(t, "model Secret {\n    a: int\n}"), "K2", "")
+	wantDiag(t, checkSrc(t, "model Secret {\n    a: int;\n}"), "K2", "")
 }
 
 // A cross-package call checks its arguments where they were written: a
@@ -120,12 +120,12 @@ func TestSecretIsAPreludeName(t *testing.T) {
 // Before ADR 0071 this resolved the arguments in the callee's package, so
 // any package-level name in one was undefined.
 func TestCrossPackageArgumentsResolveInTheCaller(t *testing.T) {
-	httpPkg := buildDep(t, "acme.http", nil, nil, "model WebRequest {\n    host: string\n    authorization: string | None\n}")
+	httpPkg := buildDep(t, "acme.http", nil, nil, "model WebRequest {\n    host: string;\n    authorization: string | None;\n}")
 	app := types.Packages{"acme.http": httpPkg}
-	f := mustParse(t, "use acme.http\n\ngateway send() -> http.WebRequest\n    requires Socket\n{\n    return http.WebRequest(host: Region.Eu.host, authorization: \"Bearer ${Account.key.reveal()}\");\n}")
+	f := mustParse(t, "use acme.http;\n\ngateway send() -> http.WebRequest\n    requires Socket\n{\n    return http.WebRequest(host: Region.Eu.host, authorization: \"Bearer ${Account.key.reveal()}\");\n}")
 	files := []*syntax.File{f,
-		mustParse(t, "wire Account {\n    key: Secret from env \"KEY\"\n}"),
-		mustParse(t, "enum Region(host: string) {\n    Eu(host: \"eu.example.com\")\n}"),
+		mustParse(t, "wire Account {\n    key: Secret from env \"KEY\";\n}"),
+		mustParse(t, "enum Region(host: string) {\n    Eu(host: \"eu.example.com\"),\n}"),
 	}
 	if diags := Check(files, app); len(diags) != 0 {
 		t.Fatalf("diags = %v", diags)

@@ -2,6 +2,6 @@
 // exactly as written, since it is what the Host header says and what the
 // signature covers.
 model S3Endpoint {
-    scheme: string
-    authority: string
+    scheme: string;
+    authority: string;
 }

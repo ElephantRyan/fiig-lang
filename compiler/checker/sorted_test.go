@@ -4,7 +4,7 @@ import "testing"
 
 // ADR 0065 §3: sorted(x in xs): key.
 
-const sortedModels = "model Order {\n    id: string\n    total: decimal\n    region: string\n    note: string | None\n    rush: bool\n}"
+const sortedModels = "model Order {\n    id: string;\n    total: decimal;\n    region: string;\n    note: string | None;\n    rush: bool;\n}"
 
 func TestSortedFormCheck(t *testing.T) {
 	diags := checkSrc(t, `rule r(orders: List<Order>, sorted: int) -> List<Order> {

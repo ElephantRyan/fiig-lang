@@ -37,12 +37,12 @@ capability HttpClient {
                     } else {
                         opened = Socket.connect(outgoing.host, outgoing.port, deadline: until);
                     }
-                }
+                },
 
                 kept -> {
                     opened = Ok(kept);
                     resend = safeToResend(request.method);
-                }
+                },
             }
 
             reused = None;
@@ -56,9 +56,9 @@ capability HttpClient {
                     }
 
                     stale = true;
-                }
+                },
 
-                Ok(_) -> None
+                Ok(_) -> None,
             }
 
             // readReply never asks for more once closed is true, so this
@@ -75,25 +75,25 @@ capability HttpClient {
                         }
 
                         return Ok(reply);
-                    }
+                    },
 
                     ReplyRead.Malformed(reason) -> {
                         Socket.close(connection);
                         return Err(HttpError.MalformedReply(reason: reason));
-                    }
+                    },
 
                     // The rest of the reply is unread, so the connection
                     // can't carry another request.
                     ReplyRead.TooLarge -> {
                         Socket.close(connection);
                         return Err(HttpError.ReplyTooLarge(limit: maxBytes));
-                    }
+                    },
 
                     ReplyRead.NeedMore -> {
                         match (Socket.read(connection, deadline: until)) {
                             Ok(chunk) -> {
                                 buffer = <<buffer: bytes, chunk: bytes>>;
-                            }
+                            },
 
                             Err(failure) -> {
                                 if (resend && buffer.length() == 0 && closedByServer(failure)) {
@@ -103,17 +103,17 @@ capability HttpClient {
                                     match (failure) {
                                         SocketError.Closed -> {
                                             closed = true;
-                                        }
+                                        },
 
                                         _ -> {
                                             Socket.close(connection);
                                             return Err(HttpError.Socket(failure: failure));
-                                        }
+                                        },
                                     }
                                 }
-                            }
+                            },
                         }
-                    }
+                    },
                 }
             }
         }

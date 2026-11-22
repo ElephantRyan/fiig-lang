@@ -2,10 +2,10 @@
 // a bulk string is bytes. Null is both the null bulk string ($-1) and the
 // null array (*-1): a missing key and a timed-out blocking pop.
 enum RespValue {
-    Simple(text: string)
-    Error(text: string)
-    Integer(value: int)
-    Bulk(data: bytes)
-    Null
-    Array(items: List<RespValue>)
+    Simple(text: string),
+    Error(text: string),
+    Integer(value: int),
+    Bulk(data: bytes),
+    Null,
+    Array(items: List<RespValue>),
 }

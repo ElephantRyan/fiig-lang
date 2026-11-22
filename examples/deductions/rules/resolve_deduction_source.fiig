@@ -17,11 +17,11 @@ rule resolveDeductionSource(
     return match (DeductionSource(code: raw)) {
         None -> {
             return match (DeductionSource(aliases: raw)) {
-                None -> Err(DeductionError.UnknownSource(raw))
-                found -> Ok(found)
+                None -> Err(DeductionError.UnknownSource(raw)),
+                found -> Ok(found),
             }
-        }
+        },
 
-        found -> Ok(found)
+        found -> Ok(found),
     }
 }

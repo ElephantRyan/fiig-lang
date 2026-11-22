@@ -3,12 +3,12 @@ adapter http ratingsApi {
     POST "/ratings" -> rate(input: NewRating)
             consumes "application/json"
             produces "application/json" {
-        Ok(rating) -> 200 rating
-        Err(error) -> 400 describeRatingError(error)
+        Ok(rating) -> 200 rating,
+        Err(error) -> 400 describeRatingError(error),
     }
 
     GET "/ratings/{item}" -> readRating(item: string) produces "application/json" {
-        Ok(rating) -> 200 rating
-        Err(error) -> 404 describeRatingError(error)
+        Ok(rating) -> 200 rating,
+        Err(error) -> 404 describeRatingError(error),
     }
 }

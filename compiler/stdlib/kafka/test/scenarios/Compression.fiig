@@ -15,11 +15,11 @@ test everyCodecWritesABatchThatUnpacks {
             <<_: i64be, length: i32be, _: i32be, _: u8, crc: u32be, rest: bytes>> -> {
                 expect length == rest.length() + 9;
                 expect crc == crypto.crc32c(rest);
-            }
+            },
 
             _ -> {
                 expect false;
-            }
+            },
         }
 
         expect attributesOf(batch) == bitsOf(codec);
@@ -37,11 +37,11 @@ test snappyIsXerialFramedInChunks {
             expect version == 1;
             expect compatible == 1;
             expect first > 0;
-        }
+        },
 
         _ -> {
             expect false;
-        }
+        },
     }
 
     // 80,000 bytes is three 32 KiB chunks.
@@ -70,14 +70,14 @@ test javaBatchesUnpack {
         match (written.fromHex()) {
             None -> {
                 expect false;
-            }
+            },
 
             section -> {
                 expect unpackedRecords(codec, section, 1000) is Ok(records);
                 expect records.length() == 72;
                 expect records.slice(6, 35) == hello;
                 expect records.slice(42, 71) == hello;
-            }
+            },
         }
     }
 }
@@ -97,18 +97,18 @@ private {
 
     attributesOf(batch: bytes) -> int {
         return match (batch) {
-            <<_: bytes(21), attributes: i16be, _: bytes>> -> attributes
-            _ -> 0 - 1
+            <<_: bytes(21), attributes: i16be, _: bytes>> -> attributes,
+            _ -> 0 - 1,
         }
     }
 
     bitsOf(codec: Compression) -> int {
         return match (codec) {
-            Compression.None -> 0
-            Compression.Gzip -> 1
-            Compression.Snappy -> 2
-            Compression.Lz4 -> 3
-            Compression.Zstd -> 4
+            Compression.None -> 0,
+            Compression.Gzip -> 1,
+            Compression.Snappy -> 2,
+            Compression.Lz4 -> 3,
+            Compression.Zstd -> 4,
         }
     }
 

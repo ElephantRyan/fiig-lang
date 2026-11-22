@@ -15,10 +15,10 @@ import (
 // and read in either alphabet; OpenAPI says so with format base64url.
 var base64URLProgram = []string{
 	`model Draft {
-    id: string
-    raw: bytes from json base64url
-    parts: List<bytes> from json "chunks" base64url
-    plain: bytes | None
+    id: string;
+    raw: bytes from json base64url;
+    parts: List<bytes> from json "chunks" base64url;
+    plain: bytes | None;
 }`,
 	`workflow echoDraft(draft: Draft) -> Draft {
     return draft;
@@ -26,7 +26,7 @@ var base64URLProgram = []string{
 	`adapter http draftApi {
     POST "/drafts" -> echoDraft(draft: Draft)
         consumes "application/json"
-        produces "application/json"
+        produces "application/json";
 }`,
 }
 

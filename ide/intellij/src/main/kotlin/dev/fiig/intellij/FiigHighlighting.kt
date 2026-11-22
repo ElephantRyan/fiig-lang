@@ -31,8 +31,11 @@ object FiigColors {
     val PARENTHESES = createTextAttributesKey("FIIG_PARENTHESES", D.PARENTHESES)
     val BRACKETS = createTextAttributesKey("FIIG_BRACKETS", D.BRACKETS)
     val OPERATOR = createTextAttributesKey("FIIG_OPERATOR", D.OPERATION_SIGN)
-    val COMMA = createTextAttributesKey("FIIG_COMMA", D.COMMA)
-    val SEMICOLON = createTextAttributesKey("FIIG_SEMICOLON", D.SEMICOLON)
+    // Plain text, not D.COMMA or D.SEMICOLON: the Dark scheme gives those
+    // the keyword colour, which made every `;` and `,` (ADRs 0142, 0145)
+    // read as an error.
+    val COMMA = createTextAttributesKey("FIIG_COMMA", HighlighterColors.TEXT)
+    val SEMICOLON = createTextAttributesKey("FIIG_SEMICOLON", HighlighterColors.TEXT)
     val DOT = createTextAttributesKey("FIIG_DOT", D.DOT)
     val BAD = createTextAttributesKey("FIIG_BAD_CHARACTER", HighlighterColors.BAD_CHARACTER)
 

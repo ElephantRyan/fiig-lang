@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // What a call to the store can come to. NotFound is a key that isn't there
 // (a 404), apart from a refusal because the answer is usually a branch, not
@@ -6,10 +6,10 @@ use fiig.http
 // error code and message from its body (`AccessDenied`, `NoSuchBucket`);
 // OutOfRange is a ranged GET that starts past the object's end (a 416).
 enum S3Error {
-    NotFound
-    OutOfRange
-    Refused(status: int, code: string, message: string)
-    Http(failure: http.HttpError)
-    InvalidRequest(reason: string)
-    InvalidConfig(reason: string)
+    NotFound,
+    OutOfRange,
+    Refused(status: int, code: string, message: string),
+    Http(failure: http.HttpError),
+    InvalidRequest(reason: string),
+    InvalidConfig(reason: string),
 }

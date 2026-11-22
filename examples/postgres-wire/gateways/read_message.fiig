@@ -9,11 +9,11 @@ gateway readMessage(connection: Connection, pending: bytes) -> Result<Frame, Soc
             None -> {
                 chunk = Socket.read(connection)?;
                 buffer = <<buffer: bytes, chunk: bytes>>;
-            }
+            },
 
             frame -> {
                 return Ok(frame);
-            }
+            },
         }
     }
 }

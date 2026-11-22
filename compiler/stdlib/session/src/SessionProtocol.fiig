@@ -6,9 +6,9 @@
 // "provides": {"fiig.session.SessionProtocol": "KafkaSession"}, and
 // Session.call from that package's gateways runs it.
 interface SessionProtocol {
-    opened(settings: Map<string, string>, now: int) -> Step
-    received(state: bytes, data: bytes, now: int) -> Step
-    asked(state: bytes, message: bytes, now: int) -> Step
-    tick(state: bytes, now: int) -> Step
-    closing(state: bytes, now: int) -> Step
+    opened(settings: Map<string, string>, now: int) -> Step;
+    received(state: bytes, data: bytes, now: int) -> Step;
+    asked(state: bytes, message: bytes, now: int) -> Step;
+    tick(state: bytes, now: int) -> Step;
+    closing(state: bytes, now: int) -> Step;
 }

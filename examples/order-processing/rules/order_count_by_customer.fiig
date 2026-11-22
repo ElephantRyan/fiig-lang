@@ -14,8 +14,8 @@ private {
     // from present, and the match says what absent means here.
     countSoFar(counts: Map<string, int>, customerId: string) -> int {
         return match (counts.atOrNone(customerId)) {
-            None -> 0
-            count -> count
+            None -> 0,
+            count -> count,
         }
     }
 }

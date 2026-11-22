@@ -18,15 +18,15 @@ out.
   only through a gateway that names the domain in its `requires` line:
 
   ```fiig
-  use shop.kernel
-  use shop.payments
+  use shop.kernel;
+  use shop.payments;
 
   gateway chargeOrder(order: string, amount: kernel.Money) -> Result<Charge, ChargeError>
       requires payments
   {
       return match (payments.capturePayment(reference: order, amount: amount)) {
-          Ok(receipt) -> Ok(Charge(id: receipt.id, refundable: receipt.refundable))
-          Err(failure) -> Err(chargeErrorOf(failure))
+          Ok(receipt) -> Ok(Charge(id: receipt.id, refundable: receipt.refundable)),
+          Err(failure) -> Err(chargeErrorOf(failure)),
       }
   }
   ```

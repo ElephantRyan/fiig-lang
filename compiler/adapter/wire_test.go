@@ -14,7 +14,7 @@ import (
 func wireProgram(conversion string) []string {
 	return []string{
 		`model User {
-    name: string
+    name: string;
 }`,
 		`workflow logIn(name: string) -> User {
     return User(name: name);
@@ -24,7 +24,7 @@ func wireProgram(conversion string) []string {
     POST "/login/{name}" -> logIn(name: string)
         produces "application/json"
     {
-        user -> respond(user)
+        user -> respond(user),
     }
 }`,
 	}

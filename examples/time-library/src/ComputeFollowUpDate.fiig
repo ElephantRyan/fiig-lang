@@ -7,8 +7,8 @@
 // — a rule — which only an activity may do (ADR 0029: a rule calls nothing
 // at all, the same restriction regardless of which package the callee
 // lives in; ADR 0030: that composition is exactly Activity's job).
-use company.time as businessTime
-use standard.time as systemTime
+use company.time as businessTime;
+use standard.time as systemTime;
 
 activity computeFollowUpDate(from: systemTime.Instant) -> systemTime.Instant {
     return businessTime.addBusinessDays(from, 3);

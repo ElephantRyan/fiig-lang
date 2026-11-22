@@ -2,11 +2,11 @@
 // epoch, how long until the next heartbeat, and, when assigned is true,
 // the partitions of topicId the member now owns.
 model HeartbeatAnswer {
-    code: int
-    message: string
-    epoch: int
-    intervalMillis: int
-    assigned: bool
-    topicId: bytes
-    partitions: List<int>
+    code: int;
+    message: string;
+    epoch: int;
+    intervalMillis: int;
+    assigned: bool;
+    topicId: bytes;
+    partitions: List<int>;
 }

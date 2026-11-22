@@ -7,10 +7,10 @@ gateway openSecure(host: string, port: int) -> Result<Connection, SocketError> r
     Socket.write(connection, <<8: i32be, 80877103: i32be>>)?;
     answer = Socket.read(connection)?;
     return match (answer) {
-        <<83: u8>> -> Socket.startTls(connection, host)
+        <<83: u8>> -> Socket.startTls(connection, host),
         _ -> {
             Socket.close(connection);
             return Err(SocketError.Refused);
-        }
+        },
     }
 }

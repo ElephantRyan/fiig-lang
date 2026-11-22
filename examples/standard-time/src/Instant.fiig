@@ -4,5 +4,5 @@
 // actual time. A model rather than a bare `int` (ADR 0055) because that
 // mechanism needs a real imported type to resolve.
 model Instant {
-    days: int
+    days: int;
 }

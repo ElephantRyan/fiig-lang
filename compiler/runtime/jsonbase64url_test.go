@@ -11,14 +11,14 @@ import (
 
 var base64URLProgram = []string{
 	`model Message {
-    id: string
-    raw: bytes from json base64url
-    chunks: List<bytes> from json "parts" base64url
-    thumb: bytes | None from json base64url
-    plain: bytes
+    id: string;
+    raw: bytes from json base64url;
+    chunks: List<bytes> from json "parts" base64url;
+    thumb: bytes | None from json base64url;
+    plain: bytes;
 }`,
 	`enum Upload {
-    Sent(body: bytes from json "data" base64url)
+    Sent(body: bytes from json "data" base64url),
 }`,
 	`rule sample(b: bytes, small: bytes, thumb: bytes | None) -> Message {
     return Message(id: "m1", raw: b, chunks: [b, small], thumb: thumb, plain: b);

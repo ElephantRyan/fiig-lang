@@ -58,9 +58,9 @@ file:
 
 ```fiig
 wire Abs {
-    url: string | None from env "ABS_URL" ?? setting "abs.url"
-    token: Secret | None from env "ABS_SERVICE_TOKEN" ?? setting "abs.serviceToken"
-    workers: int from env "INDEX_WORKERS" ?? setting "abs.indexWorkers" on restart = 4
+    url: string | None from env "ABS_URL" ?? setting "abs.url";
+    token: Secret | None from env "ABS_SERVICE_TOKEN" ?? setting "abs.serviceToken";
+    workers: int from env "INDEX_WORKERS" ?? setting "abs.indexWorkers" on restart = 4;
 }
 ```
 
@@ -237,15 +237,15 @@ the top of `src/` (ADR 0132), so launching it is `fiig serve .` and not a
 script:
 
 ```fiig
-use abs.recommendations.sessions
-use abs.recommendations.sync
+use abs.recommendations.sessions;
+use abs.recommendations.sync;
 
 application AbsRecommendations {
     serve web {
-        sessions.sessionsApi
+        sessions.sessionsApi;
     }
     serve worker {
-        sync.syncSchedule
+        sync.syncSchedule;
     }
 }
 ```

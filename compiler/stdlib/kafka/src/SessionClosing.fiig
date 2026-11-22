@@ -1,4 +1,4 @@
-use fiig.session
+use fiig.session;
 
 // ADR 0117 §2, §5: the process is stopping. A group member commits what
 // was acked and leaves its group (epoch -1), so its partitions move at
@@ -8,7 +8,7 @@ conversion sessionClosing(state: bytes, now: int) -> session.Step {
     return match (decoded) {
         Err(_) -> {
             return failedStep("fiig.kafka's session state doesn't decode");
-        }
+        },
 
         Ok(s) -> {
             turn = SessionTurn(state: s, write: <<>>, replies: [], close: None);
@@ -34,6 +34,6 @@ conversion sessionClosing(state: bytes, now: int) -> session.Step {
                 write: <<committed.write: bytes, leave: bytes>>,
             );
             return sessionStep(left, None);
-        }
+        },
     }
 }

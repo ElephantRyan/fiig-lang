@@ -3,7 +3,7 @@
 // that can never work, such as a redelivery delay shorter than one
 // element may take (§5a), and halts the route.
 enum SourceError {
-    Unavailable(reason: string)
-    Protocol(reason: string)
-    Misconfigured(reason: string)
+    Unavailable(reason: string),
+    Protocol(reason: string),
+    Misconfigured(reason: string),
 }

@@ -10,8 +10,8 @@ import (
 // ADR 0140: config fields that read a setting saved in the app.
 
 const settingsConfig = `wire Abs {
-    url: string | None from env "ABS_URL" ?? setting "abs.url"
-    workers: int from setting "abs.workers" on restart ?? env "WORKERS" = 4
+    url: string | None from env "ABS_URL" ?? setting "abs.url";
+    workers: int from setting "abs.workers" on restart ?? env "WORKERS" = 4;
 }`
 
 const saveUrl = `gateway saveUrl(url: string) -> Result<None, SettingError>
@@ -35,7 +35,7 @@ func TestSettingFieldsCheck(t *testing.T) {
 	for _, c := range cases {
 		wantDiag(t, config(c.field), "V1", c.fragment)
 	}
-	twice := checkSrc(t, settingsConfig, "wire Other {\n    again: string | None from setting \"abs.url\"\n}")
+	twice := checkSrc(t, settingsConfig, "wire Other {\n    again: string | None from setting \"abs.url\";\n}")
 	if len(twice) != 2 || twice[0].Rule != "V1" || twice[1].Rule != "V1" {
 		t.Fatalf("one setting read by two fields: %v", twice)
 	}
@@ -61,9 +61,9 @@ func TestASettingsCallNamesADeclaredSetting(t *testing.T) {
 }
 
 func TestAWhenReadsOnlyHardSettings(t *testing.T) {
-	soft := "wire Mirror when (Abs.url != \"\") {\n    on: bool from env \"MIRROR\" = false\n}"
+	soft := "wire Mirror when (Abs.url != \"\") {\n    on: bool from env \"MIRROR\" = false;\n}"
 	wantDiag(t, checkSrc(t, settingsConfig, soft), "V2", "a setting that changes while the process runs")
-	hard := "wire Pool when (Abs.workers != 0) {\n    size: int from env \"POOL\" = 1\n}"
+	hard := "wire Pool when (Abs.workers != 0) {\n    size: int from env \"POOL\" = 1;\n}"
 	if diags := checkSrc(t, settingsConfig, hard); len(diags) > 0 {
 		t.Fatalf("a when reading a hard setting: %v", diags)
 	}

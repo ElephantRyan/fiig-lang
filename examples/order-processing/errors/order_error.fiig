@@ -1,6 +1,6 @@
 enum OrderError {
-    NotFound(id: string)
-    InventoryUnavailable(orderId: string)
-    PaymentDeclined(reason: string)
-    ShippingUnavailable(orderId: string)
+    NotFound(id: string),
+    InventoryUnavailable(orderId: string),
+    PaymentDeclined(reason: string),
+    ShippingUnavailable(orderId: string),
 }

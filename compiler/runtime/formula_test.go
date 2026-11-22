@@ -29,12 +29,12 @@ const runtimeVectorGroup = `formulas vector {
     }
 }`
 
-const runtimeVectorModel = "model Vector {\n    x: int\n    y: int\n}"
+const runtimeVectorModel = "model Vector {\n    x: int;\n    y: int;\n}"
 
 func TestFormulaRunsAndReachesItsSiblings(t *testing.T) {
 	u := universeFromSource(t, runtimeVectorModel, runtimeVectorGroup,
-		"use geo.vector\n\nrule lengthOf(v: Vector) -> int {\n    return vector.lengthSquared(v);\n}",
-		"use geo.vector\n\nrule cube(n: int) -> int {\n    return vector.power(n, 3);\n}",
+		"use geo.vector;\n\nrule lengthOf(v: Vector) -> int {\n    return vector.lengthSquared(v);\n}",
+		"use geo.vector;\n\nrule cube(n: int) -> int {\n    return vector.power(n, 3);\n}",
 	)
 	in := newTestInterp(u, nil)
 	v := Record{TypeName: "Vector", Fields: map[string]Value{"x": Int(3), "y": Int(4)}}
@@ -50,7 +50,7 @@ func TestFormulaRunsAndReachesItsSiblings(t *testing.T) {
 // formulas: recursion is legal, and a runaway one faults.
 func TestFormulaRecursionIsBoundedByTheCallDepth(t *testing.T) {
 	u := universeFromSource(t, runtimeVectorModel, runtimeVectorGroup,
-		"use geo.vector\n\nrule forever(n: int) -> int {\n    return vector.power(n, -1);\n}",
+		"use geo.vector;\n\nrule forever(n: int) -> int {\n    return vector.power(n, -1);\n}",
 	)
 	in := newTestInterp(u, nil)
 	in.MaxCallDepth = 50
@@ -65,10 +65,10 @@ func TestFormulaAcrossPackages(t *testing.T) {
 		mustParseFile(t, runtimeVectorModel),
 		mustParseFile(t, runtimeVectorGroup),
 		// A group calling a group of its own package, through its own import.
-		mustParseFile(t, "use acme.geometry.vector\n\nformulas shapes {\n    formula diagonal(v: Vector) -> int {\n        return vector.lengthSquared(v);\n    }\n}"),
+		mustParseFile(t, "use acme.geometry.vector;\n\nformulas shapes {\n    formula diagonal(v: Vector) -> int {\n        return vector.lengthSquared(v);\n    }\n}"),
 	}, nil)
 	packages := types.Packages{"acme.geometry": geometry}
-	app := mustParseFile(t, "use acme.geometry\nuse acme.geometry.shapes\n\nrule diag(v: geometry.Vector) -> int {\n    return shapes.diagonal(v);\n}")
+	app := mustParseFile(t, "use acme.geometry;\nuse acme.geometry.shapes;\n\nrule diag(v: geometry.Vector) -> int {\n    return shapes.diagonal(v);\n}")
 	universe, _ := types.BuildUniverse([]*syntax.File{app})
 	in := New(universe, NewCapabilityRegistry())
 	in.Imports = map[string]map[string]*types.Package{"diag": checker.ResolveFileImports(app, packages)}

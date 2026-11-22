@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 test aSignedGetMatchesTheReference {
     call = S3Call(
@@ -107,7 +107,7 @@ private {
     // A request header's value, or "" when it has none.
     header(request: http.Request, name: string) -> string {
         return match (request.headers) {
-            None -> ""
+            None -> "",
             given -> {
                 for (each in given) {
                     if (each.name == name) {
@@ -116,7 +116,7 @@ private {
                 }
 
                 return "";
-            }
+            },
         }
     }
 }

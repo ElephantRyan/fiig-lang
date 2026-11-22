@@ -2,7 +2,7 @@
 // JSON until the type says what it holds. The sender names the type
 // "@type", which isn't an identifier, so the field says where it reads.
 model Envelope {
-    id: string
-    eventType: string from json "@type"
-    data: JsonValue
+    id: string;
+    eventType: string from json "@type";
+    data: JsonValue;
 }

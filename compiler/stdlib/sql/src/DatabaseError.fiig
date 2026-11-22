@@ -4,7 +4,7 @@
 // SQLSTATE; constraint, table, and column say where a conflict is, when the
 // server says (ADR 0087 §4).
 enum DatabaseError {
-    Server(code: string, message: string, constraint: string | None, table: string | None, column: string | None)
-    Broken(failure: SocketError)
-    Protocol(reason: string)
+    Server(code: string, message: string, constraint: string | None, table: string | None, column: string | None),
+    Broken(failure: SocketError),
+    Protocol(reason: string),
 }

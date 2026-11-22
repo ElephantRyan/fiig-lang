@@ -8,7 +8,7 @@ conversion pendingEntries(reply: RespValue) -> List<PendingEntry> {
                     RespValue.Array(fields) -> {
                         if (fields.length() == 4) {
                             match (textOf(fields.first())) {
-                                None -> None
+                                None -> None,
                                 id -> {
                                     match (fields.last()) {
                                         RespValue.Integer(count) -> {
@@ -16,21 +16,21 @@ conversion pendingEntries(reply: RespValue) -> List<PendingEntry> {
                                                 out,
                                                 PendingEntry(id: id, deliveries: count),
                                             );
-                                        }
+                                        },
 
-                                        _ -> None
+                                        _ -> None,
                                     }
-                                }
+                                },
                             }
                         }
-                    }
+                    },
 
-                    _ -> None
+                    _ -> None,
                 }
             }
-        }
+        },
 
-        _ -> None
+        _ -> None,
     }
 
     return out;

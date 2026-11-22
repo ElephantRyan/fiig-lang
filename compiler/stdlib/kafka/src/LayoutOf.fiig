@@ -14,14 +14,14 @@ conversion layoutOf(parts: List<bytes>) -> Result<TopicLayout, KafkaError> {
             return Err(
                 KafkaError.MalformedReply(reason: "a Layout ask's answer isn't a LayoutReply"),
             );
-        }
+        },
 
         Ok(reply) -> {
             match (reply.error) {
-                None -> None
+                None -> None,
                 failure -> {
                     return Err(failure);
-                }
+                },
             }
 
             return match (reply.layout) {
@@ -31,12 +31,12 @@ conversion layoutOf(parts: List<bytes>) -> Result<TopicLayout, KafkaError> {
                             reason: "a Layout ask's answer has no layout and no error",
                         ),
                     );
-                }
+                },
 
                 layout -> {
                     return Ok(layout);
-                }
+                },
             }
-        }
+        },
     }
 }

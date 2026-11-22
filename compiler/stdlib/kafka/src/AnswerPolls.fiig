@@ -1,4 +1,4 @@
-use fiig.session
+use fiig.session;
 
 // turn with every held Poll answered that can be (ADR 0117 §4): with the
 // partitions ready to fetch, those whose committed offset is known and

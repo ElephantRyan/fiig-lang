@@ -13,7 +13,7 @@ private {
     // K2: the prelude's Result is what `Result` means in every file, so a
     // model of that name could never be reached as a type.
     model Result {
-        within: bool
-        margin: float
+        within: bool;
+        margin: float;
     }
 }

@@ -1,4 +1,4 @@
 enum DeductionError {
-    UnknownSource(raw: string)
-    UnsupportedSource(raw: string)
+    UnknownSource(raw: string),
+    UnsupportedSource(raw: string),
 }

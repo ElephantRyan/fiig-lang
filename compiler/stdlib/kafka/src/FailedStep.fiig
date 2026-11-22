@@ -1,4 +1,4 @@
-use fiig.session
+use fiig.session;
 
 // A Step that ends the connection, failing every waiting call, for a state
 // or an ask this package can't read: a defect, so nothing is kept.

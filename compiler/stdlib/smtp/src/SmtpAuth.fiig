@@ -3,8 +3,8 @@
 // it, else AUTH PLAIN, else AUTH LOGIN; the others take that mechanism or
 // end the send.
 enum SmtpAuth {
-    Auto from json "auto"
-    Plain from json "plain"
-    Login from json "login"
-    XOAuth2 from json "xoauth2"
+    Auto from json "auto",
+    Plain from json "plain",
+    Login from json "login",
+    XOAuth2 from json "xoauth2",
 }

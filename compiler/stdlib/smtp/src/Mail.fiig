@@ -7,14 +7,14 @@
 // `attachments` are files it carries (§2b). Every field after body may be
 // left out.
 model Mail {
-    from: string
-    to: List<string>
-    subject: string
-    body: string
-    cc: List<string> | None
-    bcc: List<string> | None
-    replyTo: string | None
-    names: Map<string, string> | None
-    html: string | None
-    attachments: List<Attachment> | None
+    from: string;
+    to: List<string>;
+    subject: string;
+    body: string;
+    cc: List<string> | None;
+    bcc: List<string> | None;
+    replyTo: string | None;
+    names: Map<string, string> | None;
+    html: string | None;
+    attachments: List<Attachment> | None;
 }

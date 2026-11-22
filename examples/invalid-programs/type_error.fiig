@@ -47,7 +47,7 @@ conversion orderToSummary(customer: Customer) -> CustomerSummary { // rejected: 
 adapter http customerEmailApiBroken {
     PATCH "/customers/{id}" -> changeCustomerEmail(id: string, newEmail: string) // rejected: newEmail is body-bound but string isn't a model
             consumes "application/json"
-            produces "application/json"
+            produces "application/json";
 }
 
 // Type error (bug class A9): a match over a fully known type must cover
@@ -55,8 +55,8 @@ adapter http customerEmailApiBroken {
 // arm to cover it either.
 rule describeCustomerError(error: CustomerError) -> string {
     return match (error) {
-        CustomerError.NotFound(_) -> "not found"
-        CustomerError.EmailAlreadyInUse(_) -> "email already in use"
+        CustomerError.NotFound(_) -> "not found",
+        CustomerError.EmailAlreadyInUse(_) -> "email already in use",
     }
 }
 
@@ -66,8 +66,8 @@ rule describeCustomerError(error: CustomerError) -> string {
 // catch-all arm to cover it either.
 rule describeRegion(region: Region) -> string {
     return match (region) {
-        Region.US -> "United States"
-        Region.EU -> "Europe"
+        Region.US -> "United States",
+        Region.EU -> "Europe",
     }
 }
 

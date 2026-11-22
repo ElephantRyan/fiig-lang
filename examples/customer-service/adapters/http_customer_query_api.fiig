@@ -5,5 +5,5 @@
 adapter http customerQueryApi {
     QUERY "/customers/lookup" -> lookupCustomer(criteria: CustomerLookup)
             consumes "application/json"
-            produces "application/json"
+            produces "application/json";
 }

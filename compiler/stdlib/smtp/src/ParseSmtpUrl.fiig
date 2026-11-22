@@ -82,7 +82,7 @@ conversion parseSmtpUrl(url: string) -> Result<SmtpTarget, SmtpError> {
         match (portText.toIntOrNone()) {
             None -> {
                 return Err(invalid("its port isn't a number"));
-            }
+            },
 
             number -> {
                 if (number < 1 || number > 65535) {
@@ -90,7 +90,7 @@ conversion parseSmtpUrl(url: string) -> Result<SmtpTarget, SmtpError> {
                 }
 
                 port = number;
-            }
+            },
         }
     }
 
@@ -142,11 +142,11 @@ private {
         return match (out.utf8()) {
             None -> {
                 return Err(invalid("its user or password isn't UTF-8 once decoded"));
-            }
+            },
 
             decoded -> {
                 return Ok(decoded);
-            }
+            },
         }
     }
 

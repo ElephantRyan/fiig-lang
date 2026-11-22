@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // ADR 0085: a Postgres driver written in fiig, the frontend side of
 // protocol 3.0 over Socket. The runtime pools its connections, keeps each
@@ -46,16 +46,16 @@ capability Postgres provides db.SqlConnectionDriver {
                 None -> {
                     chunk = bytesOr(Socket.read(connection))?;
                     buffer = <<buffer: bytes, chunk: bytes>>;
-                }
+                },
 
                 frame -> {
                     buffer = frame.rest;
                     state = handshakeStep(state, frame.kind, frame.body);
                     match (state.failed) {
-                        None -> None
+                        None -> None,
                         failure -> {
                             return Err(failure);
-                        }
+                        },
                     }
 
                     if (state.ready) {
@@ -73,7 +73,7 @@ capability Postgres provides db.SqlConnectionDriver {
                     if (state.send.length() > 0) {
                         writtenOr(Socket.write(connection, state.send))?;
                     }
-                }
+                },
             }
         }
     }
@@ -91,13 +91,13 @@ capability Postgres provides db.SqlConnectionDriver {
             plan = planStatement(current, sql, values);
             current = plan.connection;
             match (Socket.write(on.connection, plan.write)) {
-                Ok(_) -> None
+                Ok(_) -> None,
                 Err(failure) -> {
                     return db.SqlRun(
                         connection: current,
                         result: Err(db.DatabaseError.Broken(failure: failure)),
                     );
-                }
+                },
             }
 
             state: Reply = Reply(
@@ -118,27 +118,27 @@ capability Postgres provides db.SqlConnectionDriver {
                         match (Socket.read(on.connection)) {
                             Ok(chunk) -> {
                                 buffer = <<buffer: bytes, chunk: bytes>>;
-                            }
+                            },
 
                             Err(failure) -> {
                                 return db.SqlRun(
                                     connection: current,
                                     result: Err(db.DatabaseError.Broken(failure: failure)),
                                 );
-                            }
+                            },
                         }
-                    }
+                    },
 
                     frame -> {
                         buffer = frame.rest;
                         state = replyStep(state, frame.kind, frame.body);
                         match (state.row) {
-                            None -> None
+                            None -> None,
                             row -> {
                                 rows = append(rows, row);
-                            }
+                            },
                         }
-                    }
+                    },
                 }
             }
 
@@ -162,11 +162,11 @@ capability Postgres provides db.SqlConnectionDriver {
                             ),
                         ),
                     );
-                }
+                },
 
                 failure -> {
                     return db.SqlRun(connection: current, result: Err(failure));
-                }
+                },
             }
         }
     }
@@ -183,53 +183,53 @@ capability Postgres provides db.SqlConnectionDriver {
         }
 
         match (readSettings(settings)) {
-            Err(_) -> None
+            Err(_) -> None,
             Ok(pg) -> {
                 match (Socket.connect(pg.host, pg.port)) {
-                    Err(_) -> None
+                    Err(_) -> None,
                     Ok(opened) -> {
                         connection: Connection = opened;
                         ready: bool = true;
                         if (pg.secure) {
                             ready = false;
                             match (Socket.write(connection, <<8: i32be, 80877103: i32be>>)) {
-                                Err(_) -> None
+                                Err(_) -> None,
                                 Ok(_) -> {
                                     match (Socket.read(connection)) {
-                                        Err(_) -> None
+                                        Err(_) -> None,
                                         Ok(answer) -> {
                                             if (answer.length() == 1 && answer.at(0) == 83) {
                                                 match (Socket.startTls(connection, pg.host)) {
-                                                    Err(_) -> None
+                                                    Err(_) -> None,
                                                     Ok(upgraded) -> {
                                                         connection = upgraded;
                                                         ready = true;
-                                                    }
+                                                    },
                                                 }
                                             }
-                                        }
+                                        },
                                     }
-                                }
+                                },
                             }
                         }
 
                         if (ready) {
                             length = key.length() + 8;
                             match (Socket.write(connection, <<length: i32be, 80877102: i32be, key: bytes>>)) {
-                                Err(_) -> None
+                                Err(_) -> None,
                                 Ok(_) -> {
                                     match (Socket.read(connection)) {
-                                        Ok(_) -> None
-                                        Err(_) -> None
+                                        Ok(_) -> None,
+                                        Err(_) -> None,
                                     }
-                                }
+                                },
                             }
                         }
 
                         Socket.close(connection);
-                    }
+                    },
                 }
-            }
+            },
         }
 
         return None;
@@ -239,8 +239,8 @@ capability Postgres provides db.SqlConnectionDriver {
     // closes either way.
     gateway close(connection: Connection) -> None requires Socket {
         match (Socket.write(connection, <<88: u8, 4: i32be>>)) {
-            Ok(_) -> None
-            Err(_) -> None
+            Ok(_) -> None,
+            Err(_) -> None,
         }
 
         Socket.close(connection);

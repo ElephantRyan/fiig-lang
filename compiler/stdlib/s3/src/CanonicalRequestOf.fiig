@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // SigV4's canonical request over headers canonicalHeaders made: the method,
 // the path as sent, no query string, a line per header, the names they are

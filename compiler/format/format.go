@@ -72,7 +72,8 @@ func FormatTyped(src string, ors map[int]bool) (string, []parser.Error, []lexer.
 	return blankAfterBlocks(p.out.String()), nil, unknown
 }
 
-// blankAfterBlocks puts a blank line after a line that only closes a block,
+// blankAfterBlocks puts a blank line after a line that only closes a block
+// (`}`, or a block arm's `},`),
 // so a block stands apart from what follows it. It doesn't when what
 // follows closes something too (`}`, `)`, `]`), continues the block
 // (`else`), or is already a blank line. It reads src with the lexer, so a
@@ -97,7 +98,9 @@ func blankAfterBlocks(src string) string {
 			first[l] = t.Kind
 		}
 		count[l]++
-		closesOnly[l] = count[l] == 1 && t.Kind == lexer.RBrace
+		// `},` closes a block arm (ADR 0145 §2), as `}` closes a block.
+		closesOnly[l] = count[l] == 1 && t.Kind == lexer.RBrace ||
+			count[l] == 2 && t.Kind == lexer.Comma && first[l] == lexer.RBrace
 	}
 	var b strings.Builder
 	for i, line := range lines {
@@ -129,6 +132,17 @@ type printer struct {
 	indent   int
 	comments []lexer.Comment
 	ci       int // index of the next not-yet-emitted comment
+	// after is what follows the next block's closing `}`: `,` for a block
+	// arm (ADR 0145 §2). A block takes it as it opens, so blocks inside it
+	// close plain.
+	after string
+}
+
+// takeAfter returns and clears what follows the next closing `}`.
+func (p *printer) takeAfter() string {
+	a := p.after
+	p.after = ""
+	return a
 }
 
 func (p *printer) writeIndent() {
@@ -223,6 +237,7 @@ func (p *printer) printImport(imp *syntax.Import) {
 		sb.WriteString(" as ")
 		sb.WriteString(imp.Alias)
 	}
+	sb.WriteString(";") // ADR 0145 §1
 	line := startLine(imp)
 	p.emitLine(sb.String(), line, line)
 }
@@ -233,18 +248,18 @@ func (p *printer) printDecl(d syntax.Decl) {
 	switch d := d.(type) {
 	case *syntax.ModelDecl:
 		p.printFieldedDecl("model "+d.Name, fieldsToSpanned(d.Fields), startLine(d), func(i int) string {
-			return printField(d.Fields[i])
+			return printField(d.Fields[i]) + ";"
 		})
 	case *syntax.EnumDecl:
 		if d.Header != nil {
 			rows := enumRows(d.Variants)
 			p.printFieldedDecl("enum "+d.Name+printEnumHeader(d.Header), variantsToSpanned(d.Variants), startLine(d), func(i int) string {
-				return rows[i]
+				return rows[i] + ","
 			})
 			break
 		}
 		p.printFieldedDecl("enum "+d.Name, variantsToSpanned(d.Variants), startLine(d), func(i int) string {
-			return printEnumVariant(d.Variants[i])
+			return printEnumVariant(d.Variants[i]) + ","
 		})
 	case *syntax.RuleDecl:
 		p.printCallableDecl("rule", d.Name, d.Params, d.ReturnType, d.Body, startLine(d))
@@ -265,7 +280,7 @@ func (p *printer) printDecl(d syntax.Decl) {
 	case *syntax.InterfaceDecl:
 		p.printFieldedDecl("interface "+d.Name, membersToSpanned(d.Members), startLine(d), func(i int) string {
 			m := d.Members[i]
-			return fmt.Sprintf("%s%s -> %s", m.Name, printParams(m.Params), printType(m.ReturnType))
+			return fmt.Sprintf("%s%s -> %s;", m.Name, printParams(m.Params), printType(m.ReturnType))
 		})
 	case *syntax.CapabilityDecl:
 		p.printCapabilityDecl(d)
@@ -296,7 +311,7 @@ func (p *printer) printDecl(d syntax.Decl) {
 			if f.Default != nil {
 				line += " = " + printExpr(f.Default)
 			}
-			return line
+			return line + ";"
 		})
 	}
 }
@@ -385,7 +400,7 @@ func (p *printer) printFakeDecl(f *syntax.FakeDecl) {
 	for _, v := range f.Values {
 		vLine := startLine(v.Value.(syntax.Spanned))
 		p.emitLeading(vLine)
-		p.printValueLine(v.Name+": ", v.Value, vLine)
+		p.printValueLineEnd(v.Name+": ", v.Value, vLine, ";")
 	}
 	_, end := f.Bounds()
 	p.emitLeading(end.Line)
@@ -413,7 +428,7 @@ func (p *printer) printFormulasDecl(d *syntax.FormulasDecl) {
 		mLine := startLine(m)
 		tail := " {"
 		if m.Body == nil {
-			tail = ""
+			tail = ";" // a native leaf (ADR 0049 §2.4) is an item (ADR 0145 §1)
 		}
 		p.printSignature("formula "+m.Name, m.Params, " -> "+printType(m.ReturnType), clauses, tail, mLine)
 		if m.Body != nil {
@@ -718,7 +733,7 @@ func (p *printer) printAdapterDecl(d *syntax.AdapterDecl) {
 		if r.As != "" {
 			ref += " as " + r.As
 		}
-		p.emitLine(ref, startLine(r), startLine(r))
+		p.emitLine(ref+";", startLine(r), startLine(r))
 	}
 	if d.HasPrincipals() && len(d.Routes) > 0 {
 		p.out.WriteByte('\n')
@@ -751,7 +766,7 @@ func (p *printer) printApplicationDecl(d *syntax.ApplicationDecl) {
 		for _, a := range b.Adapters {
 			al := startLine(a)
 			p.emitLeading(al)
-			p.emitLine(strings.Join(a.Path, "."), al, al)
+			p.emitLine(strings.Join(a.Path, ".")+";", al, al)
 		}
 		p.indent--
 		p.writeIndent()
@@ -809,7 +824,7 @@ func (p *printer) printRoute(r *syntax.Route) {
 		clauses = append(clauses, "produces "+strconv.Quote(r.Produces.Text))
 		clauseLines = append(clauseLines, startLine(r.Produces))
 	}
-	tail := ""
+	tail := ";" // ADR 0145 §1
 	if len(r.Mapping) > 0 {
 		tail = " {"
 	}
@@ -845,7 +860,7 @@ func (p *printer) printRoute(r *syntax.Route) {
 	for _, arm := range r.Mapping {
 		al := startLine(arm)
 		p.emitLeading(al)
-		content := fmt.Sprintf("%s -> %s", printPattern(arm.Pattern), printResponseValue(arm.Value))
+		content := fmt.Sprintf("%s -> %s,", printPattern(arm.Pattern), printResponseValue(arm.Value))
 		p.emitLine(content, al, al)
 	}
 	p.indent--
@@ -867,7 +882,7 @@ func (p *printer) printPrincipal(pr *syntax.PrincipalDecl) {
 			head += " scheme " + strconv.Quote(pr.Scheme)
 		}
 	}
-	tail := "by " + pr.By.Name() + " else " + pr.Else.Name()
+	tail := "by " + pr.By.Name() + " else " + pr.Else.Name() + ";"
 	if len(strings.Repeat("    ", p.indent))+len(head)+1+len(tail) <= maxLineWidth {
 		p.emitLine(head+" "+tail, line, line)
 		return
@@ -964,6 +979,7 @@ func printType(t syntax.Type) string {
 // opening "{" and its newline were already written by the caller (it's
 // always the tail of a header line the caller already emitted).
 func (p *printer) printBlockBody(b *syntax.Block) {
+	after := p.takeAfter()
 	p.indent++
 	for _, s := range b.Stmts {
 		p.emitLeading(startLine(s.(syntax.Spanned)))
@@ -972,13 +988,14 @@ func (p *printer) printBlockBody(b *syntax.Block) {
 	p.indent--
 	// See printFieldedDecl: no drain before "}" here either.
 	p.writeIndent()
-	p.out.WriteString("}\n")
+	p.out.WriteString("}" + after + "\n")
 }
 
 // printProducingBody prints the body of a declaration that returns a value
 // (ADR 0142 §2): its last statement, a bare expression or `match` that was
 // the value, is written with `return` (printProducingStmt).
 func (p *printer) printProducingBody(b *syntax.Block) {
+	after := p.takeAfter()
 	p.indent++
 	for i, s := range b.Stmts {
 		p.emitLeading(startLine(s.(syntax.Spanned)))
@@ -990,7 +1007,7 @@ func (p *printer) printProducingBody(b *syntax.Block) {
 	}
 	p.indent--
 	p.writeIndent()
-	p.out.WriteString("}\n")
+	p.out.WriteString("}" + after + "\n")
 }
 
 // printProducingStmt prints the statement whose value a block produces. A
@@ -1329,6 +1346,7 @@ func (p *printer) printMatch(prefix string, s *syntax.MatchStmt) {
 // printMatchArms is printMatch, with each block arm printed as a producing
 // body when producing: the arms of the match that is a declaration's value.
 func (p *printer) printMatchArms(prefix string, s *syntax.MatchStmt, producing bool) {
+	after := p.takeAfter()
 	line := startLine(s)
 	p.emitLine(fmt.Sprintf("%smatch %s {", prefix, condition(s.Subject)), line, line)
 	p.indent++
@@ -1340,15 +1358,18 @@ func (p *printer) printMatchArms(prefix string, s *syntax.MatchStmt, producing b
 	p.indent--
 	// See printFieldedDecl: no drain before "}" here either.
 	p.writeIndent()
-	p.out.WriteString("}\n")
+	p.out.WriteString("}" + after + "\n")
 }
 
 func (p *printer) printMatchArm(arm syntax.MatchArm, producing bool) {
 	prefix := printPattern(arm.Pattern) + " -> "
 	switch body := arm.Body.(type) {
 	case syntax.ExprBody:
-		// An arm's value wraps at its opening `(` as a statement's does.
-		p.printValueLine(prefix, body.Expr, startLine(arm))
+		// An arm's value wraps at its opening `(` as a statement's does, and
+		// is followed by `,` (ADR 0145 §2), after its `}` if it is a match.
+		p.after = ","
+		p.printValueLineEnd(prefix, body.Expr, startLine(arm), ",")
+		p.after = ""
 	case *syntax.Block:
 		// Deliberately not emitLine for the opening brace: a block-bodied arm
 		// attested in the corpus (checkout.fiig) is written as one compact
@@ -1360,6 +1381,7 @@ func (p *printer) printMatchArm(arm syntax.MatchArm, producing bool) {
 		// statement it actually follows instead of the brace above it.
 		p.writeIndent()
 		p.out.WriteString(prefix + "{\n")
+		p.after = ","
 		if producing {
 			p.printProducingBody(body)
 		} else {

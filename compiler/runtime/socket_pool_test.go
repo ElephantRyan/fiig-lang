@@ -22,10 +22,10 @@ const keepSource = `gateway exchange(host: string, port: int, message: string, s
     match (reused) {
         None -> {
             opened = Socket.connect(host, port);
-        }
+        },
         kept -> {
             opened = Ok(kept);
-        }
+        },
     }
     connection = opened?;
     Socket.write(connection, message.utf8())?;

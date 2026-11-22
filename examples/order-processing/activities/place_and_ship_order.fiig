@@ -10,7 +10,7 @@ activity placeAndShipOrder(
     order = placeOrder(orderId, customerId, total)?;
     shipped = reserveShipping(order.id);
     return match (shipped) {
-        Ok(_) -> Ok(order)
+        Ok(_) -> Ok(order),
         Err(_) -> {
             // Best-effort compensation: its own outcome doesn't change the
             // error already being returned below (F1 requires every Result
@@ -19,6 +19,6 @@ activity placeAndShipOrder(
             refunded = refundPayment(order.paymentReference);
             released = releaseInventory(order.id);
             return Err(OrderError.ShippingUnavailable(order.id));
-        }
+        },
     }
 }

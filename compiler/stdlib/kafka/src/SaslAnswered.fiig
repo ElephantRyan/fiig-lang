@@ -16,16 +16,16 @@ conversion saslAnswered(
     return match (login.mechanism) {
         None -> {
             return refused(turn, "the broker answered a SASL request this session didn't make");
-        }
+        },
 
         mechanism -> {
             if (kind == "saslHandshake") {
                 match (readSaslHandshake(frame, saslMechanismName(mechanism))) {
                     Err(reason) -> {
                         return refused(turn, reason);
-                    }
+                    },
 
-                    Ok(_) -> None
+                    Ok(_) -> None,
                 }
 
                 if (mechanism == SaslMechanism.Plain) {
@@ -41,7 +41,7 @@ conversion saslAnswered(
             return match (readSaslAuthenticate(frame)) {
                 Err(reason) -> {
                     return refused(turn, reason);
-                }
+                },
 
                 Ok(message) -> {
                     if (kind == "saslPlain") {
@@ -51,14 +51,14 @@ conversion saslAnswered(
                     return match (message.utf8()) {
                         None -> {
                             return refused(turn, "the broker's SCRAM message isn't text");
-                        }
+                        },
 
                         text -> {
                             if (kind == "saslFirst") {
                                 match (computeScramFinal(mechanism, login.password, s.scramFirstBare, s.scramNonce, text)) {
                                     Err(reason) -> {
                                         return refused(turn, reason);
-                                    }
+                                    },
 
                                     Ok(final) -> {
                                         proof = sent(turn, "saslFinal", final.message.utf8());
@@ -69,7 +69,7 @@ conversion saslAnswered(
                                                 scramSignature: final.serverSignature,
                                             ),
                                         );
-                                    }
+                                    },
                                 }
                             }
 
@@ -79,12 +79,12 @@ conversion saslAnswered(
 
                             if (text.startsWith("v=") && s.scramSignature.length() > 0) {
                                 match (text.removePrefix("v=").fromBase64()) {
-                                    None -> None
+                                    None -> None,
                                     signature -> {
                                         if (crypto.equal(signature, s.scramSignature)) {
                                             return loggedIn(turn);
                                         }
-                                    }
+                                    },
                                 }
                             }
 
@@ -92,11 +92,11 @@ conversion saslAnswered(
                                 turn,
                                 "the broker's SCRAM signature is wrong, so it doesn't know the password",
                             );
-                        }
+                        },
                     }
-                }
+                },
             }
-        }
+        },
     }
 }
 

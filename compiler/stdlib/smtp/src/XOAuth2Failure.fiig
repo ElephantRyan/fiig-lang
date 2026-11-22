@@ -2,5 +2,5 @@
 // (Google's XOAUTH2 protocol): a JSON object, of which only the status is
 // read, as in {"status":"401","schemes":"Bearer","scope":"https://mail.google.com/"}.
 model XOAuth2Failure {
-    status: string | None
+    status: string | None;
 }

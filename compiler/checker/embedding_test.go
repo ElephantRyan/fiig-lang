@@ -17,8 +17,8 @@ func parseAll(t *testing.T, srcs ...string) []*syntax.File {
 }
 
 const embeddingModels = `model Address {
-    line1: string
-    city: string
+    line1: string;
+    city: string;
 }`
 
 // TestEmbeddingFlattensThroughSeveralLevels is ADR 0045: promoted fields
@@ -27,8 +27,8 @@ const embeddingModels = `model Address {
 func TestEmbeddingFlattensThroughSeveralLevels(t *testing.T) {
 	files := parseAll(t,
 		embeddingModels,
-		"model ContactInfo {\n    Address\n    email: string\n}",
-		"model Customer {\n    ContactInfo\n    id: string\n}",
+		"model ContactInfo {\n    Address;\n    email: string;\n}",
+		"model Customer {\n    ContactInfo;\n    id: string;\n}",
 		"rule cityOf(c: Customer) -> string {\n    return c.city;\n}",
 		"rule emailOf(c: Customer) -> string {\n    return c.email;\n}",
 		"rule build(a: Address, id: string) -> Customer {\n    return Customer(ContactInfo: ContactInfo(Address: a, email: \"x\"), id: id);\n}",
@@ -42,7 +42,7 @@ func TestEmbeddingFlattensThroughSeveralLevels(t *testing.T) {
 func TestEmbeddingRejectsUnknownPromotedFieldAndMissingEmbed(t *testing.T) {
 	files := parseAll(t,
 		embeddingModels,
-		"model Customer {\n    Address\n    id: string\n}",
+		"model Customer {\n    Address;\n    id: string;\n}",
 		"rule bad(c: Customer) -> string {\n    return c.zip;\n}",
 		"rule short(id: string) -> Customer {\n    return Customer(id: id);\n}",
 	)
@@ -58,7 +58,7 @@ func TestEmbeddingRejectsUnknownPromotedFieldAndMissingEmbed(t *testing.T) {
 func TestEmbeddingDoesNotImplySubtyping(t *testing.T) {
 	files := parseAll(t,
 		embeddingModels,
-		"model Customer {\n    Address\n    id: string\n}",
+		"model Customer {\n    Address;\n    id: string;\n}",
 		"rule takesAddress(a: Address) -> string {\n    return a.city;\n}",
 		"activity bad(c: Customer) -> string {\n    return takesAddress(c);\n}",
 	)
@@ -74,7 +74,7 @@ func TestEmbeddingDoesNotImplySubtyping(t *testing.T) {
 func TestEmbeddingShadowingAndSameDepthCollision(t *testing.T) {
 	shadow := parseAll(t,
 		embeddingModels,
-		"model Customer {\n    Address\n    city: int\n}",
+		"model Customer {\n    Address;\n    city: int;\n}",
 		"rule cityOf(c: Customer) -> int {\n    return c.city;\n}",
 	)
 	if diags := Check(shadow, nil); len(diags) != 0 {
@@ -83,8 +83,8 @@ func TestEmbeddingShadowingAndSameDepthCollision(t *testing.T) {
 
 	collide := parseAll(t,
 		embeddingModels,
-		"model Billing {\n    city: string\n}",
-		"model Customer {\n    Address\n    Billing\n}",
+		"model Billing {\n    city: string;\n}",
+		"model Customer {\n    Address;\n    Billing;\n}",
 	)
 	got := rules(Check(collide, nil))
 	if got["A10"] != 1 || len(got) != 1 {
@@ -94,9 +94,9 @@ func TestEmbeddingShadowingAndSameDepthCollision(t *testing.T) {
 	// Shallower wins: a field at depth 1 beats one at depth 2, no error.
 	deep := parseAll(t,
 		embeddingModels,
-		"model Deep {\n    city: string\n}",
-		"model Wrapper {\n    Deep\n}",
-		"model Customer {\n    Address\n    Wrapper\n}",
+		"model Deep {\n    city: string;\n}",
+		"model Wrapper {\n    Deep;\n}",
+		"model Customer {\n    Address;\n    Wrapper;\n}",
 	)
 	if got := rules(Check(deep, nil)); got["A10"] != 0 {
 		t.Fatalf("a shallower promoted field must win without error, got %v", got)
@@ -105,9 +105,9 @@ func TestEmbeddingShadowingAndSameDepthCollision(t *testing.T) {
 
 func TestEmbeddingCycleIsA11AtEveryMember(t *testing.T) {
 	files := parseAll(t,
-		"model A {\n    B\n}",
-		"model B {\n    A\n}",
-		"model Self {\n    Self\n}",
+		"model A {\n    B;\n}",
+		"model B {\n    A;\n}",
+		"model Self {\n    Self;\n}",
 	)
 	got := rules(Check(files, nil))
 	if got["A11"] != 3 {
@@ -117,8 +117,8 @@ func TestEmbeddingCycleIsA11AtEveryMember(t *testing.T) {
 
 func TestEmbeddingMustNameAModel(t *testing.T) {
 	files := parseAll(t,
-		"enum CustomerKind {\n    Retail\n}",
-		"model Customer {\n    CustomerKind\n    Missing\n}",
+		"enum CustomerKind {\n    Retail,\n}",
+		"model Customer {\n    CustomerKind;\n    Missing;\n}",
 	)
 	diags := Check(files, nil)
 	var msgs []string

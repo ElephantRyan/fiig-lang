@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // The names of canonicalHeaders' headers, in their order, joined by
 // semicolons: the SignedHeaders of the Authorization header.

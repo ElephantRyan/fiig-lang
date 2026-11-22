@@ -3,8 +3,8 @@
 // three times, incidentally but correctly.
 wire Billing {
     // V1: a default on a Secret would put the secret in the source.
-    apiKey: Secret from env "BILLING_API_KEY" = "sk_live_123"
-    retries: int from env "BILLING_RETRIES" = 3
+    apiKey: Secret from env "BILLING_API_KEY" = "sk_live_123";
+    retries: int from env "BILLING_RETRIES" = 3;
 }
 
 // B10: a rule reading config; its answer would depend on the deployment,

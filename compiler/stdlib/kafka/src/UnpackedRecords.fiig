@@ -10,25 +10,25 @@ conversion unpackedRecords(
     return match (compression) {
         Compression.None -> {
             return Ok(data);
-        }
+        },
 
         Compression.Gzip -> {
             return Ok(
                 mapErr(e in compress.gunzip(data, maxSize)): KafkaError.Decompress(failure: e)?,
             );
-        }
+        },
 
         Compression.Lz4 -> {
             return Ok(
                 mapErr(e in compress.unlz4(data, maxSize)): KafkaError.Decompress(failure: e)?,
             );
-        }
+        },
 
         Compression.Zstd -> {
             return Ok(
                 mapErr(e in compress.unzstd(data, maxSize)): KafkaError.Decompress(failure: e)?,
             );
-        }
+        },
 
         Compression.Snappy -> {
             if (data.length() < 16 || data.slice(0, 8) != xerialMagic()) {
@@ -40,7 +40,7 @@ conversion unpackedRecords(
             }
 
             return unxerial(data.slice(16, data.length()), maxSize);
-        }
+        },
     }
 }
 
@@ -58,7 +58,7 @@ private {
                     )?;
                     out = <<out: bytes, chunk: bytes>>;
                     rest = more;
-                }
+                },
 
                 _ -> {
                     return Err(
@@ -68,7 +68,7 @@ private {
                             ),
                         ),
                     );
-                }
+                },
             }
         }
 

@@ -1,6 +1,6 @@
 // A broker session's answer to Layout (ADR 0113 §4, as amended
 // 2026-11-21): the topic's layout, or why there is none.
 model LayoutReply {
-    layout: TopicLayout | None
-    error: KafkaError | None
+    layout: TopicLayout | None;
+    error: KafkaError | None;
 }

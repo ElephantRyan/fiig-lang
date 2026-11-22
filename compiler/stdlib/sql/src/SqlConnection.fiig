@@ -8,9 +8,9 @@
 // first, at most cacheSize of them (0 keeps none), and named counts the
 // names the driver has given, so none repeats.
 model SqlConnection {
-    connection: Connection
-    cancelKey: bytes
-    statements: List<SqlStatement>
-    named: int
-    cacheSize: int
+    connection: Connection;
+    cancelKey: bytes;
+    statements: List<SqlStatement>;
+    named: int;
+    cacheSize: int;
 }

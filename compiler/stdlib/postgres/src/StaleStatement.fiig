@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // ADR 0085 §3b: the server no longer knows a cached statement as it was
 // prepared: 26000, it has none by that name (a DEALLOCATE or DISCARD ALL
@@ -8,10 +8,10 @@ conversion staleStatement(failed: db.DatabaseError | None) -> bool {
     return match (failed) {
         db.DatabaseError.Server(code, message, _, _, _) -> {
             return code == "26000" || (code == "0A000" && message.contains("cached plan must not change result type"));
-        }
+        },
 
         _ -> {
             return false;
-        }
+        },
     }
 }

@@ -10,8 +10,8 @@ import (
 // ADR 0124: startup routes, bug classes I7 and I9.
 
 const startupErrors = `enum StorageError {
-    Missing
-    Unreachable(reason: string)
+    Missing,
+    Unreachable(reason: string),
 }`
 
 const verifyStorage = `workflow verifyStorage() -> Result<None, StorageError> {
@@ -30,9 +30,9 @@ func checkStartup(t *testing.T, adapter string) []Diagnostic {
 func TestStartupRoutesCheck(t *testing.T) {
 	src := `adapter startup Preflight {
     run -> verifyStorage() {
-        Ok(_) -> proceed
-        Err(StorageError.Missing) -> halt
-        Err(StorageError.Unreachable(_)) -> proceed
+        Ok(_) -> proceed,
+        Err(StorageError.Missing) -> halt,
+        Err(StorageError.Unreachable(_)) -> proceed,
     }
 }`
 	if diags := checkStartup(t, src); len(diags) > 0 {
@@ -43,14 +43,14 @@ func TestStartupRoutesCheck(t *testing.T) {
 func TestStartupRouteOnceAndWithinCheck(t *testing.T) {
 	src := `adapter startup Preflight {
     run once within "2m" -> verifyStorage() {
-        Ok(_) -> proceed
-        Err(_) -> halt
+        Ok(_) -> proceed,
+        Err(_) -> halt,
     }
     run within "500ms" -> verifyStorage() {
-        _ -> proceed
+        _ -> proceed,
     }
     run once -> verifyStorage() {
-        _ -> proceed
+        _ -> proceed,
     }
 }`
 	if diags := checkStartup(t, src); len(diags) > 0 {
@@ -105,9 +105,9 @@ func TestStartupRouteCallsAWorkflow(t *testing.T) {
 func TestStartupConfigFieldChecks(t *testing.T) {
 	adapter := `adapter startup Preflight {
     run -> verifyStorage() {
-        Ok(_) -> proceed
-        Err(StorageError.Missing) -> halt
-        Err(StorageError.Unreachable(_)) -> degrade
+        Ok(_) -> proceed,
+        Err(StorageError.Missing) -> halt,
+        Err(StorageError.Unreachable(_)) -> degrade,
     }
 }`
 	config := func(field string) []Diagnostic {

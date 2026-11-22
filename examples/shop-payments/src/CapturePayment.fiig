@@ -1,4 +1,4 @@
-use shop.kernel
+use shop.kernel;
 
 // Payments' behaviour, reached by its own adapter and, from another
 // domain, by a gateway that requires shop.payments (ADR 0079 §1).

@@ -1,8 +1,8 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 conversion writtenOr(result: Result<None, SocketError>) -> Result<None, db.DatabaseError> {
     return match (result) {
-        Ok(_) -> Ok(None)
-        Err(failure) -> Err(db.DatabaseError.Broken(failure: failure))
+        Ok(_) -> Ok(None),
+        Err(failure) -> Err(db.DatabaseError.Broken(failure: failure)),
     }
 }

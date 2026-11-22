@@ -20,58 +20,58 @@ import (
 var namedPrincipalApp = map[string]string{
 	"app/fiig.pkg.json": `{"path":"p141","kind":"application","version":"0.1.0"}
 `,
-	"app/src/P141.fiig": `use p141.books
-use p141.admin
-use p141.sessions
+	"app/src/P141.fiig": `use p141.books;
+use p141.admin;
+use p141.sessions;
 
 application P141 {
     serve {
-        books.booksApi
-        admin.adminApi
-        sessions.sessionsApi
+        books.booksApi;
+        admin.adminApi;
+        sessions.sessionsApi;
     }
 }
 `,
-	"app/src/admin/AdminApi.fiig": `use p141.sessions
+	"app/src/admin/AdminApi.fiig": `use p141.sessions;
 
 adapter http adminApi {
-    wire sessions.admin
+    wire sessions.admin;
 
     GET "/admin/stats" -> stats(admin)
         produces "application/json"
     {
-        s -> 200 s
+        s -> 200 s,
     }
 }
 `,
-	"app/src/admin/Stats.fiig": `use p141.sessions
+	"app/src/admin/Stats.fiig": `use p141.sessions;
 
 workflow stats(admin: sessions.AdminUser) -> string {
     return "stats for ${admin.userId}";
 }
 `,
-	"app/src/books/BooksApi.fiig": `use p141.sessions
+	"app/src/books/BooksApi.fiig": `use p141.sessions;
 
 adapter http booksApi {
-    wire sessions.me
+    wire sessions.me;
 
     GET "/books" -> myBooks(me)
         produces "application/json"
     {
-        books -> 200 books
+        books -> 200 books,
     }
 }
 `,
-	"app/src/books/MyBooks.fiig": `use p141.sessions
+	"app/src/books/MyBooks.fiig": `use p141.sessions;
 
 workflow myBooks(me: sessions.Identity) -> string {
     return "books of ${me.userId}";
 }
 `,
-	"app/src/sessions/Admin.fiig": `wire admin: AdminUser from me by signedInAdmin else refused
+	"app/src/sessions/Admin.fiig": `wire admin: AdminUser from me by signedInAdmin else refused;
 `,
 	"app/src/sessions/AdminUser.fiig": `model AdminUser {
-    userId: string
+    userId: string;
 }
 `,
 	"app/src/sessions/CheckAdmin.fiig": `activity checkAdmin(me: Identity) -> Result<AdminUser, IdentityError> {
@@ -82,33 +82,33 @@ workflow myBooks(me: sessions.Identity) -> string {
 }
 `,
 	"app/src/sessions/Identity.fiig": `model Identity {
-    userId: string
-    admin: bool
+    userId: string;
+    admin: bool;
 }
 `,
 	"app/src/sessions/IdentityError.fiig": `enum IdentityError {
-    NotSignedIn
-    NotAnAdmin
+    NotSignedIn,
+    NotAnAdmin,
 }
 `,
 	"app/src/sessions/LookUp.fiig": `activity lookUp(token: string | None) -> Result<Identity, IdentityError> {
     return match (token) {
         None -> {
             return Err(IdentityError.NotSignedIn);
-        }
+        },
         given -> {
             return Ok(Identity(userId: given, admin: given == "boss"));
-        }
+        },
     }
 }
 `,
 	"app/src/sessions/SessionsApi.fiig": `adapter http sessionsApi {
-    wire me
+    wire me;
 
     GET "/me" -> whoAmI(me)
         produces "application/json"
     {
-        who -> 200 who
+        who -> 200 who,
     }
 }
 `,
@@ -116,16 +116,16 @@ workflow myBooks(me: sessions.Identity) -> string {
     return me.userId;
 }
 `,
-	"app/src/sessions/Me.fiig": `wire me: Identity from cookie "sid" by signedIn else refused
+	"app/src/sessions/Me.fiig": `wire me: Identity from cookie "sid" by signedIn else refused;
 `,
 	"app/src/sessions/Refused.fiig": `conversion refused(e: IdentityError) -> HttpResponse<string> {
     return match (e) {
         IdentityError.NotSignedIn -> {
             return HttpResponse(status: 401, body: "sign in first");
-        }
+        },
         IdentityError.NotAnAdmin -> {
             return HttpResponse(status: 403, body: "admins only");
-        }
+        },
     }
 }
 `,

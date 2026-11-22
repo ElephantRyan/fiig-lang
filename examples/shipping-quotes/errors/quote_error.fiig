@@ -2,7 +2,7 @@
 // message: {"variant": "TooHeavy", "weightGrams": 40000, "limitGrams": 30000}.
 // A payload-free variant is still an object: {"variant": "NoExpressAbroad"}.
 enum QuoteError {
-    NonPositiveWeight(weightGrams: int)
-    TooHeavy(weightGrams: int, limitGrams: int)
-    NoExpressAbroad
+    NonPositiveWeight(weightGrams: int),
+    TooHeavy(weightGrams: int, limitGrams: int),
+    NoExpressAbroad,
 }

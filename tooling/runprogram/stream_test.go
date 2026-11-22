@@ -29,15 +29,15 @@ var streamProgram = map[string]string{
     "capabilities": ["Socket"]
 }`,
 	"order_placed.fiig": `model OrderPlaced {
-    orderId: string
-    quantity: int
+    orderId: string;
+    quantity: int;
 }`,
 	"order_error.fiig": `enum OrderError {
-    OutOfStock(sku: string)
-    Invalid(reason: string)
-    Unrecorded(reason: string)
+    OutOfStock(sku: string),
+    Invalid(reason: string),
+    Unrecorded(reason: string),
 }`,
-	"mark_processed.fiig": `use fiig.redis.Redis
+	"mark_processed.fiig": `use fiig.redis.Redis;
 
 gateway markProcessed(orderId: string) -> Result<None, OrderError>
     requires Redis
@@ -45,10 +45,10 @@ gateway markProcessed(orderId: string) -> Result<None, OrderError>
     return match (Redis.send(["INCR", "processed:${orderId}"])) {
         Ok(_) -> {
             return Ok(None);
-        }
+        },
         Err(_) -> {
             return Err(OrderError.Unrecorded(reason: "Redis refused"));
-        }
+        },
     }
 }`,
 	"record.fiig": `activity record(order: OrderPlaced) -> Result<None, OrderError> {
@@ -65,10 +65,10 @@ gateway markProcessed(orderId: string) -> Result<None, OrderError>
 }`,
 	"order_intake.fiig": `adapter stream OrderIntake {
     source "orders" group "intake" from earliest key orderId -> placeOrder(order: OrderPlaced) {
-        Ok(_) -> ack
-        Err(OrderError.OutOfStock(_)) -> retry(attempts: 2) else deadLetter "orders.failed"
-        Err(OrderError.Invalid(_)) -> deadLetter "orders.invalid"
-        Err(OrderError.Unrecorded(_)) -> retry(attempts: 5)
+        Ok(_) -> ack,
+        Err(OrderError.OutOfStock(_)) -> retry(attempts: 2) else deadLetter "orders.failed",
+        Err(OrderError.Invalid(_)) -> deadLetter "orders.invalid",
+        Err(OrderError.Unrecorded(_)) -> retry(attempts: 5),
     }
 }`,
 }
@@ -260,8 +260,8 @@ func TestStreamDeadLettersBinaryPayloads(t *testing.T) {
 }`
 	program["raw_intake.fiig"] = `adapter stream RawIntake {
     source "raw" group "raw" from earliest -> takeRaw(payload: bytes) {
-        Ok(_) -> ack
-        Err(_) -> deadLetter "raw.failed"
+        Ok(_) -> ack,
+        Err(_) -> deadLetter "raw.failed",
     }
 }`
 	runner := streamRunnerWith(t, redis, program, testRetryAfter, "RawIntake")

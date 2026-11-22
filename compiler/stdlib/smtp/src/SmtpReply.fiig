@@ -1,6 +1,6 @@
 // One server reply: its three-digit code and its text, a line each (a reply
 // of several lines repeats the code, as EHLO's does).
 model SmtpReply {
-    code: int
-    lines: List<string>
+    code: int;
+    lines: List<string>;
 }

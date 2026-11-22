@@ -1,6 +1,6 @@
 // An offset in one partition of the consumer's topic: committed, listed,
 // or to fetch from.
 model PartitionOffset {
-    partition: int
-    offset: int
+    partition: int;
+    offset: int;
 }

@@ -1,6 +1,6 @@
 // Why a signed delivery wasn't read: its signature didn't match, or its
 // body, once trusted, wasn't the JSON an envelope is.
 enum InboxError {
-    BadSignature
-    Undecodable(failure: JsonError)
+    BadSignature,
+    Undecodable(failure: JsonError),
 }

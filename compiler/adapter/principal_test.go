@@ -16,22 +16,22 @@ import (
 // ADR 0137: the principal is settled before the request is read.
 
 var principalProgram = []string{
-	"model Identity {\n    userId: string\n}",
-	"model Admin {\n    userId: string\n}",
-	"enum IdentityError {\n    NotSignedIn\n}",
-	"enum AdminRefusal {\n    NotAnAdmin\n}",
-	"model Note {\n    text: string\n}",
+	"model Identity {\n    userId: string;\n}",
+	"model Admin {\n    userId: string;\n}",
+	"enum IdentityError {\n    NotSignedIn,\n}",
+	"enum AdminRefusal {\n    NotAnAdmin,\n}",
+	"model Note {\n    text: string;\n}",
 	`workflow signedIn(token: string | None) -> Result<Identity, IdentityError> {
     return match (token) {
         None -> {
             return Err(IdentityError.NotSignedIn);
-        }
+        },
         given -> {
             if (given == "ann" || given == "boss") {
                 return Ok(Identity(userId: given));
             }
             return Err(IdentityError.NotSignedIn);
-        }
+        },
     }
 }`,
 	`workflow signedInAdmin(me: Identity) -> Result<Admin, AdminRefusal> {
@@ -56,16 +56,16 @@ var principalProgram = []string{
     return "cover ${id}";
 }`,
 	`adapter http api {
-    wire me: Identity from cookie "sid" by signedIn else signInFirst
-    wire admin: Admin from me by signedInAdmin else notAnAdmin
+    wire me: Identity from cookie "sid" by signedIn else signInFirst;
+    wire admin: Admin from me by signedInAdmin else notAnAdmin;
 
     POST "/notes" -> addNote(me, note: Note)
         consumes "application/json"
-        produces "application/json"
+        produces "application/json";
     GET "/settings" -> showSettings(admin)
-        produces "application/json"
+        produces "application/json";
     GET "/covers/{id}" public -> showCover(id: string)
-        produces "application/json"
+        produces "application/json";
 }`,
 }
 
@@ -195,13 +195,13 @@ func TestOpenAPIDescribesPrincipals(t *testing.T) {
 func namedPrincipalProgram() []string {
 	out := append([]string(nil), principalProgram[:len(principalProgram)-1]...)
 	return append(out,
-		`wire me: Identity from cookie "sid" by signedIn else signInFirst`,
-		`wire admin: Admin from me by signedInAdmin else notAnAdmin`,
+		`wire me: Identity from cookie "sid" by signedIn else signInFirst;`,
+		`wire admin: Admin from me by signedInAdmin else notAnAdmin;`,
 		`adapter http api {
-    wire admin
+    wire admin;
 
     GET "/settings" -> showSettings(admin)
-        produces "application/json"
+        produces "application/json";
 }`)
 }
 

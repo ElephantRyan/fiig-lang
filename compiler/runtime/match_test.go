@@ -12,10 +12,10 @@ func TestNameInsideOkKeepsANestedResult(t *testing.T) {
     return match (outer) {
         Ok(reply) -> {
             return reply;
-        }
+        },
         Err(problem) -> {
             return Err(problem);
-        }
+        },
     }
 }`
 	got, f := runEach(t, src, "unwrapOnce", map[string]Value{"n": Int(5)})

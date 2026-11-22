@@ -244,16 +244,16 @@ func mustParse(t *testing.T, src string) *syntax.File {
 // match over a Result either names both or uses a catch-all), so this is
 // built directly rather than found in examples/.
 func TestExhaustiveMatchResult(t *testing.T) {
-	enumDecl := mustParse(t, "enum MyError {\n\tBad\n}")
+	enumDecl := mustParse(t, "enum MyError {\n\tBad,\n}")
 	risky := mustParse(t, "rule risky(x: int) -> Result<int, MyError> {\n\treturn Ok(x);\n}")
 
-	missingErr := mustParse(t, "activity useRisky(x: int) -> int {\n\treturn match (risky(x)) {\n\t\tOk(value) -> value\n\t}\n}")
+	missingErr := mustParse(t, "activity useRisky(x: int) -> int {\n\treturn match (risky(x)) {\n\t\tOk(value) -> value,\n\t}\n}")
 	diags := Check([]*syntax.File{enumDecl, risky, missingErr}, nil)
 	if got := rules(diags)["A9"]; got != 1 {
 		t.Errorf("got %d A9 diagnostics, want 1 (all: %+v)", got, diags)
 	}
 
-	full := mustParse(t, "activity useRisky(x: int) -> int {\n\treturn match (risky(x)) {\n\t\tOk(value) -> value\n\t\tErr(_) -> 0\n\t}\n}")
+	full := mustParse(t, "activity useRisky(x: int) -> int {\n\treturn match (risky(x)) {\n\t\tOk(value) -> value,\n\t\tErr(_) -> 0,\n\t}\n}")
 	diags = Check([]*syntax.File{enumDecl, risky, full}, nil)
 	if len(diags) != 0 {
 		t.Errorf("unexpected diagnostics for fully-covered Result match: %+v", diags)
@@ -268,15 +268,15 @@ func TestExhaustiveMatchResult(t *testing.T) {
 // can't type (Unknown, no capability-contract system yet), so the special
 // case is only reachable through a directly-typed model field here.
 func TestExhaustiveMatchNoneUnion(t *testing.T) {
-	box := mustParse(t, "model Box {\n\tvalue: int | None\n}")
+	box := mustParse(t, "model Box {\n\tvalue: int | None;\n}")
 
-	missingNone := mustParse(t, "rule useBox(b: Box) -> int {\n\treturn match (b.value) {\n\t\tfound -> 1\n\t}\n}")
+	missingNone := mustParse(t, "rule useBox(b: Box) -> int {\n\treturn match (b.value) {\n\t\tfound -> 1,\n\t}\n}")
 	diags := Check([]*syntax.File{box, missingNone}, nil)
 	if got := rules(diags)["A9"]; got != 1 {
 		t.Errorf("got %d A9 diagnostics, want 1 (all: %+v)", got, diags)
 	}
 
-	full := mustParse(t, "rule useBox(b: Box) -> int {\n\treturn match (b.value) {\n\t\tfound -> 1\n\t\tNone -> 0\n\t}\n}")
+	full := mustParse(t, "rule useBox(b: Box) -> int {\n\treturn match (b.value) {\n\t\tfound -> 1,\n\t\tNone -> 0,\n\t}\n}")
 	diags = Check([]*syntax.File{box, full}, nil)
 	if len(diags) != 0 {
 		t.Errorf("unexpected diagnostics for fully-covered None-union match: %+v", diags)
@@ -290,7 +290,7 @@ func TestExhaustiveMatchNoneUnion(t *testing.T) {
 // (rename_customer.fiig), but a self-contained model keeps this test from
 // depending on the real Customer model's shape.
 func TestCopyReturnsBaseModelType(t *testing.T) {
-	widget := mustParse(t, "model Widget {\n\tid: string\n\tcount: int\n}")
+	widget := mustParse(t, "model Widget {\n\tid: string;\n\tcount: int;\n}")
 	rule := mustParse(t, "rule rename(w: Widget, n: int) -> Widget {\n\treturn copy(w, count: n);\n}")
 	diags := Check([]*syntax.File{widget, rule}, nil)
 	if len(diags) != 0 {
@@ -307,7 +307,7 @@ func TestCopyRejectsNonModelBase(t *testing.T) {
 }
 
 func TestCopyRejectsUnknownField(t *testing.T) {
-	widget := mustParse(t, "model Widget {\n\tid: string\n\tcount: int\n}")
+	widget := mustParse(t, "model Widget {\n\tid: string;\n\tcount: int;\n}")
 	rule := mustParse(t, "rule bad(w: Widget) -> Widget {\n\treturn copy(w, bogus: 1);\n}")
 	diags := Check([]*syntax.File{widget, rule}, nil)
 	if len(diags) == 0 {
@@ -316,7 +316,7 @@ func TestCopyRejectsUnknownField(t *testing.T) {
 }
 
 func TestCopyRejectsPositionalOverride(t *testing.T) {
-	widget := mustParse(t, "model Widget {\n\tid: string\n\tcount: int\n}")
+	widget := mustParse(t, "model Widget {\n\tid: string;\n\tcount: int;\n}")
 	rule := mustParse(t, "rule bad(w: Widget, n: int) -> Widget {\n\treturn copy(w, n);\n}")
 	diags := Check([]*syntax.File{widget, rule}, nil)
 	if len(diags) == 0 {
@@ -325,7 +325,7 @@ func TestCopyRejectsPositionalOverride(t *testing.T) {
 }
 
 func TestCopyOverrideTypeMismatchIsA1(t *testing.T) {
-	widget := mustParse(t, "model Widget {\n\tid: string\n\tcount: int\n}")
+	widget := mustParse(t, "model Widget {\n\tid: string;\n\tcount: int;\n}")
 	rule := mustParse(t, "rule bad(w: Widget, s: string) -> Widget {\n\treturn copy(w, count: s);\n}")
 	diags := Check([]*syntax.File{widget, rule}, nil)
 	if got := rules(diags)["A1"]; got != 1 {
@@ -341,9 +341,9 @@ func TestCopyOverrideTypeMismatchIsA1(t *testing.T) {
 // statement was already correctly rejected — not a real distinction, both
 // are "this value's result is silently dropped."
 func TestUnhandledResultInNonProducingMatchArmIsF1(t *testing.T) {
-	enumDecl := mustParse(t, "enum MyError {\n\tBad\n}")
+	enumDecl := mustParse(t, "enum MyError {\n\tBad,\n}")
 	risky := mustParse(t, "rule risky(x: int) -> Result<int, MyError> {\n\treturn Ok(x);\n}")
-	activity := mustParse(t, "activity useRisky(x: int) -> int {\n\tmatch (x) {\n\t\t_ -> risky(x)\n\t}\n\treturn 0;\n}")
+	activity := mustParse(t, "activity useRisky(x: int) -> int {\n\tmatch (x) {\n\t\t_ -> risky(x),\n\t}\n\treturn 0;\n}")
 	diags := Check([]*syntax.File{enumDecl, risky, activity}, nil)
 	if got := rules(diags)["F1"]; got != 1 {
 		t.Errorf("got %d F1 diagnostics, want 1 (all: %+v)", got, diags)
@@ -421,8 +421,8 @@ func TestCrossPackageResolution(t *testing.T) {
 	}
 
 	broken := mustParse(t, `
-use company.time as businessTime
-use standard.time as systemTime
+use company.time as businessTime;
+use standard.time as systemTime;
 
 activity computeFollowUpDate(from: systemTime.Instant) -> systemTime.Instant {
     return businessTime.addBusinessDays(3, 3);
@@ -442,17 +442,17 @@ activity computeFollowUpDate(from: systemTime.Instant) -> systemTime.Instant {
 // list, same as G2, and must not depend on whether the packages are
 // loaded.
 func TestDuplicateImportAliasIsG3(t *testing.T) {
-	implicit := mustParse(t, "use company.time\nuse standard.time\n\nrule noop(x: int) -> int {\n\treturn x;\n}")
+	implicit := mustParse(t, "use company.time;\nuse standard.time;\n\nrule noop(x: int) -> int {\n\treturn x;\n}")
 	if got := rules(Check([]*syntax.File{implicit}, nil))["G3"]; got != 1 {
 		t.Errorf("implicit last-segment aliases: got %d G3 diagnostics, want 1", got)
 	}
 
-	explicit := mustParse(t, "use company.time as t\nuse standard.time as t\n\nrule noop(x: int) -> int {\n\treturn x;\n}")
+	explicit := mustParse(t, "use company.time as t;\nuse standard.time as t;\n\nrule noop(x: int) -> int {\n\treturn x;\n}")
 	if got := rules(Check([]*syntax.File{explicit}, nil))["G3"]; got != 1 {
 		t.Errorf("explicit duplicate `as` aliases: got %d G3 diagnostics, want 1", got)
 	}
 
-	distinct := mustParse(t, "use company.time as businessTime\nuse standard.time\n\nrule noop(x: int) -> int {\n\treturn x;\n}")
+	distinct := mustParse(t, "use company.time as businessTime;\nuse standard.time;\n\nrule noop(x: int) -> int {\n\treturn x;\n}")
 	if diags := Check([]*syntax.File{distinct}, nil); len(diags) != 0 {
 		t.Errorf("unexpected diagnostics for distinct aliases: %+v", diags)
 	}
@@ -468,10 +468,10 @@ func TestDuplicateImportAliasIsG3(t *testing.T) {
 // exported workflow"), because the workflow *does* exist and the only
 // reason the activity won the lookup is walk order.
 func TestDuplicateDeclNameReportsBothSitesAndSuppressesCascade(t *testing.T) {
-	model := mustParse(t, "model NewCustomer {\n\tname: string\n}")
+	model := mustParse(t, "model NewCustomer {\n\tname: string;\n}")
 	activity := mustParse(t, "activity createCustomer(input: NewCustomer) -> NewCustomer {\n\treturn input;\n}")
 	workflow := mustParse(t, "workflow createCustomer(input: NewCustomer) -> NewCustomer {\n\treturn input;\n}")
-	adapter := mustParse(t, "adapter http CustomerApi {\n\tPOST \"/customers\" -> createCustomer(input: NewCustomer)\n\t\tconsumes \"application/json\"\n\t\tproduces \"application/json\"\n}")
+	adapter := mustParse(t, "adapter http CustomerApi {\n\tPOST \"/customers\" -> createCustomer(input: NewCustomer)\n\t\tconsumes \"application/json\"\n\t\tproduces \"application/json\";\n}")
 
 	// Both orderings: the result must not depend on which one is seen first.
 	for _, order := range [][]*syntax.File{
@@ -498,11 +498,11 @@ func TestDuplicateDeclNameReportsBothSitesAndSuppressesCascade(t *testing.T) {
 // workflow), and an adapter may attach to nothing else (B6 — including an
 // activity, even though an activity may now be effectful).
 func TestWorkflowIsUncallableAndOnlyAdapterBoundary(t *testing.T) {
-	model := mustParse(t, "model NewCustomer {\n\tname: string\n}")
+	model := mustParse(t, "model NewCustomer {\n\tname: string;\n}")
 	inner := mustParse(t, "workflow inner(input: NewCustomer) -> NewCustomer {\n\treturn input;\n}")
 	outer := mustParse(t, "workflow outer(input: NewCustomer) -> NewCustomer {\n\treturn inner(input);\n}")
 	act := mustParse(t, "activity coordinate(input: NewCustomer) -> NewCustomer {\n\treturn input;\n}")
-	api := mustParse(t, "adapter http Api {\n\tPOST \"/c\" -> coordinate(input: NewCustomer)\n}")
+	api := mustParse(t, "adapter http Api {\n\tPOST \"/c\" -> coordinate(input: NewCustomer);\n}")
 
 	got := rules(Check([]*syntax.File{model, inner, outer, act, api}, nil))
 	if got["B8"] != 1 || got["B6"] != 1 {
@@ -517,7 +517,7 @@ func TestWorkflowIsUncallableAndOnlyAdapterBoundary(t *testing.T) {
 // activities, and the runtime's call depth limit bounds it), so it is not
 // B9.
 func TestActivityMayCallGatewayAndActivityButNotCycle(t *testing.T) {
-	model := mustParse(t, "model NewCustomer {\n\tname: string\n}")
+	model := mustParse(t, "model NewCustomer {\n\tname: string;\n}")
 	gw := mustParse(t, "gateway save(input: NewCustomer) -> NewCustomer\n\trequires Database\n{\n\treturn input;\n}")
 	a := mustParse(t, "activity a(input: NewCustomer) -> NewCustomer {\n\treturn save(input);\n}")
 	b := mustParse(t, "activity b(input: NewCustomer) -> NewCustomer {\n\treturn a(input);\n}")

@@ -37,7 +37,7 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
     // given for (a Bcc recipient's is allowed, and never written).
     known: List<string> = append(recipientsOf(mail), mail.from);
     match (mail.replyTo) {
-        None -> None
+        None -> None,
         address -> {
             if (!validAddress(address)) {
                 return Err(
@@ -48,11 +48,11 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
             }
 
             known = append(known, address);
-        }
+        },
     }
 
     match (mail.names) {
-        None -> None
+        None -> None,
         names -> {
             for (address in names.keys()) {
                 if (!known.contains(address)) {
@@ -65,7 +65,7 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
 
                 checkName(names.at(address))?;
             }
-        }
+        },
     }
 
     if (mail.subject.contains("\r") || mail.subject.contains("\n")) {
@@ -77,14 +77,14 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
     }
 
     match (mail.attachments) {
-        None -> None
+        None -> None,
         attachments -> {
             number: int = 1;
             for (attachment in attachments) {
                 checkAttachment(attachment, number)?;
                 number = number + 1;
             }
-        }
+        },
     }
 
     return Ok(None);
@@ -149,8 +149,8 @@ private {
 
     listOf(addresses: List<string> | None) -> List<string> {
         return match (addresses) {
-            None -> []
-            given -> given
+            None -> [],
+            given -> given,
         }
     }
 

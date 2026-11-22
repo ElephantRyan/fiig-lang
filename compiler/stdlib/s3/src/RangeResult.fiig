@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // A ranged GET's bytes: the body of a 206, which is the part asked for (cut
 // short when the object ends first). A 416 is OutOfRange, a range that
@@ -25,12 +25,12 @@ conversion rangeResult(reply: http.Reply, first: int, last: int | None) -> Resul
 
     end: int = size;
     match (last) {
-        None -> None
+        None -> None,
         given -> {
             if (given < size - 1) {
                 end = given + 1;
             }
-        }
+        },
     }
 
     return Ok(reply.body.slice(first, end));

@@ -2,6 +2,6 @@
 // or rediss:// for TLS, and how long one command may take, connecting
 // included.
 wire RedisServer {
-    url: Secret from env "REDIS_URL"
-    timeoutMillis: int from env "REDIS_TIMEOUT_MS" = 10000
+    url: Secret from env "REDIS_URL";
+    timeoutMillis: int from env "REDIS_TIMEOUT_MS" = 10000;
 }

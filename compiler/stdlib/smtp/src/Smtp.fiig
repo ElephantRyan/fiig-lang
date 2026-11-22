@@ -1,4 +1,4 @@
-use fiig.time
+use fiig.time;
 
 // ADR 0120: sending mail by SMTP, written in fiig over Socket. A mail goes
 // out on a connection an earlier one kept for the same server and login
@@ -13,10 +13,10 @@ capability Smtp {
         checkMail(mail)?;
         token: string | None = None;
         match (SmtpServer.oauthToken) {
-            None -> None
+            None -> None,
             given -> {
                 token = given.reveal();
-            }
+            },
         }
 
         target = withLogin(parseSmtpUrl(SmtpServer.url.reveal())?, SmtpServer.auth, token)?;
@@ -46,18 +46,18 @@ capability Smtp {
                     match (target.security) {
                         SmtpSecurity.Implicit -> {
                             opened = Socket.connectTls(target.host, target.port, deadline: until);
-                        }
+                        },
 
                         _ -> {
                             opened = Socket.connect(target.host, target.port, deadline: until);
-                        }
+                        },
                     }
-                }
+                },
 
                 earlier -> {
                     opened = Ok(earlier);
                     kept = true;
-                }
+                },
             }
 
             reused = None;
@@ -73,23 +73,23 @@ capability Smtp {
             sent: bool = false;
             while (!failed && !sent) {
                 match (nextStep(dialogue)) {
-                    SmtpStep.Listen -> None
+                    SmtpStep.Listen -> None,
                     SmtpStep.Send(out) -> {
                         match (Socket.write(connection, out, deadline: until)) {
                             Err(e) -> {
                                 failed = true;
                                 failure = SmtpError.Socket(failure: e);
                                 continue;
-                            }
+                            },
 
-                            Ok(_) -> None
+                            Ok(_) -> None,
                         }
-                    }
+                    },
 
                     SmtpStep.Finish -> {
                         sent = true;
                         continue;
-                    }
+                    },
 
                     SmtpStep.Upgrade -> {
                         // Bytes that arrived after the server's agreement and
@@ -108,16 +108,16 @@ capability Smtp {
                                 failed = true;
                                 failure = SmtpError.Socket(failure: e);
                                 continue;
-                            }
+                            },
 
                             Ok(secured) -> {
                                 connection = secured;
-                            }
+                            },
                         }
 
                         dialogue = afterUpgrade(dialogue);
                         continue;
-                    }
+                    },
                 }
 
                 reply: SmtpReply = SmtpReply(code: 0, lines: []);
@@ -128,27 +128,27 @@ capability Smtp {
                             reply = found;
                             buffer = rest;
                             reading = false;
-                        }
+                        },
 
                         SmtpReplyRead.Malformed(reason) -> {
                             failed = true;
                             failure = SmtpError.Protocol(reason: reason);
                             reading = false;
-                        }
+                        },
 
                         SmtpReplyRead.NeedMore -> {
                             match (Socket.read(connection, deadline: until)) {
                                 Ok(chunk) -> {
                                     buffer = <<buffer: bytes, chunk: bytes>>;
-                                }
+                                },
 
                                 Err(e) -> {
                                     failed = true;
                                     failure = SmtpError.Socket(failure: e);
                                     reading = false;
-                                }
+                                },
                             }
-                        }
+                        },
                     }
                 }
 
@@ -159,12 +159,12 @@ capability Smtp {
                 match (advance(dialogue, reply)) {
                     Ok(next) -> {
                         dialogue = next;
-                    }
+                    },
 
                     Err(e) -> {
                         failed = true;
                         failure = e;
-                    }
+                    },
                 }
             }
 

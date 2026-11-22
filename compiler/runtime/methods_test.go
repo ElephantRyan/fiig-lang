@@ -44,10 +44,10 @@ func TestListMethods(t *testing.T) {
     return match (xs.atOrNone(i)) {
         None -> {
             return "none ${xs.length()} ${tail.length()} ${xs.at(1)}";
-        }
+        },
         x -> {
             return "${x} ${head.length()} ${xs.at(2)}";
-        }
+        },
     }
 }
 `

@@ -11,17 +11,17 @@ import (
 // ADR 0071 §1, §3, §4: reading config before the program starts.
 
 var configSources = []string{`wire Settings {
-    maxAge: int from env "MAX_AGE" = 24 * 60 * 60
-    ratio: float from env "RATIO" = 1
-    rate: decimal from env "RATE" = 1.50
-    name: string from env "NAME"
-    verbose: bool from env "VERBOSE" = false
-    level: Level from env "LEVEL" = Level.Info
-    region: string | None from env "REGION"
-    key: Secret from env "API_KEY"
+    maxAge: int from env "MAX_AGE" = 24 * 60 * 60;
+    ratio: float from env "RATIO" = 1;
+    rate: decimal from env "RATE" = 1.50;
+    name: string from env "NAME";
+    verbose: bool from env "VERBOSE" = false;
+    level: Level from env "LEVEL" = Level.Info;
+    region: string | None from env "REGION";
+    key: Secret from env "API_KEY";
 }`, `enum Level {
-    Debug
-    Info
+    Debug,
+    Info,
 }`, `activity show() -> string {
     return "${Settings.maxAge} ${Settings.ratio} ${Settings.rate} ${Settings.name} ${Settings.verbose} ${Settings.level} ${Settings.region}";
 }`, `activity key() -> Secret {

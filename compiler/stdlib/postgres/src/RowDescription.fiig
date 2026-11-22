@@ -15,30 +15,30 @@ conversion rowDescription(body: bytes) -> RowShape | None {
                 match (rest.slice(0, end).utf8()) {
                     None -> {
                         return None;
-                    }
+                    },
 
                     name -> {
                         names = append(names, name);
-                    }
+                    },
                 }
 
                 match (rest.slice(end + 1, rest.length())) {
                     <<skipped: bytes(6), oid: i32be, more: bytes(8), after: bytes>> -> {
                         types = append(types, oid);
                         rest = after;
-                    }
+                    },
 
                     _ -> {
                         return None;
-                    }
+                    },
                 }
 
                 i = i + 1;
             }
 
             return RowShape(names: names, types: types);
-        }
+        },
 
-        _ -> None
+        _ -> None,
     }
 }

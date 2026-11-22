@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // A DataRow's values, each read by its column's type (§8). A length of -1
 // is NULL.
@@ -29,19 +29,19 @@ conversion dataRow(body: bytes, types: List<int>) -> List<db.SqlValue> | None {
                             );
                             rest = after.slice(length, after.length());
                         }
-                    }
+                    },
 
                     _ -> {
                         return None;
-                    }
+                    },
                 }
 
                 i = i + 1;
             }
 
             return values;
-        }
+        },
 
-        _ -> None
+        _ -> None,
     }
 }

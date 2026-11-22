@@ -1,4 +1,4 @@
-use customer.service.text
+use customer.service.text;
 
 // A small validator extracted from validateNewCustomer, which composes it
 // (an activity, ADR 0030). The shape check is a shared formula; the reason

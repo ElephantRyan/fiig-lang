@@ -5,8 +5,8 @@ import "testing"
 // TestComparisonOperandsAreM2AndM3 covers ADR 0052 §2.3 and §2.4: == needs
 // operands of one type, and ordering needs int or string on both sides.
 func TestComparisonOperandsAreM2AndM3(t *testing.T) {
-	point := "model Point {\n\tx: int\n\ty: int\n}"
-	region := "enum Region {\n\tUS\n\tEU\n}"
+	point := "model Point {\n\tx: int;\n\ty: int;\n}"
+	region := "enum Region {\n\tUS,\n\tEU,\n}"
 	cases := []struct {
 		name, src, rule string
 	}{
@@ -55,7 +55,7 @@ func TestBytesAreComparableButNotOrdered(t *testing.T) {
 // TestHandlesAreNotComparableM1: a Connection at any depth, and a capability
 // value, compare by identity only, so == on them is M1.
 func TestHandlesAreNotComparableM1(t *testing.T) {
-	session := "model Session {\n\tconnection: Connection\n\tuser: string\n}"
+	session := "model Session {\n\tconnection: Connection;\n\tuser: string;\n}"
 	nested := "activity same(a: Session, b: Session) -> bool {\n\treturn a == b;\n}"
 	if got := rules(checkSources(t, session, nested)); got["M1"] != 1 {
 		t.Errorf("Connection inside a model: want one M1, got %v", got)
@@ -77,7 +77,7 @@ func TestResultsAreNotComparableM1(t *testing.T) {
 	if got := rules(checkSources(t, listed)); got["M1"] != 1 {
 		t.Errorf("List<Result> !=: want one M1, got %v", got)
 	}
-	attempt := "model Attempt {\n\toutcome: Result<int, string>\n}"
+	attempt := "model Attempt {\n\toutcome: Result<int, string>;\n}"
 	nested := "rule f(a: Attempt, b: Attempt) -> bool {\n\treturn a == b;\n}"
 	if got := rules(checkSources(t, attempt, nested)); got["M1"] != 1 {
 		t.Errorf("Result inside a model: want one M1, got %v", got)

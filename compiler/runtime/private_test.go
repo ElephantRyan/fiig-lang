@@ -30,7 +30,7 @@ private {
     }
 
     model Threshold {
-        minimum: int
+        minimum: int;
     }
 }
 `)
@@ -120,16 +120,16 @@ func TestJSONDecodesNestedPrivateModels(t *testing.T) {
 
 private {
     model Item {
-        media: Media
-        tags: List<Tag>
+        media: Media;
+        tags: List<Tag>;
     }
 
     model Media {
-        title: string
+        title: string;
     }
 
     model Tag {
-        name: string
+        name: string;
     }
 }
 `)
@@ -153,11 +153,11 @@ func TestJSONDecodesNestedPrivateModelsOfADependency(t *testing.T) {
 
 private {
     model Item {
-        media: Media
+        media: Media;
     }
 
     model Media {
-        title: string
+        title: string;
     }
 }
 `)
@@ -165,7 +165,7 @@ private {
 		t.Fatalf("checker: %+v", diags)
 	}
 	lib := buildTestPackage(t, []*syntax.File{libFile}, nil)
-	rootFile := mustParseFile(t, `use lib.books as books
+	rootFile := mustParseFile(t, `use lib.books as books;
 
 rule read(body: bytes) -> Result<string, JsonError> {
     return books.titleOf(body);

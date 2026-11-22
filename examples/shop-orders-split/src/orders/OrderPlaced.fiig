@@ -1,4 +1,4 @@
 model OrderPlaced {
-    order: string
-    charge: Charge
+    order: string;
+    charge: Charge;
 }

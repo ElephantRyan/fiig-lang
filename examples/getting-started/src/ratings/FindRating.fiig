@@ -4,7 +4,7 @@ gateway findRating(item: string) -> Result<Rating, RatingError> requires Databas
         item,
     );
     return match (row) {
-        found -> Ok(found)
-        None -> Err(RatingError.NotFound(item))
+        found -> Ok(found),
+        None -> Err(RatingError.NotFound(item)),
     }
 }

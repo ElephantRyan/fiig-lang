@@ -1,4 +1,4 @@
-use fiig.stream
+use fiig.stream;
 
 // ADR 0111 §7: Redis Streams as a stream source. Each route's group is a
 // consumer group, so every process running it shares the entries; an
@@ -27,9 +27,9 @@ capability RedisStreams provides stream.StreamSource {
                     match (subscription.start) {
                         stream.StartAt.Latest -> {
                             startId = "$";
-                        }
+                        },
 
-                        stream.StartAt.Earliest -> None
+                        stream.StartAt.Earliest -> None,
                     }
 
                     match (Redis.send(["XGROUP", "CREATE", source, group, startId, "MKSTREAM"])) {
@@ -37,20 +37,20 @@ capability RedisStreams provides stream.StreamSource {
                             if (!message.startsWith("BUSYGROUP")) {
                                 return Err(stream.SourceError.Protocol(reason: message));
                             }
-                        }
+                        },
 
                         Err(other) -> {
                             return Err(sourceErrorOf(other));
-                        }
+                        },
 
-                        Ok(_) -> None
+                        Ok(_) -> None,
                     }
 
                     return Ok([]);
                 }
 
                 return Err(sourceErrorOf(failure));
-            }
+            },
 
             Ok(reply) -> {
                 pending = pendingEntries(reply);
@@ -67,14 +67,14 @@ capability RedisStreams provides stream.StreamSource {
                     match (claimed) {
                         RespValue.Array(entries) -> {
                             return Ok(streamDeliveries(entries, counts));
-                        }
+                        },
 
                         _ -> {
                             return Ok([]);
-                        }
+                        },
                     }
                 }
-            }
+            },
         }
 
         read = Redis.send(
@@ -103,23 +103,23 @@ capability RedisStreams provides stream.StreamSource {
                                 match (pair.last()) {
                                     RespValue.Array(entries) -> {
                                         return Ok(streamDeliveries(entries, [:]));
-                                    }
+                                    },
 
-                                    _ -> None
+                                    _ -> None,
                                 }
                             }
-                        }
+                        },
 
-                        _ -> None
+                        _ -> None,
                     }
                 }
 
                 return Ok([]);
-            }
+            },
 
             _ -> {
                 return Ok([]);
-            }
+            },
         }
     }
 
@@ -149,7 +149,7 @@ capability RedisStreams provides stream.StreamSource {
             stream.Outcome.Retry -> {
                 // Left pending, so a receive claims it after the delay.
                 return Ok(None);
-            }
+            },
 
             stream.Outcome.DeadLetter(target) -> {
                 // As bytes, so a payload that isn't UTF-8 moves as it is.
@@ -167,9 +167,9 @@ capability RedisStreams provides stream.StreamSource {
                     ],
                 );
                 mapErr(e in moved): sourceErrorOf(e)?;
-            }
+            },
 
-            stream.Outcome.Ack -> None
+            stream.Outcome.Ack -> None,
         }
 
         acked = Redis.send(["XACK", subscription.source, subscription.group, delivery.id]);

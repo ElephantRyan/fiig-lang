@@ -91,7 +91,7 @@ private {
             match (line.utf8()) {
                 None -> {
                     return RespRead.Malformed(reason: "a status or error line isn't UTF-8");
-                }
+                },
 
                 text -> {
                     if (kind == 43) {
@@ -99,7 +99,7 @@ private {
                     }
 
                     return RespRead.Done(value: RespValue.Error(text: text), rest: after);
-                }
+                },
             }
         }
 
@@ -109,11 +109,11 @@ private {
                     return RespRead.Malformed(
                         reason: "an integer reply isn't a number of up to 18 digits",
                     );
-                }
+                },
 
                 number -> {
                     return RespRead.Done(value: RespValue.Integer(value: number), rest: after);
-                }
+                },
             }
         }
 
@@ -135,7 +135,7 @@ private {
         return match (numberOf(line)) {
             None -> {
                 return RespRead.Malformed(reason: "a bulk string's length isn't a number");
-            }
+            },
 
             size -> {
                 if (size == -1) {
@@ -160,7 +160,7 @@ private {
                     value: RespValue.Bulk(data: after.slice(0, size)),
                     rest: after.slice(size + 2, after.length()),
                 );
-            }
+            },
         }
     }
 
@@ -169,7 +169,7 @@ private {
         return match (numberOf(line)) {
             None -> {
                 return RespRead.Malformed(reason: "an array's count isn't a number");
-            }
+            },
 
             count -> {
                 if (count == -1) {
@@ -194,21 +194,21 @@ private {
                     match (replyAt(rest, depth + 1)) {
                         RespRead.NeedMore -> {
                             return RespRead.NeedMore;
-                        }
+                        },
 
                         RespRead.Malformed(reason) -> {
                             return RespRead.Malformed(reason: reason);
-                        }
+                        },
 
                         RespRead.Done(value, remaining) -> {
                             items = append(items, value);
                             rest = remaining;
-                        }
+                        },
                     }
                 }
 
                 return RespRead.Done(value: RespValue.Array(items: items), rest: rest);
-            }
+            },
         }
     }
 }

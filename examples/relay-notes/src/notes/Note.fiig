@@ -1,6 +1,6 @@
 // ADR 0084: nothing in this program knows its Database is a driver
 // written in fiig; the capabilities file says so.
 model Note {
-    id: string
-    text: string
+    id: string;
+    text: string;
 }

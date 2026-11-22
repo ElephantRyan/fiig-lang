@@ -27,8 +27,8 @@ the bottom.
 // `use path [as alias]`. A package's version is never written here; it lives
 // in that package's manifest. Both packages below are named `time`, so the
 // aliases are the only way to reference both in one file.   [built]
-use company.time as businessTime
-use standard.time as systemTime
+use company.time as businessTime;
+use standard.time as systemTime;
 
 activity computeFollowUpDate(from: systemTime.Instant) -> systemTime.Instant {
     return businessTime.addBusinessDays(from, 3);
@@ -60,9 +60,9 @@ write your own (see Part 2).
 ```fiig
 // A model is a record. Fields are newline-separated — no commas.   [built]
 model Customer {
-    id: string
-    name: string
-    email: string
+    id: string;
+    name: string;
+    email: string;
 }
 ```
 
@@ -73,9 +73,9 @@ declaration: ADR 0055 removed `value`, and named-argument calls
 ```fiig
 // An enum is a general sum type (ADR 0040). Variants may carry fields...
 enum CustomerError {
-    NotFound(id: string)
-    EmailAlreadyInUse(email: string)
-    Invalid(field: string, reason: string)
+    NotFound(id: string),
+    EmailAlreadyInUse(email: string),
+    Invalid(field: string, reason: string),
 }
 ```
 
@@ -83,9 +83,9 @@ enum CustomerError {
 // ...or carry nothing at all. A typed error is an ordinary enum, not a
 // separate declaration kind.                                        [built]
 enum Region {
-    US
-    EU
-    APAC
+    US,
+    EU,
+    APAC,
 }
 ```
 
@@ -118,9 +118,9 @@ what each may call and whether it may touch the outside world.
 // ADR 0049).                                                         [built]
 rule regionDisplayName(region: Region) -> string {
     return match (region) {
-        Region.US -> "United States"
-        Region.EU -> "Europe"
-        Region.APAC -> "Asia-Pacific"
+        Region.US -> "United States",
+        Region.EU -> "Europe",
+        Region.APAC -> "Asia-Pacific",
     }
 }
 ```
@@ -184,8 +184,8 @@ gateway getCustomer(id: string) -> Result<Customer, CustomerError>
 {
     row: Customer | None = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id);
     return match (row) {
-        found -> Ok(found)
-        None -> Err(CustomerError.NotFound(id))
+        found -> Ok(found),
+        None -> Err(CustomerError.NotFound(id)),
     }
 }
 ```
@@ -277,9 +277,9 @@ there ends in `return` (ADR 0142 §2).
 // exhaustive (bug class A9).                                          [built]
 conversion customerErrorToHttpResponse(error: CustomerError) -> HttpResponse {
     return match (error) {
-        CustomerError.NotFound(_) -> HttpResponse(status: 404, body: None)
-        CustomerError.EmailAlreadyInUse(_) -> HttpResponse(status: 409, body: None)
-        error -> HttpResponse(status: 500, body: None)
+        CustomerError.NotFound(_) -> HttpResponse(status: 404, body: None),
+        CustomerError.EmailAlreadyInUse(_) -> HttpResponse(status: 409, body: None),
+        error -> HttpResponse(status: 500, body: None),
     }
 }
 ```
@@ -290,10 +290,10 @@ a status code or a name is matched where it is:
 ```fiig
 conversion describe(code: int) -> string {
     return match (code) {
-        200 -> "ok"
-        404 -> "missing"
-        -1 -> "unset"
-        _ -> "other"      // required: an int has more values than a match lists
+        200 -> "ok",
+        404 -> "missing",
+        -1 -> "unset",
+        _ -> "other",      // required: an int has more values than a match lists
     }
 }
 ```
@@ -550,14 +550,14 @@ rejected by the checker.
 // route what it reads (`consumes`); another Content-Type is a 415.   [built]
 adapter http customerHttpApi {
     GET "/customers/{id}" -> readCustomer(id: string)
-        produces "application/json"
+        produces "application/json";
     POST "/customers" -> createCustomer(input: NewCustomer)
         consumes "application/json"
-        produces "application/json"
+        produces "application/json";
     GET "/me" -> currentAccount(session: string | None from cookie "sid")
-        produces "application/json"
+        produces "application/json";
     GET "/accounts.csv" -> exportAccounts(authorization: string from header "Authorization")
-        produces "text/csv"           // a non-JSON type sends a string or bytes
+        produces "text/csv";           // a non-JSON type sends a string or bytes
 }
 ```
 
@@ -589,7 +589,7 @@ conversion loggedIn(session: Session) -> HttpResponse<Account> {
 ```fiig
 // CLI. Same placeholder notation, `exit N` instead of a status code.  [built]
 adapter cli customerCli {
-    command "customer get {id}" -> readCustomer(id: string)
+    command "customer get {id}" -> readCustomer(id: string);
 }
 ```
 
@@ -597,15 +597,15 @@ An **application** says what each process of the program serves (ADR 0132), at
 the top of `src/`, the one declaration an application's top level holds:
 
 ```fiig
-use abs.recommendations.sessions
-use abs.recommendations.sync
+use abs.recommendations.sessions;
+use abs.recommendations.sync;
 
 application AbsRecommendations {
     serve web {
-        sessions.sessionsApi
+        sessions.sessionsApi;
     }
     serve worker {
-        sync.syncSchedule
+        sync.syncSchedule;
     }
 }
 ```
@@ -713,7 +713,7 @@ a workflow:
 
 ```fiig
 adapter http badTarget {
-    POST "/validate" -> validateNewCustomer(input: NewCustomer)
+    POST "/validate" -> validateNewCustomer(input: NewCustomer);
     //                  ^ [B6] adapter route must call an exported workflow
 }
 ```
@@ -769,8 +769,8 @@ structurally — there is no `implements` on any declaration.
 // The keyword is `interface` (settled 2026-10-22). `capability` stays with
 // ADR 0042's five primitives above.
 interface PaymentProvider {
-    charge(orderId: string, amount: int) -> Result<string, PaymentError>
-    refund(reference: string) -> Result<None, PaymentError>
+    charge(orderId: string, amount: int) -> Result<string, PaymentError>;
+    refund(reference: string) -> Result<None, PaymentError>;
 }
 ```
 
@@ -839,7 +839,7 @@ test chargeIsRecorded {
         }
     }
     fake StripeAccount {                  // a config's values
-        apiKey: "sk_test_1"
+        apiKey: "sk_test_1";
     }
 
     expect takePayment(merchant, request) is Ok(_);

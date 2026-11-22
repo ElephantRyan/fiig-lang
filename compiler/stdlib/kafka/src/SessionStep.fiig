@@ -1,4 +1,4 @@
-use fiig.session
+use fiig.session;
 
 // A turn as the Step the runtime takes (ADR 0114 §1): the state as JSON,
 // and the next tick, the soonest of a group session's heartbeat, commit,

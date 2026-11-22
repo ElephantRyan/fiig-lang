@@ -37,11 +37,11 @@ capability Redis {
                 } else {
                     opened = Socket.connect(target.host, target.port, deadline: until);
                 }
-            }
+            },
 
             kept -> {
                 opened = Ok(kept);
-            }
+            },
         }
 
         phases = append(phases, commandRequest(words));
@@ -55,9 +55,9 @@ capability Redis {
                 Err(failure) -> {
                     Socket.close(connection);
                     return Err(RedisError.Socket(failure: failure));
-                }
+                },
 
-                Ok(_) -> None
+                Ok(_) -> None,
             }
 
             replies = [];
@@ -66,35 +66,35 @@ capability Redis {
                     RespRead.Done(value, rest) -> {
                         replies = append(replies, value);
                         buffer = rest;
-                    }
+                    },
 
                     RespRead.Malformed(reason) -> {
                         Socket.close(connection);
                         return Err(RedisError.MalformedReply(reason: reason));
-                    }
+                    },
 
                     RespRead.NeedMore -> {
                         match (Socket.read(connection, deadline: until)) {
                             Ok(chunk) -> {
                                 buffer = <<buffer: bytes, chunk: bytes>>;
-                            }
+                            },
 
                             Err(failure) -> {
                                 Socket.close(connection);
                                 return Err(RedisError.Socket(failure: failure));
-                            }
+                            },
                         }
-                    }
+                    },
                 }
             }
 
             if (phase + 1 < phases.length()) {
                 match (setupRefusal(replies)) {
-                    None -> None
+                    None -> None,
                     refused -> {
                         Socket.close(connection);
                         return Err(refused);
-                    }
+                    },
                 }
             }
 
@@ -121,10 +121,10 @@ capability Redis {
 
         name: string = "";
         match (args.first().utf8()) {
-            None -> None
+            None -> None,
             text -> {
                 name = text;
-            }
+            },
         }
 
         target = parseRedisUrl(RedisServer.url.reveal())?;
@@ -150,11 +150,11 @@ capability Redis {
                 } else {
                     opened = Socket.connect(target.host, target.port, deadline: until);
                 }
-            }
+            },
 
             kept -> {
                 opened = Ok(kept);
-            }
+            },
         }
 
         phases = append(phases, commandRequest(args));
@@ -168,9 +168,9 @@ capability Redis {
                 Err(failure) -> {
                     Socket.close(connection);
                     return Err(RedisError.Socket(failure: failure));
-                }
+                },
 
-                Ok(_) -> None
+                Ok(_) -> None,
             }
 
             replies = [];
@@ -179,35 +179,35 @@ capability Redis {
                     RespRead.Done(value, rest) -> {
                         replies = append(replies, value);
                         buffer = rest;
-                    }
+                    },
 
                     RespRead.Malformed(reason) -> {
                         Socket.close(connection);
                         return Err(RedisError.MalformedReply(reason: reason));
-                    }
+                    },
 
                     RespRead.NeedMore -> {
                         match (Socket.read(connection, deadline: until)) {
                             Ok(chunk) -> {
                                 buffer = <<buffer: bytes, chunk: bytes>>;
-                            }
+                            },
 
                             Err(failure) -> {
                                 Socket.close(connection);
                                 return Err(RedisError.Socket(failure: failure));
-                            }
+                            },
                         }
-                    }
+                    },
                 }
             }
 
             if (phase + 1 < phases.length()) {
                 match (setupRefusal(replies)) {
-                    None -> None
+                    None -> None,
                     refused -> {
                         Socket.close(connection);
                         return Err(refused);
-                    }
+                    },
                 }
             }
 
@@ -281,11 +281,11 @@ capability Redis {
                 } else {
                     opened = Socket.connect(target.host, target.port, deadline: until);
                 }
-            }
+            },
 
             kept -> {
                 opened = Ok(kept);
-            }
+            },
         }
 
         phases = append(phases, pipelineRequest(lists));
@@ -299,9 +299,9 @@ capability Redis {
                 Err(failure) -> {
                     Socket.close(connection);
                     return Err(RedisError.Socket(failure: failure));
-                }
+                },
 
-                Ok(_) -> None
+                Ok(_) -> None,
             }
 
             replies = [];
@@ -310,35 +310,35 @@ capability Redis {
                     RespRead.Done(value, rest) -> {
                         replies = append(replies, value);
                         buffer = rest;
-                    }
+                    },
 
                     RespRead.Malformed(reason) -> {
                         Socket.close(connection);
                         return Err(RedisError.MalformedReply(reason: reason));
-                    }
+                    },
 
                     RespRead.NeedMore -> {
                         match (Socket.read(connection, deadline: until)) {
                             Ok(chunk) -> {
                                 buffer = <<buffer: bytes, chunk: bytes>>;
-                            }
+                            },
 
                             Err(failure) -> {
                                 Socket.close(connection);
                                 return Err(RedisError.Socket(failure: failure));
-                            }
+                            },
                         }
-                    }
+                    },
                 }
             }
 
             if (phase + 1 < phases.length()) {
                 match (setupRefusal(replies)) {
-                    None -> None
+                    None -> None,
                     refused -> {
                         Socket.close(connection);
                         return Err(refused);
-                    }
+                    },
                 }
             }
 
@@ -397,11 +397,11 @@ capability Redis {
                 } else {
                     opened = Socket.connect(target.host, target.port, deadline: until);
                 }
-            }
+            },
 
             kept -> {
                 opened = Ok(kept);
-            }
+            },
         }
 
         phases = append(phases, pipelineRequest(commands));
@@ -415,9 +415,9 @@ capability Redis {
                 Err(failure) -> {
                     Socket.close(connection);
                     return Err(RedisError.Socket(failure: failure));
-                }
+                },
 
-                Ok(_) -> None
+                Ok(_) -> None,
             }
 
             replies = [];
@@ -426,35 +426,35 @@ capability Redis {
                     RespRead.Done(value, rest) -> {
                         replies = append(replies, value);
                         buffer = rest;
-                    }
+                    },
 
                     RespRead.Malformed(reason) -> {
                         Socket.close(connection);
                         return Err(RedisError.MalformedReply(reason: reason));
-                    }
+                    },
 
                     RespRead.NeedMore -> {
                         match (Socket.read(connection, deadline: until)) {
                             Ok(chunk) -> {
                                 buffer = <<buffer: bytes, chunk: bytes>>;
-                            }
+                            },
 
                             Err(failure) -> {
                                 Socket.close(connection);
                                 return Err(RedisError.Socket(failure: failure));
-                            }
+                            },
                         }
-                    }
+                    },
                 }
             }
 
             if (phase + 1 < phases.length()) {
                 match (setupRefusal(replies)) {
-                    None -> None
+                    None -> None,
                     refused -> {
                         Socket.close(connection);
                         return Err(refused);
-                    }
+                    },
                 }
             }
 

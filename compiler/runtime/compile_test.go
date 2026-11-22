@@ -90,8 +90,8 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
                 return "big";
             }
             return "small";
-        }
-        Err(reason) -> reason
+        },
+        Err(reason) -> reason,
     }
 }`}, "f", map[string]Value{"r": Result{Ok: true, Value: Int(5)}}},
 		{"try", []string{`rule f(r: Result<int, string>) -> Result<int, string> {
@@ -116,8 +116,8 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
     return data.at(10);
 }`}, "f", map[string]Value{"data": Bytes{B: []byte{1}}}},
 		{"records", []string{`model P {
-    x: int
-    y: int
+    x: int;
+    y: int;
 }`, `rule f(n: int) -> int {
     p = P(x: n, y: n + 1);
     return p.x * p.y;
@@ -142,10 +142,10 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
             Ok(v) -> {
                 n = n + v;
                 out = "${out}${v},";
-            }
+            },
             Err(reason) -> {
                 out = "${out}${reason}:${n},";
-            }
+            },
         }
     }
     return out;
@@ -206,16 +206,16 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
                 match (body) {
                     <<a: u16le, b: i8, "ok": utf8, c: u1, d: u7>> -> {
                         out = append(out, a + b + c + d);
-                    }
+                    },
                     _ -> {
                         out = append(out, body.length());
-                    }
+                    },
                 }
                 rest = more;
-            }
+            },
             _ -> {
                 return [0 - 1];
-            }
+            },
         }
     }
     return out;
@@ -228,10 +228,10 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
     return match (<<a: u32be>>.xor(<<b: u32be>>)) {
         <<v: u32be>> -> {
             return [v, data.slice(1, 3).length(), [1, 2, 3].length(), (data).at(0), "four".length()];
-        }
+        },
         _ -> {
             return [x];
-        }
+        },
     }
 }`}, "f", map[string]Value{"a": Int(0xF0F0F0F0), "b": Int(0x12345678), "data": Bytes{B: []byte{5, 6, 7, 8}}}},
 		{"many locals", []string{`rule f(n: int) -> int {

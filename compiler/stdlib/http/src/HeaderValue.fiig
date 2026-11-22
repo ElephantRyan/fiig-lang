@@ -3,7 +3,7 @@
 // headers, has none to find.
 conversion headerValue(headers: List<Header> | None, name: string) -> string | None {
     return match (headers) {
-        None -> None
+        None -> None,
         given -> {
             for (header in given) {
                 if (header.name.equalsIgnoringCase(name)) {
@@ -12,6 +12,6 @@ conversion headerValue(headers: List<Header> | None, name: string) -> string | N
             }
 
             return None;
-        }
+        },
     }
 }

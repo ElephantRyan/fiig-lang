@@ -2,7 +2,7 @@
 // session keeps it, and when it was read, so a Layout ask younger than
 // its max age is answered without asking the broker.
 model CachedLayout {
-    topic: string
-    layout: TopicLayout
-    at: int
+    topic: string;
+    layout: TopicLayout;
+    at: int;
 }

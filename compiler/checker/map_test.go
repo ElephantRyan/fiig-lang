@@ -56,7 +56,7 @@ func TestMapMisuse(t *testing.T) {
 		// §8: == on a float-valued map names allClose.
 		{"rule r(a: Map<string, float>, b: Map<string, float>) -> bool {\n    return a == b;\n}", "M1", "use math.allClose"},
 		{"rule r(m: Map<string, int>) -> int {\n    return m.at(1);\n}", "A1", ""},
-		{"model Map {\n    n: int\n}", "K2", "a prelude type"},
+		{"model Map {\n    n: int;\n}", "K2", "a prelude type"},
 	}
 	for _, c := range cases {
 		if c.rule == "" {

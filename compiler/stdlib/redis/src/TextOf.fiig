@@ -3,14 +3,14 @@ conversion textOf(reply: RespValue) -> string | None {
     return match (reply) {
         RespValue.Bulk(data) -> {
             return data.utf8();
-        }
+        },
 
         RespValue.Simple(text) -> {
             return text;
-        }
+        },
 
         _ -> {
             return None;
-        }
+        },
     }
 }

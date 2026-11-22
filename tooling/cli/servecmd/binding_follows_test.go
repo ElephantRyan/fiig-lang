@@ -18,16 +18,16 @@ import (
 var followsProgram = map[string]string{
 	"app/fiig.pkg.json": `{"path": "t.app", "kind": "application", "version": "1.0.0",
 		"dependencies": {"t.pay": "1.0.0"}, "capabilities": ["Database"], "nativeCapabilities": ["Database"]}`,
-	"app/charge.fiig":   "use t.pay\n\ngateway charge(id: string) -> string\n    requires pay\n{\n    return pay.takePayment(id: id);\n}\n",
+	"app/charge.fiig":   "use t.pay;\n\ngateway charge(id: string) -> string\n    requires pay\n{\n    return pay.takePayment(id: id);\n}\n",
 	"app/checkout.fiig": "workflow checkout(id: string) -> string {\n    return payFor(id);\n}\n",
 	"app/pay_step.fiig": "activity payFor(id: string) -> string {\n    return charge(id: id);\n}\n",
-	"app/api.fiig":      "adapter http api {\n    POST \"/checkout/{id}\" -> checkout(id: string)\n        produces \"application/json\"\n}\n",
+	"app/api.fiig":      "adapter http api {\n    POST \"/checkout/{id}\" -> checkout(id: string)\n        produces \"application/json\";\n}\n",
 
 	"pay/fiig.pkg.json": `{"path": "t.pay", "kind": "library", "version": "1.0.0",
 		"dependencies": {"t.audit": "1.0.0"}, "capabilities": ["Database"], "nativeCapabilities": ["Database"]}`,
 	"pay/take_payment.fiig":   "workflow takePayment(id: string) -> string {\n    payStep(id);\n    return \"paid ${id}\";\n}\n",
 	"pay/pay_step.fiig":       "activity payStep(id: string) -> None {\n    return recordPayment(id: id);\n}\n",
-	"pay/record_payment.fiig": "use t.audit.Audit\n\ngateway recordPayment(id: string) -> None\n    requires Audit\n{\n    Audit.write(id: id);\n    return None;\n}\n",
+	"pay/record_payment.fiig": "use t.audit.Audit;\n\ngateway recordPayment(id: string) -> None\n    requires Audit\n{\n    Audit.write(id: id);\n    return None;\n}\n",
 
 	"audit/fiig.pkg.json": `{"path": "t.audit", "kind": "library", "version": "1.0.0",
 		"capabilities": ["Database"], "nativeCapabilities": ["Database"]}`,
@@ -42,14 +42,14 @@ func TestServingADependencyTheRootNeverImports(t *testing.T) {
 	program := map[string]string{
 		"app/fiig.pkg.json": `{"path": "t.app", "kind": "application", "version": "1.0.0", "dependencies": {"t.pay": "1.0.0"}}`,
 		"app/health.fiig":   "workflow health() -> string {\n    return \"ok\";\n}\n",
-		"app/api.fiig":      "adapter http api {\n    GET \"/health\" -> health()\n        produces \"application/json\"\n}\n",
+		"app/api.fiig":      "adapter http api {\n    GET \"/health\" -> health()\n        produces \"application/json\";\n}\n",
 
 		"pay/fiig.pkg.json": `{"path": "t.pay", "kind": "library", "version": "1.0.0", "dependencies": {"t.kernel": "1.0.0"}}`,
-		"pay/quote.fiig":    "use t.kernel\n\nworkflow quote(id: string, amount: kernel.Money) -> string {\n    return \"${id}: ${amount.amount} ${amount.currency}\";\n}\n",
-		"pay/pay_api.fiig":  "use t.kernel\n\nadapter http payApi {\n    POST \"/pay/{id}\" -> quote(id: string, amount: kernel.Money)\n        consumes \"application/json\"\n        produces \"application/json\"\n}\n",
+		"pay/quote.fiig":    "use t.kernel;\n\nworkflow quote(id: string, amount: kernel.Money) -> string {\n    return \"${id}: ${amount.amount} ${amount.currency}\";\n}\n",
+		"pay/pay_api.fiig":  "use t.kernel;\n\nadapter http payApi {\n    POST \"/pay/{id}\" -> quote(id: string, amount: kernel.Money)\n        consumes \"application/json\"\n        produces \"application/json\";\n}\n",
 
 		"kernel/fiig.pkg.json": `{"path": "t.kernel", "kind": "library", "version": "1.0.0"}`,
-		"kernel/money.fiig":    "model Money {\n    amount: decimal\n    currency: string\n}\n",
+		"kernel/money.fiig":    "model Money {\n    amount: decimal;\n    currency: string;\n}\n",
 	}
 	writeTree(t, workspace, program)
 	env, _ := runprogram.NewEnvironment("")

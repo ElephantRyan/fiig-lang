@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // ADR 0085 §2: the settings a capabilities file gives the driver.
 conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.DatabaseError> {
@@ -20,11 +20,11 @@ conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.
                         reason: "the port setting must be a number, not ${settings.at("port")}",
                     ),
                 );
-            }
+            },
 
             number -> {
                 port = number;
-            }
+            },
         }
     }
 
@@ -58,7 +58,7 @@ conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.
                         reason: "the statementCacheSize setting must be a number, not ${settings.at("statementCacheSize")}",
                     ),
                 );
-            }
+            },
 
             number -> {
                 if (number < 0) {
@@ -70,7 +70,7 @@ conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.
                 }
 
                 cacheSize = number;
-            }
+            },
         }
     }
 

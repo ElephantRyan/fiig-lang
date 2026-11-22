@@ -25,8 +25,8 @@ conversion embedCookie(token: string) -> HttpResponse<None> {
 // W3: an enum with payloads names its variant in a JSON `variant` member
 // (ADR 0072 §2), so a payload field with that name would be sent twice.
 enum Delivery {
-    Shipped(variant: string)
-    Pending
+    Shipped(variant: string),
+    Pending,
 }
 
 // W4 (ADR 0080 §6): a path segment is one piece of text, and a Delivery
@@ -37,5 +37,5 @@ workflow trackDelivery(delivery: Delivery) -> string {
 }
 
 adapter http deliveryApi {
-    GET "/deliveries/{delivery}" -> trackDelivery(delivery: Delivery) produces "application/json"
+    GET "/deliveries/{delivery}" -> trackDelivery(delivery: Delivery) produces "application/json";
 }

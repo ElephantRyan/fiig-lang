@@ -4,7 +4,7 @@ conversion compactStringAt(data: bytes, at: int) -> TextAt | None {
     return match (uvarintAt(data, at)) {
         None -> {
             return None;
-        }
+        },
 
         length -> {
             if (length.value == 0) {
@@ -19,12 +19,12 @@ conversion compactStringAt(data: bytes, at: int) -> TextAt | None {
             return match (data.slice(length.next, end).utf8()) {
                 None -> {
                     return None;
-                }
+                },
 
                 text -> {
                     return TextAt(text: text, next: end);
-                }
+                },
             }
-        }
+        },
     }
 }

@@ -1,5 +1,5 @@
 enum CheckoutError {
-    Customer(error: CustomerError)
-    Order(error: OrderError)
-    OutOfStock
+    Customer(error: CustomerError),
+    Order(error: OrderError),
+    OutOfStock,
 }

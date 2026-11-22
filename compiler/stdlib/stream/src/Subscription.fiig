@@ -6,10 +6,10 @@
 // that hands an unsettled element to another consumer after a delay must
 // receive no more at once than it can see handled within that delay.
 model Subscription {
-    source: string
-    group: string
-    consumer: string
-    waitMillis: int
-    start: StartAt
-    handleMillis: int
+    source: string;
+    group: string;
+    consumer: string;
+    waitMillis: int;
+    start: StartAt;
+    handleMillis: int;
 }

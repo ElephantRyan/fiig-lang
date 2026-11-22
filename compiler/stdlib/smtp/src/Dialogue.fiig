@@ -3,21 +3,21 @@
 // conversation is decided from this by pure conversions, so the gateway only
 // moves bytes.
 model Dialogue {
-    target: SmtpTarget
-    mail: Mail
-    hello: string
-    data: bytes
-    phase: SmtpPhase
-    secure: bool
+    target: SmtpTarget;
+    mail: Mail;
+    hello: string;
+    data: bytes;
+    phase: SmtpPhase;
+    secure: bool;
     // Everyone RCPT TO names (recipientsOf), and which is next.
-    recipients: List<string>
-    recipient: int
-    startTls: bool
-    authPlain: bool
-    authLogin: bool
-    authXOAuth2: bool
+    recipients: List<string>;
+    recipient: int;
+    startTls: bool;
+    authPlain: bool;
+    authLogin: bool;
+    authXOAuth2: bool;
     // What a server refusing an XOAUTH2 token said of it, for the refusal.
-    oauthFailure: string
+    oauthFailure: string;
     // The most bytes the server takes in a message, 0 when it says nothing.
-    sizeLimit: int
+    sizeLimit: int;
 }

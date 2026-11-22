@@ -1,6 +1,6 @@
 model Order {
-    id: string
-    customerId: string
-    total: int
-    paymentReference: string
+    id: string;
+    customerId: string;
+    total: int;
+    paymentReference: string;
 }

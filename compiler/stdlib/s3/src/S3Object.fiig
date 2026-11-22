@@ -1,6 +1,6 @@
 // An object read whole by getObject: its bytes, and what a HEAD would say
 // about it, its metadata included.
 model S3Object {
-    body: bytes
-    info: ObjectInfo
+    body: bytes;
+    info: ObjectInfo;
 }

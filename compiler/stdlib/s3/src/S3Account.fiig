@@ -2,11 +2,11 @@
 // strings here because a gateway is where `.reveal()` is legal, and signing
 // needs the bytes; what goes on the wire is the signature, never the key.
 model S3Account {
-    endpoint: string
-    region: string
-    accessKeyId: string
-    secret: string
-    token: string
-    pathStyle: bool
-    timeoutMillis: int
+    endpoint: string;
+    region: string;
+    accessKeyId: string;
+    secret: string;
+    token: string;
+    pathStyle: bool;
+    timeoutMillis: int;
 }

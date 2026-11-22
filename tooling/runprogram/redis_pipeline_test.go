@@ -28,16 +28,16 @@ var pipelineProgram = map[string]string{
     "dependencies": { "fiig.redis": "1.0.0" },
     "capabilities": ["Socket"]
 }`,
-	"pipeline.fiig": `use fiig.redis
-use fiig.redis.Redis
+	"pipeline.fiig": `use fiig.redis;
+use fiig.redis.Redis;
 
 gateway pipeline(commands: List<List<string>>) -> Result<List<redis.RespValue>, redis.RedisError>
     requires Redis
 {
     return Redis.sendAll(commands);
 }`,
-	"pipeline_bytes.fiig": `use fiig.redis
-use fiig.redis.Redis
+	"pipeline_bytes.fiig": `use fiig.redis;
+use fiig.redis.Redis;
 
 gateway pipelineBytes(key: string, value: bytes) -> Result<List<redis.RespValue>, redis.RedisError>
     requires Redis

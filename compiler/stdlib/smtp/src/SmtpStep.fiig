@@ -2,8 +2,8 @@
 // read the reply, upgrade the connection to TLS, or finish, with the mail
 // accepted and the connection fit for the next.
 enum SmtpStep {
-    Listen
-    Send(data: bytes)
-    Upgrade
-    Finish
+    Listen,
+    Send(data: bytes),
+    Upgrade,
+    Finish,
 }

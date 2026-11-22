@@ -5,12 +5,12 @@ import "testing"
 // ADR 0095: mapErr(e in result): newError.
 
 const mapErrDecls = `enum ApiError {
-    Unreadable(failure: JsonError)
-    Refused(reason: string)
+    Unreadable(failure: JsonError),
+    Refused(reason: string),
 }`
 
 const mapErrUser = `model User {
-    name: string
+    name: string;
 }`
 
 func TestMapErrChecks(t *testing.T) {

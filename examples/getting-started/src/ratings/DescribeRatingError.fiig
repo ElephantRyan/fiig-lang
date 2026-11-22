@@ -1,7 +1,7 @@
 // The message an HTTP client sees for each error.
 conversion describeRatingError(error: RatingError) -> string {
     return match (error) {
-        RatingError.NotFound(item) -> "no rating for ${item}"
-        RatingError.Invalid(field, reason) -> "${field} ${reason}"
+        RatingError.NotFound(item) -> "no rating for ${item}",
+        RatingError.Invalid(field, reason) -> "${field} ${reason}",
     }
 }

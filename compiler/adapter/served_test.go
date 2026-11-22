@@ -60,8 +60,8 @@ func servedFor(t *testing.T, srcs ...string) ([]Served, *types.Universe, *runtim
 
 func TestSeveralAdaptersShareOneHandler(t *testing.T) {
 	served, u, in := servedFor(t, withWorkflows(
-		"adapter http ordersApi {\n    GET \"/orders\" -> listOrders()\n    GET \"/orders/{id}\" -> showOrder(id: string)\n}",
-		"adapter http paymentsApi {\n    GET \"/payments/{id}\" -> showPayment(id: string)\n    DELETE \"/payments/{id}\" -> deletePayment(id: string)\n}",
+		"adapter http ordersApi {\n    GET \"/orders\" -> listOrders();\n    GET \"/orders/{id}\" -> showOrder(id: string);\n}",
+		"adapter http paymentsApi {\n    GET \"/payments/{id}\" -> showPayment(id: string);\n    DELETE \"/payments/{id}\" -> deletePayment(id: string);\n}",
 	)...)
 	h, err := HTTPHandlerFor(served, u, in, DefaultLimits())
 	if err != nil {
@@ -96,13 +96,13 @@ func TestConflictingRoutesStopServing(t *testing.T) {
 	cases := []struct {
 		name, payments, want string
 	}{
-		{"same route", "adapter http paymentsApi {\n    GET \"/orders/{id}\" -> showPayment(id: string)\n}", `routes GET "/orders/{id}" in adapter ordersApi and GET "/orders/{id}" in adapter paymentsApi serve the same requests`},
-		{"same requests", "adapter http paymentsApi {\n    GET \"/orders/{ref}\" -> showPayment(id: ref)\n}", `route GET "/orders/{ref}" in adapter paymentsApi conflicts with another route`},
+		{"same route", "adapter http paymentsApi {\n    GET \"/orders/{id}\" -> showPayment(id: string);\n}", `routes GET "/orders/{id}" in adapter ordersApi and GET "/orders/{id}" in adapter paymentsApi serve the same requests`},
+		{"same requests", "adapter http paymentsApi {\n    GET \"/orders/{ref}\" -> showPayment(id: ref);\n}", `route GET "/orders/{ref}" in adapter paymentsApi conflicts with another route`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			served, u, in := servedFor(t, withWorkflows(
-				"adapter http ordersApi {\n    GET \"/orders/{id}\" -> showOrder(id: string)\n}",
+				"adapter http ordersApi {\n    GET \"/orders/{id}\" -> showOrder(id: string);\n}",
 				tc.payments,
 			)...)
 			_, err := HTTPHandlerFor(served, u, in, DefaultLimits())

@@ -12,8 +12,8 @@ import (
 
 func TestListMethodsAreTyped(t *testing.T) {
 	order := mustParse(t, `model Order {
-    id: string
-    lines: List<int>
+    id: string;
+    lines: List<int>;
 }
 `)
 	f := mustParse(t, `rule methods(order: Order) -> int {
@@ -23,10 +23,10 @@ func TestListMethodsAreTyped(t *testing.T) {
     return match (order.lines.atOrNone(5)) {
         None -> {
             return n;
-        }
+        },
         x -> {
             return x + first + head.length();
-        }
+        },
     }
 }
 `)
@@ -58,7 +58,7 @@ func TestMethodNotInTableIsK1(t *testing.T) {
 	}
 	for call, want := range cases {
 		customer := mustParse(t, `model Customer {
-    name: string
+    name: string;
 }
 `)
 		f := mustParse(t, `rule r(name: string, customer: Customer, xs: List<int>, maybe: string | None) -> bool {

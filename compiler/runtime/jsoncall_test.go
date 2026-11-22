@@ -15,23 +15,23 @@ import (
 
 var jsonProgram = []string{
 	`model Page {
-    limit: int
-    in: string
-    contentType: string from json "content-type"
-    tags: Map<string, int>
-    extra: JsonValue
-    next: string | None
-    region: Region
+    limit: int;
+    in: string;
+    contentType: string from json "content-type";
+    tags: Map<string, int>;
+    extra: JsonValue;
+    next: string | None;
+    region: Region;
 }`,
 	`enum Region {
-    US
-    EU
+    US,
+    EU,
 }`,
 	`model Order {
-    items: List<Item>
+    items: List<Item>;
 }`,
 	`model Item {
-    amount: int
+    amount: int;
 }`,
 	`rule parsePage(body: string) -> Result<Page, JsonError> {
     page: Page = json.decode(body)?;

@@ -75,9 +75,9 @@ func TestListReverseTakeDrop(t *testing.T) {
 // ADR 0129: Level.values() is every variant in order.
 func TestEnumValuesListsTheVariantsInOrder(t *testing.T) {
 	in := newTestInterp(universeFromSource(t, `enum Level {
-    Low
-    Mid
-    High
+    Low,
+    Mid,
+    High,
 }`, `conversion levels() -> List<Level> {
     return Level.values();
 }`, `conversion names() -> string {

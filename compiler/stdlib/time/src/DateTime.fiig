@@ -1,11 +1,11 @@
 // A calendar reading of a moment in UTC (ADR 0123 §2). The fields are as a
 // person writes them: the first month is 1, and so is the first day.
 model DateTime {
-    year: int
-    month: int
-    day: int
-    hour: int
-    minute: int
-    second: int
-    millisecond: int
+    year: int;
+    month: int;
+    day: int;
+    hour: int;
+    minute: int;
+    second: int;
+    millisecond: int;
 }

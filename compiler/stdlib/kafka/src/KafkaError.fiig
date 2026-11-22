@@ -7,13 +7,13 @@
 // (§6, as amended 2026-11-21). Decompress is a fetched batch that doesn't
 // decompress (ADR 0116 §4).
 enum KafkaError {
-    Session(failure: SessionError)
-    Broker(code: int, name: string, retriable: bool, message: string)
-    UnknownTopic(topic: string)
-    Unsupported(reason: string)
-    MalformedReply(reason: string)
-    InvalidConfig(reason: string)
-    InvalidRecord(reason: string)
-    Authentication(reason: string)
-    Decompress(failure: DecompressError)
+    Session(failure: SessionError),
+    Broker(code: int, name: string, retriable: bool, message: string),
+    UnknownTopic(topic: string),
+    Unsupported(reason: string),
+    MalformedReply(reason: string),
+    InvalidConfig(reason: string),
+    InvalidRecord(reason: string),
+    Authentication(reason: string),
+    Decompress(failure: DecompressError),
 }

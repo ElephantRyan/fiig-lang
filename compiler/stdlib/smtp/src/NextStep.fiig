@@ -2,25 +2,27 @@
 // ending in CRLF.
 conversion nextStep(d: Dialogue) -> SmtpStep {
     return match (d.phase) {
-        SmtpPhase.Greeting -> SmtpStep.Listen
-        SmtpPhase.Hello -> SmtpStep.Send(data: crlfLine("EHLO ${d.hello}"))
-        SmtpPhase.StartTls -> SmtpStep.Send(data: crlfLine("STARTTLS"))
-        SmtpPhase.Upgrading -> SmtpStep.Upgrade
-        SmtpPhase.SecureHello -> SmtpStep.Send(data: crlfLine("EHLO ${d.hello}"))
-        SmtpPhase.Auth -> SmtpStep.Send(data: crlfLine("AUTH PLAIN ${plainLogin(d.target)}"))
-        SmtpPhase.AuthLogin -> SmtpStep.Send(data: crlfLine("AUTH LOGIN"))
-        SmtpPhase.LoginUser -> SmtpStep.Send(data: crlfLine(userOf(d.target).utf8().toBase64()))
+        SmtpPhase.Greeting -> SmtpStep.Listen,
+        SmtpPhase.Hello -> SmtpStep.Send(data: crlfLine("EHLO ${d.hello}")),
+        SmtpPhase.StartTls -> SmtpStep.Send(data: crlfLine("STARTTLS")),
+        SmtpPhase.Upgrading -> SmtpStep.Upgrade,
+        SmtpPhase.SecureHello -> SmtpStep.Send(data: crlfLine("EHLO ${d.hello}")),
+        SmtpPhase.Auth -> SmtpStep.Send(data: crlfLine("AUTH PLAIN ${plainLogin(d.target)}")),
+        SmtpPhase.AuthLogin -> SmtpStep.Send(data: crlfLine("AUTH LOGIN")),
+        SmtpPhase.LoginUser -> SmtpStep.Send(data: crlfLine(userOf(d.target).utf8().toBase64())),
         SmtpPhase.LoginPassword -> SmtpStep.Send(
             data: crlfLine(passwordOf(d.target).utf8().toBase64()),
-        )
-        SmtpPhase.XOAuth2 -> SmtpStep.Send(data: crlfLine("AUTH XOAUTH2 ${oauthLogin(d.target)}"))
-        SmtpPhase.XOAuth2Refused -> SmtpStep.Send(data: crlfLine(""))
-        SmtpPhase.Reset -> SmtpStep.Send(data: crlfLine("RSET"))
-        SmtpPhase.MailFrom -> SmtpStep.Send(data: crlfLine("MAIL FROM:<${d.mail.from}>"))
-        SmtpPhase.Rcpt -> SmtpStep.Send(data: crlfLine("RCPT TO:<${d.recipients.at(d.recipient)}>"))
-        SmtpPhase.Data -> SmtpStep.Send(data: crlfLine("DATA"))
-        SmtpPhase.Body -> SmtpStep.Send(data: d.data)
-        SmtpPhase.Sent -> SmtpStep.Finish
+        ),
+        SmtpPhase.XOAuth2 -> SmtpStep.Send(data: crlfLine("AUTH XOAUTH2 ${oauthLogin(d.target)}")),
+        SmtpPhase.XOAuth2Refused -> SmtpStep.Send(data: crlfLine("")),
+        SmtpPhase.Reset -> SmtpStep.Send(data: crlfLine("RSET")),
+        SmtpPhase.MailFrom -> SmtpStep.Send(data: crlfLine("MAIL FROM:<${d.mail.from}>")),
+        SmtpPhase.Rcpt -> SmtpStep.Send(
+            data: crlfLine("RCPT TO:<${d.recipients.at(d.recipient)}>"),
+        ),
+        SmtpPhase.Data -> SmtpStep.Send(data: crlfLine("DATA")),
+        SmtpPhase.Body -> SmtpStep.Send(data: d.data),
+        SmtpPhase.Sent -> SmtpStep.Finish,
     }
 }
 
@@ -45,10 +47,10 @@ private {
         user = userOf(target);
         token: string = "";
         match (target.token) {
-            None -> None
+            None -> None,
             given -> {
                 token = given;
-            }
+            },
         }
 
         prefix = "user=";
@@ -61,15 +63,15 @@ private {
     // prompts, Username: and Password:, with each in base64 on its own line.
     userOf(target: SmtpTarget) -> string {
         return match (target.user) {
-            None -> ""
-            name -> name
+            None -> "",
+            name -> name,
         }
     }
 
     passwordOf(target: SmtpTarget) -> string {
         return match (target.password) {
-            None -> ""
-            secret -> secret
+            None -> "",
+            secret -> secret,
         }
     }
 }

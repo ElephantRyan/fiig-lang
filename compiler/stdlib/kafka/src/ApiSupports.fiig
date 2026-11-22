@@ -8,9 +8,9 @@ conversion apiSupports(entries: bytes, count: int, key: int, version: int) -> bo
                 if (apiKey == key) {
                     return low <= version && version <= high;
                 }
-            }
+            },
 
-            _ -> None
+            _ -> None,
         }
 
         i = i + 1;

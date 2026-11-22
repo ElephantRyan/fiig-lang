@@ -15,16 +15,16 @@ import (
 // credential alone, and OpenAPI describes it as http bearer.
 
 var bearerProgram = []string{
-	"model Peer {\n    name: string\n}",
-	"enum PeerRefusal {\n    NoKey\n}",
+	"model Peer {\n    name: string;\n}",
+	"enum PeerRefusal {\n    NoKey,\n}",
 	`workflow callingPeer(key: string | None) -> Result<Peer, PeerRefusal> {
     return match (key) {
         None -> {
             return Err(PeerRefusal.NoKey);
-        }
+        },
         given -> {
             return Ok(Peer(name: "[${given}]"));
-        }
+        },
     }
 }`,
 	`conversion peerRefused(error: PeerRefusal) -> HttpResponse<string> {
@@ -34,10 +34,10 @@ var bearerProgram = []string{
     return peer.name;
 }`,
 	`adapter http api {
-    wire peer: Peer from header "Authorization" scheme "Bearer" by callingPeer else peerRefused
+    wire peer: Peer from header "Authorization" scheme "Bearer" by callingPeer else peerRefused;
 
     GET "/who" -> whoCalls(peer)
-        produces "application/json"
+        produces "application/json";
 }`,
 }
 

@@ -17,10 +17,10 @@ capability Kafka {
         bootstrap = bootstrapSettings(KafkaServer.bootstrap, KafkaServer.tls, clientId)?;
         compression: Compression = Compression.None;
         match (KafkaServer.compression) {
-            None -> None
+            None -> None,
             chosen -> {
                 compression = chosen;
-            }
+            },
         }
 
         now = Clock.now();
@@ -38,38 +38,38 @@ capability Kafka {
             match (Session.call(leader, requestAsk(request), deadline: until)) {
                 Err(e) -> {
                     failure = KafkaError.Session(failure: e);
-                }
+                },
 
                 Ok(parts) -> {
                     match (readProduceV9(parts.first(), 1, call)) {
                         Err(e) -> {
                             failure = e;
-                        }
+                        },
 
                         Ok(placed) -> {
                             for (s in placed) {
                                 sent = append(sent, s);
                             }
-                        }
+                        },
                     }
-                }
+                },
             }
 
             match (failure) {
-                None -> None
+                None -> None,
                 found -> {
                     // A produce that fails is the caller's to send again
                     // (§1); a stale layout isn't kept for that send.
                     if (layoutMoved(found)) {
                         forget = KafkaAsk.Forget(topic: topic);
                         match (Session.call(bootstrap, json.encode(forget), deadline: until)) {
-                            Ok(_) -> None
-                            Err(_) -> None
+                            Ok(_) -> None,
+                            Err(_) -> None,
                         }
                     }
 
                     return Err(found);
-                }
+                },
             }
         }
 

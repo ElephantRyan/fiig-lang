@@ -5,20 +5,20 @@
 // sending it again could deliver it twice.
 conversion resendOnNewConnection(d: Dialogue, failure: SmtpError) -> bool {
     return match (d.phase) {
-        SmtpPhase.Reset -> deadConnection(failure)
-        SmtpPhase.MailFrom -> deadConnection(failure)
-        SmtpPhase.Rcpt -> deadConnection(failure)
-        SmtpPhase.Data -> deadConnection(failure)
-        _ -> false
+        SmtpPhase.Reset -> deadConnection(failure),
+        SmtpPhase.MailFrom -> deadConnection(failure),
+        SmtpPhase.Rcpt -> deadConnection(failure),
+        SmtpPhase.Data -> deadConnection(failure),
+        _ -> false,
     }
 }
 
 private {
     deadConnection(failure: SmtpError) -> bool {
         return match (failure) {
-            SmtpError.Socket(_) -> true
-            SmtpError.Refused(code, _) -> code == 421
-            _ -> false
+            SmtpError.Socket(_) -> true,
+            SmtpError.Refused(code, _) -> code == 421,
+            _ -> false,
         }
     }
 }

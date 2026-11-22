@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 test eachKeyIsAnXAmzMetaHeaderInLowerCase {
     expect metadataHeaders(["Run": "7", "author": "Ada Lovelace"]) is Ok(headers);

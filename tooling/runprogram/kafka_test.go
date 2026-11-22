@@ -225,8 +225,8 @@ var kafkaProgram = map[string]string{
     "dependencies": { "fiig.kafka": "1.0.0" },
     "capabilities": ["Socket", "Session"]
 }`,
-	"src/orders/Publish.fiig": `use fiig.kafka
-use fiig.kafka.Kafka
+	"src/orders/Publish.fiig": `use fiig.kafka;
+use fiig.kafka.Kafka;
 
 gateway publish(topic: string) -> Result<List<kafka.Sent>, kafka.KafkaError>
     requires Kafka

@@ -13,16 +13,16 @@ activity notifyShipped(customerId: string, orderId: string) -> bool {
             return match (sent) {
                 Ok(_) -> {
                     return true;
-                }
+                },
 
                 Err(_) -> {
                     return false;
-                }
+                },
             }
-        }
+        },
 
         Err(_) -> {
             return false;
-        }
+        },
     }
 }

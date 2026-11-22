@@ -3,10 +3,10 @@
 // the connection can take no more asks now), replies to earlier asks, when
 // to tick next, and whether the connection is done.
 model Step {
-    state: bytes
-    write: bytes
-    accepted: int | None
-    replies: List<SessionReply>
-    nextTickAt: int | None
-    close: SessionClose | None
+    state: bytes;
+    write: bytes;
+    accepted: int | None;
+    replies: List<SessionReply>;
+    nextTickAt: int | None;
+    close: SessionClose | None;
 }

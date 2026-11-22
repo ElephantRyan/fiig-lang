@@ -1,4 +1,4 @@
-use getting.started.ratings
+use getting.started.ratings;
 
 // A test may call the program's workflows (ADR 0103): the same entry points
 // the HTTP adapter calls, with the migrations already applied.

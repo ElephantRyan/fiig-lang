@@ -44,8 +44,8 @@ var conflictSources = []string{
             match (addPerson(id, "x", 1, None)) {
                 Ok(_) -> {
                     added = added + 1;
-                }
-                Err(_) -> None
+                },
+                Err(_) -> None,
             }
         }
     }

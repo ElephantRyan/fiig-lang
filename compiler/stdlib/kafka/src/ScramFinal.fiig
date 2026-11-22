@@ -2,6 +2,6 @@
 // with to prove it knows the password (RFC 5802 §3), as fiig.postgres
 // keeps it (ADR 0085 §6).
 model ScramFinal {
-    message: string
-    serverSignature: bytes
+    message: string;
+    serverSignature: bytes;
 }

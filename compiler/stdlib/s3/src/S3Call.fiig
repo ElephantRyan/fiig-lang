@@ -1,14 +1,14 @@
-use fiig.http
+use fiig.http;
 
 // One operation on one object, before it is signed: the HTTP method (GET,
 // PUT, HEAD, or DELETE), the bucket and key, for a PUT the bytes and their
 // content type, and the headers the operation adds, every one of them
 // signed: a PUT's checksum and metadata, a copy's source, a GET's range.
 model S3Call {
-    method: string
-    bucket: string
-    key: string
-    body: bytes
-    contentType: string
-    headers: List<http.Header>
+    method: string;
+    bucket: string;
+    key: string;
+    body: bytes;
+    contentType: string;
+    headers: List<http.Header>;
 }

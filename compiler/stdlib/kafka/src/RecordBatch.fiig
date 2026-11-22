@@ -44,22 +44,22 @@ private {
     // Bits 0-2 of the attributes.
     codecBits(compression: Compression) -> int {
         return match (compression) {
-            Compression.None -> 0
-            Compression.Gzip -> 1
-            Compression.Snappy -> 2
-            Compression.Lz4 -> 3
-            Compression.Zstd -> 4
+            Compression.None -> 0,
+            Compression.Gzip -> 1,
+            Compression.Snappy -> 2,
+            Compression.Lz4 -> 3,
+            Compression.Zstd -> 4,
         }
     }
 
     // The records section as the codec writes it.
     packed(compression: Compression, body: bytes) -> bytes {
         return match (compression) {
-            Compression.None -> body
-            Compression.Gzip -> compress.gzip(body)
-            Compression.Snappy -> xerialFramed(body)
-            Compression.Lz4 -> compress.lz4(body)
-            Compression.Zstd -> compress.zstd(body)
+            Compression.None -> body,
+            Compression.Gzip -> compress.gzip(body),
+            Compression.Snappy -> xerialFramed(body),
+            Compression.Lz4 -> compress.lz4(body),
+            Compression.Zstd -> compress.zstd(body),
         }
     }
 
@@ -69,15 +69,15 @@ private {
     encodedRecord(record: KafkaRecord, offsetDelta: int) -> bytes {
         key: bytes = varint(0 - 1);
         match (record.key) {
-            None -> None
+            None -> None,
             given -> {
                 key = <<varint(given.length()): bytes, given: bytes>>;
-            }
+            },
         }
 
         headers: bytes = varint(0);
         match (record.headers) {
-            None -> None
+            None -> None,
             list -> {
                 headers = varint(list.length());
                 for (header in list) {
@@ -90,7 +90,7 @@ private {
                         header.value: bytes,
                     >>;
                 }
-            }
+            },
         }
 
         inner = <<

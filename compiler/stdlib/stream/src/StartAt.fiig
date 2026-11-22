@@ -3,6 +3,6 @@
 // arrives from then on. A group that exists already carries on where it
 // was.
 enum StartAt {
-    Earliest
-    Latest
+    Earliest,
+    Latest,
 }

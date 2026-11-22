@@ -27,8 +27,8 @@ func wantDiag(t *testing.T, diags []Diagnostic, rule, fragment string) {
 
 func TestFloatArithmeticAndConstantsCheck(t *testing.T) {
 	diags := checkSrc(t, `model Reading {
-    celsius: float
-    count: int
+    celsius: float;
+    count: int;
 }`, `rule fahrenheit(r: Reading) -> float {
     half = r.celsius / 2;
     scale: float = 9;
@@ -102,9 +102,9 @@ func TestConstantsAreEvaluatedExactly(t *testing.T) {
 // TestFloatEqualityIsM1 is ADR 0051 §2.3 / ADR 0052 §2.2: a float at any
 // depth makes == a type error, and the diagnostic names the path to it.
 func TestFloatEqualityIsM1(t *testing.T) {
-	money := "model Money {\n    amount: float\n}"
-	order := "model Order {\n    id: string\n    total: Money\n}"
-	shape := "enum Shape {\n    Circle(radius: float)\n    Dot\n}"
+	money := "model Money {\n    amount: float;\n}"
+	order := "model Order {\n    id: string;\n    total: Money;\n}"
+	shape := "enum Shape {\n    Circle(radius: float),\n    Dot,\n}"
 	cases := []struct {
 		params, expr, fragment string
 	}{

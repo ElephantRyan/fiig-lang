@@ -5,8 +5,8 @@
 // the same batch stay unsettled, since they come again after it (ADR 0117
 // §6).
 model Delivery {
-    id: string
-    payload: bytes
-    attempt: int
-    order: string
+    id: string;
+    payload: bytes;
+    attempt: int;
+    order: string;
 }

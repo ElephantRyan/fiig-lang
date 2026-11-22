@@ -3,7 +3,7 @@
 // server stopped knowing it as it was, after a schema change or a
 // DEALLOCATE, so the driver prepares it again before using it.
 model SqlStatement {
-    sql: string
-    name: string
-    prepared: bool
+    sql: string;
+    name: string;
+    prepared: bool;
 }

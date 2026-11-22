@@ -14,9 +14,9 @@ import (
 // one, and JSON encodes promoted fields at the top level.
 func TestEmbeddedModelIsFlatAtRuntime(t *testing.T) {
 	srcs := []string{
-		"model Address {\n    line1: string\n    city: string\n}",
-		"model ContactInfo {\n    Address\n    email: string\n}",
-		"model Customer {\n    ContactInfo\n    id: string\n    city: string\n}",
+		"model Address {\n    line1: string;\n    city: string;\n}",
+		"model ContactInfo {\n    Address;\n    email: string;\n}",
+		"model Customer {\n    ContactInfo;\n    id: string;\n    city: string;\n}",
 		"rule build(a: Address, email: string) -> Customer {\n    return Customer(ContactInfo: ContactInfo(Address: a, email: email), id: \"c1\", city: \"Shadow\");\n}",
 		"rule plain(a: Address, email: string) -> ContactInfo {\n    return ContactInfo(Address: a, email: email);\n}",
 	}

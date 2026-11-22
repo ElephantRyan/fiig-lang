@@ -44,6 +44,27 @@ type Parser struct {
 	// keywordNames is each keyword this file named something with, which
 	// expectName already reported; a later use reads as that name.
 	keywordNames map[string]bool
+	// missing is each place an item's `;` or an alternative's `,` was left
+	// out (ADR 0145), for the migration and for ADR 0142 §5's second step.
+	missing []Missing
+}
+
+// Missing is a separator ADR 0145 asks for that the source leaves out: Sep
+// (";" or ",") belongs at At, the end of the token before it. Last marks
+// an alternative's `,` before its closing `}` on a later line, which the
+// formatter writes and the grammar leaves optional.
+type Missing struct {
+	At   lexer.Pos
+	Sep  string
+	Last bool
+}
+
+// MissingSeparators parses src and returns the separators ADR 0145 asks
+// for that it leaves out.
+func MissingSeparators(src string) []Missing {
+	p := New(lexer.New(src).AllTokens())
+	p.parseFile()
+	return p.missing
 }
 
 func New(toks []lexer.Token) *Parser {
@@ -221,11 +242,47 @@ func (p *Parser) errorRule(at lexer.Pos, rule, format string, args ...any) {
 
 // ---- file, imports, declarations -----------------------------------------
 
+// endItem takes the `;` that ends an item (ADR 0145 §1): an import, a
+// field, a wire, an interface member, a route. Until ADR 0142 §5's second
+// step retires the old form, an item may also end without one.
+func (p *Parser) endItem() {
+	if p.at(lexer.Semicolon) {
+		p.advance()
+		return
+	}
+	if p.pos == 0 {
+		return
+	}
+	if prev := p.peek(-1); prev.Kind != lexer.RBrace {
+		p.missing = append(p.missing, Missing{At: prev.End, Sep: ";"})
+	}
+}
+
+// endAlternative takes the `,` after an alternative (ADR 0145 §2): an enum
+// variant or an arm. It is optional after the last, as in every comma
+// list, and until ADR 0142 §5's second step, anywhere.
+func (p *Parser) endAlternative() {
+	if p.at(lexer.Comma) {
+		p.advance()
+		return
+	}
+	if p.pos == 0 {
+		return
+	}
+	prev := p.peek(-1)
+	last := p.at(lexer.RBrace)
+	if last && p.cur().Start.Line == prev.End.Line {
+		return // `{ A, B }` on one line ends without one
+	}
+	p.missing = append(p.missing, Missing{At: prev.End, Sep: ",", Last: last})
+}
+
 func (p *Parser) parseFile() *syntax.File {
 	start := p.cur().Start
 	f := &syntax.File{}
 	for p.at(lexer.KwUse) {
 		f.Imports = append(f.Imports, p.parseImport())
+		p.endItem()
 	}
 	// ADR 0054: one public declaration, then at most one private block.
 	// A second public declaration is a parse error, but it is still parsed
@@ -236,6 +293,9 @@ func (p *Parser) parseFile() *syntax.File {
 		if p.at(lexer.KwPrivate) {
 			p.parseFilePrivateBlock(f)
 		} else if d := p.parseDecl(); d != nil {
+			if _, single := d.(*syntax.PrincipalDecl); single {
+				p.endItem() // a single wire is the one declaration not ending in `}`
+			}
 			_, isTest := d.(*syntax.TestDecl)
 			if isTest && len(f.Decls) > 0 && f.Private == nil && allTests(f.Decls) {
 				// ADR 0102 §2: a test file holds many tests; tests aren't
@@ -489,8 +549,11 @@ func (p *Parser) parseServeBlock() *syntax.ServeBlock {
 				path = append(path, p.expectPathSegment().Text)
 			}
 			b.Adapters = append(b.Adapters, &syntax.AdapterRef{Span: syntax.Span{Start: refStart, End: p.cur().Start}, Path: path})
+			// `;` (ADR 0145 §1); `,` is the old form.
 			if p.at(lexer.Comma) {
 				p.advance()
+			} else {
+				p.endItem()
 			}
 		})
 	}
@@ -587,7 +650,10 @@ func (p *Parser) parseModelDecl() *syntax.ModelDecl {
 	p.expect(lexer.LBrace)
 	var fields []syntax.Field
 	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
-		p.guardProgress(func() { fields = append(fields, p.parseModelField()) })
+		p.guardProgress(func() {
+			fields = append(fields, p.parseModelField())
+			p.endItem()
+		})
 	}
 	end := p.expect(lexer.RBrace).End
 	return &syntax.ModelDecl{Span: syntax.Span{Start: start, End: end}, Name: name.Text, Fields: fields}
@@ -608,7 +674,10 @@ func (p *Parser) parseConfigDecl() *syntax.ConfigDecl {
 	p.expect(lexer.LBrace)
 	var fields []syntax.ConfigField
 	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
-		p.guardProgress(func() { fields = append(fields, p.parseConfigField()) })
+		p.guardProgress(func() {
+			fields = append(fields, p.parseConfigField())
+			p.endItem()
+		})
 	}
 	end := p.expect(lexer.RBrace).End
 	return &syntax.ConfigDecl{Span: syntax.Span{Start: start, End: end}, Keyword: kw.Text, Name: name.Text, When: when, Fields: fields}
@@ -710,7 +779,10 @@ func (p *Parser) parseEnumDecl() *syntax.EnumDecl {
 	p.expect(lexer.LBrace)
 	var variants []syntax.EnumVariant
 	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
-		p.guardProgress(func() { variants = append(variants, p.parseEnumVariant(header != nil)) })
+		p.guardProgress(func() {
+			variants = append(variants, p.parseEnumVariant(header != nil))
+			p.endAlternative()
+		})
 	}
 	end := p.expect(lexer.RBrace).End
 	return &syntax.EnumDecl{Span: syntax.Span{Start: start, End: end}, Name: name.Text, Header: header, Variants: variants}
@@ -869,6 +941,7 @@ func (p *Parser) parseInterfaceDecl() *syntax.InterfaceDecl {
 			p.expect(lexer.Arrow)
 			ret := p.parseType()
 			members = append(members, syntax.InterfaceMember{Span: syntax.Span{Start: mStart, End: p.cur().Start}, Name: mName.Text, Params: params, ReturnType: ret})
+			p.endItem()
 		})
 	}
 	end := p.expect(lexer.RBrace).End
@@ -970,6 +1043,8 @@ func (p *Parser) parseFormulaDecl() *syntax.FormulaDecl {
 	if p.at(lexer.LBrace) {
 		f.Body = p.parseBlock()
 		end = f.Body.End
+	} else {
+		p.endItem() // a native leaf has no block to end it (§2.4)
 	}
 	f.Span = syntax.Span{Start: start, End: end}
 	return f
@@ -1042,6 +1117,7 @@ func (p *Parser) parseFakeDecl() *syntax.FakeDecl {
 				field := p.advance().Text
 				p.advance() // ':'
 				f.Values = append(f.Values, syntax.Arg{Name: field, Value: p.parseExpression()})
+				p.endItem()
 			default:
 				p.errorf(p.cur().Start, "a fake holds gateways or `name: value` lines (ADR 0091 §4), got %s", p.cur().Kind)
 			}
@@ -1107,6 +1183,7 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 						p.errorf(ref.Start, "principal %s comes after a route; an adapter names its principals first (ADR 0141 §2)", ref.Name())
 					}
 					refs = append(refs, ref)
+					p.endItem()
 					return
 				}
 				pr := p.parsePrincipal()
@@ -1114,9 +1191,11 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 					p.errorf(pr.Start, "principal %s comes after a route; an adapter declares its principals first (ADR 0137 §1)", pr.Name)
 				}
 				principals = append(principals, pr)
+				p.endItem()
 				return
 			}
 			routes = append(routes, p.parseRoute(kind))
+			p.endItem()
 		})
 	}
 	end := p.expect(lexer.RBrace).End
@@ -1164,7 +1243,7 @@ func (p *Parser) parsePrincipal() *syntax.PrincipalDecl {
 			// ADR 0143 §3: a process or run source is a field of a group.
 			source := p.advance().Text
 			p.parseStringLit()
-			p.errorf(pr.Start, "[U10] wire %s reads %s, which is a field of a grouped wire: `wire Name { %s: Type from %s \"...\" }`; a single wire is read from a cookie, a header, or another wire (ADR 0143 §3)", pr.Name, source, pr.Name, source)
+			p.errorf(pr.Start, "[U10] wire %s reads %s, which is a field of a grouped wire: `wire Name { %s: Type from %s \"...\"; }`; a single wire is read from a cookie, a header, or another wire (ADR 0143 §3)", pr.Name, source, pr.Name, source)
 			for !p.at(lexer.EOF) && p.cur().Start.Line == start.Line {
 				p.advance()
 			}
@@ -1343,6 +1422,7 @@ func (p *Parser) parseStreamRoute(start lexer.Pos) *syntax.Route {
 				p.expect(lexer.Arrow)
 				val := p.parseDisposition(true)
 				route.Mapping = append(route.Mapping, syntax.ResponseArm{Span: syntax.Span{Start: armStart, End: p.cur().Start}, Pattern: pat, Value: val})
+				p.endAlternative()
 			})
 		}
 		p.expect(lexer.RBrace)
@@ -1388,6 +1468,7 @@ func (p *Parser) parseScheduleRoute(start lexer.Pos) *syntax.Route {
 				}
 				d.Span = syntax.Span{Start: dStart, End: p.cur().Start}
 				route.Mapping = append(route.Mapping, syntax.ResponseArm{Span: syntax.Span{Start: armStart, End: p.cur().Start}, Pattern: pat, Value: d})
+				p.endAlternative()
 			})
 		}
 		p.expect(lexer.RBrace)
@@ -1441,6 +1522,7 @@ func (p *Parser) parseStartupRoute(start lexer.Pos) *syntax.Route {
 				}
 				d.Span = syntax.Span{Start: dStart, End: p.cur().Start}
 				route.Mapping = append(route.Mapping, syntax.ResponseArm{Span: syntax.Span{Start: armStart, End: p.cur().Start}, Pattern: pat, Value: d})
+				p.endAlternative()
 			})
 		}
 		p.expect(lexer.RBrace)
@@ -1586,7 +1668,10 @@ func (p *Parser) parseResponseMapping() []syntax.ResponseArm {
 	p.expect(lexer.LBrace)
 	var arms []syntax.ResponseArm
 	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
-		p.guardProgress(func() { arms = append(arms, p.parseResponseArm()) })
+		p.guardProgress(func() {
+			arms = append(arms, p.parseResponseArm())
+			p.endAlternative()
+		})
 	}
 	p.expect(lexer.RBrace)
 	return arms
@@ -1633,7 +1718,7 @@ func (p *Parser) parseResponseValue() syntax.ResponseValue {
 // because `200 customer` and `404` are only distinguishable by scanning
 // ahead — flagged as a rough edge in grammar.md's response-mapping notes.
 func (p *Parser) atResponseArmBoundary() bool {
-	return p.at(lexer.RBrace) || p.at(lexer.EOF) || p.looksLikeArmStart()
+	return p.at(lexer.RBrace) || p.at(lexer.Comma) || p.at(lexer.EOF) || p.looksLikeArmStart()
 }
 
 func (p *Parser) looksLikeArmStart() bool {
@@ -1970,7 +2055,10 @@ func (p *Parser) parseMatchStmt() *syntax.MatchStmt {
 	p.expect(lexer.LBrace)
 	var arms []syntax.MatchArm
 	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
-		p.guardProgress(func() { arms = append(arms, p.parseMatchArm()) })
+		p.guardProgress(func() {
+			arms = append(arms, p.parseMatchArm())
+			p.endAlternative()
+		})
 	}
 	end := p.expect(lexer.RBrace).End
 	return &syntax.MatchStmt{Span: syntax.Span{Start: start, End: end}, Subject: subject, Arms: arms}

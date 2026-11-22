@@ -6,18 +6,18 @@
 conversion setupRequest(target: RedisTarget) -> RedisRequest {
     commands: List<List<string>> = [];
     match (target.password) {
-        None -> None
+        None -> None,
         password -> {
             match (target.user) {
                 None -> {
                     commands = append(commands, ["AUTH", password]);
-                }
+                },
 
                 user -> {
                     commands = append(commands, ["AUTH", user, password]);
-                }
+                },
             }
-        }
+        },
     }
 
     if (target.database != 0) {

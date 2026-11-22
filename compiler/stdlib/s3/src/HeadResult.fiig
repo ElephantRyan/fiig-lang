@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // What a HEAD says about an object, from its reply's headers (its
 // metadata included), when the server says 200. A reply with no Content-Length is malformed: the size is
@@ -17,11 +17,11 @@ conversion headResult(reply: http.Reply) -> Result<ObjectInfo, S3Error> {
                     ),
                 ),
             );
-        }
+        },
 
         size -> {
             return Ok(objectInfoOf(reply, size));
-        }
+        },
     }
 }
 

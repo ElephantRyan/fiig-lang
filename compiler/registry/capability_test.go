@@ -20,7 +20,7 @@ func TestInterfaceAndCapabilityCards(t *testing.T) {
 		}
 	}
 	write("fiig.pkg.json", `{"path": "shop", "kind": "application", "version": "1.0.0", "provides": {"shop.PaymentProvider": "Stripe"}}`)
-	write("payment_provider.fiig", "interface PaymentProvider {\n\tcharge(orderId: string) -> Result<string, string>\n}\n")
+	write("payment_provider.fiig", "interface PaymentProvider {\n\tcharge(orderId: string) -> Result<string, string>;\n}\n")
 	write("stripe.fiig", "capability Stripe {\n\tgateway charge(orderId: string) -> Result<string, string>\n\t\trequires Socket\n\t\tidempotent\n\t{\n\t\treturn Ok(Socket.write(orderId));\n\t}\n}\n")
 	write("pay.fiig", "activity pay(orderId: string) -> Result<string, string> {\n\treturn Stripe.charge(orderId);\n}\n")
 	write("echo.fiig", "activity echo(orderId: string) -> string {\n\treturn orderId;\n}\n")

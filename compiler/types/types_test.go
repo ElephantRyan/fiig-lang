@@ -71,7 +71,7 @@ func TestResolvePreludeGenericsAndNone(t *testing.T) {
 
 func TestResolveNamedDeclarationsAreNominal(t *testing.T) {
 	var files []*syntax.File
-	for _, src := range []string{"model CustomerRef {\n    id: string\n}\n", "model OrderRef {\n    id: string\n}\n"} {
+	for _, src := range []string{"model CustomerRef {\n    id: string;\n}\n", "model OrderRef {\n    id: string;\n}\n"} {
 		f, errs := parser.Parse(src)
 		if len(errs) > 0 {
 			t.Fatalf("unexpected parse errors: %v", errs)
@@ -154,7 +154,7 @@ func TestResolveQualifiedNameIsUnknownNotError(t *testing.T) {
 // cross-package resolution: a qualified reference resolves for real once
 // its alias is a known entry in imports, instead of staying Unknown.
 func TestResolveWithImportsResolvesKnownAlias(t *testing.T) {
-	standardTime, _ := buildTestUniverse(t, "model Instant {\n    days: int\n}\n")
+	standardTime, _ := buildTestUniverse(t, "model Instant {\n    days: int;\n}\n")
 	u, f := buildTestUniverse(t, "rule r(a: systemTime.Instant) -> int {\n    return 1;\n}\n")
 	rd := f.Decls[0].(*syntax.RuleDecl)
 
@@ -193,7 +193,7 @@ func TestResolveWithImportsUnknownAliasStaysUnknown(t *testing.T) {
 // unresolved-reference error, the same as a bad unqualified name — not
 // silently Unknown.
 func TestResolveWithImportsKnownAliasMissingMemberFails(t *testing.T) {
-	standardTime, _ := buildTestUniverse(t, "model Instant {\n    days: int\n}\n")
+	standardTime, _ := buildTestUniverse(t, "model Instant {\n    days: int;\n}\n")
 	u, f := buildTestUniverse(t, "rule r(a: systemTime.DoesNotExist) -> int {\n    return 1;\n}\n")
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	_, ok := ResolveWithImports(rd.Params[0].Type, u, map[string]*Universe{"systemTime": standardTime})

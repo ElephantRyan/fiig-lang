@@ -1,6 +1,6 @@
-use fiig.http
-use fiig.http.HttpClient
-use shop.kernel
+use fiig.http;
+use fiig.http.HttpClient;
+use shop.kernel;
 
 // ADR 0079 §3: the same gateway after Payments became its own service.
 // Its name and signature are unchanged, so submitOrder and every other
@@ -19,27 +19,27 @@ gateway chargeOrder(order: string, amount: kernel.Money) -> Result<Charge, Charg
         ),
     );
     match (sent) {
-        Err(_) -> Err(ChargeError.Unavailable(detail: "Payments is unreachable"))
+        Err(_) -> Err(ChargeError.Unavailable(detail: "Payments is unreachable")),
         Ok(reply) -> {
             if (reply.status == 200) {
                 receipt: Result<Charge, JsonError> = json.decode(reply.body);
                 match (receipt) {
-                    Ok(charge) -> Ok(charge)
+                    Ok(charge) -> Ok(charge),
                     Err(_) -> Err(
                         ChargeError.Unavailable(detail: "Payments' receipt didn't decode"),
-                    )
+                    ),
                 }
             } else if (reply.status == 422) {
                 refusal: Result<ChargeError, JsonError> = json.decode(reply.body);
                 match (refusal) {
-                    Ok(error) -> Err(error)
+                    Ok(error) -> Err(error),
                     Err(_) -> Err(
                         ChargeError.Unavailable(detail: "Payments' refusal didn't decode"),
-                    )
+                    ),
                 }
             } else {
                 Err(ChargeError.Unavailable(detail: "Payments answered ${reply.status}"));
             }
-        }
+        },
     }
 }

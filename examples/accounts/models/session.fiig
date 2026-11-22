@@ -4,7 +4,7 @@
 // activity that opens it, since the conversion that sets the cookie can't
 // read config itself (ADR 0071 §2).
 model Session {
-    token: string
-    account: Account
-    maxAge: int
+    token: string;
+    account: Account;
+    maxAge: int;
 }

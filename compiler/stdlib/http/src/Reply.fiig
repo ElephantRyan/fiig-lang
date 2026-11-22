@@ -2,7 +2,7 @@
 // included (§3). headers are in the order received, repeats kept; body is
 // empty when the server sent none.
 model Reply {
-    status: int
-    headers: List<Header>
-    body: bytes
+    status: int;
+    headers: List<Header>;
+    body: bytes;
 }

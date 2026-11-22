@@ -9,8 +9,8 @@ those once.
 ## The shape
 
 ```fiig
-use fiig.http
-use fiig.http.HttpClient
+use fiig.http;
+use fiig.http.HttpClient;
 
 capability ShelfApi {
     gateway book(token: string, id: string) -> Result<Book, ShelfError>
@@ -25,19 +25,19 @@ capability ShelfApi {
 The shared steps are conversions, each in its own file:
 
 ```fiig
-use fiig.http
+use fiig.http;
 
 // A sent request as the server answers it: unreachable, refused by
 // status, or a 200 reply to decode.
 conversion shelfReply(sent: Result<http.Reply, http.HttpError>) -> Result<http.Reply, ShelfError> {
     return match (sent) {
-        Err(failure) -> Err(ShelfError.Unreachable(failure: failure))
+        Err(failure) -> Err(ShelfError.Unreachable(failure: failure)),
         Ok(reply) -> {
             if (reply.status != 200) {
                 return Err(shelfFailure(reply.status));
             }
             return Ok(reply);
-        }
+        },
     }
 }
 ```
@@ -85,12 +85,12 @@ Fake `HttpClient`, not the client, so the real gateway bodies run (ADR
 client's config:
 
 ```fiig
-use fiig.http
-use fiig.http.HttpClient
+use fiig.http;
+use fiig.http.HttpClient;
 
 test bookSendsTheToken {
     fake Shelf {
-        url: "https://shelf.test"
+        url: "https://shelf.test";
     }
     fake HttpClient {
         gateway send(request: http.Request) -> Result<http.Reply, http.HttpError> {

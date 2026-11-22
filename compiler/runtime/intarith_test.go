@@ -81,8 +81,8 @@ func TestMinIntLiteralIsLegal(t *testing.T) {
 func TestOverflowingPatternSizeIsANonMatch(t *testing.T) {
 	src := `conversion frame(buffer: bytes) -> int {
     return match (buffer) {
-        <<len: i64be, body: bytes(len * 8)>> -> body.length()
-        _ -> -1
+        <<len: i64be, body: bytes(len * 8)>> -> body.length(),
+        _ -> -1,
     }
 }
 `

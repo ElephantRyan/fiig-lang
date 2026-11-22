@@ -29,8 +29,8 @@ var startupProgram = map[string]string{
     "version": "1.0.0"
 }`,
 	"check_error.fiig": `enum CheckError {
-    Missing
-    Slow
+    Missing,
+    Slow,
 }`,
 	"storage_ok.fiig": `workflow storageOk() -> Result<None, CheckError> {
     return Ok(None);
@@ -57,59 +57,59 @@ var startupProgram = map[string]string{
 	// Every check passes or is tolerated: a slow cache is only logged.
 	"good.fiig": `adapter startup Good {
     run -> storageOk() {
-        Ok(_) -> proceed
-        Err(_) -> halt
+        Ok(_) -> proceed,
+        Err(_) -> halt,
     }
     run -> cacheSlow() {
-        Ok(_) -> proceed
-        Err(CheckError.Slow) -> proceed
-        Err(CheckError.Missing) -> halt
+        Ok(_) -> proceed,
+        Err(CheckError.Slow) -> proceed,
+        Err(CheckError.Missing) -> halt,
     }
 }`,
 	// ADR 0127: a failed check the process starts after, and says so.
 	"degrading.fiig": `adapter startup Degrading {
     run -> cacheSlow() {
-        Ok(_) -> proceed
-        Err(CheckError.Missing) -> halt
-        Err(CheckError.Slow) -> degrade
+        Ok(_) -> proceed,
+        Err(CheckError.Missing) -> halt,
+        Err(CheckError.Slow) -> degrade,
     }
 }`,
 	"degrading_once.fiig": `adapter startup DegradingOnce {
     run once -> cacheSlow() {
-        Ok(_) -> proceed
-        Err(CheckError.Missing) -> halt
-        Err(CheckError.Slow) -> degrade
+        Ok(_) -> proceed,
+        Err(CheckError.Missing) -> halt,
+        Err(CheckError.Slow) -> degrade,
     }
 }`,
 	// ADR 0124 §6: a route's own deadline, and a route one replica runs.
 	"tight.fiig": `adapter startup Tight {
     run within "100ms" -> hung() {
-        _ -> proceed
+        _ -> proceed,
     }
 }`,
 	"once_ok.fiig": `adapter startup OnceOk {
     run once -> storageOk() {
-        Ok(_) -> proceed
-        Err(_) -> halt
+        Ok(_) -> proceed,
+        Err(_) -> halt,
     }
 }`,
 	"once.fiig": `adapter startup Once {
     run once -> storageMissing() {
-        Ok(_) -> proceed
-        Err(_) -> halt
+        Ok(_) -> proceed,
+        Err(_) -> halt,
     }
 }`,
 	// Three different ways to refuse, which one report must all name.
 	"bad.fiig": `adapter startup Bad {
     run -> storageMissing() {
-        Ok(_) -> proceed
-        Err(_) -> halt
+        Ok(_) -> proceed,
+        Err(_) -> halt,
     }
     run -> faulty() {
-        _ -> proceed
+        _ -> proceed,
     }
     run -> hung() {
-        _ -> proceed
+        _ -> proceed,
     }
 }`,
 }

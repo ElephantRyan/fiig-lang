@@ -22,8 +22,8 @@ func TestFormatWritesTheNewSyntax(t *testing.T) {
 		"        continue\n" +
 		"    }\n" +
 		"    match n {\n" +
-		"        None -> 0\n" +
-		"        given -> given + total\n" +
+		"        None -> 0,\n" +
+		"        given -> given + total,\n" +
 		"    }\n" +
 		"}\n"
 	want := "rule r(a: bool, xs: List<int>, n: int | None) -> int {\n" +
@@ -41,8 +41,8 @@ func TestFormatWritesTheNewSyntax(t *testing.T) {
 		"    }\n" +
 		"\n" +
 		"    return match (n) {\n" +
-		"        None -> 0\n" +
-		"        given -> given + total\n" +
+		"        None -> 0,\n" +
+		"        given -> given + total,\n" +
 		"    }\n" +
 		"}\n"
 	if out := mustFormat(t, src); out != want {
@@ -84,7 +84,7 @@ func TestFormatResolvesEachOr(t *testing.T) {
 // A final match whose block arm doesn't end in a value stays a statement,
 // since `return match` would need every arm to give one.
 func TestFormatLeavesAMatchThatCantReturn(t *testing.T) {
-	src := "rule r(n: int | None) -> int {\n    match n {\n        None -> 0\n        given -> {\n            if given > 1 {\n                return 1\n            }\n            x = given\n        }\n    }\n}\n"
+	src := "rule r(n: int | None) -> int {\n    match n {\n        None -> 0,\n        given -> {\n            if given > 1 {\n                return 1\n            }\n            x = given\n        },\n    }\n}\n"
 	out := mustFormat(t, src)
 	if !strings.Contains(out, "    match (n) {") || strings.Contains(out, "return match") {
 		t.Fatalf("got:\n%s", out)
@@ -95,13 +95,13 @@ func TestFormatLeavesAMatchThatCantReturn(t *testing.T) {
 func TestFormatMatchAsAValue(t *testing.T) {
 	src := "rule r(n: int | None) -> int {\n" +
 		"    label = match (n) {\n" +
-		"        None -> 0\n" +
-		"        given -> given\n" +
+		"        None -> 0,\n" +
+		"        given -> given,\n" +
 		"    }\n" +
 		"\n" +
 		"    return match (n) {\n" +
-		"        None -> label\n" +
-		"        given -> given\n" +
+		"        None -> label,\n" +
+		"        given -> given,\n" +
 		"    }\n" +
 		"}\n"
 	if out := mustFormat(t, src); out != src {

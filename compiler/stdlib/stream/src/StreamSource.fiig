@@ -7,7 +7,7 @@
 // run -replay` (open question 1, as amended 2026-11-21): it changes
 // nothing, so the element is neither received nor settled.
 interface StreamSource {
-    receive(subscription: Subscription, batchSize: int) -> Result<List<Delivery>, SourceError>
-    settle(subscription: Subscription, delivery: Delivery, outcome: Outcome) -> Result<None, SourceError>
-    fetch(subscription: Subscription, id: string) -> Result<Delivery | None, SourceError>
+    receive(subscription: Subscription, batchSize: int) -> Result<List<Delivery>, SourceError>;
+    settle(subscription: Subscription, delivery: Delivery, outcome: Outcome) -> Result<None, SourceError>;
+    fetch(subscription: Subscription, id: string) -> Result<Delivery | None, SourceError>;
 }

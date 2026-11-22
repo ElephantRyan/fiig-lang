@@ -1,4 +1,4 @@
-use fiig.schedule
+use fiig.schedule;
 
 // ADR 0125: a schedule lock in the program's own SQL database, for a program
 // that has one and no Redis. A claim is a row in fiig_locks naming the job and
@@ -76,11 +76,11 @@ capability SqlScheduleLock provides schedule.ScheduleLock {
         return match (row) {
             None -> {
                 return Ok(false);
-            }
+            },
 
             _ -> {
                 return Ok(true);
-            }
+            },
         }
     }
 }

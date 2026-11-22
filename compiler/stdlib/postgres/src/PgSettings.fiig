@@ -3,12 +3,12 @@
 // statementCacheSize is how many prepared statements each connection
 // keeps (§3b).
 model PgSettings {
-    host: string
-    port: int
-    user: string
-    password: string | None
-    database: string
-    secure: bool
-    applicationName: string | None
-    statementCacheSize: int
+    host: string;
+    port: int;
+    user: string;
+    password: string | None;
+    database: string;
+    secure: bool;
+    applicationName: string | None;
+    statementCacheSize: int;
 }

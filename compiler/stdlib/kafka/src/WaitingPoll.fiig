@@ -1,6 +1,6 @@
 // A Poll the group session holds until a partition can be fetched, or
 // until.
 model WaitingPoll {
-    key: int
-    until: int
+    key: int;
+    until: int;
 }

@@ -7,14 +7,14 @@ conversion layoutMoved(failure: KafkaError) -> bool {
     return match (failure) {
         KafkaError.Broker(code, _, _, _) -> {
             return code == 3 || code == 5 || code == 6;
-        }
+        },
 
         KafkaError.Session(_) -> {
             return true;
-        }
+        },
 
         _ -> {
             return false;
-        }
+        },
     }
 }

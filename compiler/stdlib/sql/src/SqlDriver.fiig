@@ -4,7 +4,7 @@
 // "provides": {"fiig.sql.SqlDriver": "SqlRelay"}. A driver that keeps
 // state about each connection provides SqlConnectionDriver instead (§1a).
 interface SqlDriver {
-    connect(settings: Map<string, string>) -> Result<Connection, DatabaseError>
-    run(connection: Connection, sql: string, values: List<SqlValue>) -> Result<SqlResult, DatabaseError>
-    close(connection: Connection) -> None
+    connect(settings: Map<string, string>) -> Result<Connection, DatabaseError>;
+    run(connection: Connection, sql: string, values: List<SqlValue>) -> Result<SqlResult, DatabaseError>;
+    close(connection: Connection) -> None;
 }

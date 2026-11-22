@@ -3,7 +3,7 @@
 // user never sends as another.
 conversion sessionFor(target: SmtpTarget) -> string {
     return match (target.user) {
-        None -> "no login"
-        name -> "user=${name}"
+        None -> "no login",
+        name -> "user=${name}",
     }
 }

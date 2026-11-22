@@ -18,10 +18,10 @@ func writeFiigFile(t *testing.T, dir, name, src string) {
 
 func TestMergeTagsCardsWithPackageIdentity(t *testing.T) {
 	leaf := t.TempDir()
-	writeFiigFile(t, leaf, "marker.fiig", "model Marker { n: int }")
+	writeFiigFile(t, leaf, "marker.fiig", "model Marker { n: int; }")
 
 	app := t.TempDir()
-	writeFiigFile(t, app, "marker.fiig", "model Marker { n: int }")
+	writeFiigFile(t, app, "marker.fiig", "model Marker { n: int; }")
 
 	cards, fileErrs, err := Merge([]MergeSource{
 		{Path: "app", Version: "1.0.0", Root: app},
@@ -50,7 +50,7 @@ func TestMergeTagsCardsWithPackageIdentity(t *testing.T) {
 
 func TestMergeSinglePackageUnaffectedByDefault(t *testing.T) {
 	dir := t.TempDir()
-	writeFiigFile(t, dir, "marker.fiig", "model Marker { n: int }")
+	writeFiigFile(t, dir, "marker.fiig", "model Marker { n: int; }")
 
 	cards, _, err := Generate(dir)
 	if err != nil {

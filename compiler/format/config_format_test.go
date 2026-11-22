@@ -6,10 +6,10 @@ import "testing"
 func TestFormatConfigDecl(t *testing.T) {
 	want := "wire Sessions {\n" +
 		"    // Seconds a login lasts.\n" +
-		"    maxAge: int from env \"SESSION_MAX_AGE\" = 24 * 60 * 60\n" +
-		"    exportToken: Secret from env \"ACCOUNTS_EXPORT_TOKEN\"\n" +
+		"    maxAge: int from env \"SESSION_MAX_AGE\" = 24 * 60 * 60;\n" +
+		"    exportToken: Secret from env \"ACCOUNTS_EXPORT_TOKEN\";\n" +
 		"}\n"
-	got, errs := Format("config  Sessions {\n    // Seconds a login lasts.\n    maxAge:int from env \"SESSION_MAX_AGE\"=24*60*60\n  exportToken : Secret from env \"ACCOUNTS_EXPORT_TOKEN\"\n}")
+	got, errs := Format("config  Sessions {\n    // Seconds a login lasts.\n    maxAge:int from env \"SESSION_MAX_AGE\"=24*60*60;\n  exportToken : Secret from env \"ACCOUNTS_EXPORT_TOKEN\";\n}")
 	if len(errs) > 0 {
 		t.Fatalf("format errors: %v", errs)
 	}

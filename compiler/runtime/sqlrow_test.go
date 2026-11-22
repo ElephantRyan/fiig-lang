@@ -14,17 +14,17 @@ import (
 func rowUniverse(t *testing.T) (*types.Universe, types.Type) {
 	t.Helper()
 	u := universeFromSource(t, `model Parcel {
-    id: string
-    weight: decimal
-    grams: float
-    count: int
-    note: string | None
-    state: ParcelState
-    fragile: bool
-    label: bytes
+    id: string;
+    weight: decimal;
+    grams: float;
+    count: int;
+    note: string | None;
+    state: ParcelState;
+    fragile: bool;
+    label: bytes;
 }`, `enum ParcelState {
-    Packed
-    Sent from json "sent"
+    Packed,
+    Sent from json "sent",
 }`)
 	d, _ := u.Lookup("Parcel")
 	return u, types.Named{Name: "Parcel", Decl: d}
@@ -126,9 +126,9 @@ func TestReadRowOneColumn(t *testing.T) {
 // camelCase field; an exact name wins; two columns for one field fault.
 func TestReadRowMatchesIgnoringCaseAndUnderscores(t *testing.T) {
 	u := universeFromSource(t, `model Rating {
-    userId: string
-    createdAt: int
-    score: int
+    userId: string;
+    createdAt: int;
+    score: int;
 }`)
 	d, _ := u.Lookup("Rating")
 	rating := types.Named{Name: "Rating", Decl: d}
@@ -160,8 +160,8 @@ func TestReadRowMatchesIgnoringCaseAndUnderscores(t *testing.T) {
 // Hearsay: an optional field with no column says how to give it one.
 func TestAMissingOptionalColumnSaysSelectNull(t *testing.T) {
 	u := universeFromSource(t, `model Row {
-    id: string
-    via: string | None
+    id: string;
+    via: string | None;
 }`)
 	d, _ := u.Lookup("Row")
 	row := Record{Fields: map[string]Value{"id": Str("r1")}}

@@ -4,7 +4,7 @@ conversion stringAt(data: bytes, at: int) -> TextAt | None {
     return match (i16At(data, at)) {
         None -> {
             return None;
-        }
+        },
 
         size -> {
             if (size < 0) {
@@ -19,12 +19,12 @@ conversion stringAt(data: bytes, at: int) -> TextAt | None {
             return match (text) {
                 None -> {
                     return None;
-                }
+                },
 
                 decoded -> {
                     return TextAt(text: decoded, next: at + 2 + size);
-                }
+                },
             }
-        }
+        },
     }
 }

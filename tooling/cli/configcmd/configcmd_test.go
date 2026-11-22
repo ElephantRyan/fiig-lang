@@ -54,7 +54,7 @@ var foldersModule = map[string]string{
 	"fiig.pkg.json": `{"path": "t.app", "kind": "application", "version": "1.0.0"}`,
 	"src/orders/OrdersApi.fiig": `adapter http ordersApi {
     GET "/orders/{id}" -> getOrder(id: string)
-        produces "application/json"
+        produces "application/json";
 }`,
 	"src/orders/GetOrder.fiig": `workflow getOrder(id: string) -> string {
     return regionOf(id);
@@ -63,7 +63,7 @@ var foldersModule = map[string]string{
     return "${id}@${OrderSettings.region}";
 }`,
 	"src/orders/OrderSettings.fiig": `wire OrderSettings {
-    region: string from env "ORDER_REGION"
+    region: string from env "ORDER_REGION";
 }`,
 	"src/orders/Health.fiig": `workflow health() -> string {
     return "orders";

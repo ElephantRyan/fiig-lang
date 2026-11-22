@@ -1,4 +1,4 @@
-use shop.kernel
+use shop.kernel;
 
 // ADR 0079 §5: a decision Payments owns. Orders never imports it; it gets
 // the answer as data, in the receipt.

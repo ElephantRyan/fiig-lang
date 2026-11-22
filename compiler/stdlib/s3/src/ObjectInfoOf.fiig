@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // What a HEAD's or a GET's reply says about its object, given its size:
 // the content type, the ETag and the metadata, from the headers.

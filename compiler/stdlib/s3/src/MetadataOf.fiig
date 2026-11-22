@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // The user metadata a reply carries, from its x-amz-meta-* headers in any
 // case, keyed in lower case without the prefix. The first header of a name

@@ -16,27 +16,27 @@ import (
 // string is written in the union, the text arm takes only text whatever
 // the arms' order, and OpenAPI says anyOf.
 var shadeProgram = []string{
-	"enum Shade {\n    Light from json \"light\"\n    Dark from json \"dark\"\n}",
+	"enum Shade {\n    Light from json \"light\",\n    Dark from json \"dark\",\n}",
 	`model Paint {
-    shade: string | Shade
+    shade: string | Shade;
 }`,
 	`workflow describe(paint: Paint) -> string {
     return match (paint.shade) {
         text -> {
             return "text ${text}";
-        }
+        },
         Shade.Light -> {
             return "the light shade";
-        }
+        },
         Shade.Dark -> {
             return "the dark shade";
-        }
+        },
     }
 }`,
 	`adapter http shades {
     POST "/describe" -> describe(paint: Paint)
         consumes "application/json"
-        produces "application/json"
+        produces "application/json";
 }`,
 }
 

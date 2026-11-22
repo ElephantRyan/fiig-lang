@@ -49,11 +49,11 @@ private {
     // A URL split for sending: host and port to connect to, authority for
     // the Host header as written, and target for the request line.
     model Url {
-        host: string
-        port: int
-        secure: bool
-        authority: string
-        target: string
+        host: string;
+        port: int;
+        secure: bool;
+        authority: string;
+        target: string;
     }
 
     parseUrl(url: string) -> Result<Url, HttpError> {
@@ -220,22 +220,22 @@ private {
 
     headersOf(request: Request) -> List<Header> {
         return match (request.headers) {
-            None -> []
-            given -> given
+            None -> [],
+            given -> given,
         }
     }
 
     bodyOf(request: Request) -> bytes {
         return match (request.body) {
-            None -> <<>>
-            given -> given
+            None -> <<>>,
+            given -> given,
         }
     }
 
     timeoutOf(request: Request) -> int {
         return match (request.timeoutMillis) {
-            None -> 30000
-            given -> given
+            None -> 30000,
+            given -> given,
         }
     }
 
@@ -243,27 +243,27 @@ private {
     // which some servers require.
     sendsLength(request: Request) -> bool {
         return match (request.method) {
-            Method.Post -> true
-            Method.Put -> true
-            Method.Patch -> true
-            Method.Get -> false
-            Method.Head -> false
-            Method.Delete -> false
-            Method.Options -> false
-            Method.Query -> false
+            Method.Post -> true,
+            Method.Put -> true,
+            Method.Patch -> true,
+            Method.Get -> false,
+            Method.Head -> false,
+            Method.Delete -> false,
+            Method.Options -> false,
+            Method.Query -> false,
         }
     }
 
     methodName(method: Method) -> string {
         return match (method) {
-            Method.Get -> "GET"
-            Method.Head -> "HEAD"
-            Method.Post -> "POST"
-            Method.Put -> "PUT"
-            Method.Patch -> "PATCH"
-            Method.Delete -> "DELETE"
-            Method.Options -> "OPTIONS"
-            Method.Query -> "QUERY"
+            Method.Get -> "GET",
+            Method.Head -> "HEAD",
+            Method.Post -> "POST",
+            Method.Put -> "PUT",
+            Method.Patch -> "PATCH",
+            Method.Delete -> "DELETE",
+            Method.Options -> "OPTIONS",
+            Method.Query -> "QUERY",
         }
     }
 }

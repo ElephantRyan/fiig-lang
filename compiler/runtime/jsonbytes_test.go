@@ -11,8 +11,8 @@ import (
 
 var bytesProgram = []string{
 	`model Attachment {
-    name: string
-    content: bytes
+    name: string;
+    content: bytes;
 }`,
 	`rule readAttachment(body: string) -> Result<Attachment, JsonError> {
     return json.decode(body);

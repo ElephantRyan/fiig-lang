@@ -2,7 +2,7 @@
 // import. Every cross-package reference is qualified through its package
 // alias, so the grammar has no `.*` form and this line is a parse error,
 // G2, tagged like G1's second public declaration.
-use standard.time.* // rejected: parse error G2
+use standard.time.*; // rejected: parse error G2
 
 // Bare `Instant` is what a wildcard import would have brought into scope.
 // The correct spelling is `use standard.time` and `time.Instant`. Whether

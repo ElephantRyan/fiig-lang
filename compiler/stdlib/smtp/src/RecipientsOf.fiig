@@ -26,8 +26,8 @@ conversion recipientsOf(mail: Mail) -> List<string> {
 private {
     listOf(addresses: List<string> | None) -> List<string> {
         return match (addresses) {
-            None -> []
-            given -> given
+            None -> [],
+            given -> given,
         }
     }
 }

@@ -1,4 +1,4 @@
-use fiig.stream
+use fiig.stream;
 
 test theRecordWithExactlyThatOffset {
     // A fetch at 5 returns the whole batch from 4.

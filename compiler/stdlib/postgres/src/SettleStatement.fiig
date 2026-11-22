@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // ADR 0085 §3b: the statement cache after a reply to plan. A statement
 // whose Parse completed is prepared; one whose Parse didn't (a syntax

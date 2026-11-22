@@ -55,8 +55,8 @@ test aReasonNeverRepeatsThePassword {
 private {
     orEmpty(text: string | None) -> string {
         return match (text) {
-            None -> ""
-            value -> value
+            None -> "",
+            value -> value,
         }
     }
 }

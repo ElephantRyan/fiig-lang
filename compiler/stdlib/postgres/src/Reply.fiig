@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // Where execute is in reading a statement's reply (§3, §9). row is the row
 // the last message carried, which execute appends to its own list; failed
@@ -7,12 +7,12 @@ use fiig.sql as db
 // (§3b); status is ReadyForQuery's: 73 (I) idle, 84 (T) in a transaction,
 // 69 (E) in a failed one.
 model Reply {
-    columns: List<string>
-    types: List<int>
-    row: List<db.SqlValue> | None
-    affected: int
-    failed: db.DatabaseError | None
-    ready: bool
-    parsed: bool
-    status: int
+    columns: List<string>;
+    types: List<int>;
+    row: List<db.SqlValue> | None;
+    affected: int;
+    failed: db.DatabaseError | None;
+    ready: bool;
+    parsed: bool;
+    status: int;
 }

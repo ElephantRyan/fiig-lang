@@ -126,7 +126,7 @@ func TestTransactionCommitsOnSuccessAndWriteIsVisibleAfterward(t *testing.T) {
 
 func TestTransactionRollsBackOnPropagatedError(t *testing.T) {
 	u := universeFromSource(t, `enum E {
-    Bad()
+    Bad(),
 }
 `, `workflow writeThenFail(key: string, value: string) -> Result<None, E> {
     transaction KV {

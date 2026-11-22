@@ -16,7 +16,7 @@ gateway findAccountByKey(credentials: Credentials) -> Result<Account, AccountErr
                 stored: "$argon2id$v=19$m=19456,t=2,p=1$bm8tc3VjaC1hY2NvdW50$Rjc8Ou31Bqaj4G0fqgDCm6Zg8D4Ozp+2cn17Fd8tY0o",
             );
             return Err(AccountError.BadCredentials);
-        }
+        },
 
         found -> {
             if (!crypto.passwordMatches(credentials.key, stored: found.keyHash)) {
@@ -24,6 +24,6 @@ gateway findAccountByKey(credentials: Credentials) -> Result<Account, AccountErr
             }
 
             return Ok(Account(name: found.name, email: found.email));
-        }
+        },
     }
 }

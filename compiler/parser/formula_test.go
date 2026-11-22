@@ -10,7 +10,7 @@ import (
 // ADR 0049 §2.1: `formulas name { formula ... }`.
 
 func TestParseFormulasGroup(t *testing.T) {
-	f, errs := Parse("formulas vector {\n    formula dot(a: int, b: int) -> int {\n        return a * b;\n    }\n\n    formula sqrt(x: int) -> int\n\n    formula fetch(x: int) -> int requires Socket {\n        return x;\n    }\n}\n")
+	f, errs := Parse("formulas vector {\n    formula dot(a: int, b: int) -> int {\n        return a * b;\n    }\n\n    formula sqrt(x: int) -> int;\n\n    formula fetch(x: int) -> int requires Socket {\n        return x;\n    }\n}\n")
 	if len(errs) > 0 {
 		t.Fatalf("parse errors: %v", errs)
 	}

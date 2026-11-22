@@ -385,25 +385,25 @@ private {
     // refuses it, so a test that expected progress sees none.
     go(d: Dialogue, code: int, lines: List<string>) -> Dialogue {
         return match (advance(d, reply(code, lines))) {
-            Ok(next) -> next
-            Err(_) -> d
+            Ok(next) -> next,
+            Err(_) -> d,
         }
     }
 
     // What the gateway does at this phase, as text.
     sent(d: Dialogue) -> string {
         return match (nextStep(d)) {
-            SmtpStep.Listen -> "listen"
-            SmtpStep.Upgrade -> "upgrade"
-            SmtpStep.Send(data) -> textOf(data)
-            SmtpStep.Finish -> "finish"
+            SmtpStep.Listen -> "listen",
+            SmtpStep.Upgrade -> "upgrade",
+            SmtpStep.Send(data) -> textOf(data),
+            SmtpStep.Finish -> "finish",
         }
     }
 
     textOf(data: bytes) -> string {
         return match (data.utf8()) {
-            None -> ""
-            text -> text
+            None -> "",
+            text -> text,
         }
     }
 }

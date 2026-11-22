@@ -9,7 +9,7 @@
 // manifest names the group that fulfils it:
 // "provides": {"fiig.schedule.ScheduleLock": "RedisScheduleLock"}.
 interface ScheduleLock {
-    claim(job: string, firedAt: int, holder: string, holdMillis: int) -> Result<bool, LockError>
-    complete(job: string, firedAt: int, holder: string, retainMillis: int) -> Result<bool, LockError>
-    completed(job: string, firedAt: int) -> Result<bool, LockError>
+    claim(job: string, firedAt: int, holder: string, holdMillis: int) -> Result<bool, LockError>;
+    complete(job: string, firedAt: int, holder: string, retainMillis: int) -> Result<bool, LockError>;
+    completed(job: string, firedAt: int) -> Result<bool, LockError>;
 }

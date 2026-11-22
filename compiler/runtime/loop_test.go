@@ -11,7 +11,7 @@ import (
 
 // orderModel is declared in every loop test source so Record values built
 // here line up with the program's own model (ADR 0053).
-const loopModel = "model Order {\n\tamount: int\n}\n\n"
+const loopModel = "model Order {\n\tamount: int;\n}\n\n"
 
 // runLoopProgram parses loopModel plus src, then calls rule name with args.
 func runLoopProgram(t *testing.T, src, name string, args map[string]Value) Value {

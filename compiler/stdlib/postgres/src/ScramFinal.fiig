@@ -1,6 +1,6 @@
 // SCRAM's last client message, and the signature the server must answer
 // with to prove it knows the password (RFC 5802 §3).
 model ScramFinal {
-    message: string
-    serverSignature: bytes
+    message: string;
+    serverSignature: bytes;
 }

@@ -66,11 +66,11 @@ private {
         return match (read) {
             None -> {
                 return Err(short());
-            }
+            },
 
             found -> {
                 return Ok(found);
-            }
+            },
         }
     }
 
@@ -78,11 +78,11 @@ private {
         return match (read) {
             None -> {
                 return Err(short());
-            }
+            },
 
             found -> {
                 return Ok(found);
-            }
+            },
         }
     }
 
@@ -90,11 +90,11 @@ private {
         return match (read) {
             None -> {
                 return Err(KafkaError.MalformedReply(reason: "a fetched record ends early"));
-            }
+            },
 
             found -> {
                 return Ok(found);
-            }
+            },
         }
     }
 
@@ -111,11 +111,11 @@ private {
                     }
 
                     rest = more;
-                }
+                },
 
                 _ -> {
                     reading = false;
-                }
+                },
             }
         }
 
@@ -163,7 +163,7 @@ private {
 
                         body = unpackedRecords(codec, section, maxSize)?;
                         return recordsOf(base, body, count);
-                    }
+                    },
 
                     _ -> {
                         return Err(
@@ -171,13 +171,13 @@ private {
                                 reason: "a fetched batch's header ends early",
                             ),
                         );
-                    }
+                    },
                 }
-            }
+            },
 
             _ -> {
                 return Err(KafkaError.MalformedReply(reason: "a fetched batch ends early"));
-            }
+            },
         }
     }
 

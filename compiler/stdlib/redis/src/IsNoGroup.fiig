@@ -3,10 +3,10 @@ conversion isNoGroup(failure: RedisError) -> bool {
     return match (failure) {
         RedisError.Server(message) -> {
             return message.startsWith("NOGROUP");
-        }
+        },
 
         _ -> {
             return false;
-        }
+        },
     }
 }

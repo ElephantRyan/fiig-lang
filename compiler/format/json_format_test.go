@@ -5,10 +5,10 @@ import "testing"
 // ADR 0073 §7: keyword field names and `from json` names print as written.
 func TestFormatJsonFieldNames(t *testing.T) {
 	want := "model Page {\n" +
-		"    limit: int\n" +
-		"    contentType: string from json \"content-type\"\n" +
+		"    limit: int;\n" +
+		"    contentType: string from json \"content-type\";\n" +
 		"}\n"
-	got, errs := Format("model Page {\n  limit:int\n    contentType : string  from json \"content-type\"\n}")
+	got, errs := Format("model Page {\n  limit:int;\n    contentType : string  from json \"content-type\";\n}")
 	if len(errs) > 0 {
 		t.Fatalf("format errors: %v", errs)
 	}
@@ -21,11 +21,11 @@ func TestFormatJsonFieldNames(t *testing.T) {
 // second format changes nothing.
 func TestFormatBase64URLFields(t *testing.T) {
 	want := "model Message {\n" +
-		"    raw: bytes from json base64url\n" +
-		"    data: bytes from json \"raw_data\" base64url\n" +
+		"    raw: bytes from json base64url;\n" +
+		"    data: bytes from json \"raw_data\" base64url;\n" +
 		"}\n\n" +
 		"enum Upload {\n" +
-		"    Sent(body: bytes from json base64url)\n" +
+		"    Sent(body: bytes from json base64url),\n" +
 		"}\n"
 	got, errs := Format("model Message {\n  raw:bytes   from json  base64url\n    data : bytes from json \"raw_data\"  base64url\n}\nenum Upload {\n Sent(body: bytes from json base64url)\n}")
 	if len(errs) > 0 {

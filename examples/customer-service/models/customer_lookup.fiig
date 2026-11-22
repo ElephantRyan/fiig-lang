@@ -3,5 +3,5 @@
 // inventing search/filter semantics the compiler has no capability to
 // actually execute yet.
 model CustomerLookup {
-    id: string
+    id: string;
 }

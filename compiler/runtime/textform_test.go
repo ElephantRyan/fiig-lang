@@ -13,13 +13,13 @@ import (
 
 var spelledSources = []string{
 	`enum Status {
-    Active from json "active"
-    PastDue from json "past_due"
-    Legacy
+    Active from json "active",
+    PastDue from json "past_due",
+    Legacy,
 }`,
 	`enum Outcome {
-    Paid(receipt: string) from json "paid"
-    Refused(reason: string)
+    Paid(receipt: string) from json "paid",
+    Refused(reason: string),
 }`,
 }
 
@@ -74,7 +74,7 @@ func TestSpellingsInJSON(t *testing.T) {
 
 func TestSpellingsInConfig(t *testing.T) {
 	u := universeFromSource(t, append([]string{`wire Billing {
-    status: Status from env "STATUS"
+    status: Status from env "STATUS";
 }`}, spelledSources...)...)
 	d, _ := u.Lookup("Billing")
 	load := func(value string) (*Interp, []string) {

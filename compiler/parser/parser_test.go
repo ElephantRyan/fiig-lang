@@ -66,9 +66,9 @@ func TestValueDeclIsRemoved(t *testing.T) {
 func TestParseModelDecl(t *testing.T) {
 	f := mustParse(t, `
 model Customer {
-    id: CustomerId
-    name: string
-    email: EmailAddress
+    id: CustomerId;
+    name: string;
+    email: EmailAddress;
 }`)
 	md := f.Decls[0].(*syntax.ModelDecl)
 	if md.Name != "Customer" || len(md.Fields) != 3 {
@@ -82,9 +82,9 @@ model Customer {
 func TestParseEnumDeclWithZeroFieldVariant(t *testing.T) {
 	f := mustParse(t, `
 enum CheckoutError {
-    Customer(error: CustomerError)
-    Order(error: OrderError)
-    OutOfStock
+    Customer(error: CustomerError),
+    Order(error: OrderError),
+    OutOfStock,
 }`)
 	ed := f.Decls[0].(*syntax.EnumDecl)
 	if len(ed.Variants) != 3 {
@@ -128,8 +128,8 @@ gateway getCustomer(id: CustomerId) -> Result<Customer, CustomerError>
 {
     row = Database.queryOne("x", id);
     return match (row) {
-        found -> Ok(Customer(id: found.id, name: found.name, email: found.email))
-        None -> Err(CustomerError.NotFound(id))
+        found -> Ok(Customer(id: found.id, name: found.name, email: found.email)),
+        None -> Err(CustomerError.NotFound(id)),
     }
 }`)
 	sd := f.Decls[0].(*syntax.GatewayDecl)
@@ -318,8 +318,8 @@ rule classify(x: int) -> string {
 
 func TestParseImportPlainAndAliased(t *testing.T) {
 	f := mustParse(t, `
-use company.time as businessTime
-use standard.time as systemTime
+use company.time as businessTime;
+use standard.time as systemTime;
 
 rule r() -> string {
     return "x";
@@ -357,8 +357,8 @@ func TestParseAdapterHttpWithResponseMapping(t *testing.T) {
 	f := mustParse(t, `
 adapter http customerHttpApiWithMapping {
     GET "/customers/{id}" -> readCustomer(id: CustomerId) {
-        Ok(customer) -> 200 customer
-        Err(error) -> customerErrorToHttpResponse(error)
+        Ok(customer) -> 200 customer,
+        Err(error) -> customerErrorToHttpResponse(error),
     }
 }`)
 	ad := f.Decls[0].(*syntax.AdapterDecl)
@@ -404,9 +404,9 @@ func TestParseAdapterResponseMappingBareStatusCode(t *testing.T) {
 	f := mustParse(t, `
 adapter http api {
     GET "/x" -> f(id: CustomerId) {
-        Ok(customer) -> 200 customer
-        Err(CustomerError.NotFound(_)) -> 404
-        Err(error) -> 500 error
+        Ok(customer) -> 200 customer,
+        Err(CustomerError.NotFound(_)) -> 404,
+        Err(error) -> 500 error,
     }
 }`)
 	ad := f.Decls[0].(*syntax.AdapterDecl)
@@ -449,9 +449,9 @@ adapter http accountApi {
         consumes "application/json"
         produces "application/json"
     {
-        Ok(order) -> 200 order
+        Ok(order) -> 200 order,
     }
-    GET "/export" -> exportOrders() produces "text/csv"
+    GET "/export" -> exportOrders() produces "text/csv";
 }`)
 	ad := f.Decls[0].(*syntax.AdapterDecl)
 	route := ad.Routes[0]
@@ -496,7 +496,7 @@ adapter http api {
 func TestParseAdapterCli(t *testing.T) {
 	f := mustParse(t, `
 adapter cli customerCli {
-    command "customer get {id}" -> readCustomer(id: CustomerId)
+    command "customer get {id}" -> readCustomer(id: CustomerId);
 }`)
 	ad := f.Decls[0].(*syntax.AdapterDecl)
 	if ad.Kind != syntax.AdapterCLI {
@@ -512,7 +512,7 @@ adapter cli customerCli {
 }
 
 func TestParseUnionTypeAndRecordType(t *testing.T) {
-	f := mustParse(t, `model M { middleName: string | None }`)
+	f := mustParse(t, `model M { middleName: string | None; }`)
 	md := f.Decls[0].(*syntax.ModelDecl)
 	union, ok := md.Fields[0].Type.(*syntax.UnionType)
 	if !ok || len(union.Members) != 2 {
@@ -671,7 +671,7 @@ private {
     }
 
     model Threshold {
-        minimum: int
+        minimum: int;
     }
 }
 `)
@@ -876,8 +876,8 @@ func TestListLiteral(t *testing.T) {
 func TestBinaryPatternAndExpression(t *testing.T) {
 	f := mustParse(t, `conversion c(buf: bytes) -> bytes {
     return match (buf) {
-        <<0x52: u8, n: i32be, body: bytes(n - 4), _: u4, "ok": utf8, rest: bytes>> -> <<n + 1: u16le, body: bytes>>
-        _ -> <<>>
+        <<0x52: u8, n: i32be, body: bytes(n - 4), _: u4, "ok": utf8, rest: bytes>> -> <<n + 1: u16le, body: bytes>>,
+        _ -> <<>>,
     }
 }`)
 	m := f.Decls[0].(*syntax.ConversionDecl).Body.Stmts[0].(*syntax.ReturnStmt).Value.(*syntax.MatchExpr).Match
@@ -914,9 +914,9 @@ func TestBinaryPatternAndExpression(t *testing.T) {
 // defaults.
 func TestParseConfigDecl(t *testing.T) {
 	f, errs := Parse(`wire Sessions {
-    maxAge: int from env "SESSION_MAX_AGE" = 24 * 60 * 60
-    exportToken: Secret from env "ACCOUNTS_EXPORT_TOKEN"
-    level: Level | None from env "LOG_LEVEL"
+    maxAge: int from env "SESSION_MAX_AGE" = 24 * 60 * 60;
+    exportToken: Secret from env "ACCOUNTS_EXPORT_TOKEN";
+    level: Level | None from env "LOG_LEVEL";
 }`)
 	if len(errs) != 0 {
 		t.Fatalf("errs = %v", errs)
@@ -945,9 +945,9 @@ func TestParseConfigDecl(t *testing.T) {
 // local still may not.
 func TestKeywordsAsFieldNames(t *testing.T) {
 	f := mustParse(t, `model Page {
-    limit: int
-    in: string
-    match: bool | None
+    limit: int;
+    in: string;
+    match: bool | None;
 }`)
 	mustParse(t, `rule next(page: Page) -> Page {
     later: Page = copy(page, limit: page.limit + 10);
@@ -958,7 +958,7 @@ func TestKeywordsAsFieldNames(t *testing.T) {
 		t.Fatalf("fields = %+v", m.Fields)
 	}
 	e := mustParse(t, `enum Window {
-    Range(for: int, while: int)
+    Range(for: int, while: int),
 }`)
 	if v := e.Decls[0].(*syntax.EnumDecl).Variants[0]; v.Fields[0].Name != "for" || v.Fields[1].Name != "while" {
 		t.Fatalf("payload = %+v", v.Fields)
@@ -983,16 +983,16 @@ func TestKeywordsAsFieldNames(t *testing.T) {
 // ADR 0073 §7b: `from json "name"` on a model or payload field.
 func TestFromJsonName(t *testing.T) {
 	f := mustParse(t, `model Upload {
-    contentType: string from json "content-type"
-    schema: string | None from json "$schema"
-    size: int
+    contentType: string from json "content-type";
+    schema: string | None from json "$schema";
+    size: int;
 }`)
 	m := f.Decls[0].(*syntax.ModelDecl)
 	if m.Fields[0].JSONName() != "content-type" || m.Fields[1].JSONName() != "$schema" || m.Fields[2].JSONName() != "size" {
 		t.Fatalf("fields = %+v", m.Fields)
 	}
 	e := mustParse(t, `enum Event {
-    Created(at: string from json "@timestamp")
+    Created(at: string from json "@timestamp"),
 }`)
 	if v := e.Decls[0].(*syntax.EnumDecl).Variants[0]; v.Fields[0].JSON != "@timestamp" {
 		t.Fatalf("payload = %+v", v.Fields)

@@ -1,7 +1,7 @@
 // One partition of a Fetch response: its error code, and its records in
 // offset order.
 model FetchedPartition {
-    partition: int
-    code: int
-    records: List<FetchedRecord>
+    partition: int;
+    code: int;
+    records: List<FetchedRecord>;
 }

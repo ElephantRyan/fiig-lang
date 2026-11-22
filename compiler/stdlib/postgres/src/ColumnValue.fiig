@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // ADR 0085 §8: a column's text, read by its type's OID. Integers (20, 21,
 // 23) are Int; float4 and float8 (700, 701) are Float, but NaN and the
@@ -9,15 +9,15 @@ conversion columnValue(text: bytes, oid: int) -> db.SqlValue {
     return match (text.utf8()) {
         None -> {
             return db.SqlValue.Bytes(value: text);
-        }
+        },
 
         value -> {
             if (oid == 20 || oid == 21 || oid == 23) {
                 match (value.toIntOrNone()) {
-                    None -> None
+                    None -> None,
                     n -> {
                         return db.SqlValue.Int(value: n);
-                    }
+                    },
                 }
             }
 
@@ -27,10 +27,10 @@ conversion columnValue(text: bytes, oid: int) -> db.SqlValue {
                 }
 
                 match (value.toFloatOrNone()) {
-                    None -> None
+                    None -> None,
                     x -> {
                         return db.SqlValue.Float(value: x);
-                    }
+                    },
                 }
             }
 
@@ -46,14 +46,14 @@ conversion columnValue(text: bytes, oid: int) -> db.SqlValue {
 
             if (oid == 17 && value.startsWith("\\x")) {
                 match (value.removePrefix("\\x").fromHex()) {
-                    None -> None
+                    None -> None,
                     data -> {
                         return db.SqlValue.Bytes(value: data);
-                    }
+                    },
                 }
             }
 
             return db.SqlValue.Text(value: value);
-        }
+        },
     }
 }

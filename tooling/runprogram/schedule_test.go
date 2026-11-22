@@ -31,10 +31,10 @@ var scheduleProgram = map[string]string{
     "capabilities": ["Socket"]
 }`,
 	"job_error.fiig": `enum JobError {
-    Busy
-    Broken
+    Busy,
+    Broken,
 }`,
-	"count_tick.fiig": `use fiig.redis.Redis
+	"count_tick.fiig": `use fiig.redis.Redis;
 
 gateway countTick(firedAt: int) -> Result<None, JobError>
     requires Redis
@@ -42,10 +42,10 @@ gateway countTick(firedAt: int) -> Result<None, JobError>
     return match (Redis.send(["INCR", "ticks"])) {
         Ok(_) -> {
             return Ok(None);
-        }
+        },
         Err(_) -> {
             return Err(JobError.Broken);
-        }
+        },
     }
 }`,
 	"note_tick.fiig": `activity noteTick(firedAt: int) -> Result<None, JobError> {
@@ -64,7 +64,7 @@ gateway countTick(firedAt: int) -> Result<None, JobError>
     return Ok(None);
 }`,
 	// ADR 0124 §6: a startup route that runs once per deploy, counted.
-	"count_seed.fiig": `use fiig.redis.Redis
+	"count_seed.fiig": `use fiig.redis.Redis;
 
 gateway countSeed() -> Result<None, JobError>
     requires Redis
@@ -72,10 +72,10 @@ gateway countSeed() -> Result<None, JobError>
     return match (Redis.send(["INCR", "seeds"])) {
         Ok(_) -> {
             return Ok(None);
-        }
+        },
         Err(_) -> {
             return Err(JobError.Broken);
-        }
+        },
     }
 }`,
 	"note_seed.fiig": `activity noteSeed() -> Result<None, JobError> {
@@ -87,8 +87,8 @@ gateway countSeed() -> Result<None, JobError>
 }`,
 	"seeded.fiig": `adapter startup Seeded {
     run once -> seed() {
-        Ok(_) -> proceed
-        Err(_) -> halt
+        Ok(_) -> proceed,
+        Err(_) -> halt,
     }
 }`,
 	"spin.fiig": `workflow spin() -> Result<None, JobError> {
@@ -106,19 +106,19 @@ gateway countSeed() -> Result<None, JobError>
 }`,
 	"faulter.fiig": `adapter schedule Faulter {
     every "15m" -> broken(firedAt: int) {
-        _ -> halt
+        _ -> halt,
     }
 }`,
 	"jobs.fiig": `adapter schedule Jobs {
     every "15m" -> tick(firedAt: int) {
-        Ok(_) -> done
-        Err(JobError.Busy) -> done
-        Err(JobError.Broken) -> halt
+        Ok(_) -> done,
+        Err(JobError.Busy) -> done,
+        Err(JobError.Broken) -> halt,
     }
 }`,
 	"spinner.fiig": `adapter schedule Spinner {
     every "1s" -> spin() {
-        _ -> done
+        _ -> done,
     }
 }`,
 }

@@ -1,4 +1,4 @@
-use fiig.session
+use fiig.session;
 
 // ADR 0113 §6, as amended 2026-11-21: SASL, PLAIN and SCRAM, as states of
 // the session's state machine, driven with bytes alone. First, RFC 7677
@@ -258,11 +258,11 @@ private {
         return match (decoded) {
             Ok(reply) -> {
                 return reply.failure;
-            }
+            },
 
             Err(_) -> {
                 return "not a PollReply";
-            }
+            },
         }
     }
 }

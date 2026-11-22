@@ -1,4 +1,4 @@
-use fiig.stream
+use fiig.stream;
 
 // ADR 0117: Kafka as a stream source, a KIP-848 consumer group over
 // sessions (ADR 0114). A route's source is the topic and its group the
@@ -45,9 +45,9 @@ capability KafkaSource provides stream.StreamSource {
         match (subscription.start) {
             stream.StartAt.Latest -> {
                 timestamp = 0 - 1;
-            }
+            },
 
-            stream.StartAt.Earliest -> None
+            stream.StartAt.Earliest -> None,
         }
 
         deliveries: List<stream.Delivery> = [];
@@ -163,7 +163,7 @@ capability KafkaSource provides stream.StreamSource {
                     e,
                 )?;
                 return Ok(None);
-            }
+            },
 
             stream.Outcome.DeadLetter(target) -> {
                 described = mapErr(e in Session.call(group, requestAsk(metadataRequest(clientId, 1, target)), deadline: until)): unavailable(
@@ -191,9 +191,9 @@ capability KafkaSource provides stream.StreamSource {
                     )?;
                     mapErr(e in readProduce(sent.first(), 1, call)): consumerError(e)?;
                 }
-            }
+            },
 
-            stream.Outcome.Ack -> None
+            stream.Outcome.Ack -> None,
         }
 
         ack = KafkaAsk.Ack(partition: at.partition, offset: at.offset);
@@ -227,7 +227,7 @@ capability KafkaSource provides stream.StreamSource {
         return match (leader) {
             None -> {
                 return Ok(None);
-            }
+            },
 
             broker -> {
                 maxBytes = KafkaConsumer.fetchMaxBytes;
@@ -237,7 +237,7 @@ capability KafkaSource provides stream.StreamSource {
                 )?;
                 parts = mapErr(e in readFetch(fetched.first(), maxBytes)): consumerError(e)?;
                 return mapErr(e in recordAt(parts, at)): consumerError(e);
-            }
+            },
         }
     }
 }

@@ -35,7 +35,7 @@ conversion checkApiVersions(frame: bytes, correlation: int) -> Result<None, Kafk
             }
 
             return Ok(None);
-        }
+        },
 
         _ -> {
             return Err(
@@ -43,6 +43,6 @@ conversion checkApiVersions(frame: bytes, correlation: int) -> Result<None, Kafk
                     reason: "an ApiVersions response is shorter than its header",
                 ),
             );
-        }
+        },
     }
 }

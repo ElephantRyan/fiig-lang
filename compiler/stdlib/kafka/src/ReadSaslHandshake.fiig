@@ -14,12 +14,12 @@ conversion readSaslHandshake(frame: bytes, mechanism: string) -> Result<None, st
                 match (stringAt(rest, pos)) {
                     None -> {
                         return Err("a SaslHandshake response ends early");
-                    }
+                    },
 
                     name -> {
                         offered = append(offered, name.text);
                         pos = name.next;
-                    }
+                    },
                 }
 
                 i = i + 1;
@@ -32,10 +32,10 @@ conversion readSaslHandshake(frame: bytes, mechanism: string) -> Result<None, st
             }
 
             return Err("SaslHandshake: ${errorName(code)}");
-        }
+        },
 
         _ -> {
             return Err("a SaslHandshake response is shorter than its header");
-        }
+        },
     }
 }

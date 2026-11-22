@@ -15,9 +15,9 @@ conversion murmur2(data: bytes) -> int {
         match (data.slice(i * 4, i * 4 + 4)) {
             <<word: u32le>> -> {
                 k = word;
-            }
+            },
 
-            _ -> None
+            _ -> None,
         }
 
         k = mul32(k, m);
@@ -62,11 +62,11 @@ private {
         return match (<<a: u32be>>.xor(<<b: u32be>>)) {
             <<value: u32be>> -> {
                 return value;
-            }
+            },
 
             _ -> {
                 return 0;
-            }
+            },
         }
     }
 }

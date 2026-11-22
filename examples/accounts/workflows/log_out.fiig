@@ -4,11 +4,11 @@ workflow logOut(session: string | None) -> Result<None, AccountError> {
     return match (session) {
         None -> {
             return Ok(None);
-        }
+        },
 
         token -> {
             endSession(token);
             return Ok(None);
-        }
+        },
     }
 }

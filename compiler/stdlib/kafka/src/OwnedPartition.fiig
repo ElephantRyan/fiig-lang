@@ -4,11 +4,11 @@
 // and a retried record's offset, its retries so far, and when its
 // partition may be fetched again.
 model OwnedPartition {
-    partition: int
-    position: int
-    acked: int
-    committed: int
-    retryOffset: int
-    retries: int
-    resumeAt: int
+    partition: int;
+    position: int;
+    acked: int;
+    committed: int;
+    retryOffset: int;
+    retries: int;
+    resumeAt: int;
 }

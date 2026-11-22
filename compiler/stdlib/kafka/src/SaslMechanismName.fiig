@@ -3,14 +3,14 @@ conversion saslMechanismName(mechanism: SaslMechanism) -> string {
     return match (mechanism) {
         SaslMechanism.Plain -> {
             return "PLAIN";
-        }
+        },
 
         SaslMechanism.ScramSha256 -> {
             return "SCRAM-SHA-256";
-        }
+        },
 
         SaslMechanism.ScramSha512 -> {
             return "SCRAM-SHA-512";
-        }
+        },
     }
 }

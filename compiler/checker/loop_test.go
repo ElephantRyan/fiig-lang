@@ -8,7 +8,7 @@ import (
 
 // orderModel is the shared model for the for-loop tests (ADR 0053): a
 // list of Orders iterated by the loop variable, reading a field of each.
-const orderModel = "model Order {\n\tamount: int\n}"
+const orderModel = "model Order {\n\tamount: int;\n}"
 
 // checkLoop parses orderModel and src and runs the checker over both.
 func checkLoop(t *testing.T, src string) []Diagnostic {

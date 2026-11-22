@@ -1,9 +1,9 @@
 // An envelope read by its type. A type the inbox doesn't handle is kept,
 // not refused, since senders add event types (charter principle 10).
 enum Event {
-    Paid(invoice: InvoicePaid)
-    LimitChanged(change: CreditLimitChanged)
-    Attached(document: DocumentAttached)
-    SubscriptionChanged(subscription: SubscriptionUpdated, needsAttention: bool)
-    Ignored(eventType: string)
+    Paid(invoice: InvoicePaid),
+    LimitChanged(change: CreditLimitChanged),
+    Attached(document: DocumentAttached),
+    SubscriptionChanged(subscription: SubscriptionUpdated, needsAttention: bool),
+    Ignored(eventType: string),
 }

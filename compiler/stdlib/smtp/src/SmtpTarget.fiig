@@ -2,11 +2,11 @@
 // and token are SMTP_AUTH and SMTP_OAUTH_TOKEN (withLogin); None is Auto,
 // and no token.
 model SmtpTarget {
-    host: string
-    port: int
-    security: SmtpSecurity
-    user: string | None
-    password: string | None
-    auth: SmtpAuth | None
-    token: string | None
+    host: string;
+    port: int;
+    security: SmtpSecurity;
+    user: string | None;
+    password: string | None;
+    auth: SmtpAuth | None;
+    token: string | None;
 }

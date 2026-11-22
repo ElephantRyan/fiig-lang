@@ -1,4 +1,4 @@
 model Tenant {
-    id: string
-    defaultSource: DeductionSource
+    id: string;
+    defaultSource: DeductionSource;
 }

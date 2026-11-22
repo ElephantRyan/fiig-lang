@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // ADR 0085 §3b: the messages for one statement, given the statements the
 // connection has prepared and room for cacheSize of them. A prepared one is
@@ -48,7 +48,7 @@ conversion planStatement(
                 name: name,
                 parsing: true,
             );
-        }
+        },
 
         cached -> {
             moved = append(others, cached);
@@ -67,6 +67,6 @@ conversion planStatement(
                 name: cached.name,
                 parsing: true,
             );
-        }
+        },
     }
 }

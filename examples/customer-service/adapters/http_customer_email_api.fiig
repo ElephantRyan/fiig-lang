@@ -3,5 +3,5 @@
 // nothing is left unclaimed, so this route has no body.
 adapter http customerEmailApi {
     PATCH "/customers/{id}?newEmail={newEmail}" -> changeCustomerEmail(id: string, newEmail: string)
-            produces "application/json"
+            produces "application/json";
 }

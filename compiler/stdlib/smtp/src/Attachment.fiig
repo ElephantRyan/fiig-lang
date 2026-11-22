@@ -2,7 +2,7 @@
 // media type as type/subtype ("application/pdf"), and its bytes. It goes
 // as base64 in a part of its own, marked as an attachment.
 model Attachment {
-    name: string
-    contentType: string
-    data: bytes
+    name: string;
+    contentType: string;
+    data: bytes;
 }

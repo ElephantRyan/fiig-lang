@@ -10,8 +10,8 @@ conversion httpRequest(request: WebRequest) -> bytes {
 private {
     authorizationLine(value: string | None) -> string {
         return match (value) {
-            None -> ""
-            given -> "Authorization: ${given}\r\n"
+            None -> "",
+            given -> "Authorization: ${given}\r\n",
         }
     }
 }

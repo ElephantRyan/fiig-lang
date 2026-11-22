@@ -11,15 +11,15 @@ capability Client {
             match (Socket.read(connection)) {
                 Ok(chunk) -> {
                     response = <<response: bytes, chunk: bytes>>;
-                }
+                },
 
                 Err(SocketError.Closed) -> {
                     break;
-                }
+                },
 
                 Err(failure) -> {
                     return Err(failure);
-                }
+                },
             }
         }
 

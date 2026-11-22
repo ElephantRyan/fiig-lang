@@ -1,8 +1,8 @@
-use shop.kernel
+use shop.kernel;
 
 model Receipt {
-    id: string
-    reference: string
-    charged: kernel.Money
-    refundable: bool
+    id: string;
+    reference: string;
+    charged: kernel.Money;
+    refundable: bool;
 }

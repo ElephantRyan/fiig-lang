@@ -38,39 +38,39 @@ private {
         return match (status) {
             SubscriptionStatus.PastDue -> {
                 return true;
-            }
+            },
 
             SubscriptionStatus.Unpaid -> {
                 return true;
-            }
+            },
 
             SubscriptionStatus.IncompleteExpired -> {
                 return true;
-            }
+            },
 
             SubscriptionStatus.Incomplete -> {
                 return false;
-            }
+            },
 
             SubscriptionStatus.Trialing -> {
                 return false;
-            }
+            },
 
             SubscriptionStatus.Active -> {
                 return false;
-            }
+            },
 
             SubscriptionStatus.Canceled -> {
                 return false;
-            }
+            },
 
             SubscriptionStatus.Paused -> {
                 return false;
-            }
+            },
 
             unknown -> {
                 return unknown.length() > 0;
-            }
+            },
         }
     }
 }

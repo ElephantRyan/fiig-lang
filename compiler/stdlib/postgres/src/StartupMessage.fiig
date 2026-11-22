@@ -12,10 +12,10 @@ conversion startupMessage(settings: PgSettings) -> bytes {
         cString("ISO"): bytes,
     >>;
     match (settings.applicationName) {
-        None -> None
+        None -> None,
         name -> {
             body = <<body: bytes, cString("application_name"): bytes, cString(name): bytes>>;
-        }
+        },
     }
 
     length = body.length() + 9;

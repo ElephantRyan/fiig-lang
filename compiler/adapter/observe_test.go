@@ -20,9 +20,9 @@ var observeProgram = []string{
 }`,
 	`adapter http Api {
     GET "/boom/{account}" -> boom(account: account)
-        produces "application/json"
+        produces "application/json";
     GET "/fine" -> fine()
-        produces "application/json"
+        produces "application/json";
 }`,
 }
 

@@ -1,4 +1,4 @@
-use fiig.time.duration
+use fiig.time.duration;
 
 test durationUnitsAreMilliseconds {
     expect duration.seconds(1) == 1000;

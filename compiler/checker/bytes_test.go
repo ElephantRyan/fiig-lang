@@ -14,13 +14,13 @@ func TestBinaryPatternsAndExpressionsTypeCheck(t *testing.T) {
         <<kind: u8, length: i32be, body: bytes(length - 4), rest: bytes>> -> {
             out = <<kind: u8, body.length() + 4: i32be, body: bytes, rest: bytes>>;
             return out.length() + body.at(0) + kind;
-        }
+        },
         <<0x52: u8, _: u16le, "ok": utf8, word: utf8(2)>> -> {
             return word.utf8().length();
-        }
+        },
         _ -> {
             return 0;
-        }
+        },
     }
 }
 `)
@@ -41,10 +41,10 @@ func TestBytesMethodsAreTyped(t *testing.T) {
     return match (b.utf8()) {
         None -> {
             return false;
-        }
+        },
         text -> {
             return text.contains("@");
-        }
+        },
     }
 }
 `)
@@ -66,7 +66,7 @@ func TestBytesMethodsAreTyped(t *testing.T) {
 func TestBinaryPatternWithoutCatchAllIsA9(t *testing.T) {
 	f := mustParse(t, `conversion code(body: bytes) -> int {
     return match (body) {
-        <<n: i32be>> -> n
+        <<n: i32be>> -> n,
     }
 }
 `)
@@ -121,8 +121,8 @@ func TestSegmentErrorsAreA14(t *testing.T) {
 func TestBinaryPatternNeedsBytes(t *testing.T) {
 	f := mustParse(t, `conversion c(n: int) -> int {
     return match (n) {
-        <<x: u8>> -> x
-        _ -> 0
+        <<x: u8>> -> x,
+        _ -> 0,
     }
 }
 `)

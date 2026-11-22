@@ -1,7 +1,7 @@
 // Bytes as text, or empty when they are not valid UTF-8.
 conversion textOf(raw: bytes) -> string {
     return match (raw.utf8()) {
-        None -> ""
-        text -> text
+        None -> "",
+        text -> text,
     }
 }

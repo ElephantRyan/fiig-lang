@@ -200,7 +200,7 @@ func TestMathConstantsRun(t *testing.T) {
 func TestFormulaCallsMath(t *testing.T) {
 	srcs := []string{
 		"formulas geometry {\n    formula hypot(a: float, b: float) -> float {\n        return math.sqrt(a * a + b * b);\n    }\n}",
-		"use acme.geometry\n\nrule diagonal(w: float, h: float) -> float {\n    return geometry.hypot(w, h);\n}",
+		"use acme.geometry;\n\nrule diagonal(w: float, h: float) -> float {\n    return geometry.hypot(w, h);\n}",
 	}
 	checkClean(t, srcs...)
 	in := newTestInterp(universeFromSource(t, srcs...), nil)

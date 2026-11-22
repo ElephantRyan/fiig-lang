@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // One backend message during startup (§6): authentication requests go to
 // authStep, an error ends the handshake, ReadyForQuery finishes it,
@@ -34,7 +34,7 @@ conversion handshakeStep(state: Handshake, kind: int, body: bytes) -> Handshake 
     return match (body) {
         <<code: i32be, data: bytes>> -> {
             return authStep(state, code, data);
-        }
+        },
 
         _ -> {
             return copy(
@@ -42,6 +42,6 @@ conversion handshakeStep(state: Handshake, kind: int, body: bytes) -> Handshake 
                 send: <<>>,
                 failed: db.DatabaseError.Protocol(reason: "an authentication message is too short"),
             );
-        }
+        },
     }
 }

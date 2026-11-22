@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // A copy is done when the server says 200 and its body is a
 // CopyObjectResult. S3 may answer 200 and then fail the copy, putting an
@@ -16,8 +16,8 @@ conversion copyResult(reply: http.Reply) -> Result<None, S3Error> {
 private {
     textOf(body: bytes) -> string {
         return match (body.utf8()) {
-            None -> ""
-            text -> text
+            None -> "",
+            text -> text,
         }
     }
 }

@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // A GET's object is the reply's body when the server says 200; a 404 is
 // NotFound and anything else is its error. The whole object is read into

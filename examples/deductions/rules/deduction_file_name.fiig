@@ -2,7 +2,7 @@
 // table. A match on the enum is for per-client logic, not per-client facts.
 rule deductionFileName(source: DeductionSource, batch: int) -> string {
     return match (source.layout) {
-        FieldLayout.FixedWidth -> "${source.code}-${batch}.dat"
-        FieldLayout.Csv -> "${source.code}-${batch}.csv"
+        FieldLayout.FixedWidth -> "${source.code}-${batch}.dat",
+        FieldLayout.Csv -> "${source.code}-${batch}.csv",
     }
 }

@@ -4,10 +4,10 @@ activity sessionAccount(token: string | None) -> Result<Account, AccountError> {
     return match (token) {
         None -> {
             return Err(AccountError.NoSession);
-        }
+        },
 
         found -> {
             return findSession(found);
-        }
+        },
     }
 }

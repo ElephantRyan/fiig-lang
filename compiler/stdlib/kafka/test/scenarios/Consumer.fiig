@@ -1,5 +1,5 @@
-use fiig.session
-use fiig.stream
+use fiig.session;
+use fiig.stream;
 
 // ADR 0117: the consumer's wire and its session's state machine, driven
 // with bytes alone (ADR 0114 open question 5).
@@ -307,11 +307,11 @@ private {
         return match (decoded) {
             Ok(reply) -> {
                 return reply;
-            }
+            },
 
             Err(_) -> {
                 return PollReply(failure: "not a PollReply", partitions: []);
-            }
+            },
         }
     }
 

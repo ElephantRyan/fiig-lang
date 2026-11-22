@@ -72,10 +72,10 @@ conversion readMetadata(
         if (name.text == topic) {
             if (code == 0) {
                 match (failure) {
-                    None -> None
+                    None -> None,
                     found -> {
                         return Err(found);
-                    }
+                    },
                 }
             }
 
@@ -126,11 +126,11 @@ private {
         return match (i32At(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             value -> {
                 return Ok(value);
-            }
+            },
         }
     }
 
@@ -138,11 +138,11 @@ private {
         return match (i16At(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             value -> {
                 return Ok(value);
-            }
+            },
         }
     }
 
@@ -150,11 +150,11 @@ private {
         return match (stringAt(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             value -> {
                 return Ok(value);
-            }
+            },
         }
     }
 }

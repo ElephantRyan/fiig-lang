@@ -40,74 +40,74 @@ func HoldsSecret(t Type, resolveField func(model *syntax.ModelDecl, f syntax.Fie
 // preludeSources are the prelude's declarations, one per source as in any
 // fiig file (ADR 0054's one public declaration per file).
 var preludeSources = []string{`enum SocketError {
-    HostNotFound
-    Refused
-    Unreachable
-    Reset
-    Closed
-    Tls(reason: string)
-    TimedOut
+    HostNotFound,
+    Refused,
+    Unreachable,
+    Reset,
+    Closed,
+    Tls(reason: string),
+    TimedOut,
 }
 `, `enum SessionError {
-    Broken(reason: string)
-    TimedOut
+    Broken(reason: string),
+    TimedOut,
 }
 `, `enum Rounding {
-    HalfUp
-    HalfEven
-    Up
-    Down
-    Ceiling
-    Floor
+    HalfUp,
+    HalfEven,
+    Up,
+    Down,
+    Ceiling,
+    Floor,
 }
 `, `model Cookie {
-    name: string
-    value: string
-    maxAge: int | None
-    path: string | None
-    domain: string | None
-    sameSite: SameSite | None
-    readableByScripts: bool | None
-    sentOverPlainHttp: bool | None
+    name: string;
+    value: string;
+    maxAge: int | None;
+    path: string | None;
+    domain: string | None;
+    sameSite: SameSite | None;
+    readableByScripts: bool | None;
+    sentOverPlainHttp: bool | None;
 }
 `, `enum SameSite {
-    Strict
-    Lax
-    AnySite
+    Strict,
+    Lax,
+    AnySite,
 }
 `, `enum DecompressError {
-    Corrupt(reason: string)
-    TooLarge(maxSize: int)
+    Corrupt(reason: string),
+    TooLarge(maxSize: int),
 }
 `, `enum JsonValue {
-    Null
-    Bool(value: bool)
-    Number(text: string)
-    Text(value: string)
-    Array(items: List<JsonValue>)
-    Object(members: Map<string, JsonValue>)
+    Null,
+    Bool(value: bool),
+    Number(text: string),
+    Text(value: string),
+    Array(items: List<JsonValue>),
+    Object(members: Map<string, JsonValue>),
 }
 `, `enum JsonError {
-    Syntax(offset: int, reason: string)
-    Mismatch(path: string, reason: string)
+    Syntax(offset: int, reason: string),
+    Mismatch(path: string, reason: string),
 }
 `, `enum SettingError {
-    Invalid(reason: string)
-    SetByDeployment
+    Invalid(reason: string),
+    SetByDeployment,
 }
 `, `enum SettingSource {
-    Deployment
-    Saved
-    Pending
-    Default
-    Unset
+    Deployment,
+    Saved,
+    Pending,
+    Default,
+    Unset,
 }
 `, `enum DatabaseConflict {
-    Unique(constraint: string)
-    ForeignKey(constraint: string)
-    NotNull(column: string)
-    Check(constraint: string)
-    Retryable(reason: string)
+    Unique(constraint: string),
+    ForeignKey(constraint: string),
+    NotNull(column: string),
+    Check(constraint: string),
+    Retryable(reason: string),
 }
 `}
 

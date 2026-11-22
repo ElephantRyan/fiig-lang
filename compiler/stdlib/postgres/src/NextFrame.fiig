@@ -6,7 +6,7 @@ conversion nextFrame(buffer: bytes) -> PgFrame | None {
             kind: kind,
             body: body,
             rest: rest,
-        )
-        _ -> None
+        ),
+        _ -> None,
     }
 }

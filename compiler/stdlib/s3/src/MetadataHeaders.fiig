@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // A PUT's user metadata as the headers S3 stores it from: each key becomes
 // x-amz-meta-<key> in lower case, which is how S3 keeps it, so two keys that

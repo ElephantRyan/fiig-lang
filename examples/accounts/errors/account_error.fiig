@@ -1,7 +1,7 @@
 // Every way authenticating can fail. The adapter answers all of them with
 // a 401, so a client can't tell a wrong name from a wrong key.
 enum AccountError {
-    NoCredentials
-    BadCredentials
-    NoSession
+    NoCredentials,
+    BadCredentials,
+    NoSession,
 }

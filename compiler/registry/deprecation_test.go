@@ -46,7 +46,7 @@ func TestGenerateTagsDeprecatedCard(t *testing.T) {
 
 func TestGenerateNoManifestLeavesDeprecatedNil(t *testing.T) {
 	dir := t.TempDir()
-	writeFiigFile(t, dir, "marker.fiig", "model Marker { n: int }")
+	writeFiigFile(t, dir, "marker.fiig", "model Marker { n: int; }")
 
 	cards, _, err := Generate(dir)
 	if err != nil {

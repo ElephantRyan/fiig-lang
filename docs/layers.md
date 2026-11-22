@@ -43,9 +43,9 @@ can't see:
 ```fiig
 workflow rate(session: string | None, itemId: string, input: RatingInput) -> Result<Rating, AppError> {
     return match (loadUserAndBook(session, itemId)) {
-        Err(AppError.NotFound) -> Err(AppError.Unauthorized)
-        Err(other) -> Err(other)
-        Ok(found) -> saveRating(found, input)
+        Err(AppError.NotFound) -> Err(AppError.Unauthorized),
+        Err(other) -> Err(other),
+        Ok(found) -> saveRating(found, input),
     }
 }
 ```
@@ -58,8 +58,8 @@ adapter http api {
         consumes "application/json"
         produces "application/json"
     {
-        Ok(rating) -> 200 rating
-        Err(error) -> appErrorResponse(error)
+        Ok(rating) -> 200 rating,
+        Err(error) -> appErrorResponse(error),
     }
 }
 ```

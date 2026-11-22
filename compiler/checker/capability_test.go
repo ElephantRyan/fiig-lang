@@ -14,10 +14,10 @@ import (
 // and a third group for payroll data that a gateway reaches through
 // `requires`.
 var paymentsSrc = []string{
-	"enum PaymentError {\n\tDeclined\n}",
-	"enum Region {\n\tEU\n\tUS\n}",
-	"model Merchant {\n\tregion: Region\n}",
-	"interface PaymentProvider {\n\tcharge(orderId: string, amount: int) -> Result<string, PaymentError>\n}",
+	"enum PaymentError {\n\tDeclined,\n}",
+	"enum Region {\n\tEU,\n\tUS,\n}",
+	"model Merchant {\n\tregion: Region;\n}",
+	"interface PaymentProvider {\n\tcharge(orderId: string, amount: int) -> Result<string, PaymentError>;\n}",
 	"capability Stripe {\n\tgateway charge(orderId: string, amount: int) -> Result<string, PaymentError>\n\t\trequires Socket\n\t{\n\t\treturn Ok(orderId);\n\t}\n}",
 	"capability Square {\n\tgateway charge(orderId: string, amount: int) -> Result<string, PaymentError>\n\t\trequires Socket\n\t{\n\t\treturn Ok(orderId);\n\t}\n}",
 	"capability PayrollDataApi {\n\tgateway getEmployee(id: string) -> Result<string, PaymentError>\n\t\trequires Socket\n\t{\n\t\treturn Ok(id);\n\t}\n}",
@@ -76,8 +76,8 @@ func TestReturningAGroupThatDoesNotProvideTheInterfaceIsA1(t *testing.T) {
 
 func TestProvidesCompletenessAndSignatureAreP1AndP2(t *testing.T) {
 	files := parseAll(t,
-		"enum PaymentError {\n\tDeclined\n}",
-		"interface PaymentProvider {\n\tcharge(orderId: string, amount: int) -> Result<string, PaymentError>\n\trefund(reference: string) -> Result<None, PaymentError>\n}",
+		"enum PaymentError {\n\tDeclined,\n}",
+		"interface PaymentProvider {\n\tcharge(orderId: string, amount: int) -> Result<string, PaymentError>;\n\trefund(reference: string) -> Result<None, PaymentError>;\n}",
 		"capability Stripe {\n\tgateway charge(orderId: string, amount: string) -> Result<string, PaymentError>\n\t\trequires Socket\n\t{\n\t\treturn Ok(orderId);\n\t}\n}",
 	)
 	diags := CheckPackage(files, nil, "shop", map[string]string{"shop.PaymentProvider": "Stripe"})
@@ -117,7 +117,7 @@ func TestCapabilityGroupCycleIsP5(t *testing.T) {
 
 func TestCapabilityInAModelIsP6(t *testing.T) {
 	diags := checkShopBoth(t,
-		"model MerchantSettings {\n\tprovider: PaymentProvider\n\tbackups: List<PaymentProvider>\n}",
+		"model MerchantSettings {\n\tprovider: PaymentProvider;\n\tbackups: List<PaymentProvider>;\n}",
 	)
 	if got := rules(diags)["P6"]; got != 2 {
 		t.Errorf("got %d P6 diagnostics, want 2: %+v", got, diags)
@@ -137,7 +137,7 @@ func TestGatewayUsingACapabilityItDoesNotRequireIsP7(t *testing.T) {
 func TestCaseRulesAreN1N2N3(t *testing.T) {
 	diags := checkShopBoth(t,
 		"capability payroll {\n\tgateway Fetch(id: string) -> string\n\t\trequires Socket\n\t{\n\t\treturn id;\n\t}\n}",
-		"enum Status {\n\tactive\n}",
+		"enum Status {\n\tactive,\n}",
 		"activity mislabeled(merchant: Merchant) -> int {\n\tprovider = choosePaymentProvider(merchant);\n\tTotal = 1;\n\treturn Total;\n}",
 	)
 	got := rules(diags)
@@ -147,12 +147,12 @@ func TestCaseRulesAreN1N2N3(t *testing.T) {
 }
 
 func TestAliasCollisionsAreG4(t *testing.T) {
-	param := mustParse(t, "use company.time as when\n\nrule noop(when: int) -> int {\n\treturn when;\n}")
+	param := mustParse(t, "use company.time as when;\n\nrule noop(when: int) -> int {\n\treturn when;\n}")
 	if got := rules(Check([]*syntax.File{param}, nil))["G4"]; got != 2 {
 		t.Errorf("alias vs parameter: got %d G4 diagnostics, want 2 (both sites)", got)
 	}
 	decl := parseAll(t,
-		"use company.time as shipOrder\n\nrule noop(x: int) -> int {\n\treturn x;\n}",
+		"use company.time as shipOrder;\n\nrule noop(x: int) -> int {\n\treturn x;\n}",
 		"rule shipOrder(x: int) -> int {\n\treturn x;\n}",
 	)
 	if got := rules(Check(decl, nil))["G4"]; got != 1 {
@@ -188,29 +188,29 @@ func TestCapabilityGroupsAcrossPackages(t *testing.T) {
 		"gateway loose(body: string) -> string\n\trequires Socket\n{\n\treturn body;\n}",
 	)
 	paymentsPkg := buildDep(t, "acme.payments", nil, nil,
-		"interface PaymentProvider {\n\tcharge(orderId: string) -> Result<string, string>\n}",
+		"interface PaymentProvider {\n\tcharge(orderId: string) -> Result<string, string>;\n}",
 	)
 	stripeDeps := types.Packages{"acme.http": httpPkg, "acme.payments": paymentsPkg}
 	stripePkg := buildDep(t, "acme.stripe", stripeDeps, map[string]string{"acme.payments.PaymentProvider": "Stripe"},
-		"use acme.http.Client\n\ncapability Stripe {\n\tgateway charge(orderId: string) -> Result<string, string>\n\t\trequires Client\n\t{\n\t\treturn Client.send(orderId);\n\t}\n}",
+		"use acme.http.Client;\n\ncapability Stripe {\n\tgateway charge(orderId: string) -> Result<string, string>\n\t\trequires Client\n\t{\n\t\treturn Client.send(orderId);\n\t}\n}",
 	)
 	app := types.Packages{"acme.http": httpPkg, "acme.payments": paymentsPkg, "acme.stripe": stripePkg}
 
-	clean := mustParse(t, "use acme.payments\nuse acme.stripe.Stripe\n\n"+
+	clean := mustParse(t, "use acme.payments;\nuse acme.stripe.Stripe;\n\n"+
 		"rule chooseProvider(region: string) -> payments.PaymentProvider {\n\treturn Stripe;\n}")
-	clean2 := mustParse(t, "use acme.stripe.Stripe\n\n"+
+	clean2 := mustParse(t, "use acme.stripe.Stripe;\n\n"+
 		"activity pay(orderId: string) -> Result<string, string> {\n\treturn Stripe.charge(orderId);\n}")
 	if diags := Check([]*syntax.File{clean, clean2}, app); len(diags) != 0 {
 		t.Errorf("unexpected diagnostics: %+v", diags)
 	}
 
-	looseCall := mustParse(t, "use acme.http\n\nactivity bypass(body: string) -> string {\n\treturn http.loose(body);\n}")
-	looseImport := mustParse(t, "use acme.http.loose\n\nrule noop(x: int) -> int {\n\treturn x;\n}")
+	looseCall := mustParse(t, "use acme.http;\n\nactivity bypass(body: string) -> string {\n\treturn http.loose(body);\n}")
+	looseImport := mustParse(t, "use acme.http.loose;\n\nrule noop(x: int) -> int {\n\treturn x;\n}")
 	if got := rules(Check([]*syntax.File{looseCall, looseImport}, app))["P4"]; got != 2 {
 		t.Errorf("got %d P4 diagnostics, want 2 (call and import of a loose gateway)", got)
 	}
 
-	badCase := mustParse(t, "use acme.http as Http\nuse acme.http.Client as client\n\nrule noop(x: int) -> int {\n\treturn x;\n}")
+	badCase := mustParse(t, "use acme.http as Http;\nuse acme.http.Client as client;\n\nrule noop(x: int) -> int {\n\treturn x;\n}")
 	if got := rules(Check([]*syntax.File{badCase}, app))["N1"]; got != 2 {
 		t.Errorf("got %d N1 diagnostics, want 2 (capitalized package alias, lowercase group alias)", got)
 	}

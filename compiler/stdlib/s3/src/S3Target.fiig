@@ -1,7 +1,7 @@
 // Where an object is: the URL to send to, and the pieces the signature
 // needs, the host as the Host header will say it and the path as it is sent.
 model S3Target {
-    url: string
-    host: string
-    path: string
+    url: string;
+    host: string;
+    path: string;
 }

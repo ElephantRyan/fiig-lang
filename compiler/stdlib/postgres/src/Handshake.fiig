@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // Where connect is in startup and authentication (§6). send is what to
 // write before reading on; expectSignature is the server's SCRAM
@@ -6,13 +6,13 @@ use fiig.sql as db
 // server proved it. cancelKey is BackendKeyData's body, the process ID
 // and secret key a CancelRequest names (ADR 0084 §3a).
 model Handshake {
-    settings: PgSettings
-    clientNonce: string
-    clientFirstBare: string
-    expectSignature: bytes
-    verified: bool
-    send: bytes
-    failed: db.DatabaseError | None
-    ready: bool
-    cancelKey: bytes
+    settings: PgSettings;
+    clientNonce: string;
+    clientFirstBare: string;
+    expectSignature: bytes;
+    verified: bool;
+    send: bytes;
+    failed: db.DatabaseError | None;
+    ready: bool;
+    cancelKey: bytes;
 }

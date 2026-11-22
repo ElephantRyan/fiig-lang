@@ -2,5 +2,5 @@
 // implementations. No provider's source mentions it; each one's manifest
 // says which of its capability groups fulfills it.
 interface PaymentProvider {
-    charge(request: ChargeRequest) -> Result<string, string>
+    charge(request: ChargeRequest) -> Result<string, string>;
 }

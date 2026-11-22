@@ -2,5 +2,5 @@
 // every delivery with it (ADR 0077). No default: a default would put it in
 // the source.
 wire Inbox {
-    webhookSecret: Secret from env "INBOX_WEBHOOK_SECRET"
+    webhookSecret: Secret from env "INBOX_WEBHOOK_SECRET";
 }

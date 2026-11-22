@@ -1,6 +1,6 @@
 // A topic's partitions, in partition order, each with the id of the broker
 // that leads it, and the brokers those ids name.
 model TopicLayout {
-    brokers: List<BrokerNode>
-    leaders: List<int>
+    brokers: List<BrokerNode>;
+    leaders: List<int>;
 }

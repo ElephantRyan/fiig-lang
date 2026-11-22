@@ -1,6 +1,6 @@
 // ADR 0072: no variant carries a payload, so a client sends and receives
 // a Speed as a string: "Express".
 enum Speed {
-    Standard
-    Express
+    Standard,
+    Express,
 }

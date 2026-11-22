@@ -5,19 +5,19 @@ conversion readSaslAuthenticate(frame: bytes) -> Result<bytes, string> {
     return match (afterTags(frame, 4)) {
         None -> {
             return Err(short());
-        }
+        },
 
         afterHeader -> {
             return match (i16At(frame, afterHeader)) {
                 None -> {
                     return Err(short());
-                }
+                },
 
                 code -> {
                     return match (compactStringAt(frame, afterHeader + 2)) {
                         None -> {
                             return Err(short());
-                        }
+                        },
 
                         message -> {
                             if (code != 0) {
@@ -31,7 +31,7 @@ conversion readSaslAuthenticate(frame: bytes) -> Result<bytes, string> {
                             return match (uvarintAt(frame, message.next)) {
                                 None -> {
                                     return Err(short());
-                                }
+                                },
 
                                 size -> {
                                     if (size.value == 0) {
@@ -44,13 +44,13 @@ conversion readSaslAuthenticate(frame: bytes) -> Result<bytes, string> {
                                     }
 
                                     return Ok(frame.slice(size.next, end));
-                                }
+                                },
                             }
-                        }
+                        },
                     }
-                }
+                },
             }
-        }
+        },
     }
 }
 

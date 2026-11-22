@@ -1,4 +1,4 @@
-use shop.kernel
+use shop.kernel;
 
 // Charge, then record the order with its charge (ADR 0107: the workflow
 // reaches both gateways through this step).

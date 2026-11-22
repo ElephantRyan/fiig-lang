@@ -1,4 +1,4 @@
-use order.processing.shipping
+use order.processing.shipping;
 
 // A carrier bills the greater of a parcel's actual weight and its
 // dimensional weight, so a large light box costs what a dense one of its

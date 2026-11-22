@@ -3,10 +3,10 @@
 conversion sessionOf(target: RedisTarget) -> string {
     user: string = "default";
     match (target.user) {
-        None -> None
+        None -> None,
         name -> {
             user = name;
-        }
+        },
     }
 
     return "user=${user} db=${target.database}";

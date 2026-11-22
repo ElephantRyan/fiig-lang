@@ -81,10 +81,10 @@ conversion readMetadataV12(
         if (name.text == topic) {
             if (code == 0) {
                 match (failure) {
-                    None -> None
+                    None -> None,
                     found -> {
                         return Err(found);
-                    }
+                    },
                 }
             }
 
@@ -135,11 +135,11 @@ private {
         return match (i32At(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             value -> {
                 return Ok(value);
-            }
+            },
         }
     }
 
@@ -147,11 +147,11 @@ private {
         return match (i16At(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             value -> {
                 return Ok(value);
-            }
+            },
         }
     }
 
@@ -159,11 +159,11 @@ private {
         return match (compactStringAt(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             value -> {
                 return Ok(value);
-            }
+            },
         }
     }
 
@@ -171,11 +171,11 @@ private {
         return match (afterTags(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             value -> {
                 return Ok(value);
-            }
+            },
         }
     }
 
@@ -185,7 +185,7 @@ private {
         return match (uvarintAt(data, at)) {
             None -> {
                 return Err(short());
-            }
+            },
 
             found -> {
                 if (found.value == 0) {
@@ -193,7 +193,7 @@ private {
                 }
 
                 return Ok(IntAt(value: found.value - 1, next: found.next));
-            }
+            },
         }
     }
 }

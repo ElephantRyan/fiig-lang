@@ -1,5 +1,5 @@
 // A number read from a response, and the offset after it.
 model IntAt {
-    value: int
-    next: int
+    value: int;
+    next: int;
 }

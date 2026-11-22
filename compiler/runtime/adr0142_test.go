@@ -44,22 +44,22 @@ func TestSymbolOperatorsRun(t *testing.T) {
 func TestMatchAsAValueRuns(t *testing.T) {
 	rule := `rule r(n: int | None, code: int) -> string {
     label = match (code) {
-        401 -> "unauthorized"
-        404 -> "not found"
-        _ -> "rejected"
+        401 -> "unauthorized",
+        404 -> "not found",
+        _ -> "rejected",
     };
     size: string | None = match (n) {
-        None -> None
-        given -> "${given}"
+        None -> None,
+        given -> "${given}",
     };
     return match (n) {
-        None -> "${label}/none"
+        None -> "${label}/none",
         given -> {
             if (given > 9) {
                 return "big";
             }
             return "${label}/${size ?? ""}";
-        }
+        },
     }
 }`
 	checkClean(t, rule)

@@ -13,11 +13,11 @@ conversion readCoordinator(frame: bytes) -> Result<BrokerNode, string> {
             host = textOf(stringAt(rest, message.next + 4))?;
             port = numberOf(i32At(rest, host.next))?;
             return Ok(BrokerNode(id: id, host: host.text, port: port));
-        }
+        },
 
         _ -> {
             return Err(short());
-        }
+        },
     }
 }
 
@@ -30,11 +30,11 @@ private {
         return match (read) {
             None -> {
                 return Err(short());
-            }
+            },
 
             found -> {
                 return Ok(found);
-            }
+            },
         }
     }
 
@@ -42,11 +42,11 @@ private {
         return match (read) {
             None -> {
                 return Err(short());
-            }
+            },
 
             found -> {
                 return Ok(found);
-            }
+            },
         }
     }
 }

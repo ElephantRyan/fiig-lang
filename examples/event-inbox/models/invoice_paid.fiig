@@ -1,7 +1,7 @@
 // An "invoice.paid" payload. `paid_at` is the sender's own name, and a
 // legal field name, so the model says it as it is (ADR 0073 §7).
 model InvoicePaid {
-    invoice: string
-    amount: decimal
-    paid_at: string
+    invoice: string;
+    amount: decimal;
+    paid_at: string;
 }

@@ -38,7 +38,7 @@ func TestListQueryMisuse(t *testing.T) {
 	}
 	// A float a field below the element: no counterpart reaches inside a
 	// model (open question 3), so the message points to a loop.
-	wantDiag(t, checkSrc(t, "rule r(rs: List<Reading>, x: Reading) -> bool {\n    return rs.contains(x);\n}", "model Reading {\n    value: float\n}"), "M1", "List<Reading>.contains compares elements with ==, and Reading.value is float")
+	wantDiag(t, checkSrc(t, "rule r(rs: List<Reading>, x: Reading) -> bool {\n    return rs.contains(x);\n}", "model Reading {\n    value: float;\n}"), "M1", "List<Reading>.contains compares elements with ==, and Reading.value is float")
 }
 
 // TestDiscardedMethodResultIsA13 is §6: every closed-table method is pure,

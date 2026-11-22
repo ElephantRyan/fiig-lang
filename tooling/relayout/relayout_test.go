@@ -84,7 +84,7 @@ func TestIntoPutsLooseFilesInAFolderAndTheirTestsBeside(t *testing.T) {
 // count as a loose file needing a folder.
 func TestTheApplicationDeclarationStaysAtTheTopLevel(t *testing.T) {
 	root := writeModule(t, "application")
-	if err := os.WriteFile(filepath.Join(root, "app.fiig"), []byte("application MyApp {\n    serve {\n        api\n    }\n}\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "app.fiig"), []byte("application MyApp {\n    serve {\n        api;\n    }\n}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	plan, err := Relayout(root, nil, "math")

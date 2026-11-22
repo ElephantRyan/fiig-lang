@@ -1,4 +1,4 @@
-use fiig.stream
+use fiig.stream;
 
 // Stream entries, [id, [field, value, ...]] each, as deliveries: the
 // payload field's bytes, and the attempt counts gives the id, else 1
@@ -14,7 +14,7 @@ conversion streamDeliveries(
             RespValue.Array(parts) -> {
                 if (parts.length() == 2) {
                     match (textOf(parts.first())) {
-                        None -> None
+                        None -> None,
                         id -> {
                             out = append(
                                 out,
@@ -25,12 +25,12 @@ conversion streamDeliveries(
                                     order: "",
                                 ),
                             );
-                        }
+                        },
                     }
                 }
-            }
+            },
 
-            _ -> None
+            _ -> None,
         }
     }
 
@@ -47,17 +47,17 @@ private {
                         match (items.at(i + 1)) {
                             RespValue.Bulk(data) -> {
                                 return data;
-                            }
+                            },
 
-                            _ -> None
+                            _ -> None,
                         }
                     }
 
                     i = i + 2;
                 }
-            }
+            },
 
-            _ -> None
+            _ -> None,
         }
 
         return <<>>;

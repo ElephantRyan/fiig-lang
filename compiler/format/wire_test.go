@@ -12,12 +12,12 @@ import (
 // `??`.
 func TestFormatWritesWire(t *testing.T) {
 	cases := []struct{ old, want string }{
-		{"config Abs {\n    url: string | None from env \"ABS_URL\" or setting \"abs.url\"\n}\n",
-			"wire Abs {\n    url: string | None from env \"ABS_URL\" ?? setting \"abs.url\"\n}\n"},
-		{"principal me: Identity from cookie \"sid\" by signedIn else refused\n",
-			"wire me: Identity from cookie \"sid\" by signedIn else refused\n"},
-		{"adapter http api {\n    principal sessions.me\n\n    GET \"/x\" -> x(me) {\n        _ -> 200\n    }\n}\n",
-			"adapter http api {\n    wire sessions.me\n\n    GET \"/x\" -> x(me) {\n        _ -> 200\n    }\n}\n"},
+		{"config Abs {\n    url: string | None from env \"ABS_URL\" or setting \"abs.url\";\n}\n",
+			"wire Abs {\n    url: string | None from env \"ABS_URL\" ?? setting \"abs.url\";\n}\n"},
+		{"principal me: Identity from cookie \"sid\" by signedIn else refused;\n",
+			"wire me: Identity from cookie \"sid\" by signedIn else refused;\n"},
+		{"adapter http api {\n    principal sessions.me;\n\n    GET \"/x\" -> x(me) {\n        _ -> 200,\n    }\n}\n",
+			"adapter http api {\n    wire sessions.me;\n\n    GET \"/x\" -> x(me) {\n        _ -> 200,\n    }\n}\n"},
 	}
 	for _, c := range cases {
 		if got := mustFormat(t, c.old); got != c.want {
@@ -53,7 +53,7 @@ func TestWireIsStillAName(t *testing.T) {
 
 // ADR 0144 §1: `scheme` is printed between a header source and `by`.
 func TestFormatWritesAWireScheme(t *testing.T) {
-	src := "wire peer: Peer from header \"Authorization\" scheme \"Bearer\" by callingPeer else peerRefused\n"
+	src := "wire peer: Peer from header \"Authorization\" scheme \"Bearer\" by callingPeer else peerRefused;\n"
 	if got := mustFormat(t, src); got != src {
 		t.Errorf("got\n%s\nwant\n%s", got, src)
 	}

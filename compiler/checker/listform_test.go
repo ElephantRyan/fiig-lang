@@ -4,7 +4,7 @@ import "testing"
 
 // ADR 0093: the list forms, sorted's keys, and Map.atOr.
 
-const ratingModel = "model Rating {\n    itemId: string\n    score: int\n    weight: float\n    price: decimal\n    recommended: bool\n    updatedAt: int\n    note: string | None\n}"
+const ratingModel = "model Rating {\n    itemId: string;\n    score: int;\n    weight: float;\n    price: decimal;\n    recommended: bool;\n    updatedAt: int;\n    note: string | None;\n}"
 
 func TestListFormsCheck(t *testing.T) {
 	diags := checkSrc(t, `rule r(ratings: List<Rating>, count: int) -> int {

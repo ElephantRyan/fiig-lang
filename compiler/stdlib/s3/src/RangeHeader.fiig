@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // The Range header of a GET of part of an object: bytes first to last, both
 // counted from 0 and included, or from first to the end when last is None.
@@ -12,7 +12,7 @@ conversion rangeHeader(first: int, last: int | None) -> Result<http.Header, S3Er
     return match (last) {
         None -> {
             return Ok(http.Header(name: "Range", value: "bytes=${first}-"));
-        }
+        },
 
         given -> {
             if (given < first) {
@@ -20,6 +20,6 @@ conversion rangeHeader(first: int, last: int | None) -> Result<http.Header, S3Er
             }
 
             return Ok(http.Header(name: "Range", value: "bytes=${first}-${given}"));
-        }
+        },
     }
 }

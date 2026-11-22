@@ -16,24 +16,24 @@ rule quoteCents(request: QuoteRequest) -> Result<int, QuoteError> {
             return match (request.speed) {
                 Speed.Standard -> {
                     return Ok(base);
-                }
+                },
 
                 Speed.Express -> {
                     return Ok(base * 2);
-                }
+                },
             }
-        }
+        },
 
         Destination.International(_, _) -> {
             return match (request.speed) {
                 Speed.Standard -> {
                     return Ok(1500 + 400 * kilograms);
-                }
+                },
 
                 Speed.Express -> {
                     return Err(QuoteError.NoExpressAbroad);
-                }
+                },
             }
-        }
+        },
     }
 }

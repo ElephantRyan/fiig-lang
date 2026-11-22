@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // SigV4's canonical request for a request that signs only what every one
 // does: the headers host, x-amz-content-sha256, x-amz-date and, with a

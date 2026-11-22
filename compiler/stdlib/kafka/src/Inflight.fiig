@@ -5,9 +5,9 @@
 // "commit") the session reads itself, as it does a Layout's "metadata",
 // for topic.
 model Inflight {
-    correlation: int
-    key: int
-    callerCorrelation: int
-    kind: string
-    topic: string
+    correlation: int;
+    key: int;
+    callerCorrelation: int;
+    kind: string;
+    topic: string;
 }

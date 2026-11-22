@@ -1,4 +1,4 @@
-use fiig.http
+use fiig.http;
 
 // The headers a request is signed over, as SigV4 canonicalises them: the
 // ones every request signs (host, x-amz-content-sha256, x-amz-date and, with

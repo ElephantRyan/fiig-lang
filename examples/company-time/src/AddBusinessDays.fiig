@@ -1,4 +1,4 @@
-use standard.time as time
+use standard.time as time;
 
 // Placeholder pure arithmetic, not real calendar math — this package
 // exists to give Milestone 6's package-resolution mechanism (ADR 0032) a

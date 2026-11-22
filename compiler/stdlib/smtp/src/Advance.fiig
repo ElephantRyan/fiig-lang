@@ -3,27 +3,27 @@
 // expects is the server refusing, whatever its text.
 conversion advance(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError> {
     return match (d.phase) {
-        SmtpPhase.Greeting -> expecting(d, reply, 220, SmtpPhase.Hello)
-        SmtpPhase.Hello -> afterHello(d, reply)
-        SmtpPhase.SecureHello -> afterHello(d, reply)
-        SmtpPhase.StartTls -> expecting(d, reply, 220, SmtpPhase.Upgrading)
+        SmtpPhase.Greeting -> expecting(d, reply, 220, SmtpPhase.Hello),
+        SmtpPhase.Hello -> afterHello(d, reply),
+        SmtpPhase.SecureHello -> afterHello(d, reply),
+        SmtpPhase.StartTls -> expecting(d, reply, 220, SmtpPhase.Upgrading),
         SmtpPhase.Upgrading -> Err(
             SmtpError.Protocol(
                 reason: "the server spoke while the connection was upgrading to TLS",
             ),
-        )
-        SmtpPhase.Auth -> expecting(d, reply, 235, SmtpPhase.MailFrom)
-        SmtpPhase.AuthLogin -> expecting(d, reply, 334, SmtpPhase.LoginUser)
-        SmtpPhase.LoginUser -> expecting(d, reply, 334, SmtpPhase.LoginPassword)
-        SmtpPhase.LoginPassword -> expecting(d, reply, 235, SmtpPhase.MailFrom)
-        SmtpPhase.XOAuth2 -> afterXOAuth2(d, reply)
-        SmtpPhase.XOAuth2Refused -> Err(refused(reply, "the XOAUTH2 token${d.oauthFailure}: "))
-        SmtpPhase.Reset -> expecting(d, reply, 250, SmtpPhase.MailFrom)
-        SmtpPhase.MailFrom -> expectingStart(d, reply)
-        SmtpPhase.Rcpt -> afterRecipient(d, reply)
-        SmtpPhase.Data -> expecting(d, reply, 354, SmtpPhase.Body)
-        SmtpPhase.Body -> expecting(d, reply, 250, SmtpPhase.Sent)
-        SmtpPhase.Sent -> Ok(d)
+        ),
+        SmtpPhase.Auth -> expecting(d, reply, 235, SmtpPhase.MailFrom),
+        SmtpPhase.AuthLogin -> expecting(d, reply, 334, SmtpPhase.LoginUser),
+        SmtpPhase.LoginUser -> expecting(d, reply, 334, SmtpPhase.LoginPassword),
+        SmtpPhase.LoginPassword -> expecting(d, reply, 235, SmtpPhase.MailFrom),
+        SmtpPhase.XOAuth2 -> afterXOAuth2(d, reply),
+        SmtpPhase.XOAuth2Refused -> Err(refused(reply, "the XOAUTH2 token${d.oauthFailure}: ")),
+        SmtpPhase.Reset -> expecting(d, reply, 250, SmtpPhase.MailFrom),
+        SmtpPhase.MailFrom -> expectingStart(d, reply),
+        SmtpPhase.Rcpt -> afterRecipient(d, reply),
+        SmtpPhase.Data -> expecting(d, reply, 354, SmtpPhase.Body),
+        SmtpPhase.Body -> expecting(d, reply, 250, SmtpPhase.Sent),
+        SmtpPhase.Sent -> Ok(d),
     }
 }
 
@@ -86,28 +86,28 @@ private {
         return match (reply.lines.join("").trim().fromBase64()) {
             None -> {
                 return "";
-            }
+            },
 
             raw -> {
                 decoded: Result<XOAuth2Failure, JsonError> = json.decode(raw);
                 return match (decoded) {
                     Err(_) -> {
                         return "";
-                    }
+                    },
 
                     Ok(failure) -> {
                         return match (failure.status) {
                             None -> {
                                 return "";
-                            }
+                            },
 
                             status -> {
                                 return " (status ${status})";
-                            }
+                            },
                         }
-                    }
+                    },
                 }
-            }
+            },
         }
     }
 
@@ -156,11 +156,11 @@ private {
         return match (d.target.user) {
             None -> {
                 return Ok(copy(learned, phase: SmtpPhase.MailFrom));
-            }
+            },
 
             _ -> {
                 return loginPhase(learned);
-            }
+            },
         }
     }
 
@@ -171,10 +171,10 @@ private {
     loginPhase(d: Dialogue) -> Result<Dialogue, SmtpError> {
         chosen: SmtpAuth = SmtpAuth.Auto;
         match (d.target.auth) {
-            None -> None
+            None -> None,
             given -> {
                 chosen = given;
-            }
+            },
         }
 
         match (chosen) {
@@ -186,7 +186,7 @@ private {
                 return Err(
                     notOffered("SMTP_AUTH is xoauth2, and the server doesn't offer AUTH XOAUTH2"),
                 );
-            }
+            },
 
             SmtpAuth.Plain -> {
                 if (d.authPlain) {
@@ -196,7 +196,7 @@ private {
                 return Err(
                     notOffered("SMTP_AUTH is plain, and the server doesn't offer AUTH PLAIN"),
                 );
-            }
+            },
 
             SmtpAuth.Login -> {
                 if (d.authLogin) {
@@ -206,9 +206,9 @@ private {
                 return Err(
                     notOffered("SMTP_AUTH is login, and the server doesn't offer AUTH LOGIN"),
                 );
-            }
+            },
 
-            SmtpAuth.Auto -> None
+            SmtpAuth.Auto -> None,
         }
 
         if (d.target.token != None) {
@@ -249,10 +249,10 @@ private {
         for (offer in offers) {
             if (offer.startsWith("SIZE ")) {
                 match (offer.removePrefix("SIZE ").trim().toIntOrNone()) {
-                    None -> None
+                    None -> None,
                     size -> {
                         return size;
-                    }
+                    },
                 }
             }
         }

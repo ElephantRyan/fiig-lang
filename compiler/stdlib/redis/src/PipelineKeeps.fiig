@@ -6,13 +6,13 @@ conversion pipelineKeeps(commands: List<List<bytes>>) -> bool {
         match (words.first().utf8()) {
             None -> {
                 return false;
-            }
+            },
 
             name -> {
                 if (!keepsConnection(name)) {
                     return false;
                 }
-            }
+            },
         }
     }
 

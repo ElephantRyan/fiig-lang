@@ -115,7 +115,7 @@ func TestCallCrossPackageUndefinedDeclarationFaults(t *testing.T) {
 	standardTimePkg := buildTestPackage(t, standardTimeFiles, nil)
 
 	file := mustParseFile(t, `
-use standard.time as systemTime
+use standard.time as systemTime;
 
 activity bogus(from: systemTime.Instant) -> systemTime.Instant {
     return systemTime.doesNotExist(from);

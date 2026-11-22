@@ -10,8 +10,8 @@ import (
 // ADR 0112: schedule routes, bug classes I5-I7.
 
 const scheduleErrors = `enum RefreshError {
-    Unreachable(reason: string)
-    Stale
+    Unreachable(reason: string),
+    Stale,
 }`
 
 const refreshRates = `workflow refreshRates() -> Result<None, RefreshError> {
@@ -34,12 +34,12 @@ func checkSchedule(t *testing.T, adapter string) []Diagnostic {
 func TestScheduleRoutesCheck(t *testing.T) {
 	src := `adapter schedule Maintenance {
     every "15m" -> refreshRates() {
-        Ok(_) -> done
-        Err(RefreshError.Unreachable(_)) -> done
-        Err(RefreshError.Stale) -> halt
+        Ok(_) -> done,
+        Err(RefreshError.Unreachable(_)) -> done,
+        Err(RefreshError.Stale) -> halt,
     }
     cron "0 3 * * *" -> purgeSessions(firedAt: int) {
-        _ -> done
+        _ -> done,
     }
 }`
 	if diags := checkSchedule(t, src); len(diags) > 0 {

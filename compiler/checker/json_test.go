@@ -9,8 +9,8 @@ import (
 // ADR 0073: json.decode, json.encode, J1, and J2.
 
 const eventModel = `model Event {
-    type: string
-    data: JsonValue
+    type: string;
+    data: JsonValue;
 }`
 
 func TestJsonDecodeTakesItsTypeFromContext(t *testing.T) {
@@ -46,8 +46,8 @@ func TestJsonDecodeRefusals(t *testing.T) {
 	}{
 		{"no context", `rule r(body: bytes) -> int {
     return match (json.decode(body)) {
-        Ok(_) -> { return 1; }
-        Err(_) -> { return 0; }
+        Ok(_) -> { return 1; },
+        Err(_) -> { return 0; },
     }
 }`, "A12", "json.decode has no type to decode into"},
 		{"no ?", `rule r(body: bytes) -> Event {
@@ -75,7 +75,7 @@ func TestJsonDecodeRefusals(t *testing.T) {
 		})
 	}
 	wantDiag(t, checkSrc(t, `model JsonValue {
-    a: int
+    a: int;
 }`), "K2", "a prelude type")
 	wantDiag(t, checkSrc(t, `rule json(a: int) -> int {
     return a;
@@ -85,8 +85,8 @@ func TestJsonDecodeRefusals(t *testing.T) {
 // §8: J1, at the call and at a request body.
 func TestJ1(t *testing.T) {
 	session := `model Session {
-    user: string
-    token: Secret
+    user: string;
+    token: Secret;
 }`
 	cases := []struct {
 		name, src, fragment string
@@ -108,8 +108,8 @@ func TestJ1(t *testing.T) {
 }`, "field Has.session.token is a Secret"},
 	}
 	holder := `enum Holder {
-    Has(session: Session)
-    Empty
+    Has(session: Session),
+    Empty,
 }`
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -123,14 +123,14 @@ func TestJ1(t *testing.T) {
 		t.Errorf("encode Map<int, string>: %v", diags)
 	}
 	wantDiag(t, checkSrc(t, `model Upload {
-    name: string
-    parts: Map<int, string>
+    name: string;
+    parts: Map<int, string>;
 }`, `workflow upload(file: Upload) -> string {
     return file.name;
 }`, `adapter http api {
     POST "/uploads" -> upload(file: Upload)
         consumes "application/json"
-        produces "text/plain"
+        produces "text/plain";
 }`), "J1", `request body parameter "file" decodes into Upload: field parts is a Map with int keys`)
 }
 
@@ -138,8 +138,8 @@ func TestJ1(t *testing.T) {
 // or at either call.
 func TestBytesIsNotJ1(t *testing.T) {
 	diags := checkSrc(t, `model Upload {
-    name: string
-    content: bytes
+    name: string;
+    content: bytes;
 }`, `rule read(body: string) -> Result<List<bytes>, JsonError> {
     return json.decode(body);
 }`, `rule write(file: Upload) -> bytes {
@@ -149,7 +149,7 @@ func TestBytesIsNotJ1(t *testing.T) {
 }`, `adapter http api {
     POST "/uploads" -> upload(file: Upload)
         consumes "application/json"
-        produces "application/json"
+        produces "application/json";
 }`)
 	if len(diags) > 0 {
 		t.Errorf("diags = %v", diags)
@@ -159,23 +159,23 @@ func TestBytesIsNotJ1(t *testing.T) {
 // §7b: J2, and W3 on the member's JSON name.
 func TestJ2AndW3OnJsonNames(t *testing.T) {
 	wantDiag(t, checkSrc(t, `model Upload {
-    contentType: string from json "type"
-    type: string
+    contentType: string from json "type";
+    type: string;
 }`), "J2", `Upload.type reads the JSON member "type", which Upload.contentType already reads`)
 	wantDiag(t, checkSrc(t, `enum Change {
-    Moved(from: string from json "at", at: string)
+    Moved(from: string from json "at", at: string),
 }`), "J2", `Change.Moved.at reads the JSON member "at"`)
 	wantDiag(t, checkSrc(t, `model Base {
-    id: string
+    id: string;
 }`, `model Item {
-    Base
-    key: string from json "id"
+    Base;
+    key: string from json "id";
 }`), "J2", `fields id and key of Item all read the JSON member "id"`)
 	wantDiag(t, checkSrc(t, `enum Change {
-    Renamed(name: string from json "variant")
+    Renamed(name: string from json "variant"),
 }`), "W3", "from json \"variant\"")
 	if diags := checkSrc(t, `enum Change {
-    Renamed(variant: string from json "newVariant")
+    Renamed(variant: string from json "newVariant"),
 }`); len(diags) > 0 {
 		t.Errorf("a payload field named variant with another JSON name: %v", diags)
 	}

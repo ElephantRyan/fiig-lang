@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // An ErrorResponse's fields (§9): C is the SQLSTATE, M the message, and n,
 // t, and c the constraint, table, and column a conflict is in, when the
@@ -19,7 +19,7 @@ conversion serverError(body: bytes) -> db.DatabaseError {
                 }
 
                 match (after.slice(0, end).utf8()) {
-                    None -> None
+                    None -> None,
                     value -> {
                         if (field == 67) {
                             code = value;
@@ -32,15 +32,15 @@ conversion serverError(body: bytes) -> db.DatabaseError {
                         } else if (field == 99) {
                             column = value;
                         }
-                    }
+                    },
                 }
 
                 rest = after.slice(end + 1, after.length());
-            }
+            },
 
             _ -> {
                 break;
-            }
+            },
         }
     }
 

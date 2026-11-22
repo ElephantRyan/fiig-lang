@@ -72,8 +72,8 @@ func runJSONWith(t *testing.T, root, envFile string) (int, map[string]Result) {
 
 var program = map[string]string{
 	"enums/problem.fiig": `enum Problem {
-    TooBig(limit: int)
-    Blank
+    TooBig(limit: int),
+    Blank,
 }
 `,
 	"rules/check_size.fiig": `rule checkSize(n: int) -> Result<int, Problem> {
@@ -180,8 +180,8 @@ func TestFailuresAreReportedWithTheirValues(t *testing.T) {
 func TestAConfigIsFakedPerTest(t *testing.T) {
 	root := writePackage(t, withTests(map[string]string{
 		"config/shop.fiig": `wire Shop {
-    greeting: string from env "SHOP_GREETING"
-    token: Secret from env "SHOP_TOKEN"
+    greeting: string from env "SHOP_GREETING";
+    token: Secret from env "SHOP_TOKEN";
 }
 `,
 		"activities/greet.fiig": `activity greet(name: string) -> string {
@@ -193,8 +193,8 @@ func TestAConfigIsFakedPerTest(t *testing.T) {
 `,
 		"tests/greets.fiig": `test greetsByConfig {
     fake Shop {
-        greeting: "Hello"
-        token: "t-1"
+        greeting: "Hello";
+        token: "t-1";
     }
     expect greet("Ada") == "Hello, Ada";
 }
@@ -219,31 +219,31 @@ func TestAConfigIsFakedPerTest(t *testing.T) {
 func TestOptionalConfigInTests(t *testing.T) {
 	files := withTests(map[string]string{
 		"config/shop.fiig": `wire Shop {
-    url: string | None from env "SHOP_URL"
-    token: Secret | None from env "SHOP_TOKEN"
+    url: string | None from env "SHOP_URL";
+    token: Secret | None from env "SHOP_TOKEN";
 }
 `,
 		"activities/token_set.fiig": `activity tokenSet() -> bool {
     return match (Shop.token) {
-        None -> false
-        given -> true
+        None -> false,
+        given -> true,
     }
 }
 `,
 		"activities/url_set.fiig": `activity urlSet() -> bool {
     return match (Shop.url) {
-        None -> false
-        given -> true
+        None -> false,
+        given -> true,
     }
 }
 `,
 		"tests/token.fiig": `test aLiteralIsTheToken {
-    fake Shop { token: "t-1" }
+    fake Shop { token: "t-1"; }
     expect tokenSet();
 }
 
 test noneIsNoToken {
-    fake Shop { token: None }
+    fake Shop { token: None; }
     expect !tokenSet();
 }
 `,
@@ -276,13 +276,13 @@ test noneIsNoToken {
 func TestAnUnfakedOptionalConfigFailsTheTest(t *testing.T) {
 	files := withTests(map[string]string{
 		"config/plain.fiig": `wire Plain {
-    url: string | None from env "PLAIN_URL"
+    url: string | None from env "PLAIN_URL";
 }
 `,
 		"activities/url_set.fiig": `activity urlSet() -> bool {
     return match (Plain.url) {
-        None -> false
-        given -> true
+        None -> false,
+        given -> true,
     }
 }
 `,
@@ -302,7 +302,7 @@ func TestAnUnfakedOptionalConfigFailsTheTest(t *testing.T) {
 	if code, results := runJSONWith(t, root, envFile); code != 0 {
 		t.Fatalf("PLAIN_URL= in the env file is unset on purpose: %d %+v", code, results)
 	}
-	files["tests/plain.fiig"] = "test plainIsUnset {\n    fake Plain { url: None }\n    expect !urlSet();\n}\n"
+	files["tests/plain.fiig"] = "test plainIsUnset {\n    fake Plain { url: None; }\n    expect !urlSet();\n}\n"
 	if code, results := runJSON(t, writePackage(t, files)); code != 0 {
 		t.Fatalf("fake Plain { url: None } is unset on purpose: %d %+v", code, results)
 	}
@@ -355,11 +355,11 @@ func TestSettingsAreKnownToEveryTestPackage(t *testing.T) {
 	root := writePackage(t, map[string]string{
 		"fiig.pkg.json": `{"path": "probe", "kind": "application", "version": "0.1.0", "capabilities": ["Settings"]}`,
 		"src/cfg/Abs.fiig": `wire Abs {
-    url: string | None from setting "abs.url" ?? env "ABS_URL"
+    url: string | None from setting "abs.url" ?? env "ABS_URL";
 }
 `,
 		"src/cfg/Sign.fiig": `wire Sign {
-    name: string | None from setting "sign.name" ?? env "SIGN_NAME"
+    name: string | None from setting "sign.name" ?? env "SIGN_NAME";
 }
 `,
 		"src/cfg/AbsUrl.fiig": `activity absUrl() -> string | None {
@@ -386,13 +386,13 @@ func TestSettingsAreKnownToEveryTestPackage(t *testing.T) {
     return Settings.source("sign.name");
 }
 `,
-		"src/other/OtherUrl.fiig": `use probe.cfg
+		"src/other/OtherUrl.fiig": `use probe.cfg;
 
 activity otherUrl() -> string | None {
     return cfg.absUrl();
 }
 `,
-		"src/third/ThirdSaved.fiig": `use probe.cfg
+		"src/third/ThirdSaved.fiig": `use probe.cfg;
 
 activity thirdSaved() -> bool {
     return cfg.nameSaved();
@@ -406,7 +406,7 @@ activity thirdSaved() -> bool {
     expect !nameSaved();
 }
 `,
-		"test/other/OtherUrl.fiig": `use probe.cfg
+		"test/other/OtherUrl.fiig": `use probe.cfg;
 
 test anotherPackageSavesAndReads {
     expect cfg.saveUrl("https://abs.test") is Ok(_);

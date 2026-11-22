@@ -1,8 +1,8 @@
-use fiig.stream
+use fiig.stream;
 
 // What a receive took from one fetched partition: its deliveries, and the
 // offset to fetch next, or -2 when it took none.
 model Taken {
-    deliveries: List<stream.Delivery>
-    next: int
+    deliveries: List<stream.Delivery>;
+    next: int;
 }

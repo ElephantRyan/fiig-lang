@@ -19,7 +19,7 @@ func mustFormat(t *testing.T, src string) string {
 }
 
 func TestFormatSimpleModelIsStable(t *testing.T) {
-	src := "model Customer {\n    id: CustomerId\n    name: string\n    email: EmailAddress\n}\n"
+	src := "model Customer {\n    id: CustomerId;\n    name: string;\n    email: EmailAddress;\n}\n"
 	out := mustFormat(t, src)
 	if out != src {
 		t.Fatalf("expected already-canonical input to round-trip unchanged:\ngot:\n%s\nwant:\n%s", out, src)
@@ -119,7 +119,7 @@ func TestFormatRoundTripsCorpusWithoutErrors(t *testing.T) {
 }
 
 func TestFormatPreservesLeadingComment(t *testing.T) {
-	src := "// a doc comment\nmodel CustomerRef {\n    id: string\n}\n"
+	src := "// a doc comment\nmodel CustomerRef {\n    id: string;\n}\n"
 	out := mustFormat(t, src)
 	if !strings.Contains(out, "// a doc comment") {
 		t.Fatalf("leading comment dropped:\n%s", out)
@@ -221,18 +221,18 @@ func TestFormatHeaderClauses(t *testing.T) {
 		},
 		{
 			"a route that fits is one line",
-			"adapter http api {\n    GET \"/books\" -> listBooks()\n        produces \"application/json\"\n    {\n        Ok(books) -> 200 books\n    }\n}\n",
-			"adapter http api {\n    GET \"/books\" -> listBooks() produces \"application/json\" {\n        Ok(books) -> 200 books\n    }\n}\n",
+			"adapter http api {\n    GET \"/books\" -> listBooks()\n        produces \"application/json\"\n    {\n        Ok(books) -> 200 books,\n    }\n}\n",
+			"adapter http api {\n    GET \"/books\" -> listBooks() produces \"application/json\" {\n        Ok(books) -> 200 books,\n    }\n}\n",
 		},
 		{
 			"a route that doesn't fit wraps its clauses",
-			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput) consumes \"application/json\" produces \"application/json\" {\n        Ok(rating) -> 200 rating\n    }\n}\n",
-			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput)\n            consumes \"application/json\"\n            produces \"application/json\" {\n        Ok(rating) -> 200 rating\n    }\n}\n",
+			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput) consumes \"application/json\" produces \"application/json\" {\n        Ok(rating) -> 200 rating,\n    }\n}\n",
+			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput)\n            consumes \"application/json\"\n            produces \"application/json\" {\n        Ok(rating) -> 200 rating,\n    }\n}\n",
 		},
 		{
 			"a route with clauses and no mapping has no brace",
-			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput) consumes \"application/json\" produces \"application/json\"\n}\n",
-			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput)\n            consumes \"application/json\"\n            produces \"application/json\"\n}\n",
+			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput) consumes \"application/json\" produces \"application/json\";\n}\n",
+			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput)\n            consumes \"application/json\"\n            produces \"application/json\";\n}\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -267,7 +267,7 @@ func findExamplesDir(t *testing.T) string {
 }
 
 func TestFormatEmbeddedModelFieldIsStable(t *testing.T) {
-	src := "model Customer {\n    ContactInfo\n    id: CustomerId\n    name: string\n}\n"
+	src := "model Customer {\n    ContactInfo;\n    id: CustomerId;\n    name: string;\n}\n"
 	if out := mustFormat(t, src); out != src {
 		t.Fatalf("embedded field must round-trip unchanged:\ngot:\n%s\nwant:\n%s", out, src)
 	}
@@ -306,7 +306,7 @@ func TestFormatPrivateBlock(t *testing.T) {
 		"  return number > 0; // positive only\n" +
 		"  }\n" +
 		"  model Threshold {\n" +
-		"  minimum: int\n" +
+		"  minimum: int;\n" +
 		"  }\n" +
 		"  // trailing note\n" +
 		"}\n"
@@ -321,7 +321,7 @@ func TestFormatPrivateBlock(t *testing.T) {
 		"    }\n" +
 		"\n" +
 		"    model Threshold {\n" +
-		"        minimum: int\n" +
+		"        minimum: int;\n" +
 		"    }\n" +
 		"\n" +
 		"    // trailing note\n" +
@@ -374,13 +374,13 @@ func TestFormatListLiteral(t *testing.T) {
 func TestFormatBinarySegments(t *testing.T) {
 	src := "conversion c(b: bytes) -> bytes {\n" +
 		"  return match (b) {\n" +
-		"    <<0x52:u8,n:i32be,body:bytes(n-4)>> -> <<n:u16le, body:bytes>>\n" +
-		"    _ -> <<\"user\": utf8, 0: u8, \"database\": utf8, 0: u8, \"application_name\": utf8, 0: u8, 0: u8>>\n" +
+		"    <<0x52:u8,n:i32be,body:bytes(n-4)>> -> <<n:u16le, body:bytes>>,\n" +
+		"    _ -> <<\"user\": utf8, 0: u8, \"database\": utf8, 0: u8, \"application_name\": utf8, 0: u8, 0: u8>>,\n" +
 		"  }\n" +
 		"}\n"
 	want := "conversion c(b: bytes) -> bytes {\n" +
 		"    return match (b) {\n" +
-		"        <<0x52: u8, n: i32be, body: bytes(n - 4)>> -> <<n: u16le, body: bytes>>\n" +
+		"        <<0x52: u8, n: i32be, body: bytes(n - 4)>> -> <<n: u16le, body: bytes>>,\n" +
 		"        _ -> <<\n" +
 		"            \"user\": utf8,\n" +
 		"            0: u8,\n" +
@@ -389,7 +389,7 @@ func TestFormatBinarySegments(t *testing.T) {
 		"            \"application_name\": utf8,\n" +
 		"            0: u8,\n" +
 		"            0: u8,\n" +
-		"        >>\n" +
+		"        >>,\n" +
 		"    }\n" +
 		"}\n"
 	got, errs := Format(src)
@@ -423,11 +423,11 @@ func TestFormatBlankLineAfterABlock(t *testing.T) {
     return match (x) {
         0 -> {
             return note;
-        }
+        },
 
         _ -> {
             return "${total}";
-        }
+        },
     }
 }
 `

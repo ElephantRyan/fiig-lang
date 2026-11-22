@@ -10,10 +10,10 @@ import (
 // that order.
 func TestFromJsonBase64URL(t *testing.T) {
 	f := mustParse(t, `model Message {
-    raw: bytes from json base64url
-    data: bytes from json "raw_data" base64url
-    named: bytes from json "n"
-    plain: bytes
+    raw: bytes from json base64url;
+    data: bytes from json "raw_data" base64url;
+    named: bytes from json "n";
+    plain: bytes;
 }`)
 	m := f.Decls[0].(*syntax.ModelDecl)
 	want := []struct {
@@ -26,7 +26,7 @@ func TestFromJsonBase64URL(t *testing.T) {
 		}
 	}
 	e := mustParse(t, `enum Upload {
-    Sent(body: bytes from json base64url)
+    Sent(body: bytes from json base64url),
 }`)
 	if v := e.Decls[0].(*syntax.EnumDecl).Variants[0]; !v.Fields[0].Base64URL {
 		t.Fatalf("payload = %+v", v.Fields)

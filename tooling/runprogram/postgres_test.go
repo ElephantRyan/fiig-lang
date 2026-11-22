@@ -39,9 +39,9 @@ var pgProgram = map[string]string{
     "nativeCapabilities": ["Database"]
 }`,
 	"pet.fiig": `model Pet {
-    name: string
-    weight: decimal
-    born: string | None
+    name: string;
+    weight: decimal;
+    born: string | None;
 }`,
 	"find_pet.fiig": `gateway findPet(name: string) -> Pet | None
     requires Database

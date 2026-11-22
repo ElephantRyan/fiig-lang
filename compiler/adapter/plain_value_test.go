@@ -10,12 +10,12 @@ import (
 // value maps it with a name, not an Ok arm.
 func TestAPlainValueWorkflowMapsWithAName(t *testing.T) {
 	h := handlerFor(t, `model Health {
-    ok: bool
+    ok: bool;
 }`, `workflow healthCheck() -> Health {
     return Health(ok: true);
 }`, `adapter http healthApi {
     GET "/health" -> healthCheck() {
-        status -> 200 status
+        status -> 200 status,
     }
 }`)
 	code, _, body := serve(h, httptest.NewRequest("GET", "/health", nil))

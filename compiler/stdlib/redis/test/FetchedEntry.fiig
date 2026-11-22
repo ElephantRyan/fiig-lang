@@ -1,4 +1,4 @@
-use fiig.stream
+use fiig.stream;
 
 test aPendingEntryIsOnTheAttemptItWasLastDeliveredOn {
     found = RespValue.Array(items: [entry("7-0", "{}")]);

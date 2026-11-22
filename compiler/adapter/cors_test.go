@@ -16,7 +16,7 @@ import (
 
 var corsProgram = []string{
 	`model Item {
-    id: string
+    id: string;
 }`,
 	`workflow getItem(id: string) -> Item {
     return Item(id: id);
@@ -41,23 +41,23 @@ var corsProgram = []string{
 }`,
 	`adapter http api {
     GET "/items/{id}" -> getItem(id: string)
-        produces "application/json"
+        produces "application/json";
     PUT "/items/{id}" -> putItem(id: string, item: Item, token: string from header "Authorization")
         consumes "application/json"
         produces "application/json"
     {
-        item -> created(item)
+        item -> created(item),
     }
     DELETE "/items/{key}" -> deleteItem(key: string)
         produces "application/json"
     {
-        Ok(_) -> 204
-        Err(reason) -> refused(reason)
+        Ok(_) -> 204,
+        Err(reason) -> refused(reason),
     }
     GET "/boom/{n}" -> boom(n: int)
-        produces "application/json"
+        produces "application/json";
     GET "/me" -> me(session: string | None from cookie "sid")
-        produces "application/json"
+        produces "application/json";
 }`,
 }
 
@@ -359,7 +359,7 @@ func TestStarPolicy(t *testing.T) {
 	corsProgram = append([]string{}, saved...)
 	last := len(corsProgram) - 1
 	corsProgram[last] = strings.Replace(corsProgram[last], `    GET "/me" -> me(session: string | None from cookie "sid")
-        produces "application/json"
+        produces "application/json";
 `, "", 1)
 	corsProgram = append(corsProgram[:4], corsProgram[5:]...)
 

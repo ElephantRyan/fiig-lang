@@ -1,4 +1,4 @@
-use fiig.session
+use fiig.session;
 
 // ADR 0117 §3: the time a group session asked for came: a heartbeat or a
 // commit is due, or a held poll's wait is up.
@@ -7,11 +7,11 @@ conversion sessionTick(state: bytes, now: int) -> session.Step {
     return match (decoded) {
         Err(_) -> {
             return failedStep("fiig.kafka's session state doesn't decode");
-        }
+        },
 
         Ok(s) -> {
             turn = SessionTurn(state: s, write: <<>>, replies: [], close: None);
             return sessionStep(answerPolls(dueWork(turn, now), now), None);
-        }
+        },
     }
 }

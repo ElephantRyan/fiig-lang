@@ -2,7 +2,7 @@
 // holds a whole one.
 conversion readRelayFrame(buffer: bytes) -> bytes | None {
     return match (buffer) {
-        <<length: i32be, body: bytes(length), rest: bytes>> -> body
-        _ -> None
+        <<length: i32be, body: bytes(length), rest: bytes>> -> body,
+        _ -> None,
     }
 }

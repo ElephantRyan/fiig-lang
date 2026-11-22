@@ -19,12 +19,12 @@ var workspaceFiles = map[string]string{
 	"kernel/fiig.pkg.json": `{"path": "t.kernel", "kind": "library", "version": "1.0.0"}`,
 	"kernel/src/Money.fiig": `// An amount in one currency.
 model Money {
-    amount: decimal
-    currency: string
+    amount: decimal;
+    currency: string;
 }
 `,
 	"app/fiig.pkg.json": `{"path": "t.app", "kind": "library", "version": "1.0.0", "dependencies": {"t.kernel": "1.0.0"}, "capabilities": ["Database"], "nativeCapabilities": ["Database"]}`,
-	"app/src/Total.fiig": `use t.kernel
+	"app/src/Total.fiig": `use t.kernel;
 
 // Adds two amounts.
 rule total(a: kernel.Money, b: kernel.Money) -> decimal {
@@ -48,21 +48,21 @@ private {
 `,
 	// Another package's enum in a pattern, and a config read.
 	"kernel/src/Level.fiig": `enum Level {
-    Low
-    High
+    Low,
+    High,
 }
 `,
-	"app/src/Describe.fiig": `use t.kernel
+	"app/src/Describe.fiig": `use t.kernel;
 
 conversion describe(level: kernel.Level) -> string {
     return match (level) {
-        kernel.Level.Low -> "low"
-        kernel.Level.High -> "high"
+        kernel.Level.Low -> "low",
+        kernel.Level.High -> "high",
     }
 }
 `,
 	"app/src/Limits.fiig": `wire Limits {
-    max: int from env "LIMIT_MAX" = 10
+    max: int from env "LIMIT_MAX" = 10;
 }
 `,
 	"app/src/Cap.fiig": `activity cap() -> int {
@@ -86,46 +86,46 @@ conversion describe(level: kernel.Level) -> string {
 }
 `,
 	// An application names adapters, which Go to Declaration reaches (ADR 0132).
-	"app/src/Runs.fiig": `use t.app.ratings
+	"app/src/Runs.fiig": `use t.app.ratings;
 
 application Runs {
     serve web {
-        Api
-        ratings.clampApi
-        ratings.whoApi
+        Api;
+        ratings.clampApi;
+        ratings.whoApi;
     }
 }
 `,
 	"app/src/ratings/ClampApi.fiig": `adapter http clampApi {
     GET "/clamp/{score}" -> clampRoute(score: int)
-        produces "application/json"
+        produces "application/json";
 }
 `,
 	// A route names its adapter's principal, which Go to Declaration and hover
 	// reach (ADR 0137).
 	"app/src/ratings/WhoApi.fiig": `adapter http whoApi {
-    wire me: Caller from header "Authorization" by signedIn else refused
+    wire me: Caller from header "Authorization" by signedIn else refused;
 
     GET "/who" -> who(me)
-        produces "application/json"
+        produces "application/json";
 }
 `,
 	"app/src/ratings/Caller.fiig": `model Caller {
-    id: string
+    id: string;
 }
 `,
 	"app/src/ratings/CallerError.fiig": `enum CallerError {
-    Unknown
+    Unknown,
 }
 `,
 	"app/src/ratings/SignedIn.fiig": `workflow signedIn(key: string | None) -> Result<Caller, CallerError> {
     return match (key) {
         None -> {
             return Err(CallerError.Unknown);
-        }
+        },
         given -> {
             return Ok(Caller(id: given));
-        }
+        },
     }
 }
 `,
@@ -148,10 +148,10 @@ application Runs {
 `,
 	"app/src/Api.fiig": `adapter http Api {
     GET "/hello" -> hello()
-        produces "application/json"
+        produces "application/json";
 }
 `,
-	"app/src/Rated.fiig": `use t.app.ratings
+	"app/src/Rated.fiig": `use t.app.ratings;
 
 conversion rated(score: int) -> int {
     return ratings.clamp(score);

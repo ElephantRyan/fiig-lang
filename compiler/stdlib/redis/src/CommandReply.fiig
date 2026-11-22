@@ -4,10 +4,10 @@ conversion commandReply(reply: RespValue) -> Result<RespValue, RedisError> {
     return match (reply) {
         RespValue.Error(text) -> {
             return Err(RedisError.Server(message: text));
-        }
+        },
 
         _ -> {
             return Ok(reply);
-        }
+        },
     }
 }

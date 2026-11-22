@@ -21,21 +21,21 @@ conversion computeScramFinal(
             match (part.removePrefix("s=").fromBase64()) {
                 None -> {
                     return Err("the broker's SCRAM salt isn't base64");
-                }
+                },
 
                 decoded -> {
                     salt = decoded;
-                }
+                },
             }
         } else if (part.startsWith("i=")) {
             match (part.removePrefix("i=").toIntOrNone()) {
                 None -> {
                     return Err("the broker's SCRAM iteration count isn't a number");
-                }
+                },
 
                 count -> {
                     iterations = count;
-                }
+                },
             }
         } else if (part.startsWith("m=")) {
             return Err("the broker asks for a SCRAM extension fiig.kafka doesn't know");
@@ -70,7 +70,7 @@ conversion computeScramFinal(
                     serverSignature: crypto.hmacSha512(serverKey, authMessage),
                 ),
             );
-        }
+        },
 
         _ -> {
             salted = crypto.pbkdf2Sha256(password, salt, iterations);
@@ -83,6 +83,6 @@ conversion computeScramFinal(
                     serverSignature: crypto.hmacSha256(serverKey, authMessage),
                 ),
             );
-        }
+        },
     }
 }

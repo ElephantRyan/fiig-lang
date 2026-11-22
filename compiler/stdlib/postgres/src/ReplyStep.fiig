@@ -1,4 +1,4 @@
-use fiig.sql as db
+use fiig.sql as db;
 
 // One backend message of a statement's reply (§3, §9). An error is kept
 // until ReadyForQuery, which ends the reply either way; a message the
@@ -15,11 +15,11 @@ conversion replyStep(state: Reply, kind: int, body: bytes) -> Reply {
                     failed: db.DatabaseError.Protocol(reason: "a RowDescription is malformed"),
                     ready: true,
                 );
-            }
+            },
 
             shape -> {
                 return copy(state, row: None, columns: shape.names, types: shape.types);
-            }
+            },
         }
     }
 
@@ -34,11 +34,11 @@ conversion replyStep(state: Reply, kind: int, body: bytes) -> Reply {
                     ),
                     ready: true,
                 );
-            }
+            },
 
             row -> {
                 return copy(state, row: row);
-            }
+            },
         }
     }
 
@@ -46,10 +46,10 @@ conversion replyStep(state: Reply, kind: int, body: bytes) -> Reply {
         end = cStringEnd(body);
         if (end >= 0) {
             match (body.slice(0, end).utf8()) {
-                None -> None
+                None -> None,
                 tag -> {
                     return copy(state, row: None, affected: commandCount(tag));
-                }
+                },
             }
         }
 

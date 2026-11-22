@@ -3,6 +3,6 @@
 // adds statuses from time to time; one SubscriptionStatus doesn't list
 // arrives as its text rather than refusing the delivery (ADR 0081 §3).
 model SubscriptionUpdated {
-    id: string
-    status: SubscriptionStatus | string
+    id: string;
+    status: SubscriptionStatus | string;
 }

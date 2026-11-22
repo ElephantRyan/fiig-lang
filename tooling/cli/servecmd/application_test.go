@@ -46,8 +46,8 @@ func serving(t *testing.T, application string, args ...string) (http, startup bo
 	return rec.Code == 200, startup, nil
 }
 
-const oneProcess = "application Main {\n    serve {\n        api\n        preflight\n    }\n}\n"
-const twoProcesses = "application Main {\n    serve web {\n        api\n    }\n    serve worker {\n        preflight\n    }\n}\n"
+const oneProcess = "application Main {\n    serve {\n        api;\n        preflight;\n    }\n}\n"
+const twoProcesses = "application Main {\n    serve web {\n        api;\n    }\n    serve worker {\n        preflight;\n    }\n}\n"
 
 func TestServeRunsTheApplicationsOnlyBlock(t *testing.T) {
 	if http, startup, err := serving(t, oneProcess); err != nil || !http || !startup {
@@ -89,7 +89,7 @@ func TestAProgramWithNoApplicationIsRefused(t *testing.T) {
 }
 
 func TestAnApplicationNamingNoAdapterIsRefused(t *testing.T) {
-	_, _, err := serving(t, "application Main {\n    serve {\n        api\n        nothing\n    }\n}\n")
+	_, _, err := serving(t, "application Main {\n    serve {\n        api;\n        nothing;\n    }\n}\n")
 	if err == nil {
 		t.Fatal("an application naming an adapter that isn't there was served")
 	}

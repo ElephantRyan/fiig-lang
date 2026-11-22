@@ -7,12 +7,12 @@ import "testing"
 // reads as a table.
 func TestFormatHeadedEnumAlignsRows(t *testing.T) {
 	src := "enum DeductionSource(key code: string, layout: FieldLayout) {\n" +
-		"    Acme(code: \"ACME\", layout: FieldLayout.FixedWidth)\n" +
-		"    Globex(code: \"GLOBEX\", layout: FieldLayout.Csv)\n" +
+		"    Acme(code: \"ACME\", layout: FieldLayout.FixedWidth),\n" +
+		"    Globex(code: \"GLOBEX\", layout: FieldLayout.Csv),\n" +
 		"}\n"
 	want := "enum DeductionSource(key code: string, layout: FieldLayout) {\n" +
-		"    Acme(  code: \"ACME\",   layout: FieldLayout.FixedWidth)\n" +
-		"    Globex(code: \"GLOBEX\", layout: FieldLayout.Csv)\n" +
+		"    Acme(  code: \"ACME\",   layout: FieldLayout.FixedWidth),\n" +
+		"    Globex(code: \"GLOBEX\", layout: FieldLayout.Csv),\n" +
 		"}\n"
 	once, errs := Format(src)
 	if len(errs) > 0 {
@@ -30,18 +30,18 @@ func TestFormatHeadedEnumAlignsRows(t *testing.T) {
 // headed enum's row, and survives a second pass.
 func TestFormatVariantSpellings(t *testing.T) {
 	src := "enum Outcome {\n" +
-		"    Paid(receipt: string)   from json   \"paid\"\n" +
-		"    PastDue from json \"past_due\"\n" +
-		"    Legacy\n" +
+		"    Paid(receipt: string)   from json   \"paid\",\n" +
+		"    PastDue from json \"past_due\",\n" +
+		"    Legacy,\n" +
 		"}\n"
 	want := "enum Outcome {\n" +
-		"    Paid(receipt: string) from json \"paid\"\n" +
-		"    PastDue from json \"past_due\"\n" +
-		"    Legacy\n" +
+		"    Paid(receipt: string) from json \"paid\",\n" +
+		"    PastDue from json \"past_due\",\n" +
+		"    Legacy,\n" +
 		"}\n"
 	headed := "enum Region(key code: string) {\n" +
-		"    UsEast(code: \"us-east\") from json \"us_east\"\n" +
-		"    EuWest(code: \"eu-west\")\n" +
+		"    UsEast(code: \"us-east\") from json \"us_east\",\n" +
+		"    EuWest(code: \"eu-west\"),\n" +
 		"}\n"
 	for in, out := range map[string]string{src: want, headed: headed} {
 		once, errs := Format(in)
