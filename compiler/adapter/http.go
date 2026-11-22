@@ -73,7 +73,7 @@ func HTTPHandlerFor(adapters []Served, u *types.Universe, in *runtime.Interp, l 
 			if err != nil {
 				return nil, fmt.Errorf("route %s %q: %w", route.Verb, route.Path, err)
 			}
-			plan.principals = principalsFor(d, route)
+			plan.principals = principalsFor(d, route, principalScope{in: in, pkg: a.Package, u: scope, adapter: d.Name})
 			pathPart, _, _ := strings.Cut(route.Path, "?")
 			pattern := route.Verb + " " + pathPart
 			where := fmt.Sprintf("%s %q in adapter %s", route.Verb, route.Path, a.Name())

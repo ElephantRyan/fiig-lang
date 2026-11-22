@@ -127,3 +127,46 @@ func TestU4APrincipalHasTheParametersType(t *testing.T) {
 		"workflow takesString(me: string) -> string {\n    return me\n}")
 	wantOnly(t, got, "U4", "principal me is Identity, but takesString's parameter me is string")
 }
+
+// ADR 0141: a principal declared once at the top level, named by adapters.
+const prTopMe = "principal me: Identity from cookie \"sid\" by signedIn else signInFirst"
+
+func TestANamedPrincipalChecks(t *testing.T) {
+	got := checkPrincipals(t, principalAdapter("    principal me\n"+
+		"    GET \"/mine\" -> showMine(me)\n        produces \"application/json\"\n"), prTopMe)
+	if len(got) != 0 {
+		t.Fatalf("diags = %v, want none", got)
+	}
+	// An inline principal may be settled from a named one.
+	role := "workflow signedInRole(me: Identity) -> Result<Identity, IdentityError> {\n    return Ok(me)\n}"
+	showAgain := "workflow showAgain(again: Identity) -> string {\n    return again.userId\n}"
+	got = checkPrincipals(t, principalAdapter("    principal me as person\n"+
+		"    principal again: Identity from person by signedInRole else signInFirst\n"+
+		"    GET \"/mine\" -> showAgain(again)\n        produces \"application/json\"\n"), prTopMe, role, showAgain)
+	if len(got) != 0 {
+		t.Fatalf("inline from named: diags = %v, want none", got)
+	}
+}
+
+func TestU7APrincipalReferenceNamesATopLevelPrincipal(t *testing.T) {
+	wantOnly(t, checkPrincipals(t, principalAdapter("    principal signedIn\n"+
+		"    GET \"/covers/{id}\" public -> showCover(id: string)\n        produces \"application/json\"\n")), "U7", "names a workflow")
+}
+
+func TestU8AnAdapterHasOnePrincipalOfEachName(t *testing.T) {
+	got := checkPrincipals(t, principalAdapter("    principal me\n"+prPrincipal+
+		"    GET \"/mine\" -> showMine(me)\n        produces \"application/json\"\n"), prTopMe)
+	wantOnly(t, got, "U8", "two principals named me")
+}
+
+func TestU9ATopLevelPrincipalIsSettledFromAnotherWithNoCycle(t *testing.T) {
+	role := "workflow signedInRole(me: Identity) -> Result<Identity, IdentityError> {\n    return Ok(me)\n}"
+	got := checkPrincipals(t, principalAdapter("    GET \"/covers/{id}\" -> showCover(id: string)\n        produces \"application/json\"\n"),
+		"principal a: Identity from b by signedInRole else signInFirst",
+		"principal b: Identity from a by signedInRole else signInFirst", role)
+	if len(got) != 2 || !strings.Contains(got[0], "[U9]") || !strings.Contains(got[1], "settled from itself") {
+		t.Fatalf("a cycle: %v", got)
+	}
+	wantOnly(t, checkPrincipals(t, principalAdapter("    GET \"/covers/{id}\" -> showCover(id: string)\n        produces \"application/json\"\n"),
+		"principal a: Identity from signedIn by signedInRole else signInFirst", role), "U9", "isn't a top-level principal")
+}

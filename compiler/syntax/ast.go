@@ -495,7 +495,48 @@ type AdapterDecl struct {
 	Kind       AdapterKind
 	Name       string
 	Principals []*PrincipalDecl // ADR 0137; http adapters only (U6)
-	Routes     []*Route
+	// PrincipalRefs are the top-level principals the adapter names (ADR
+	// 0141 §2): `principal sessions.me`.
+	PrincipalRefs []*PrincipalRef
+	Routes        []*Route
+}
+
+// PrincipalRef is `principal sessions.me [as partner]` in an adapter (ADR
+// 0141 §2): a top-level principal, brought in under its own name or As.
+type PrincipalRef struct {
+	Span
+	Path []string // [me] in its own package, [sessions me] in another
+	As   string
+}
+
+// Name is the reference as written, dotted.
+func (r *PrincipalRef) Name() string { return strings.Join(r.Path, ".") }
+
+// Local is the name the adapter's routes take it by.
+func (r *PrincipalRef) Local() string {
+	if r.As != "" {
+		return r.As
+	}
+	return r.Path[len(r.Path)-1]
+}
+
+// HasPrincipals reports whether the adapter settles any principal, inline
+// or named (ADR 0137, ADR 0141).
+func (d *AdapterDecl) HasPrincipals() bool {
+	return len(d.Principals) > 0 || len(d.PrincipalRefs) > 0
+}
+
+// PrincipalNames is every principal the adapter's routes may take, inline
+// first, then named, each as the routes name it.
+func (d *AdapterDecl) PrincipalNames() []string {
+	var out []string
+	for _, pr := range d.Principals {
+		out = append(out, pr.Name)
+	}
+	for _, r := range d.PrincipalRefs {
+		out = append(out, r.Local())
+	}
+	return out
 }
 
 // PrincipalDecl is `principal me: Identity from cookie "sid" by
@@ -676,6 +717,10 @@ type AdapterRef struct {
 
 func (*ApplicationDecl) declNode() {}
 
+// A principal is a declaration at the top level too (ADR 0141 §1), as well
+// as inline in an adapter.
+func (*PrincipalDecl) declNode() {}
+
 func (*ModelDecl) declNode()      {}
 func (*EnumDecl) declNode()       {}
 func (*RuleDecl) declNode()       {}
@@ -725,6 +770,8 @@ func DeclName(d Decl) string {
 		return d.Name
 	case *ApplicationDecl:
 		return d.Name
+	case *PrincipalDecl:
+		return d.Name
 	case *TestDecl:
 		return d.Name
 	default:
@@ -769,6 +816,8 @@ func DeclKindName(d Decl) string {
 		return "config"
 	case *ApplicationDecl:
 		return "application"
+	case *PrincipalDecl:
+		return "principal"
 	case *TestDecl:
 		return "test"
 	default:

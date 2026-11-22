@@ -1075,6 +1075,8 @@ func (c *checker) checkDecl(d syntax.Decl) {
 		c.checkAdapterRoutes(d)
 	case *syntax.ApplicationDecl:
 		c.checkApplicationDecl(d)
+	case *syntax.PrincipalDecl:
+		c.checkTopPrincipal(d)
 	case *syntax.InterfaceDecl:
 		c.checkInterfaceDecl(d)
 	case *syntax.CapabilityDecl:

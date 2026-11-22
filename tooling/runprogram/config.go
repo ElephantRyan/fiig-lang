@@ -222,6 +222,18 @@ func (w *walker) visit(d syntax.Decl, sc configScope) {
 			w.one(pr.By.Call(), sc)
 			w.one(pr.Else.Call(), sc)
 		}
+		// ADR 0141: a named principal, in the package that declares it.
+		for _, r := range d.PrincipalRefs {
+			if len(r.Path) == 1 {
+				if pd, found := sc.universe.Lookup(r.Path[0]); found {
+					w.visit(pd, sc)
+				}
+			} else if pkg, ok := sc.imports[r.Path[0]]; ok {
+				if pd, found := pkg.Universe.Lookup(r.Path[1]); found {
+					w.visit(pd, packageScope(pkg))
+				}
+			}
+		}
 		for _, r := range d.Routes {
 			if r.Workflow != nil {
 				w.call(r.Workflow.Name, sc)
@@ -230,6 +242,14 @@ func (w *walker) visit(d syntax.Decl, sc configScope) {
 				if v, ok := arm.Value.(*syntax.ExprResponse); ok {
 					w.expr(v.Value, sc)
 				}
+			}
+		}
+	case *syntax.PrincipalDecl:
+		w.one(d.By.Call(), sc)
+		w.one(d.Else.Call(), sc)
+		if d.From != nil {
+			if earlier, found := sc.base.Lookup(d.From.Name); found {
+				w.visit(earlier, sc)
 			}
 		}
 	case *syntax.CapabilityDecl:

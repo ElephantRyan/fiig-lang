@@ -262,7 +262,15 @@ func BuildCard(decl syntax.Decl, source string) *Card {
 	case *syntax.WorkflowDecl:
 		return &Card{Name: d.Name, Kind: "workflow", Catalog: Composition, Source: source, Params: paramParams(d.Params), Returns: typeString(d.ReturnType), Error: errorTypeOf(d.ReturnType), Dependencies: bodyCallNames(d.Body), Uses: syntax.BodyCapabilityCalls(d.Body)}
 	case *syntax.AdapterDecl:
-		card := &Card{Name: d.Name, Kind: "adapter", Catalog: Composition, Source: source, AdapterKind: string(d.Kind), Routes: routeSummaries(d.Routes), Principals: principalSummaries(d.Principals), Dependencies: adapterCallNames(d)}
+		principals := principalSummaries(d.Principals)
+		for _, r := range d.PrincipalRefs {
+			named := "principal " + r.Name()
+			if r.As != "" {
+				named += " as " + r.As
+			}
+			principals = append(principals, named)
+		}
+		card := &Card{Name: d.Name, Kind: "adapter", Catalog: Composition, Source: source, AdapterKind: string(d.Kind), Routes: routeSummaries(d.Routes), Principals: principals, Dependencies: adapterCallNames(d)}
 		if d.Kind == syntax.AdapterHTTP {
 			card.BrowserCalls = "from the origins in ALLOW_ORIGINS or fiig serve -allow-origin at deploy, none by default (ADR 0070)"
 		}
@@ -290,6 +298,20 @@ func BuildCard(decl syntax.Decl, source string) *Card {
 		}
 		sort.Strings(usesList)
 		return &Card{Name: d.Name, Kind: "capability", Catalog: Default, Source: source, Operations: ops, Uses: usesList, Dependencies: dedupe(deps)}
+	case *syntax.PrincipalDecl:
+		// ADR 0141 §5: a top-level principal has its own card.
+		deps := map[string]bool{}
+		syntax.CollectExprCallNames(d.By.Call(), deps)
+		syntax.CollectExprCallNames(d.Else.Call(), deps)
+		if d.From != nil {
+			deps[d.From.Name] = true
+		}
+		var depList []string
+		for n := range deps {
+			depList = append(depList, n)
+		}
+		sort.Strings(depList)
+		return &Card{Name: d.Name, Kind: "principal", Catalog: Composition, Source: source, Principals: principalSummaries([]*syntax.PrincipalDecl{d}), Dependencies: depList}
 	case *syntax.ConfigDecl:
 		// A field read from startup (ADR 0127) is no variable to set.
 		vars := make([]EnvVar, 0, len(d.Fields))

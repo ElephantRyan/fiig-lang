@@ -188,3 +188,58 @@ func TestOpenAPIDescribesPrincipals(t *testing.T) {
 		t.Errorf("a public route has security %v", cover["security"])
 	}
 }
+
+// ADR 0141: the same program with its principals declared at the top level
+// and named by the adapter. It settles alike, and the document names the
+// scheme after the principal.
+func namedPrincipalProgram() []string {
+	out := append([]string(nil), principalProgram[:len(principalProgram)-1]...)
+	return append(out,
+		`principal me: Identity from cookie "sid" by signedIn else signInFirst`,
+		`principal admin: Admin from me by signedInAdmin else notAnAdmin`,
+		`adapter http api {
+    principal admin
+
+    GET "/settings" -> showSettings(admin)
+        produces "application/json"
+}`)
+}
+
+func TestANamedRoleSettlesWhatItIsSettledFrom(t *testing.T) {
+	h := handlerFor(t, namedPrincipalProgram()...)
+	for _, c := range []struct {
+		cookie string
+		code   int
+	}{{"", 401}, {"ann", 403}, {"boss", 200}} {
+		req := httptest.NewRequest(http.MethodGet, "/settings", nil)
+		if c.cookie != "" {
+			req.AddCookie(&http.Cookie{Name: "sid", Value: c.cookie})
+		}
+		if code, _, out := serve(h, req); code != c.code {
+			t.Errorf("cookie %q: %d %s, want %d", c.cookie, code, out, c.code)
+		}
+	}
+	var files []*syntax.File
+	var ad *syntax.AdapterDecl
+	for _, src := range namedPrincipalProgram() {
+		f, errs := parser.Parse(src)
+		if len(errs) > 0 {
+			t.Fatal(errs)
+		}
+		files = append(files, f)
+		for _, d := range f.Decls {
+			if a, ok := d.(*syntax.AdapterDecl); ok {
+				ad = a
+			}
+		}
+	}
+	u, _ := types.BuildUniverse(files)
+	doc, err := GenerateOpenAPI(ad, u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schemes := doc["components"].(map[string]any)["securitySchemes"].(map[string]any)
+	if s, _ := schemes["me"].(map[string]any); s["in"] != "cookie" || s["name"] != "sid" {
+		t.Errorf("schemes = %v, want one named after the principal", schemes)
+	}
+}

@@ -187,6 +187,8 @@ func (p *printer) printDecl(d syntax.Decl) {
 		p.printAdapterDecl(d)
 	case *syntax.ApplicationDecl:
 		p.printApplicationDecl(d)
+	case *syntax.PrincipalDecl:
+		p.printPrincipal(d)
 	case *syntax.InterfaceDecl:
 		p.printFieldedDecl("interface "+d.Name, membersToSpanned(d.Members), startLine(d), func(i int) string {
 			m := d.Members[i]
@@ -578,7 +580,15 @@ func (p *printer) printAdapterDecl(d *syntax.AdapterDecl) {
 		p.emitLeading(startLine(pr))
 		p.printPrincipal(pr)
 	}
-	if len(d.Principals) > 0 && len(d.Routes) > 0 {
+	for _, r := range d.PrincipalRefs {
+		p.emitLeading(startLine(r))
+		ref := "principal " + r.Name()
+		if r.As != "" {
+			ref += " as " + r.As
+		}
+		p.emitLine(ref, startLine(r), startLine(r))
+	}
+	if d.HasPrincipals() && len(d.Routes) > 0 {
 		p.out.WriteByte('\n')
 	}
 	for _, r := range d.Routes {

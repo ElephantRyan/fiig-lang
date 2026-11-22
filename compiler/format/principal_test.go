@@ -35,3 +35,25 @@ func TestFormatWrapsALongPrincipal(t *testing.T) {
 		t.Fatalf("wrapped form not stable:\n%s", out)
 	}
 }
+
+// ADR 0141: a top-level principal, and an adapter naming principals.
+func TestFormatNamedPrincipalsAreStable(t *testing.T) {
+	for _, src := range []string{
+		"principal me: accounts.Identity from cookie \"sid\" by signedIn else identityErrorResponse\n",
+		"principal admin: accounts.Admin from me by accounts.signedInAdmin else accounts.notAnAdmin\n",
+		`adapter http adminApi {
+    principal peer: LinkedServer from header "Authorization" by callingServer else peerRefused
+    principal sessions.me
+    principal partners.me as partner
+
+    GET "/stats" -> stats(me) {
+        _ -> 200
+    }
+}
+`,
+	} {
+		if out := mustFormat(t, src); out != src {
+			t.Fatalf("not stable:\n%s", out)
+		}
+	}
+}

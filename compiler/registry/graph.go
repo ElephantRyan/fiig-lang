@@ -21,6 +21,10 @@ func adapterCallNames(d *syntax.AdapterDecl) []string {
 		syntax.CollectExprCallNames(pr.By.Call(), names)
 		syntax.CollectExprCallNames(pr.Else.Call(), names)
 	}
+	// ADR 0141 §5: a named principal is a dependency like a called workflow.
+	for _, r := range d.PrincipalRefs {
+		names[r.Name()] = true
+	}
 	for _, route := range d.Routes {
 		if !syntax.PreludeCallForms[route.Workflow.Name] {
 			names[route.Workflow.Name] = true

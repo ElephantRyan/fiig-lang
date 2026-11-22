@@ -60,7 +60,7 @@ func GenerateOpenAPIFor(adapters []Served, u *types.Universe, in *runtime.Interp
 		for _, route := range d.Routes {
 			op, err := buildOperation(route, r)
 			if err == nil {
-				describePrincipals(op, principalsFor(d, route), producesOf(route), r)
+				describePrincipals(op, principalsFor(d, route, principalScope{in: in, pkg: a.Package, u: r.u, adapter: d.Name}), producesOf(route), r)
 			}
 			if err != nil {
 				return nil, fmt.Errorf("adapter %s, route %s %q: %w", a.Name(), route.Verb, route.Path, err)

@@ -420,6 +420,10 @@ func (p *Parser) parseDecl() syntax.Decl {
 		if p.atContextual("application") && isNameToken(p.peek(1).Kind) && p.peek(2).Kind == lexer.LBrace {
 			return p.parseApplicationDecl()
 		}
+		// ADR 0141 §1: a principal declared once, for adapters to name.
+		if p.atContextual("principal") && isNameToken(p.peek(1).Kind) && p.peek(2).Kind == lexer.Colon {
+			return p.parsePrincipal()
+		}
 		if p.cur().Kind == lexer.Ident && p.cur().Text == "value" {
 			// ADR 0055: `value Name: T` was removed, not renamed — say so
 			// rather than leaving a generic "expected a declaration".
@@ -432,7 +436,7 @@ func (p *Parser) parseDecl() syntax.Decl {
 			}
 			return nil
 		}
-		p.errorf(p.cur().Start, "expected a declaration (model/enum/rule/conversion/activity/gateway/workflow/adapter/interface/capability/formulas/config/test), got %s", p.cur().Kind)
+		p.errorf(p.cur().Start, "expected a declaration (model/enum/rule/conversion/activity/gateway/workflow/adapter/interface/capability/formulas/config/principal/test), got %s", p.cur().Kind)
 		return nil
 	}
 }
@@ -1064,12 +1068,23 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 	name := p.expectName()
 	p.expect(lexer.LBrace)
 	var principals []*syntax.PrincipalDecl
+	var refs []*syntax.PrincipalRef
 	var routes []*syntax.Route
 	for !p.at(lexer.RBrace) && !p.at(lexer.EOF) {
 		p.guardProgress(func() {
 			// `principal` is contextual: a keyword only at the start of an
-			// adapter body line, before a name (ADR 0137 §1).
+			// adapter body line, before a name (ADR 0137 §1). A name and a
+			// colon declare one inline; a name alone names a top-level one
+			// (ADR 0141 §2).
 			if p.atContextual("principal") && isNameToken(p.peek(1).Kind) {
+				if p.peek(2).Kind != lexer.Colon {
+					ref := p.parsePrincipalRef()
+					if len(routes) > 0 {
+						p.errorf(ref.Start, "principal %s comes after a route; an adapter names its principals first (ADR 0141 §2)", ref.Name())
+					}
+					refs = append(refs, ref)
+					return
+				}
 				pr := p.parsePrincipal()
 				if len(routes) > 0 {
 					p.errorf(pr.Start, "principal %s comes after a route; an adapter declares its principals first (ADR 0137 §1)", pr.Name)
@@ -1081,7 +1096,24 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 		})
 	}
 	end := p.expect(lexer.RBrace).End
-	return &syntax.AdapterDecl{Span: syntax.Span{Start: start, End: end}, Kind: kind, Name: name.Text, Principals: principals, Routes: routes}
+	return &syntax.AdapterDecl{Span: syntax.Span{Start: start, End: end}, Kind: kind, Name: name.Text, Principals: principals, PrincipalRefs: refs, Routes: routes}
+}
+
+// parsePrincipalRef parses `principal name`, `principal alias.name`, and
+// either with `as other` (ADR 0141 §2).
+func (p *Parser) parsePrincipalRef() *syntax.PrincipalRef {
+	start := p.advance().Start // principal
+	ref := &syntax.PrincipalRef{Path: []string{p.expectName().Text}}
+	for p.at(lexer.Dot) {
+		p.advance()
+		ref.Path = append(ref.Path, p.expectName().Text)
+	}
+	if p.at(lexer.KwAs) {
+		p.advance()
+		ref.As = p.expectName().Text
+	}
+	ref.Span = syntax.Span{Start: start, End: p.cur().Start}
+	return ref
 }
 
 // parsePrincipal parses `principal name: Type from (header|cookie) "name"

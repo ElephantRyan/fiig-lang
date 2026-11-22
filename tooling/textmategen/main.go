@@ -220,6 +220,13 @@ func Grammar() rule {
 					"match":    `^\s*(test)\s+(` + ident + `)(?=\s*\{)`,
 					"captures": captures("storage.type.fiig", "entity.name.function.fiig"),
 				},
+				// `principal` is contextual too: at the top level (ADR 0141)
+				// and at the start of an adapter body line (ADR 0137), before
+				// the principal's name, or the one an adapter names.
+				rule{
+					"match":    `^\s*(principal)\s+(` + ident + `)`,
+					"captures": captures("storage.type.fiig", "entity.name.function.fiig"),
+				},
 				// An http adapter's route: `POST "/sessions" -> logIn(...)`.
 				rule{
 					"match":    `^\s*(` + strings.Join(HTTPMethods, "|") + `)(?=\s+")`,

@@ -1,6 +1,6 @@
 # ADR 0137: The Principal Is Settled by the Adapter, Before the Request Is Read
 
-Status: Accepted (2026-11-21). Implemented 2026-11-21, except §8's second source and §9's optional principal; see Implementation notes.
+Status: Accepted (2026-11-21). Implemented 2026-11-21, except §8's second source and §9's optional principal; see Implementation notes. Amended by ADR 0141: a principal may also be declared once at the top level and named by each adapter.
 Date: 2026-11-21
 Related: charter principle 11 (fail at the earliest point that has the
 information), principle 10 (strict about what a program says it reads), ADR

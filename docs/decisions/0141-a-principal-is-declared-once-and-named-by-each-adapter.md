@@ -1,6 +1,6 @@
 # ADR 0141: A Principal Is Declared Once and Named by Each Adapter
 
-Status: Proposed (2026-11-21)
+Status: Accepted (2026-11-21; the owner approved it). Implemented 2026-11-21; see Implementation notes.
 Date: 2026-11-21
 Related: ADR 0137 (the principal is settled by the adapter; this amends §1
 and §2), ADR 0079 §6 (one adapter per domain), ADR 0107 (adapters call
@@ -260,3 +260,48 @@ takes. U6 (http only) applies to the adapter that names it.
 - **The OpenAPI scheme name.** `sessionsMe` is mechanical. An application
   might want `sessionCookie`. That could come from the principal's name if
   applications name them that way, without new syntax.
+
+## Implementation notes (2026-11-21)
+
+- Syntax: `PrincipalDecl` is a declaration too (`DeclName`, `DeclKindName`
+  say `principal`); `AdapterDecl.PrincipalRefs` holds `principal x.y [as
+  z]`, with `HasPrincipals` and `PrincipalNames` over both forms. The
+  parser reads a top-level `principal name:` as a declaration, and in an
+  adapter a name followed by `:` as inline, anything else as a reference.
+  `fiig fmt` prints inline principals, then named ones, then the routes.
+- Checker (`compiler/checker/principal.go`): one `checkPrincipal` for U1
+  and U2 in either form; `checkTopPrincipal` adds U9; an adapter's named
+  principals resolve first (U7, U8), so an inline one may be settled from
+  a named one (`principal again: T from me by ...`). A route's reference
+  to a named principal points at the top-level declaration, so Go to
+  Declaration and Find Usages reach it.
+- Runtime (`compiler/adapter/principal.go`): `principalScope` resolves a
+  reference through the adapter's package's imports; each plan step
+  carries its declaring package, and the binder and refusal run under
+  `Interp.EnterPackage` there, so `signedIn` written in `sessions` resolves
+  in `sessions`. Settled values are kept by declaration, so a route that
+  takes `admin` settles `me` once, even when the adapter names only
+  `admin` (§3).
+- OpenAPI: a named principal's scheme is `alias` + `Name` (`sessionsMe`),
+  or the bare name in the adapter's own package; its refusal's statuses
+  resolve in its own package. Inline principals keep the cookie or header
+  name as the scheme, as before.
+- Registry: a top-level principal has a `principal` card with its binder,
+  refusal and `from` as dependencies; an adapter's card lists `principal
+  x.y` for each named one, and its dependencies include them. `fiig
+  config` follows a named principal's binder and refusal in its package.
+- TextMate grammar: `principal` at the start of a line is a declaration
+  word. **Not done:** an IntelliJ file icon for a principal file, which
+  needs the plugin's Kotlin build.
+- Tests: `TestANamedPrincipalChecks`, U7, U8 and U9 tests (checker);
+  `TestFormatNamedPrincipalsAreStable`; `TestANamedRoleSettlesWhatItIsSettledFrom`
+  (adapter, with OpenAPI); `TestANamedPrincipalIsSettledInItsOwnPackage`
+  (servecmd, a three-package module through the loader).
+- Dogfooded: a module where `sessions` declares `me` and `admin`, `books`
+  names `sessions.me` and `admin` names only `sessions.admin`. Under `fiig
+  serve`, no cookie gave 401 on both, `ann` 200 on books and 403 on admin,
+  `boss` 200; `fiig openapi` had one `sessionsMe` scheme shared by both
+  routes, each with 401 and 403.
+- ADR 0104's one-file-per-name rule means a principal `admin` and a model
+  `Admin` can't share a package (both want `Admin.fiig`). The ADR's Hearsay
+  layout already keeps the model in `accounts`.

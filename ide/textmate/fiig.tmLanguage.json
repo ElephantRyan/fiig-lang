@@ -130,6 +130,17 @@
         {
           "captures": {
             "1": {
+              "name": "storage.type.fiig"
+            },
+            "2": {
+              "name": "entity.name.function.fiig"
+            }
+          },
+          "match": "^\\s*(principal)\\s+([A-Za-z][A-Za-z0-9_]*)"
+        },
+        {
+          "captures": {
+            "1": {
               "name": "keyword.other.http-method.fiig"
             }
           },

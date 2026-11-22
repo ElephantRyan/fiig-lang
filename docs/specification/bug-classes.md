@@ -257,6 +257,9 @@ sessions.signInFirst`. These are checked in `compiler/checker/principal.go`.
 | U4 | A bare route argument that names no principal of the adapter, one whose type isn't the workflow parameter's, or a path or query placeholder with a principal's name | Attested — `TestU4ARouteNamesADeclaredPrincipalOfTheParametersType`, `TestU4APlaceholderCantShareAPrincipalsName`, `TestU4APrincipalHasTheParametersType` |
 | U5 | A principal settled `from` one that isn't declared before it in the adapter, which also rules out a cycle | Attested — `TestU5APrincipalIsSettledFromAnEarlierOne` |
 | U6 | A principal in a cli, stream, schedule or startup adapter, whose call carries no credential (§7) | Attested — `TestU6OnlyAnHttpAdapterSettlesAPrincipal` |
+| U7 | `principal x.y` in an adapter names something that isn't a top-level principal (ADR 0141 §2) | Attested — `TestU7APrincipalReferenceNamesATopLevelPrincipal` |
+| U8 | Two principals in one adapter with the same name, inline, named, or renamed with `as` (ADR 0141 §2) | Attested — `TestU8AnAdapterHasOnePrincipalOfEachName` |
+| U9 | A top-level principal's `from` names something that isn't a top-level principal of its package, or top-level principals settled from each other in a cycle (ADR 0141 §3, §6) | Attested — `TestU9ATopLevelPrincipalIsSettledFromAnotherWithNoCycle` |
 
 ## I. Stream, schedule and startup adapter errors (ADR 0047, ADR 0111, ADR 0112, ADR 0124)
 

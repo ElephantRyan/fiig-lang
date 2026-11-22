@@ -4,60 +4,159 @@ import (
 	"strings"
 
 	"fiig-lang/compiler/httpspec"
+	"fiig-lang/compiler/lexer"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
 )
 
 // principalInfo is one of an adapter's principals as its routes see it:
-// the declaration and its resolved type.
+// the declaration and its resolved type, and what a route's reference to it
+// points at: the adapter's own member for an inline one, the top-level
+// declaration for a named one (ADR 0141).
 type principalInfo struct {
-	decl    *syntax.PrincipalDecl
-	typ     types.Type
-	adapter *syntax.AdapterDecl // for references to it, as its member
+	decl   *syntax.PrincipalDecl
+	typ    types.Type
+	target syntax.Decl
+	member string
 }
 
-// checkPrincipals checks an adapter's principals (ADR 0137): U1 for the
-// binder, U2 for the refusal, U5 for `from`, U6 for an adapter that isn't
-// http. It returns them by name for the routes (U3, U4).
+// checkPrincipals checks an adapter's principals (ADR 0137, ADR 0141): U7
+// and U8 for the ones it names, U1, U2 and U5 for its inline ones, U6 for an
+// adapter that isn't http. It returns them by the name routes take them by
+// (U3, U4). Named ones come first, so an inline one may be settled from one.
 func (c *checker) checkPrincipals(d *syntax.AdapterDecl) map[string]principalInfo {
-	if len(d.Principals) == 0 {
+	if !d.HasPrincipals() {
 		return nil
 	}
 	out := map[string]principalInfo{}
+	taken := func(name string, at lexer.Pos) bool {
+		if _, dup := out[name]; dup {
+			c.report(at, "U8", "adapter %s has two principals named %s; rename one with `as` (ADR 0141 §2)", d.Name, name)
+			return true
+		}
+		return false
+	}
+	for _, r := range d.PrincipalRefs {
+		if d.Kind != syntax.AdapterHTTP {
+			c.report(r.Start, "U6", "a %s adapter settles no principal (who is calling); only an http request carries one (ADR 0137 §7)", d.Kind)
+			continue
+		}
+		pr, pkg := c.resolvePrincipalRef(r)
+		if pr == nil || taken(r.Local(), r.Start) {
+			continue
+		}
+		out[r.Local()] = principalInfo{decl: pr, typ: c.resolveIn(pkg, pr.Type), target: pr}
+	}
 	for _, pr := range d.Principals {
 		if d.Kind != syntax.AdapterHTTP {
 			c.report(pr.Start, "U6", "a %s adapter settles no principal (who is calling); only an http request carries one (ADR 0137 §7)", d.Kind)
 			continue
 		}
-		if _, dup := out[pr.Name]; dup {
-			c.report(pr.Start, "", "principal %s is declared twice in adapter %s", pr.Name, d.Name)
+		if taken(pr.Name, pr.Start) {
 			continue
 		}
-		t := c.resolve(pr.Type)
-		if admitsNone(t) {
-			c.report(pr.Start, "U1", "principal %s is %s; a principal that may be absent (ADR 0137 §9) isn't built yet, so settle a required one, and mark a route that needs none `public`", pr.Name, t)
-		}
-		var input types.Type = types.Unknown{}
-		switch {
-		case pr.From != nil:
+		var input types.Type
+		if pr.From != nil {
 			earlier, ok := out[pr.From.Name]
 			if !ok {
 				c.report(pr.From.Start, "U5", "principal %s is settled from %s, which isn't a principal declared before it in this adapter (ADR 0137 §2)", pr.Name, pr.From.Name)
+				input = types.Unknown{}
 			} else {
-				c.ref(pr.From.Start, pr.From.Name, d, pr.From.Name)
+				c.ref(pr.From.Start, pr.From.Name, earlier.target, earlier.member)
 				input = earlier.typ
 			}
-		default:
-			if !httpspec.IsToken(pr.SourceName) {
-				c.report(pr.Start, "", "%s name %q isn't an HTTP token (letters, digits, and !#$%%&'*+-.^_`|~)", pr.Source, pr.SourceName)
-			}
-			input = types.Union{Members: []types.Type{types.Primitive{Name: "string"}, types.NoneType{}}}
 		}
-		refused := c.checkBinder(pr, input, t)
-		c.checkRefusal(pr, refused)
-		out[pr.Name] = principalInfo{decl: pr, typ: t, adapter: d}
+		t := c.checkPrincipal(pr, input)
+		out[pr.Name] = principalInfo{decl: pr, typ: t, target: d, member: pr.Name}
 	}
 	return out
+}
+
+// checkPrincipal is U1 and U2 for one principal, inline or top-level, and
+// returns its type. input is what a `from` principal is settled from, nil
+// for one read from a header or cookie.
+func (c *checker) checkPrincipal(pr *syntax.PrincipalDecl, input types.Type) types.Type {
+	t := c.resolve(pr.Type)
+	if admitsNone(t) {
+		c.report(pr.Start, "U1", "principal %s is %s; a principal that may be absent (ADR 0137 §9) isn't built yet, so settle a required one, and mark a route that needs none `public`", pr.Name, t)
+	}
+	if input == nil {
+		if !httpspec.IsToken(pr.SourceName) {
+			c.report(pr.Start, "", "%s name %q isn't an HTTP token (letters, digits, and !#$%%&'*+-.^_`|~)", pr.Source, pr.SourceName)
+		}
+		input = types.Union{Members: []types.Type{types.Primitive{Name: "string"}, types.NoneType{}}}
+	}
+	refused := c.checkBinder(pr, input, t)
+	c.checkRefusal(pr, refused)
+	return t
+}
+
+// resolvePrincipalRef is the top-level principal `principal x.y` names, and
+// its package (nil for this one), or U7.
+func (c *checker) resolvePrincipalRef(r *syntax.PrincipalRef) (*syntax.PrincipalDecl, *types.Package) {
+	ref := &syntax.QualifiedRef{Span: r.Span, Path: r.Path}
+	// The reference's name starts after `principal `.
+	ref.Start.Column += len("principal ")
+	ref.Start.Offset += len("principal ")
+	decl, pkg := c.resolveRef(ref, "U7")
+	if decl == nil {
+		return nil, nil
+	}
+	pr, ok := decl.(*syntax.PrincipalDecl)
+	if !ok {
+		c.report(r.Start, "U7", "principal %s names a %s; an adapter names a top-level principal, such as `principal me: Identity from cookie \"sid\" by signedIn else signInFirst` in its own file (ADR 0141 §2)", r.Name(), syntax.DeclKindName(decl))
+		return nil, nil
+	}
+	return pr, pkg
+}
+
+// checkTopPrincipal checks a principal declared at the top level (ADR 0141
+// §1): U1 and U2 in its own package, and U9 for its `from`, which names
+// another top-level principal of this package, with no cycle.
+func (c *checker) checkTopPrincipal(pr *syntax.PrincipalDecl) {
+	var input types.Type
+	if pr.From != nil {
+		earlier, ok := c.topPrincipal(pr.From.Name)
+		switch {
+		case !ok:
+			c.report(pr.From.Start, "U9", "principal %s is settled from %s, which isn't a top-level principal of this package (ADR 0141 §3)", pr.Name, pr.From.Name)
+			input = types.Unknown{}
+		case c.principalCycle(pr):
+			c.report(pr.From.Start, "U9", "principal %s is settled from itself, through %s; principals are settled in order, so one can't depend on another that depends on it (ADR 0141 §6)", pr.Name, pr.From.Name)
+			input = types.Unknown{}
+		default:
+			c.ref(pr.From.Start, pr.From.Name, earlier, "")
+			input = c.resolve(earlier.Type)
+		}
+	}
+	c.checkPrincipal(pr, input)
+}
+
+// topPrincipal is this package's top-level principal named name.
+func (c *checker) topPrincipal(name string) (*syntax.PrincipalDecl, bool) {
+	d, found := c.lookup(name)
+	if !found {
+		return nil, false
+	}
+	pr, ok := d.(*syntax.PrincipalDecl)
+	return pr, ok
+}
+
+// principalCycle reports whether following `from` from pr comes back to it.
+func (c *checker) principalCycle(pr *syntax.PrincipalDecl) bool {
+	seen := map[*syntax.PrincipalDecl]bool{pr: true}
+	for at := pr; at.From != nil; {
+		next, ok := c.topPrincipal(at.From.Name)
+		if !ok {
+			return false
+		}
+		if seen[next] {
+			return next == pr
+		}
+		seen[next] = true
+		at = next
+	}
+	return false
 }
 
 // resolveRef is the declaration a principal's `by` or `else` names, and the
@@ -173,9 +272,9 @@ func (c *checker) checkRoutePrincipals(d *syntax.AdapterDecl, route *syntax.Rout
 		}
 	}
 	switch {
-	case len(d.Principals) == 0 && route.Public:
+	case !d.HasPrincipals() && route.Public:
 		c.report(route.Start, "U3", "route %s %q is marked public, but adapter %s declares no principal, so every route is; remove `public`", route.Verb, route.Path, d.Name)
-	case len(d.Principals) == 0:
+	case !d.HasPrincipals():
 	case route.Public && len(takes) > 0:
 		c.report(route.Start, "U3", "route %s %q is public but takes %s; a public route is called by anyone, so it takes no principal (ADR 0137 §3)", route.Verb, route.Path, strings.Join(takes, ", "))
 	case !route.Public && len(takes) == 0:
@@ -184,9 +283,5 @@ func (c *checker) checkRoutePrincipals(d *syntax.AdapterDecl, route *syntax.Rout
 }
 
 func principalNames(d *syntax.AdapterDecl) string {
-	names := make([]string, len(d.Principals))
-	for i, pr := range d.Principals {
-		names[i] = pr.Name
-	}
-	return strings.Join(names, ", ")
+	return strings.Join(d.PrincipalNames(), ", ")
 }

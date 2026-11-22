@@ -233,7 +233,7 @@ func (c *checker) checkPrincipalArg(arg syntax.RouteArg, wd *syntax.WorkflowDecl
 		return
 	}
 	argTypes[arg.Name] = info.typ
-	c.ref(arg.Start, arg.Name, info.adapter, arg.Name)
+	c.ref(arg.Start, arg.Name, info.target, info.member)
 	pt, ok := paramTypes[arg.Name]
 	if !ok {
 		c.report(arg.Start, "", "workflow %q has no parameter named %q", wd.Name, arg.Name)
