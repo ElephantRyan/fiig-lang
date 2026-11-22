@@ -129,10 +129,7 @@ class FiigColorSettingsPage : ColorSettingsPage {
 
     override fun getDemoText(): String = """
         // A gateway reads a typed row (ADR 0082).
-        gateway findRating(item: string) -> Result<Rating, RatingError>
-            requires Database
-            idempotent
-        {
+        gateway findRating(item: string) -> Result<Rating, RatingError> requires Database idempotent {
             row: Rating | None = Database.queryOne("SELECT item, score FROM ratings WHERE item = ?", item)
             match row {
                 found -> Ok(found)

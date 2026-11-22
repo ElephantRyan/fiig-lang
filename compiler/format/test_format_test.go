@@ -12,6 +12,7 @@ func TestFormatTestDecl(t *testing.T) {
             return Ok(None)
         }
     }
+
     fake Account {
         apiKey: "sk_test_1"
     }

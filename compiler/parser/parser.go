@@ -556,6 +556,11 @@ func (p *Parser) parseParams() []syntax.Param {
 		params = append(params, p.parseParam())
 		for p.at(lexer.Comma) {
 			p.advance()
+			// A trailing comma, as a call's arguments allow: how `fiig fmt`
+			// writes parameters one per line.
+			if p.at(lexer.RParen) {
+				break
+			}
 			params = append(params, p.parseParam())
 		}
 	}

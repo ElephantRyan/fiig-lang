@@ -205,12 +205,45 @@ func TestFormatWrapsLongCallArguments(t *testing.T) {
 	_ = formatted
 }
 
-func TestFormatGatewayHeaderShapeAlwaysSplits(t *testing.T) {
-	src := "gateway s(id: CustomerId) -> Result<Customer, CustomerError>\n    requires Database\n    idempotent\n{\n    return Ok(id)\n}\n"
-	out := mustFormat(t, src)
-	want := "gateway s(id: CustomerId) -> Result<Customer, CustomerError>\n    requires Database\n    idempotent\n{\n    return Ok(id)\n}\n"
-	if out != want {
-		t.Fatalf("got:\n%s\nwant:\n%s", out, want)
+// A header's clauses join its line when it fits, and otherwise go under it
+// at two indents, the last carrying `{`; `{` is never alone on a line.
+func TestFormatHeaderClauses(t *testing.T) {
+	for _, tc := range []struct{ name, src, want string }{
+		{
+			"a gateway that fits is one line",
+			"gateway s(id: CustomerId) -> Result<Customer, CustomerError>\n    requires Database\n    idempotent\n{\n    return Ok(id)\n}\n",
+			"gateway s(id: CustomerId) -> Result<Customer, CustomerError> requires Database idempotent {\n    return Ok(id)\n}\n",
+		},
+		{
+			"a gateway that doesn't fit wraps its clauses",
+			"gateway itemsAsService(target: AbsTarget, itemIds: List<string>) -> Result<List<Book>, AbsError> requires HttpClient idempotent {\n    return Ok([])\n}\n",
+			"gateway itemsAsService(target: AbsTarget, itemIds: List<string>) -> Result<List<Book>, AbsError>\n        requires HttpClient\n        idempotent {\n    return Ok([])\n}\n",
+		},
+		{
+			"a route that fits is one line",
+			"adapter http api {\n    GET \"/books\" -> listBooks()\n        produces \"application/json\"\n    {\n        Ok(books) -> 200 books\n    }\n}\n",
+			"adapter http api {\n    GET \"/books\" -> listBooks() produces \"application/json\" {\n        Ok(books) -> 200 books\n    }\n}\n",
+		},
+		{
+			"a route that doesn't fit wraps its clauses",
+			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput) consumes \"application/json\" produces \"application/json\" {\n        Ok(rating) -> 200 rating\n    }\n}\n",
+			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput)\n            consumes \"application/json\"\n            produces \"application/json\" {\n        Ok(rating) -> 200 rating\n    }\n}\n",
+		},
+		{
+			"a route with clauses and no mapping has no brace",
+			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput) consumes \"application/json\" produces \"application/json\"\n}\n",
+			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput)\n            consumes \"application/json\"\n            produces \"application/json\"\n}\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := mustFormat(t, tc.src)
+			if out != tc.want {
+				t.Fatalf("got:\n%s\nwant:\n%s", out, tc.want)
+			}
+			if again := mustFormat(t, out); again != out {
+				t.Fatalf("not idempotent:\n%s", again)
+			}
+		})
 	}
 }
 
@@ -290,6 +323,7 @@ func TestFormatPrivateBlock(t *testing.T) {
 		"    model Threshold {\n" +
 		"        minimum: int\n" +
 		"    }\n" +
+		"\n" +
 		"    // trailing note\n" +
 		"}\n"
 	got, errs := Format(src)
@@ -347,7 +381,15 @@ func TestFormatBinarySegments(t *testing.T) {
 	want := "conversion c(b: bytes) -> bytes {\n" +
 		"    match b {\n" +
 		"        <<0x52: u8, n: i32be, body: bytes(n - 4)>> -> <<n: u16le, body: bytes>>\n" +
-		"        _ -> <<\"user\": utf8, 0: u8, \"database\": utf8, 0: u8, \"application_name\": utf8, 0: u8, 0: u8>>\n" +
+		"        _ -> <<\n" +
+		"            \"user\": utf8,\n" +
+		"            0: u8,\n" +
+		"            \"database\": utf8,\n" +
+		"            0: u8,\n" +
+		"            \"application_name\": utf8,\n" +
+		"            0: u8,\n" +
+		"            0: u8,\n" +
+		"        >>\n" +
 		"    }\n" +
 		"}\n"
 	got, errs := Format(src)
@@ -360,5 +402,55 @@ func TestFormatBinarySegments(t *testing.T) {
 	again, _ := Format(got)
 	if again != got {
 		t.Fatalf("not idempotent:\n%s", again)
+	}
+}
+
+// A block that closes is followed by a blank line, unless what follows
+// closes too, continues it, or is already blank. A `}` line inside a
+// string literal is text, not a block.
+func TestFormatBlankLineAfterABlock(t *testing.T) {
+	want := `rule r(x: int, items: List<int>) -> string {
+    total: int = 0
+    for item in items {
+        if item > x {
+            total = total + item
+        } else {
+            total = total - 1
+        }
+    }
+
+    note = "a brace on its own line\n}\nstays as it is"
+    match x {
+        0 -> {
+            return note
+        }
+
+        _ -> {
+            return "${total}"
+        }
+    }
+}
+`
+	src := strings.ReplaceAll(want, "    }\n\n    note", "    }\n    note")
+	src = strings.ReplaceAll(src, "        }\n\n        _ ->", "        }\n        _ ->")
+	if out := mustFormat(t, src); out != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", out, want)
+	}
+	if out := mustFormat(t, want); out != want {
+		t.Fatalf("not idempotent:\n%s", out)
+	}
+}
+
+// The pass reads lines with the lexer, so a lone `}` inside a string
+// literal neither counts as a block nor gets a blank line after it.
+func TestBlankAfterBlocksSkipsStringLiterals(t *testing.T) {
+	src := `rule r() -> string {
+    return "a
+}
+b"
+}
+`
+	if out := blankAfterBlocks(src); out != src {
+		t.Fatalf("changed a string literal:%s%s", "\n", out)
 	}
 }

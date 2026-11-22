@@ -48,9 +48,11 @@ func TestSyntaxFormSnapshots(t *testing.T) {
     if input.name.isBlank() {
         return Err(CustomerError.Invalid("name", "must not be blank"))
     }
+
     if not input.email.value.contains("@") {
         return Err(CustomerError.Invalid("email", "must be a valid address"))
     }
+
     return Ok(input)
 }
 `,
@@ -65,9 +67,8 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 		{
 			name: "gateway declaration with idempotent, match on T | None",
 			src: `gateway getCustomer(id: CustomerId) -> Result<Customer, CustomerError>
-    requires Database
-    idempotent
-{
+        requires Database
+        idempotent {
     row = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id)
     match row {
         found -> Ok(Customer(id: found.id, name: found.name, email: found.email))
@@ -78,9 +79,7 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 		},
 		{
 			name: "gateway declaration without idempotent",
-			src: `gateway checkEmailUnique(email: EmailAddress) -> Result<None, CustomerError>
-    requires Database
-{
+			src: `gateway checkEmailUnique(email: EmailAddress) -> Result<None, CustomerError> requires Database {
     existing = Database.queryOne("SELECT id FROM customers WHERE email = ?", email)
     match existing {
         found -> Err(CustomerError.EmailAlreadyInUse(email))
@@ -92,8 +91,7 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 		{
 			name: "gateway declaration writing through a capability",
 			src: `gateway updateCustomerEmail(id: CustomerId, email: EmailAddress) -> Result<None, CustomerError>
-    requires Database
-{
+        requires Database {
     Database.execute("UPDATE customers SET email = ? WHERE id = ?", email, id)
     return Ok(None)
 }
@@ -108,7 +106,10 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 		},
 		{
 			name: "transaction block with ? propagation",
-			src: `workflow changeCustomerEmail(id: CustomerId, newEmail: EmailAddress) -> Result<Customer, CustomerError> {
+			src: `workflow changeCustomerEmail(
+    id: CustomerId,
+    newEmail: EmailAddress,
+) -> Result<Customer, CustomerError> {
     transaction Database {
         updateCustomerEmail(id, newEmail)?
         return getCustomer(id)
@@ -125,40 +126,53 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 		},
 		{
 			name: "concurrent expression, bare form",
-			src: `workflow retrieveCustomers(customerIds: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {
+			src: `workflow retrieveCustomers(
+    customerIds: List<CustomerId>,
+) -> BatchResult<CustomerId, Customer, CustomerError> {
     concurrent(customerId in customerIds): getCustomer(customerId)
 }
 `,
 		},
 		{
 			name: "concurrent expression, explicit limit",
-			src: `workflow retrieveCustomersLimited(customerIds: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {
+			src: `workflow retrieveCustomersLimited(
+    customerIds: List<CustomerId>,
+) -> BatchResult<CustomerId, Customer, CustomerError> {
     concurrent(customerId in customerIds, limit: 5): getCustomer(customerId)
 }
 `,
 		},
 		{
 			name: "concurrent expression, unbounded limit (checker-rejected, parses fine)",
-			src: `workflow retrieveAllCustomers(customerIds: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {
+			src: `workflow retrieveAllCustomers(
+    customerIds: List<CustomerId>,
+) -> BatchResult<CustomerId, Customer, CustomerError> {
     concurrent(customerId in customerIds, limit: unbounded): getCustomer(customerId)
 }
 `,
 		},
 		{
 			name: "match with block-bodied arms and a qualified constructor pattern",
-			src: `workflow checkout(orderId: OrderId, input: NewCustomer, total: Money) -> Result<Order, CheckoutError> {
+			src: `workflow checkout(
+    orderId: OrderId,
+    input: NewCustomer,
+    total: Money,
+) -> Result<Order, CheckoutError> {
     match createCustomer(input) {
         Err(error) -> {
             return Err(CheckoutError.Customer(error)) // wrapped unchanged
         }
+
         found -> {
             match placeOrder(orderId, found.id, total) {
                 Ok(order) -> {
                     return Ok(order)
                 }
+
                 Err(OrderError.InventoryUnavailable(_)) -> {
                     return Err(CheckoutError.OutOfStock) // reinterpreted
                 }
+
                 Err(error) -> {
                     return Err(CheckoutError.Order(error)) // wrapped unchanged
                 }
@@ -181,8 +195,7 @@ rule addMoney(a: Money, b: Money) -> Money {
 			name: "adapter http route, path placeholder",
 			src: `// Required example 8 (HTTP half): expose readCustomer over HTTP.
 adapter http customerHttpApi {
-    GET "/customers/{id}" -> readCustomer(id: CustomerId)
-        produces "application/json"
+    GET "/customers/{id}" -> readCustomer(id: CustomerId) produces "application/json"
 }
 `,
 		},
@@ -196,7 +209,7 @@ adapter http customerEmailApi {
         id: CustomerId,
         newEmail: EmailAddress,
     )
-        produces "application/json"
+            produces "application/json"
 }
 `,
 		},
@@ -207,8 +220,8 @@ adapter http customerEmailApi {
 // is a model, so this is real structural decoding, not a raw pass-through.
 adapter http customerCreateApi {
     POST "/customers" -> createCustomer(input: NewCustomer)
-        consumes "application/json"
-        produces "application/json"
+            consumes "application/json"
+            produces "application/json"
 }
 `,
 		},
@@ -220,8 +233,8 @@ adapter http customerCreateApi {
 // structural decoding.
 adapter http customerQueryApi {
     QUERY "/customers/lookup" -> lookupCustomer(criteria: CustomerLookup)
-        consumes "application/json"
-        produces "application/json"
+            consumes "application/json"
+            produces "application/json"
 }
 `,
 		},
@@ -234,10 +247,9 @@ adapter http importApi {
         token: string from header "Authorization",
         session: string | None from cookie "sid",
     )
-        consumes "text/csv"
-        produces "application/json"
-    GET "/exports" -> exportOrders()
-        produces "text/csv"
+            consumes "text/csv"
+            produces "application/json"
+    GET "/exports" -> exportOrders() produces "text/csv"
 }
 `,
 		},
@@ -256,9 +268,7 @@ adapter cli customerCli {
 // status-code shorthand; the Err arm reuses customerErrorToHttpResponse
 // instead of repeating its mapping inline.
 adapter http customerHttpApiWithMapping {
-    GET "/customers/{id}" -> readCustomer(id: CustomerId)
-        produces "application/json"
-    {
+    GET "/customers/{id}" -> readCustomer(id: CustomerId) produces "application/json" {
         Ok(customer) -> 200 customer
         Err(error) -> customerErrorToHttpResponse(error)
     }
@@ -300,15 +310,14 @@ rule summarizeOrderShape(input: { id: OrderId, total: Money }) -> string {
     if not (name == "") and name != "unknown" {
         return name
     }
+
     return "empty"
 }
 `,
 		},
 		{
 			name: "trailing comma in a multi-line call's arguments",
-			src: `gateway insertCustomer(input: NewCustomer) -> Result<Customer, CustomerError>
-    requires Database
-{
+			src: `gateway insertCustomer(input: NewCustomer) -> Result<Customer, CustomerError> requires Database {
     id = CustomerId(Database.nextId())
     Database.execute(
         "INSERT INTO customers (id, name, email) VALUES (?, ?, ?)",

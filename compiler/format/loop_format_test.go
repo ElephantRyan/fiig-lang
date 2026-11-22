@@ -15,8 +15,10 @@ func TestFormatLoopSyntaxIsStable(t *testing.T) {
 		"        if order.amount < 0 {\n" +
 		"            break outer\n" +
 		"        }\n" +
+		"\n" +
 		"        continue\n" +
 		"    }\n" +
+		"\n" +
 		"    return total\n" +
 		"}\n"
 	once, errs := Format(src)
@@ -42,6 +44,7 @@ func TestFormatWhileIsStable(t *testing.T) {
 		"            break scan\n" +
 		"        }\n" +
 		"    }\n" +
+		"\n" +
 		"    return left\n" +
 		"}\n"
 	once, errs := Format(src)

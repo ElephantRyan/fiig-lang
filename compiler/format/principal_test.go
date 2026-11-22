@@ -10,11 +10,11 @@ func TestFormatPrincipalsAreStable(t *testing.T) {
     principal admin: Admin from me by signedInAdmin else notAnAdmin
 
     PUT "/ratings/{itemId}" -> putRating(me, itemId: string, input: RatingInput)
-        consumes "application/json"
-    {
+            consumes "application/json" {
         Ok(rating) -> 200 rating
         Err(error) -> ratingErrorResponse(error)
     }
+
     GET "/covers/{id}" public -> showCover(id: string) {
         _ -> 200
     }

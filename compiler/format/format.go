@@ -48,7 +48,59 @@ func Format(src string) (string, []parser.Error) {
 	}
 	p := &printer{comments: comments}
 	p.printFile(file)
-	return p.out.String(), nil
+	return blankAfterBlocks(p.out.String()), nil
+}
+
+// blankAfterBlocks puts a blank line after a line that only closes a block,
+// so a block stands apart from what follows it. It doesn't when what
+// follows closes something too (`}`, `)`, `]`), continues the block
+// (`else`), or is already a blank line. It reads src with the lexer, so a
+// line inside a string literal is never one it changes or counts.
+func blankAfterBlocks(src string) string {
+	lines := strings.Split(src, "\n")
+	inString := make([]bool, len(lines)+2) // a line that starts inside a string literal
+	first := make([]lexer.Kind, len(lines)+2)
+	closesOnly := make([]bool, len(lines)+2)
+	count := make([]int, len(lines)+2)
+	for _, t := range lexer.New(src).AllTokens() {
+		if t.Kind == lexer.EOF {
+			break
+		}
+		if t.Kind == lexer.StringText {
+			for l := t.Start.Line + 1; l <= t.End.Line && l < len(inString); l++ {
+				inString[l] = true
+			}
+		}
+		l := t.Start.Line
+		if count[l] == 0 {
+			first[l] = t.Kind
+		}
+		count[l]++
+		closesOnly[l] = count[l] == 1 && t.Kind == lexer.RBrace
+	}
+	var b strings.Builder
+	for i, line := range lines {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(line)
+		n := i + 2 // the next line's number; lexer lines count from 1
+		if i+1 >= len(lines) || !closesOnly[i+1] || inString[i+1] || inString[n] {
+			continue
+		}
+		next := strings.TrimSpace(lines[i+1])
+		if next == "" {
+			continue
+		}
+		if count[n] > 0 {
+			switch first[n] {
+			case lexer.RBrace, lexer.RParen, lexer.RBracket, lexer.KwElse:
+				continue
+			}
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
 }
 
 type printer struct {
@@ -328,17 +380,19 @@ func (p *printer) printFormulasDecl(d *syntax.FormulasDecl) {
 			p.out.WriteByte('\n')
 		}
 		p.emitLeading(startLine(m))
-		header := fmt.Sprintf("formula %s%s -> %s", m.Name, printParams(m.Params), printType(m.ReturnType))
+		var clauses []string
 		if m.Requires != "" {
-			header += " requires " + m.Requires
+			clauses = append(clauses, "requires "+m.Requires)
 		}
 		mLine := startLine(m)
+		tail := " {"
 		if m.Body == nil {
-			p.emitLine(header, mLine, mLine)
-			continue
+			tail = ""
 		}
-		p.emitLine(header+" {", mLine, mLine)
-		p.printBlockBody(m.Body)
+		p.printSignature("formula "+m.Name, m.Params, " -> "+printType(m.ReturnType), clauses, tail, mLine)
+		if m.Body != nil {
+			p.printBlockBody(m.Body)
+		}
 	}
 	p.indent--
 	p.writeIndent()
@@ -359,7 +413,7 @@ func (p *printer) printPrivateBlock(b *syntax.PrivateBlock) {
 		p.emitLeading(startLine(m.(syntax.Spanned)))
 		if h, ok := m.(*syntax.HelperDecl); ok {
 			line := startLine(h)
-			p.emitLine(fmt.Sprintf("%s%s -> %s {", h.Name, printParams(h.Params), printType(h.ReturnType)), line, line)
+			p.printSignature(h.Name, h.Params, " -> "+printType(h.ReturnType), nil, " {", line)
 			p.printBlockBody(h.Body)
 			continue
 		}
@@ -525,41 +579,93 @@ func printSpelling(v syntax.EnumVariant) string {
 // unlike gateway, none of them ever split `requires`/`idempotent` onto their
 // own line, because they don't have one).
 func (p *printer) printCallableDecl(keyword, name string, params []syntax.Param, ret syntax.Type, body *syntax.Block, line int) {
-	header := fmt.Sprintf("%s %s%s -> %s {", keyword, name, printParams(params), printType(ret))
-	p.emitLine(header, line, line)
+	p.printSignature(keyword+" "+name, params, " -> "+printType(ret), nil, " {", line)
 	p.printBlockBody(body)
 }
 
-// printGatewayDecl handles gateway's distinct header shape (ADR 0031,
-// renamed from step): signature on its own line, then `requires
-// Capability` and (if present) `idempotent` each on their own line, then
-// `{` on its own line — attested with zero exceptions across every
-// gateway in the corpus, regardless of how short the signature is
-// (get_customer.fiig's one-param signature still splits this way), so
-// it's treated as gateway's fixed shape rather than a width-driven wrap.
+// printGatewayDecl prints a gateway's `requires Capability` and
+// `idempotent` clauses on the signature's line when the whole header fits,
+// and otherwise under it (printClauses). `{` is never on a line of its own.
 func (p *printer) printGatewayDecl(d *syntax.GatewayDecl) {
 	sigLine := startLine(d)
-	sig := fmt.Sprintf("gateway %s%s -> %s", d.Name, printParams(d.Params), printType(d.ReturnType))
-	if d.Requires == "" && !d.Idempotent {
-		// A fake's operation (ADR 0091 §4) may require nothing.
-		p.emitLine(sig+" {", sigLine, sigLine)
-		p.printBlockBody(d.Body)
-		return
-	}
-	p.emitLine(sig, sigLine, sigLine)
-	p.indent++
+	var clauses []string
 	if d.Requires != "" {
-		p.writeIndent()
-		p.out.WriteString("requires " + d.Requires + "\n")
+		clauses = append(clauses, "requires "+d.Requires)
 	}
 	if d.Idempotent {
-		p.writeIndent()
-		p.out.WriteString("idempotent\n")
+		clauses = append(clauses, "idempotent")
+	}
+	p.printSignature("gateway "+d.Name, d.Params, " -> "+printType(d.ReturnType), clauses, " {", sigLine)
+	p.printBlockBody(d.Body)
+}
+
+// printSignature prints a declaration's header: lead (`gateway name`), its
+// parameters, after (` -> Type`), its clauses (`requires X`), then tail
+// (` {`, or nothing for a formula without a body). It takes the first shape
+// that fits maxLineWidth:
+//
+//  1. all of it on one line;
+//  2. the signature on one line and the clauses under it (printClauses);
+//  3. the parameters one per line, wrapped at their `(` like a long call's
+//     arguments, then `) -> Type` with the clauses, on one line or under it.
+//
+// `{` ends the last line in every shape, never a line of its own.
+func (p *printer) printSignature(lead string, params []syntax.Param, after string, clauses []string, tail string, line int) {
+	sig := lead + printParams(params) + after
+	lines := make([]int, len(clauses))
+	for i := range lines {
+		lines[i] = line
+	}
+	if p.fits(joinClauses(sig, clauses, tail)) || (len(params) == 0 && len(clauses) == 0) {
+		p.emitLine(joinClauses(sig, clauses, tail), line, line)
+		return
+	}
+	if len(params) == 0 || (len(clauses) > 0 && p.fits(sig)) {
+		p.emitLine(sig, line, line)
+		p.printClauses(clauses, tail, lines)
+		return
+	}
+	p.emitLine(lead+"(", line, line)
+	p.indent++
+	for _, prm := range params {
+		p.emitLine(fmt.Sprintf("%s: %s,", prm.Name, printType(prm.Type)), line, line)
 	}
 	p.indent--
-	p.writeIndent()
-	p.out.WriteString("{\n")
-	p.printBlockBody(d.Body)
+	closing := ")" + after
+	if len(clauses) == 0 || p.fits(joinClauses(closing, clauses, tail)) {
+		p.emitLine(joinClauses(closing, clauses, tail), line, line)
+		return
+	}
+	p.emitLine(closing, line, line)
+	p.printClauses(clauses, tail, lines)
+}
+
+// joinClauses is a header with its clauses on one line, then tail.
+func joinClauses(head string, clauses []string, tail string) string {
+	if len(clauses) == 0 {
+		return head + tail
+	}
+	return head + " " + strings.Join(clauses, " ") + tail
+}
+
+// fits reports whether line fits within maxLineWidth at the current indent.
+func (p *printer) fits(line string) bool {
+	return len(strings.Repeat("    ", p.indent))+len(line) <= maxLineWidth
+}
+
+// printClauses prints a header's clauses that didn't fit on its line, one
+// per line at two indents, so they stand apart from the body at one; the
+// last carries tail, the header's `{` when it has a body. lines are the
+// clauses' source lines, for their comments.
+func (p *printer) printClauses(clauses []string, tail string, lines []int) {
+	p.indent += 2
+	for i, c := range clauses {
+		if i == len(clauses)-1 {
+			c += tail
+		}
+		p.emitLine(c, lines[i], lines[i])
+	}
+	p.indent -= 2
 }
 
 func printParams(params []syntax.Param) string {
@@ -665,20 +771,32 @@ func (p *printer) printRoute(r *syntax.Route) {
 		}
 		head += " -> " + r.Workflow.Name
 	}
-	var clauses []*syntax.MediaType
+	// The media clauses (consumes first) join the route's line when the
+	// whole of it fits, and otherwise go under it (printClauses).
+	var clauses []string
+	var clauseLines []int
 	if r.Consumes != nil {
-		clauses = append(clauses, r.Consumes)
+		clauses = append(clauses, "consumes "+strconv.Quote(r.Consumes.Text))
+		clauseLines = append(clauseLines, startLine(r.Consumes))
 	}
 	if r.Produces != nil {
-		clauses = append(clauses, r.Produces)
+		clauses = append(clauses, "produces "+strconv.Quote(r.Produces.Text))
+		clauseLines = append(clauseLines, startLine(r.Produces))
 	}
-	brace := ""
-	if len(r.Mapping) > 0 && len(clauses) == 0 {
-		brace = " {"
+	tail := ""
+	if len(r.Mapping) > 0 {
+		tail = " {"
 	}
-	oneLine := head + "(" + strings.Join(args, ", ") + ")" + brace
-	if len(args) == 0 || len(strings.Repeat("    ", p.indent))+len(oneLine) <= maxLineWidth {
-		p.emitLine(oneLine, line, line)
+	call := head + "(" + strings.Join(args, ", ") + ")"
+	brace := tail
+	if len(clauses) > 0 {
+		brace = ""
+	}
+	if whole := joinClauses(call, clauses, tail); len(clauses) > 0 && p.fits(whole) {
+		p.emitLine(whole, line, line)
+		clauses = nil
+	} else if len(args) == 0 || p.fits(call+brace) {
+		p.emitLine(call+brace, line, line)
 	} else {
 		// Too long: one argument per line with a trailing comma, as a
 		// long call is wrapped.
@@ -691,21 +809,11 @@ func (p *printer) printRoute(r *syntax.Route) {
 		p.indent--
 		p.emitLine(")"+brace, line, line)
 	}
-	p.indent++
-	for _, c := range clauses {
-		cl := startLine(c)
-		word := "consumes"
-		if c == r.Produces {
-			word = "produces"
-		}
-		p.emitLine(word+" "+strconv.Quote(c.Text), cl, cl)
+	if len(clauses) > 0 {
+		p.printClauses(clauses, tail, clauseLines)
 	}
-	p.indent--
 	if len(r.Mapping) == 0 {
 		return
-	}
-	if len(clauses) > 0 {
-		p.emitLine("{", line, line)
 	}
 	p.indent++
 	for _, arm := range r.Mapping {
@@ -905,19 +1013,18 @@ func (p *printer) printStmt(s syntax.Stmt) {
 	}
 }
 
-// printValueLine prints prefix+expr as one statement line, except when expr
-// is directly a call expression whose single-line rendering would exceed
-// maxLineWidth — in that case the call's arguments are split one per line
-// with a trailing comma instead (the record_order.fiig case).
+// printValueLine prints prefix+expr as one statement line, except when that
+// would exceed maxLineWidth and expr can wrap at an opening `(` or `[`
+// (canWrap): then it wraps there, one argument or element per line with a
+// trailing comma (the record_order.fiig case), and so on inward.
 func (p *printer) printValueLine(prefix string, expr syntax.Expr, stmtLine int) {
 	upper := deepestLine(expr)
 	content := prefix + printExpr(expr)
 	indentWidth := 4 * p.indent
-	if call, ok := expr.(*syntax.CallExpr); ok && indentWidth+len(content) > maxLineWidth {
+	if _, bytes := expr.(*syntax.BytesLit); !bytes && indentWidth+len(content) > maxLineWidth && canWrap(expr) {
 		p.writeIndent()
-		p.out.WriteString(prefix)
-		p.printMultilineCall(call)
-		p.emitTrailingOnly(upper, stmtLine)
+		p.wrapValue(prefix, expr)
+		p.emitTrailingOnly(stmtLine, upper)
 		return
 	}
 	if lit, ok := expr.(*syntax.BytesLit); ok && len(lit.Segments) > 0 && indentWidth+len(content) > maxLineWidth {
@@ -933,13 +1040,6 @@ func (p *printer) printValueLine(prefix string, expr syntax.Expr, stmtLine int) 
 		p.indent--
 		p.writeIndent()
 		p.out.WriteString(">>")
-		p.emitTrailingOnly(stmtLine, upper)
-		return
-	}
-	if lit, ok := expr.(*syntax.ListLit); ok && len(lit.Elems) > 0 && indentWidth+len(content) > maxLineWidth {
-		p.writeIndent()
-		p.out.WriteString(prefix)
-		p.printMultilineList(lit)
 		p.emitTrailingOnly(stmtLine, upper)
 		return
 	}
@@ -993,32 +1093,47 @@ func (p *printer) printMultilineCall(call *syntax.CallExpr) {
 // 575-character line).
 func (p *printer) printWrappedValue(prefix string, e syntax.Expr) {
 	flat := prefix + printExpr(e)
-	if 4*p.indent+len(flat)+1 <= maxLineWidth {
+	if 4*p.indent+len(flat)+1 <= maxLineWidth || !canWrap(e) {
 		p.out.WriteString(flat)
 		return
 	}
+	p.wrapValue(prefix, e)
+}
+
+// canWrap reports whether e has an opening `(` or `[` to wrap at: a call
+// with arguments, a list with elements, either followed by `?`, or a list
+// form (`mapErr(e in r): Wrap(e)`) whose body can wrap.
+func canWrap(e syntax.Expr) bool {
 	switch e := e.(type) {
 	case *syntax.CallExpr:
-		if len(e.Args) > 0 {
-			p.out.WriteString(prefix)
-			p.printMultilineCall(e)
-			return
-		}
-	case *syntax.TryExpr:
-		if call, ok := e.Operand.(*syntax.CallExpr); ok && len(call.Args) > 0 {
-			p.out.WriteString(prefix)
-			p.printMultilineCall(call)
-			p.out.WriteString("?")
-			return
-		}
+		return len(e.Args) > 0
 	case *syntax.ListLit:
-		if len(e.Elems) > 0 {
-			p.out.WriteString(prefix)
-			p.printMultilineList(e)
-			return
-		}
+		return len(e.Elems) > 0
+	case *syntax.TryExpr:
+		return canWrap(e.Operand)
+	case *syntax.ListForm:
+		return canWrap(e.Body)
 	}
-	p.out.WriteString(flat)
+	return false
+}
+
+// wrapValue writes prefix and e wrapped at e's outermost opening `(` or
+// `[`, for an e that canWrap. A list form keeps its head on the line and
+// wraps its body, so the break is at the body's `(`.
+func (p *printer) wrapValue(prefix string, e syntax.Expr) {
+	switch e := e.(type) {
+	case *syntax.CallExpr:
+		p.out.WriteString(prefix)
+		p.printMultilineCall(e)
+	case *syntax.ListLit:
+		p.out.WriteString(prefix)
+		p.printMultilineList(e)
+	case *syntax.TryExpr:
+		p.wrapValue(prefix, e.Operand)
+		p.out.WriteString("?")
+	case *syntax.ListForm:
+		p.wrapValue(fmt.Sprintf("%s%s(%s in %s): ", prefix, e.Form, e.Var, printExpr(e.Iterable)), e.Body)
+	}
 }
 
 // deepestLine returns the deepest source line reachable by following only
@@ -1110,8 +1225,8 @@ func (p *printer) printMatchArm(arm syntax.MatchArm) {
 	prefix := printPattern(arm.Pattern) + " -> "
 	switch body := arm.Body.(type) {
 	case syntax.ExprBody:
-		line := startLine(arm)
-		p.emitLine(prefix+printExpr(body.Expr), line, line)
+		// An arm's value wraps at its opening `(` as a statement's does.
+		p.printValueLine(prefix, body.Expr, startLine(arm))
 	case *syntax.Block:
 		// Deliberately not emitLine for the opening brace: a block-bodied arm
 		// attested in the corpus (checkout.fiig) is written as one compact

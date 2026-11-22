@@ -18,6 +18,7 @@ func TestFormatApplication(t *testing.T) {
 		"        ratings.ratingsApi\n" +
 		"        ratings.adminApi\n" +
 		"    }\n" +
+		"\n" +
 		"    serve worker {\n" +
 		"        sync.syncSchedule\n" +
 		"    }\n" +

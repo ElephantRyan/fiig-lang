@@ -48,6 +48,7 @@ func TestFormatStartupOnceAndWithin(t *testing.T) {
 		"    run once within \"2m\" -> migrate() {\n" +
 		"        _ -> halt\n" +
 		"    }\n" +
+		"\n" +
 		"    run within \"500ms\" -> verifyStorage() {\n" +
 		"        _ -> proceed\n" +
 		"    }\n" +

@@ -255,8 +255,24 @@ conversion-decl ::= 'conversion' identifier params '->' type block
 activity-decl   ::= 'activity' identifier params '->' type block
 gateway-decl    ::= 'gateway' identifier params '->' type 'requires' identifier [ 'idempotent' ] block
 workflow-decl   ::= 'workflow' identifier params '->' type block
+```
 
-params ::= '(' [ param { ',' param } ] ')'
+Line breaks don't matter to the grammar. `fiig fmt` writes a gateway's
+`requires` and `idempotent` on its signature's line when the whole header
+fits in 100 columns, and otherwise one per line under it at two indents,
+so they stand apart from the body at one, with `{` ending the last. It
+never puts `{` on a line of its own, and it leaves a blank line after a
+block's closing `}` unless what follows closes too or is an `else`. A line
+still too long wraps at its outermost opening `(` or `[`: a signature's
+parameters, a call's arguments (followed by `?` or not, or the body of a
+form like `mapErr`), or a list's elements go one per line with a trailing
+comma, one indent in, and the closing `)` or `]` starts the next line;
+anything still too long inside wraps the same way. A string literal never
+wraps. These are the formatter's layout, not rules: the checker accepts
+any layout.
+
+```ebnf
+params ::= '(' [ param { ',' param } [ ',' ] ] ')'                        -- a trailing comma, as a call's arguments allow
 param  ::= identifier ':' type
 
 interface-decl   ::= 'interface' identifier '{' { interface-member } '}'
@@ -496,8 +512,10 @@ type sends a `string` (as UTF-8, with `; charset=utf-8` for `text/*`) or
 `string` or `bytes` argument, so A7 applies only to JSON bodies. A JSON
 route binds its body to a model, decoded, or to `bytes`, as it arrived and
 unparsed, for a signature checked before `json.decode` (ADR 0077). The
-formatter puts each clause on its own line under the route, consumes
-first, and the response mapping's `{` on its own line after them. CLI
+formatter writes the clauses, consumes first, on the route's line when the
+whole of it fits, and otherwise one per line under it at two indents, the
+last ending with the response mapping's `{`, as a gateway's clauses are
+(§3). CLI
 routes have neither clause.
 
 `response-mapping` (`docs/decisions/0017-adapter-response-mapping.md`) is

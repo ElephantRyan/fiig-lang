@@ -56,6 +56,7 @@ func TestFormatMapSyntaxIsStable(t *testing.T) {
 		"    for _, value in m {\n" +
 		"        total = total + value\n" +
 		"    }\n" +
+		"\n" +
 		"    return limits\n" +
 		"}\n"
 	if out := mustFormat(t, src); out != src {
