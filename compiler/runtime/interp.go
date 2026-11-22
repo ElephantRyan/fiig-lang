@@ -52,12 +52,12 @@ type Interp struct {
 	// Settings is where saved settings live (ADR 0140 §2), nil when the
 	// program has none to save to. settingRefs are the fields that read a
 	// setting, by their package's universe and the setting's name;
-	// softFields the live ones, by declaration and field; startSettings
+	// settingFields the same refs by declaration and field; startSettings
 	// what was saved at start, for hard settings and Pending.
 	Settings      SettingsStore
 	settingsCache atomic.Pointer[settingsSnapshot]
 	settingRefs   map[*types.Universe]map[string]*settingRef
-	softFields    map[*syntax.ConfigDecl]map[string]*settingRef
+	settingFields map[*syntax.ConfigDecl]map[string]*settingRef
 	startSettings *settingsSnapshot
 
 	Capabilities *CapabilityRegistry

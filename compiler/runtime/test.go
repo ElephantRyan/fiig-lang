@@ -353,13 +353,20 @@ func (in *Interp) testConfigValue(ctx context.Context, d *syntax.ConfigDecl, fie
 	if run == nil {
 		return nil, nil, false
 	}
+	// ADR 0140: a setting field reads its sources in the declared order,
+	// with the test's fake, or else -env-file, as its env source (§1).
+	if ref, ok := in.settingField(d, field); ok {
+		if ref.field.SoftSetting() {
+			v, fault := in.softValue(ctx, ref)
+			return v, fault, true
+		}
+		if _, faked := run.config[d][field]; faked {
+			v, fault := in.settingValue(ref, in.envOf(ctx, ref), in.startSettings)
+			return v, fault, true
+		}
+	}
 	if v, ok := run.config[d][field]; ok {
 		return v, nil, true
-	}
-	// ADR 0140: what the test saved, then -env-file, then the default.
-	if ref, soft := in.softField(d, field); soft {
-		v, fault := in.softValue(ctx, ref)
-		return v, fault, true
 	}
 	if v, ok := in.Config[d].Fields[field]; ok {
 		return v, nil, true

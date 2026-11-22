@@ -418,3 +418,115 @@ test anotherPackageSavesAndReads {
 		t.Fatalf("settings in two test packages: %d %+v", code, results)
 	}
 }
+
+// Hearsay G71: a fake of a setting field stands in for its env source (ADR
+// 0140 §1), so the declared order decides: an admin saves over the
+// deployment's value and clears back to it, an env-first field refuses the
+// save, and a hard setting saved waits for a restart.
+func TestAFakeIsTheEnvSourceOfASetting(t *testing.T) {
+	root := writePackage(t, map[string]string{
+		"fiig.pkg.json": `{"path": "probe", "kind": "application", "version": "0.1.0", "capabilities": ["Settings"]}`,
+		"src/cfg/Abs.fiig": `wire Abs {
+    url: string | None from setting "abs.url" ?? env "ABS_URL";
+    token: string | None from env "ABS_TOKEN" ?? setting "abs.token";
+    workers: int from setting "abs.workers" on restart ?? env "ABS_WORKERS" = 4;
+}
+`,
+		"src/cfg/Url.fiig": `activity url() -> string | None {
+    return Abs.url;
+}
+`,
+		"src/cfg/Token.fiig": `activity token() -> string | None {
+    return Abs.token;
+}
+`,
+		"src/cfg/Workers.fiig": `activity workers() -> int {
+    return Abs.workers;
+}
+`,
+		"src/cfg/Save.fiig": `activity save(name: string, text: string) -> Result<None, SettingError> {
+    return saveSetting(name, text);
+}
+`,
+		"src/cfg/SaveSetting.fiig": `gateway saveSetting(name: string, text: string) -> Result<None, SettingError>
+    requires Settings
+{
+    return match (name) {
+        "abs.url" -> Settings.save("abs.url", text, by: "t"),
+        "abs.token" -> Settings.save("abs.token", text, by: "t"),
+        _ -> Settings.save("abs.workers", text, by: "t"),
+    };
+}
+`,
+		"src/cfg/ClearUrl.fiig": `activity clearUrl() -> Result<None, SettingError> {
+    return clearUrlSetting();
+}
+`,
+		"src/cfg/ClearUrlSetting.fiig": `gateway clearUrlSetting() -> Result<None, SettingError>
+    requires Settings
+{
+    return Settings.clear("abs.url", by: "t");
+}
+`,
+		"src/cfg/Source.fiig": `activity source(name: string) -> SettingSource {
+    return sourceOf(name);
+}
+`,
+		"src/cfg/SourceOf.fiig": `gateway sourceOf(name: string) -> SettingSource
+    requires Settings
+{
+    return match (name) {
+        "abs.url" -> Settings.source("abs.url"),
+        "abs.token" -> Settings.source("abs.token"),
+        _ -> Settings.source("abs.workers"),
+    };
+}
+`,
+		"test/cfg/Abs.fiig": `test anAdminSavesOverTheDeploymentAndGoesBack {
+    fake Abs {
+        url: "https://env.test"
+    }
+    expect url() == "https://env.test";
+    expect source("abs.url") == SettingSource.Deployment;
+    expect save("abs.url", "https://saved.test") is Ok(_);
+    expect url() == "https://saved.test";
+    expect source("abs.url") == SettingSource.Saved;
+    expect clearUrl() is Ok(_);
+    expect url() == "https://env.test";
+    expect source("abs.url") == SettingSource.Deployment;
+}
+
+test anEnvFirstFieldRefusesTheSave {
+    fake Abs {
+        token: "env-token"
+    }
+    expect save("abs.token", "saved") is Err(SettingError.SetByDeployment);
+    expect token() == "env-token";
+    expect source("abs.token") == SettingSource.Deployment;
+}
+
+test aFakeOfNoneIsAnUnsetVariable {
+    fake Abs {
+        url: None
+    }
+    expect source("abs.url") == SettingSource.Unset;
+    expect save("abs.url", "https://saved.test") is Ok(_);
+    expect url() == "https://saved.test";
+}
+
+test aHardSettingSavedWaitsForARestart {
+    fake Abs {
+        workers: 2
+    }
+    expect workers() == 2;
+    expect source("abs.workers") == SettingSource.Deployment;
+    expect save("abs.workers", "8") is Ok(_);
+    expect workers() == 2;
+    expect source("abs.workers") == SettingSource.Pending;
+}
+`,
+	})
+	if code, results := runJSON(t, root); code != 0 {
+		t.Fatalf("a fake as a setting's env source: %d %+v", code, results)
+	}
+}

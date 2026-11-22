@@ -3,7 +3,8 @@
 Status: Accepted (2026-11-21; the owner approved it, choosing in review that
 settings can be live and that fiig supports both soft settings (live) and hard
 ones (applied on restart), §1a). Implemented 2026-11-21; see Implementation
-notes.
+notes. Clarified 2026-11-22 (Hearsay G71, owner's choice): a test's fake of a
+setting field is its env source, §1.
 Date: 2026-11-21
 Related: ADR 0071 (config from the environment; §8 leaves reloading out),
 ADR 0122 (`config ... when`), ADR 0124 (startup checks), ADR 0126 (a gateway
@@ -100,6 +101,47 @@ source        ::= 'env' string-literal | 'setting' string-literal [ 'on' 'restar
   `AbsService.token` in an activity or a gateway (B10), and faked in a test
   (`fake AbsService { token: "svc" }`, ADR 0091 §4). A `Secret` field reads
   back as a `Secret` (ADR 0126) without any `toSecret` call.
+
+*Clarified 2026-11-22 (Hearsay G71).* A fake of a setting field **stands in
+for its env source**. It doesn't fix the field's value. ADR 0091 §4's config
+fakes are ADR 0071 §8's per-test values, which replace the environment
+lookup. Before this ADR, replacing the lookup and fixing the value were the
+same thing; a second source split them apart. So the declared order still
+decides:
+
+```fiig
+wire Abs {
+    url: string | None from setting "abs.url" ?? env "ABS_URL";
+}
+
+test anAdminSavesOverTheDeploymentAndGoesBack {
+    fake Abs {
+        url: "https://env.test"
+    }
+    expect url() == "https://env.test";        // source: Deployment
+    expect save("abs.url", "https://saved.test") is Ok(_);
+    expect url() == "https://saved.test";      // source: Saved
+    expect clearUrl() is Ok(_);
+    expect url() == "https://env.test";        // source: Deployment again
+}
+```
+
+- `Settings.source` answers `Deployment` for a faked field, as it would with
+  the variable set.
+- For an env-first field, the fake fixes it as the deployment would: `save`
+  and `clear` answer `SetByDeployment` (§4).
+- A hard setting saved in the test answers `Pending`, and its value stays the
+  fake's until a restart, which a test never has.
+- A fake of `None` is an unset variable: the setting, then the default,
+  decide.
+- A field with no `setting` source is unchanged, since its env source is its
+  only source.
+
+The first build fixed the field's value instead. A save was accepted and then
+ignored, and `source` answered `Unset`, which contradicted §4. A per-test
+`env { ABS_URL: "..." }` block was rejected: it would be a second way to give
+config a value in a test, and it would tie tests to the deployment's variable
+names.
 
 Because it is config, the `HttpClient` gateway reads `AbsService.url` and
 `AbsService.token` itself, with no `requires Database`: the runtime supplies
@@ -307,7 +349,10 @@ and a run never sees two versions.
   `TestAWhenReadsOnlyHardSettings`, `TestSettingSourcesFormatAsWritten`
   (checker); `TestSoftSettingsAreLiveAndHardOnesWaitForARestart`,
   `TestARunReadsOneSnapshot`, `TestTheOrderOfSourcesDecidesWhoWins`
-  (runtime); `TestSettingsLiveInTheDatabaseAndMoveWithARename` (SQLite).
+  (runtime); `TestSettingsLiveInTheDatabaseAndMoveWithARename` (SQLite);
+  `TestAFakeIsTheEnvSourceOfASetting` (`fiig test`, the §1 clarification:
+  `Interp.envOf` gives the run's env source, a fake first, to the read
+  path and to `save`, `clear` and `source`).
 - Dogfooded: a scratch app served twice on one SQLite file. A save through
   one process was read by the other on its next request; a hard setting
   saved as 8 stayed 4 until a restart, then read 8; `eight` was refused as

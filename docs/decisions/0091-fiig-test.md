@@ -247,6 +247,10 @@ test chargeIsRecorded {
 
   A `Secret` field takes a string literal here and nowhere else.
 
+  *Amended by ADR 0140 §1 (2026-11-22):* a fake of a field that also reads
+  a setting is that field's env source, so a save in the test still wins
+  when the setting comes first.
+
 ### 5. What a test gets without asking
 
 Every test starts from nothing it shares with another test:

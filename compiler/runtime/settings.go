@@ -125,7 +125,7 @@ func (in *Interp) UseSettings(store SettingsStore) {
 func (in *Interp) ShareSettingFields(from *Interp) {
 	if in.settingRefs == nil {
 		in.settingRefs = map[*types.Universe]map[string]*settingRef{}
-		in.softFields = map[*syntax.ConfigDecl]map[string]*settingRef{}
+		in.settingFields = map[*syntax.ConfigDecl]map[string]*settingRef{}
 	}
 	// Merged, not replaced: each test package loads the config its tests
 	// reach, and a package's settings may be reached from several.
@@ -137,12 +137,12 @@ func (in *Interp) ShareSettingFields(from *Interp) {
 			in.settingRefs[u][name] = ref
 		}
 	}
-	for d, refs := range from.softFields {
-		if in.softFields[d] == nil {
-			in.softFields[d] = map[string]*settingRef{}
+	for d, refs := range from.settingFields {
+		if in.settingFields[d] == nil {
+			in.settingFields[d] = map[string]*settingRef{}
 		}
 		for name, ref := range refs {
-			in.softFields[d][name] = ref
+			in.settingFields[d][name] = ref
 		}
 	}
 }
@@ -195,13 +195,28 @@ func (in *Interp) softValue(ctx context.Context, ref *settingRef) (Value, *Fault
 	if f != nil {
 		return nil, f
 	}
-	return in.settingValue(ref, snap)
+	return in.settingValue(ref, in.envOf(ctx, ref), snap)
 }
 
-// settingValue resolves ref from snap.
-func (in *Interp) settingValue(ref *settingRef, snap *settingsSnapshot) (Value, *Fault) {
-	if ref.env != nil && !ref.field.SettingFirst {
-		return ref.env, nil
+// envOf is what ref's env source gives the run in ctx: a test's fake of
+// the field stands in for it (ADR 0140 §1), so the declared order still
+// decides, and a fake of None is an unset variable. nil when unset.
+func (in *Interp) envOf(ctx context.Context, ref *settingRef) Value {
+	if run := testRunOf(ctx); run != nil {
+		if v, faked := run.config[ref.src.Decl][ref.field.Name]; faked {
+			if _, none := v.(None); none {
+				return nil
+			}
+			return v
+		}
+	}
+	return ref.env
+}
+
+// settingValue resolves ref from env, its env source's value, and snap.
+func (in *Interp) settingValue(ref *settingRef, env Value, snap *settingsSnapshot) (Value, *Fault) {
+	if env != nil && !ref.field.SettingFirst {
+		return env, nil
 	}
 	if text, saved := snap.text(ref.src.Package, ref.field.Setting); saved {
 		v, problem := in.readConfigValue(ref.src, text, ref.field.Setting, ref.t)
@@ -210,8 +225,8 @@ func (in *Interp) settingValue(ref *settingRef, snap *settingsSnapshot) (Value, 
 		}
 		return v, nil
 	}
-	if ref.env != nil {
-		return ref.env, nil
+	if env != nil {
+		return env, nil
 	}
 	if ref.def != nil {
 		return ref.def, nil
@@ -221,7 +236,13 @@ func (in *Interp) settingValue(ref *settingRef, snap *settingsSnapshot) (Value, 
 
 // softField is the soft setting d.field reads, if it reads one.
 func (in *Interp) softField(d *syntax.ConfigDecl, field string) (*settingRef, bool) {
-	ref, ok := in.softFields[d][field]
+	ref, ok := in.settingField(d, field)
+	return ref, ok && ref.field.SoftSetting()
+}
+
+// settingField is the setting d.field reads, soft or hard, if it reads one.
+func (in *Interp) settingField(d *syntax.ConfigDecl, field string) (*settingRef, bool) {
+	ref, ok := in.settingFields[d][field]
 	return ref, ok
 }
 
@@ -256,7 +277,7 @@ func (p *SettingsProvider) Call(ctx context.Context, method string, args []Value
 	if f != nil {
 		return nil, f
 	}
-	fixed := ref.env != nil && !ref.field.SettingFirst
+	fixed := in.envOf(ctx, ref) != nil && !ref.field.SettingFirst
 	switch method {
 	case "save":
 		if len(args) != 3 {
@@ -320,7 +341,7 @@ func (in *Interp) settingSource(ctx context.Context, ref *settingRef, fixed bool
 	switch {
 	case saved:
 		return source("Saved")
-	case ref.env != nil:
+	case in.envOf(ctx, ref) != nil:
 		return source("Deployment")
 	case ref.def != nil:
 		return source("Default")

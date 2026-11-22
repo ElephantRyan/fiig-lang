@@ -100,7 +100,7 @@ func (in *Interp) MarkDegraded(pkg, route string) {
 func (in *Interp) loadConfig(sources []ConfigSource, lookup Lookup, partial bool) []string {
 	in.startupFields = nil
 	// ADR 0140: what is saved at start, for hard settings and Pending.
-	in.settingRefs, in.softFields, in.startSettings = map[*types.Universe]map[string]*settingRef{}, map[*syntax.ConfigDecl]map[string]*settingRef{}, nil
+	in.settingRefs, in.settingFields, in.startSettings = map[*types.Universe]map[string]*settingRef{}, map[*syntax.ConfigDecl]map[string]*settingRef{}, nil
 	if in.Settings != nil {
 		snap, f := in.currentSettings(context.Background())
 		if f != nil {
@@ -257,14 +257,14 @@ func (in *Interp) readSetting(src ConfigSource, f syntax.ConfigField, t types.Ty
 		in.settingRefs[u] = map[string]*settingRef{}
 	}
 	in.settingRefs[u][f.Setting] = ref
+	if in.settingFields[src.Decl] == nil {
+		in.settingFields[src.Decl] = map[string]*settingRef{}
+	}
+	in.settingFields[src.Decl][f.Name] = ref
 	if f.SoftSetting() {
-		if in.softFields[src.Decl] == nil {
-			in.softFields[src.Decl] = map[string]*settingRef{}
-		}
-		in.softFields[src.Decl][f.Name] = ref
 		return nil
 	}
-	v, fault := in.settingValue(ref, in.startSettings)
+	v, fault := in.settingValue(ref, ref.env, in.startSettings)
 	if fault != nil {
 		return []string{fault.Message}
 	}
