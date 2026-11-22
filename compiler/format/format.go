@@ -153,8 +153,16 @@ func (p *printer) writeIndent() {
 // that starts strictly before beforeLine — a standalone comment that
 // appeared before whatever comes next, rather than trailing something
 // already printed.
+//
+// A blank line between two comments in the source stays, so comment
+// paragraphs stay apart.
 func (p *printer) emitLeading(beforeLine int) {
+	prevEnd := -1
 	for p.ci < len(p.comments) && p.comments[p.ci].Start.Line < beforeLine {
+		if prevEnd >= 0 && p.comments[p.ci].Start.Line > prevEnd+1 {
+			p.out.WriteByte('\n')
+		}
+		prevEnd = p.comments[p.ci].End.Line
 		p.writeIndent()
 		p.out.WriteString(p.comments[p.ci].Text)
 		p.out.WriteByte('\n')
@@ -1331,18 +1339,16 @@ func (p *printer) printIfStmt(s *syntax.IfStmt) {
 	line := startLine(s)
 	p.emitLine(fmt.Sprintf("if %s {", condition(s.Cond)), line, line)
 	p.printBlockBodyNoClose(s.Then)
+	// A "} else ... {" line is where the block before it closed, so a
+	// comment trailing it in the source trails it here.
+	closed := endLine(s.Then)
 	for _, ei := range s.ElseIfs {
-		// ElseIf carries no Span of its own (unattested in the corpus —
-		// grammar.md notes else/else-if are decided but never used by a real
-		// example), so there's no source line to anchor comment placement to;
-		// best effort, no trailing-comment support on this line.
-		p.writeIndent()
-		p.out.WriteString(fmt.Sprintf("} else if %s {\n", condition(ei.Cond)))
+		p.emitLine(fmt.Sprintf("} else if %s {", condition(ei.Cond)), closed, closed)
 		p.printBlockBodyNoClose(ei.Then)
+		closed = endLine(ei.Then)
 	}
 	if s.Else != nil {
-		p.writeIndent()
-		p.out.WriteString("} else {\n")
+		p.emitLine("} else {", closed, closed)
 		p.printBlockBodyNoClose(s.Else)
 	}
 	p.writeIndent()

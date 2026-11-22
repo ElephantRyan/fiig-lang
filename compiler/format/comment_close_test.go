@@ -74,3 +74,40 @@ func TestFormatKeepsACommentBeforeTheClosingBrace(t *testing.T) {
 		})
 	}
 }
+
+// A comment trailing a "} else if (...) {" or "} else {" line stays on it;
+// fmt used to move it down into the branch's body.
+func TestFormatKeepsACommentOnAnElseLine(t *testing.T) {
+	src := "activity a(x: int) -> int {\n" +
+		"    if (x == 1) {\n" +
+		"        return 1;\n" +
+		"    } else if (x == 2) { // the second case\n" +
+		"        return 2;\n" +
+		"    } else { // the rest\n" +
+		"        return 3;\n" +
+		"    }\n" +
+		"}\n"
+	if out := mustFormat(t, src); out != src {
+		t.Fatalf("got:\n%s\nwant:\n%s", out, src)
+	}
+}
+
+// A blank line between two comments stays, at the top of a file and in a
+// body; several collapse to one.
+func TestFormatKeepsABlankLineBetweenComments(t *testing.T) {
+	src := "// first paragraph\n" +
+		"\n" +
+		"// second paragraph\n" +
+		"activity a() -> int {\n" +
+		"    // step one\n" +
+		"\n" +
+		"    // step two\n" +
+		"    return 1;\n" +
+		"}\n"
+	if out := mustFormat(t, src); out != src {
+		t.Fatalf("got:\n%s\nwant:\n%s", out, src)
+	}
+	if out := mustFormat(t, "// a\n\n\n\n// b\n"); out != "// a\n\n// b\n" {
+		t.Fatalf("got %q, want the blank lines collapsed to one", out)
+	}
+}
