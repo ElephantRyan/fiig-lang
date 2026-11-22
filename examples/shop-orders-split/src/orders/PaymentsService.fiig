@@ -1,4 +1,4 @@
 // Where Payments runs, now that it's its own service (ADR 0079 §3).
-config PaymentsService {
+wire PaymentsService {
     url: string from env "PAYMENTS_URL" = "http://localhost:8081"
 }

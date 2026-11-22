@@ -47,10 +47,11 @@ class FiigNewFileAction : CreateFileFromTemplateAction("fiig File", "Create a fi
 object FiigNaming {
     val KINDS = listOf(
         "model", "enum", "rule", "conversion", "activity", "gateway", "workflow",
-        "adapter", "config", "capability", "interface", "formulas",
+        "adapter", "wire", "capability", "interface", "formulas",
     )
 
-    private val CAPITALIZED = setOf("model", "enum", "config", "capability", "interface")
+    // The template is a grouped wire (ADR 0143 §1), which is capitalized.
+    private val CAPITALIZED = setOf("model", "enum", "wire", "capability", "interface")
 
     fun template(kind: String): String = "fiig " + kind.replaceFirstChar { it.uppercase() }
 

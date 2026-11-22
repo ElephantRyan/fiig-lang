@@ -8,7 +8,7 @@ import (
 
 // ADR 0122: a config may say when it is present; `when` is contextual.
 func TestParseConfigWhen(t *testing.T) {
-	f, errs := Parse("config Oidc when SignInConfig.authMode != \"abs\" and not Flags.off {\n    issuer: string from env \"OIDC_ISSUER\"\n}")
+	f, errs := Parse("wire Oidc when SignInConfig.authMode != \"abs\" and not Flags.off {\n    issuer: string from env \"OIDC_ISSUER\"\n}")
 	if len(errs) != 0 {
 		t.Fatalf("errs = %v", errs)
 	}
@@ -24,7 +24,7 @@ func TestParseConfigWhen(t *testing.T) {
 func TestWhenIsStillAName(t *testing.T) {
 	// A config with no condition has none, and a field or a parameter named
 	// when is still a name.
-	f, errs := Parse("config C {\n    when: bool from env \"WHEN\" = false\n}")
+	f, errs := Parse("wire C {\n    when: bool from env \"WHEN\" = false\n}")
 	if len(errs) != 0 || f.Decls[0].(*syntax.ConfigDecl).When != nil {
 		t.Fatalf("a field named when: %v", errs)
 	}

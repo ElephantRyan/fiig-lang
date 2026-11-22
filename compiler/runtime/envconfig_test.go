@@ -10,7 +10,7 @@ import (
 
 // ADR 0071 §1, §3, §4: reading config before the program starts.
 
-var configSources = []string{`config Settings {
+var configSources = []string{`wire Settings {
     maxAge: int from env "MAX_AGE" = 24 * 60 * 60
     ratio: float from env "RATIO" = 1
     rate: decimal from env "RATE" = 1.50

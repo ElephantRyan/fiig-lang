@@ -36,8 +36,8 @@ func TestFormatDegradeAndStartupConfigField(t *testing.T) {
 	if len(errs) > 0 || got != want {
 		t.Errorf("got:\n%s\nerrs: %v", got, errs)
 	}
-	wantConfig := "config Health {\n    storageDown: bool from startup \"Preflight.verifyStorage\"\n}\n"
-	got, errs = Format("config Health {\n storageDown:bool   from startup \"Preflight.verifyStorage\"\n}")
+	wantConfig := "wire Health {\n    storageDown: bool from startup \"Preflight.verifyStorage\"\n}\n"
+	got, errs = Format("wire Health {\n storageDown:bool   from startup \"Preflight.verifyStorage\"\n}")
 	if len(errs) > 0 || got != wantConfig {
 		t.Errorf("got:\n%s\nerrs: %v", got, errs)
 	}

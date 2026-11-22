@@ -73,7 +73,7 @@ func TestSpellingsInJSON(t *testing.T) {
 }
 
 func TestSpellingsInConfig(t *testing.T) {
-	u := universeFromSource(t, append([]string{`config Billing {
+	u := universeFromSource(t, append([]string{`wire Billing {
     status: Status from env "STATUS"
 }`}, spelledSources...)...)
 	d, _ := u.Lookup("Billing")

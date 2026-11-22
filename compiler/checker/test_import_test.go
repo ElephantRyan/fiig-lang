@@ -13,7 +13,7 @@ import (
 // dependency the test file doesn't import names the `use` to add, not
 // T7's "declare it first".
 func TestFakeOfAnUnimportedDeclarationNamesTheUse(t *testing.T) {
-	dep, errs := parser.Parse("config Abs {\n    url: string from env \"ABS_URL\"\n}\n")
+	dep, errs := parser.Parse("wire Abs {\n    url: string from env \"ABS_URL\"\n}\n")
 	if len(errs) > 0 {
 		t.Fatal(errs)
 	}

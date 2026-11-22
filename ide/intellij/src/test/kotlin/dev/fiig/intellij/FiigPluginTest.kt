@@ -42,6 +42,12 @@ class FiigPluginTest : BasePlatformTestCase() {
         assertSame(FiigIcons.forKind("model"), iconOf("model M {\n    a: int\n}\n"))
         assertSame(FiigIcons.forKind("adapter"), iconOf("adapter http api {\n}\n"))
         assertSame(FiigIcons.forKind("test"), iconOf("test t {\n}\n"))
+        // ADR 0143: both shapes of a wire, and the old `config` and `principal`.
+        assertSame(FiigIcons.forKind("wire"), iconOf("wire me: Identity from cookie \"sid\" by signedIn else refused\n"))
+        assertSame(FiigIcons.forKind("wire"), iconOf("wire Abs {\n    url: string from env \"ABS_URL\"\n}\n"))
+        assertSame(FiigIcons.forKind("wire"), iconOf("config Abs {\n    url: string from env \"ABS_URL\"\n}\n"))
+        assertSame(FiigIcons.forKind("wire"), iconOf("principal me: Identity from cookie \"sid\" by signedIn else refused\n"))
+        assertSame(FiigIcons.forKind("conversion"), iconOf("conversion wire(text: string) -> bytes {\n    return text.toBytes()\n}\n"))
         assertNull(iconOf("// nothing yet\n"))
         val icons = (FiigNaming.KINDS + "test").map(FiigIcons::forKind)
         assertEquals(icons.size, icons.toSet().size)

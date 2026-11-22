@@ -9,7 +9,7 @@ import (
 
 // ADR 0071: config declarations, where they may be read, and Secret.
 
-const sessionsConfig = `config Sessions {
+const sessionsConfig = `wire Sessions {
     maxAge: int from env "SESSION_MAX_AGE" = 24 * 60 * 60
     exportToken: Secret from env "ACCOUNTS_EXPORT_TOKEN"
     level: Level | None from env "LOG_LEVEL"
@@ -67,10 +67,10 @@ func TestConfigDeclarationsAreV1(t *testing.T) {
 		{`port: int from env "MY-PORT"`, "V1", "isn't an environment variable name"},
 	}
 	for _, c := range cases {
-		wantDiag(t, checkSrc(t, "config Settings {\n    "+c.field+"\n}"), c.rule, c.fragment)
+		wantDiag(t, checkSrc(t, "wire Settings {\n    "+c.field+"\n}"), c.rule, c.fragment)
 	}
-	wantDiag(t, checkSrc(t, "config Settings {\n    a: int from env \"A\"\n    a: int from env \"B\"\n}"), "V1", `declares field "a" twice`)
-	wantDiag(t, checkSrc(t, "config settings {\n    a: int from env \"A\"\n}"), "N1", `config "settings" must be capitalized`)
+	wantDiag(t, checkSrc(t, "wire Settings {\n    a: int from env \"A\"\n    a: int from env \"B\"\n}"), "V1", `declares field "a" twice`)
+	wantDiag(t, checkSrc(t, "wire settings {\n    a: int from env \"A\"\n}"), "N1", `wire "settings" must be capitalized`)
 }
 
 func TestSecretIsNeverShown(t *testing.T) {
@@ -124,7 +124,7 @@ func TestCrossPackageArgumentsResolveInTheCaller(t *testing.T) {
 	app := types.Packages{"acme.http": httpPkg}
 	f := mustParse(t, "use acme.http\n\ngateway send() -> http.WebRequest\n    requires Socket\n{\n    return http.WebRequest(host: Region.Eu.host, authorization: \"Bearer ${Account.key.reveal()}\")\n}")
 	files := []*syntax.File{f,
-		mustParse(t, "config Account {\n    key: Secret from env \"KEY\"\n}"),
+		mustParse(t, "wire Account {\n    key: Secret from env \"KEY\"\n}"),
 		mustParse(t, "enum Region(host: string) {\n    Eu(host: \"eu.example.com\")\n}"),
 	}
 	if diags := Check(files, app); len(diags) != 0 {

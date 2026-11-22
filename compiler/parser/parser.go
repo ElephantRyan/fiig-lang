@@ -420,9 +420,14 @@ func (p *Parser) parseDecl() syntax.Decl {
 		if p.atContextual("application") && isNameToken(p.peek(1).Kind) && p.peek(2).Kind == lexer.LBrace {
 			return p.parseApplicationDecl()
 		}
-		// ADR 0141 §1: a principal declared once, for adapters to name.
-		if p.atContextual("principal") && isNameToken(p.peek(1).Kind) && p.peek(2).Kind == lexer.Colon {
+		// ADR 0143: `wire` is contextual, a keyword only here, before a name
+		// and `:` (one value) or `{`/`when` (a group), so it stays a name
+		// everywhere else. `principal` is its old spelling (ADR 0141).
+		if (p.atContextual("wire") || p.atContextual("principal")) && isNameToken(p.peek(1).Kind) && p.peek(2).Kind == lexer.Colon {
 			return p.parsePrincipal()
+		}
+		if p.atContextual("wire") && isNameToken(p.peek(1).Kind) && (p.peek(2).Kind == lexer.LBrace || p.peek(2).Kind == lexer.Ident && p.peek(2).Text == "when") {
+			return p.parseConfigDecl()
 		}
 		if p.cur().Kind == lexer.Ident && p.cur().Text == "value" {
 			// ADR 0055: `value Name: T` was removed, not renamed — say so
@@ -592,7 +597,8 @@ func (p *Parser) parseModelDecl() *syntax.ModelDecl {
 // "NAME" = default }` (ADR 0071 §1, ADR 0122). `from`, `env` and `when` are
 // contextual here only, as `from` and `env` are in a route argument.
 func (p *Parser) parseConfigDecl() *syntax.ConfigDecl {
-	start := p.advance().Start // 'config'
+	kw := p.advance() // 'wire', or 'config' before ADR 0143
+	start := kw.Start
 	name := p.expectName()
 	var when syntax.Expr
 	if p.atContextual("when") {
@@ -605,7 +611,7 @@ func (p *Parser) parseConfigDecl() *syntax.ConfigDecl {
 		p.guardProgress(func() { fields = append(fields, p.parseConfigField()) })
 	}
 	end := p.expect(lexer.RBrace).End
-	return &syntax.ConfigDecl{Span: syntax.Span{Start: start, End: end}, Name: name.Text, When: when, Fields: fields}
+	return &syntax.ConfigDecl{Span: syntax.Span{Start: start, End: end}, Keyword: kw.Text, Name: name.Text, When: when, Fields: fields}
 }
 
 func (p *Parser) parseConfigField() syntax.ConfigField {
@@ -629,7 +635,15 @@ func (p *Parser) parseConfigField() syntax.ConfigField {
 			p.errorf(lit.Start, "interpolation is not allowed in a startup route's name")
 		}
 	} else {
-		p.errorf(p.cur().Start, "expected `from env \"NAME\"`, `from setting \"name\"` or `from startup \"Adapter.workflow\"` after config field %q's type (ADR 0071 §1, ADR 0140, ADR 0127), got %s", name.Text, p.cur().Kind)
+		if p.atContextual("from") && p.peek(1).Kind == lexer.Ident && (p.peek(1).Text == "cookie" || p.peek(1).Text == "header") {
+			p.errorf(p.cur().Start, "[U10] field %s reads a %s, which belongs to one request, so it is a single wire with its refusal: `wire %s: Type from %s \"...\" by binder else refusal` (ADR 0143 §3)", name.Text, p.peek(1).Text, name.Text, p.peek(1).Text)
+			for !p.at(lexer.EOF) && p.cur().Start.Line == start.Line {
+				p.advance()
+			}
+			f.Span = syntax.Span{Start: start, End: p.cur().Start}
+			return f
+		}
+		p.errorf(p.cur().Start, "expected `from env \"NAME\"`, `from setting \"name\"` or `from startup \"Adapter.workflow\"` after field %q's type (ADR 0071 §1, ADR 0140, ADR 0127), got %s", name.Text, p.cur().Kind)
 	}
 	if p.at(lexer.Equals) {
 		p.advance()
@@ -670,11 +684,13 @@ func (p *Parser) parseConfigSources(f *syntax.ConfigField) {
 				f.OnRestart = true
 			}
 		}
+		// `??` joins sources (ADR 0143 §7); `or`, ADR 0140's spelling,
+		// parses until ADR 0142 §5's second step.
 		next := p.peek(1)
-		if !p.at(lexer.KwOr) || next.Kind != lexer.Ident || (next.Text != "env" && next.Text != "setting") {
+		if !(p.at(lexer.QuestionQuestion) || p.at(lexer.KwOr)) || next.Kind != lexer.Ident || (next.Text != "env" && next.Text != "setting") {
 			return
 		}
-		p.advance() // or
+		p.advance() // ?? or or
 	}
 }
 
@@ -1081,7 +1097,7 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 			// adapter body line, before a name (ADR 0137 §1). A name and a
 			// colon declare one inline; a name alone names a top-level one
 			// (ADR 0141 §2).
-			if p.atContextual("principal") && isNameToken(p.peek(1).Kind) {
+			if (p.atContextual("wire") || p.atContextual("principal")) && isNameToken(p.peek(1).Kind) {
 				if p.peek(2).Kind != lexer.Colon {
 					ref := p.parsePrincipalRef()
 					if len(routes) > 0 {
@@ -1107,8 +1123,9 @@ func (p *Parser) parseAdapterDecl() *syntax.AdapterDecl {
 // parsePrincipalRef parses `principal name`, `principal alias.name`, and
 // either with `as other` (ADR 0141 §2).
 func (p *Parser) parsePrincipalRef() *syntax.PrincipalRef {
-	start := p.advance().Start // principal
-	ref := &syntax.PrincipalRef{Path: []string{p.expectName().Text}}
+	kw := p.advance() // wire, or principal before ADR 0143
+	start := kw.Start
+	ref := &syntax.PrincipalRef{Keyword: kw.Text, Path: []string{p.expectName().Text}}
 	for p.at(lexer.Dot) {
 		p.advance()
 		ref.Path = append(ref.Path, p.expectName().Text)
@@ -1125,8 +1142,9 @@ func (p *Parser) parsePrincipalRef() *syntax.PrincipalRef {
 // by binder else refusal`, or `from earlier` for a principal settled from
 // another (ADR 0137 §1, §2). `by` is contextual; `else` is a keyword.
 func (p *Parser) parsePrincipal() *syntax.PrincipalDecl {
-	start := p.advance().Start // principal
-	pr := &syntax.PrincipalDecl{Name: p.expectName().Text}
+	kw := p.advance() // wire, or principal before ADR 0143
+	start := kw.Start
+	pr := &syntax.PrincipalDecl{Keyword: kw.Text, Name: p.expectName().Text}
 	p.expect(lexer.Colon)
 	pr.Type = p.parseType()
 	if p.atContextual("from") {
@@ -1139,6 +1157,16 @@ func (p *Parser) parsePrincipal() *syntax.PrincipalDecl {
 			if hasInterp(lit) {
 				p.errorf(lit.Start, "interpolation is not allowed in a %s name", pr.Source)
 			}
+		case (p.atContextual("env") || p.atContextual("setting") || p.atContextual("startup")) && p.peek(1).Kind == lexer.StringStart:
+			// ADR 0143 §3: a process or run source is a field of a group.
+			source := p.advance().Text
+			p.parseStringLit()
+			p.errorf(pr.Start, "[U10] wire %s reads %s, which is a field of a grouped wire: `wire Name { %s: Type from %s \"...\" }`; a single wire is read from a cookie, a header, or another wire (ADR 0143 §3)", pr.Name, source, pr.Name, source)
+			for !p.at(lexer.EOF) && p.cur().Start.Line == start.Line {
+				p.advance()
+			}
+			pr.Span = syntax.Span{Start: start, End: p.cur().Start}
+			return pr
 		default:
 			tok := p.expectName()
 			pr.From = &syntax.Ident{Span: syntax.Span{Start: tok.Start, End: tok.End}, Name: tok.Text}

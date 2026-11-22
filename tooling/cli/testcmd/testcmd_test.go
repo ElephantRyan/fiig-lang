@@ -179,7 +179,7 @@ func TestFailuresAreReportedWithTheirValues(t *testing.T) {
 
 func TestAConfigIsFakedPerTest(t *testing.T) {
 	root := writePackage(t, withTests(map[string]string{
-		"config/shop.fiig": `config Shop {
+		"config/shop.fiig": `wire Shop {
     greeting: string from env "SHOP_GREETING"
     token: Secret from env "SHOP_TOKEN"
 }
@@ -218,7 +218,7 @@ func TestAConfigIsFakedPerTest(t *testing.T) {
 // None, and -env-file gives a test what it reads but doesn't fake.
 func TestOptionalConfigInTests(t *testing.T) {
 	files := withTests(map[string]string{
-		"config/shop.fiig": `config Shop {
+		"config/shop.fiig": `wire Shop {
     url: string | None from env "SHOP_URL"
     token: Secret | None from env "SHOP_TOKEN"
 }
@@ -275,7 +275,7 @@ test noneIsNoToken {
 // isn't one of those ways: the read fails, as a required one does.
 func TestAnUnfakedOptionalConfigFailsTheTest(t *testing.T) {
 	files := withTests(map[string]string{
-		"config/plain.fiig": `config Plain {
+		"config/plain.fiig": `wire Plain {
     url: string | None from env "PLAIN_URL"
 }
 `,

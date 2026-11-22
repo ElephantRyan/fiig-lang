@@ -220,11 +220,13 @@ func Grammar() rule {
 					"match":    `^\s*(test)\s+(` + ident + `)(?=\s*\{)`,
 					"captures": captures("storage.type.fiig", "entity.name.function.fiig"),
 				},
-				// `principal` is contextual too: at the top level (ADR 0141)
-				// and at the start of an adapter body line (ADR 0137), before
-				// the principal's name, or the one an adapter names.
+				// `wire` is contextual too (ADR 0143): at the top level, and
+				// at the start of an adapter body line, before the wire's
+				// name or the one an adapter names. `principal` is its old
+				// spelling, which parses until ADR 0142 §5's second step.
+				// `wire(...)` is a call, not matched here: a name follows.
 				rule{
-					"match":    `^\s*(principal)\s+(` + ident + `)`,
+					"match":    `^\s*(wire|principal)\s+(` + ident + `)`,
 					"captures": captures("storage.type.fiig", "entity.name.function.fiig"),
 				},
 				// An http adapter's route: `POST "/sessions" -> logIn(...)`.

@@ -3,6 +3,6 @@
 // take, its workflow's timeout and its settle (§5a), or another consumer
 // would take an element still being handled; 5 minutes leaves room for
 // the default 30 s request timeout and a batch of several.
-config RedisStreamSettings {
+wire RedisStreamSettings {
     retryAfterMillis: int from env "REDIS_STREAM_RETRY_AFTER_MS" = 300000
 }

@@ -2,7 +2,7 @@
 // the service's address with no bucket and no path: https://s3.eu-west-1.
 // amazonaws.com for AWS, http://localhost:9000 for MinIO. The keys are
 // Secrets, and so is a session token (temporary credentials).
-config S3Settings {
+wire S3Settings {
     endpoint: string from env "S3_ENDPOINT"
     region: string from env "S3_REGION" = "us-east-1"
     accessKeyId: string from env "S3_ACCESS_KEY_ID"

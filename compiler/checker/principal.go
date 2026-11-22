@@ -95,16 +95,16 @@ func (c *checker) checkPrincipal(pr *syntax.PrincipalDecl, input types.Type) typ
 // its package (nil for this one), or U7.
 func (c *checker) resolvePrincipalRef(r *syntax.PrincipalRef) (*syntax.PrincipalDecl, *types.Package) {
 	ref := &syntax.QualifiedRef{Span: r.Span, Path: r.Path}
-	// The reference's name starts after `principal `.
-	ref.Start.Column += len("principal ")
-	ref.Start.Offset += len("principal ")
+	// The reference's name starts after its keyword and a space.
+	ref.Start.Column += len(r.Keyword) + 1
+	ref.Start.Offset += len(r.Keyword) + 1
 	decl, pkg := c.resolveRef(ref, "U7")
 	if decl == nil {
 		return nil, nil
 	}
 	pr, ok := decl.(*syntax.PrincipalDecl)
 	if !ok {
-		c.report(r.Start, "U7", "principal %s names a %s; an adapter names a top-level principal, such as `principal me: Identity from cookie \"sid\" by signedIn else signInFirst` in its own file (ADR 0141 §2)", r.Name(), syntax.DeclKindName(decl))
+		c.report(r.Start, "U7", "principal %s names a %s; an adapter names a top-level principal, such as `wire me: Identity from cookie \"sid\" by signedIn else signInFirst` in its own file (ADR 0141 §2, ADR 0143)", r.Name(), syntax.DeclKindName(decl))
 		return nil, nil
 	}
 	return pr, pkg

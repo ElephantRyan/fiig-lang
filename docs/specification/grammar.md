@@ -158,7 +158,7 @@ declaration ::= model-decl | enum-decl
               | rule-decl | conversion-decl | activity-decl | gateway-decl
               | workflow-decl | adapter-decl
               | interface-decl | capability-decl | formulas-decl
-              | config-decl
+              | wire-decl
 
 private-block  ::= 'private' '{' { private-member } '}'
 private-member ::= helper-decl | model-decl
@@ -282,11 +282,21 @@ capability-decl  ::= 'capability' identifier '{' { gateway-decl } '}'
 formulas-decl  ::= 'formulas' identifier '{' { formula-member } '}'
 formula-member ::= 'formula' identifier params '->' type [ block ]
 
-config-decl  ::= 'config' identifier [ 'when' expression ] '{' { config-field } '}'   // `when` is contextual (ADR 0122)
-config-field ::= identifier ':' type ( 'from' 'env' string [ '=' expression ] | 'from' 'startup' string )   // `from`, `env` and `startup` are contextual; the startup form is a bool naming `Adapter.workflow`, with no default (ADR 0127)
+wire-decl    ::= wire-group | wire-single                                                  // ADR 0143; `wire` is contextual
+wire-group   ::= 'wire' identifier [ 'when' '(' expression ')' ] '{' { wire-field } '}'   // `when`: ADR 0122, parenthesised (ADR 0142 §4)
+wire-field   ::= identifier ':' type 'from' ( field-source { '??' field-source } [ '=' expression ] | 'startup' string )
+field-source ::= 'env' string | 'setting' string [ 'on' 'restart' ]                       // setting: ADR 0140; `from`, `env`, `setting`, `on`, `restart`, `startup` are contextual
+wire-single  ::= 'wire' identifier ':' type 'from' ( ( 'header' | 'cookie' ) string-literal | identifier )
+                 'by' qualified-name 'else' qualified-name                                  // ADR 0137 §1, §2, ADR 0141; U1-U9
 ```
 
-`config-decl` is ADR 0071's: values a deployment supplies through the
+`config` (for a group) and `principal` (for a single wire) are ADR 0143's
+old spellings, and `or` between sources is ADR 0140's. They parse until ADR
+0142 §5's second step, and `fiig fmt -w` rewrites them. A request source
+(`cookie`, `header`, another wire) is a single wire's, and a process or run
+source (`env`, `setting`, `startup`) a group's field; anything else is U10.
+
+A grouped wire (`wire-group`) is ADR 0071's config: values a deployment supplies through the
 environment, each read and checked once, before the program starts, and
 fixed for the life of the process. A config is capitalized and read as
 `Name.field`, only in an activity or a gateway; a rule, conversion,
@@ -424,10 +434,8 @@ An application is the one declaration an application's top level may hold
 (ADR 0108's H6); a library has none, and a module has one.
 
 ```ebnf
-adapter-decl  ::= 'adapter' adapter-kind identifier '{' { principal-decl } { route } '}'
-principal-decl ::= 'principal' identifier ':' type                                      -- ADR 0137 §1, §2; http only (U6); U1-U5
-                   'from' ( ( 'header' | 'cookie' ) string-literal | identifier )
-                   'by' qualified-name 'else' qualified-name
+adapter-decl  ::= 'adapter' adapter-kind identifier '{' { wire-single | wire-ref } { route } '}'   -- http only (U6)
+wire-ref      ::= 'wire' qualified-name [ 'as' identifier ]                              -- ADR 0141 §2, ADR 0143; U7, U8
 adapter-kind  ::= 'http' | 'cli' | 'stream' | 'schedule' | 'startup'                       -- stream: ADR 0111; schedule: ADR 0112; startup: ADR 0124
 route         ::= http-route | cli-route | stream-route | schedule-route | startup-route
 http-route    ::= http-method string-literal [ 'public' ] '->' route-call { media-clause } [ response-mapping ]   -- public: ADR 0137 §3, U3

@@ -257,9 +257,14 @@ func (p *printer) printDecl(d syntax.Decl) {
 		for i, f := range d.Fields {
 			spanned[i] = f
 		}
-		header := "config " + d.Name
+		header := "wire " + d.Name
+		// ADR 0142 §4: a condition is parenthesised.
 		if d.When != nil {
-			header += " when " + printExpr(d.When)
+			when := printExpr(d.When)
+			if _, paren := d.When.(*syntax.ParenExpr); !paren {
+				when = "(" + when + ")"
+			}
+			header += " when " + when
 		}
 		p.printFieldedDecl(header, spanned, startLine(d), func(i int) string {
 			f := d.Fields[i]
@@ -289,9 +294,9 @@ func configSources(f syntax.ConfigField) string {
 	case f.Env == "":
 		return setting
 	case f.SettingFirst:
-		return setting + " or " + env
+		return setting + " ?? " + env
 	}
-	return env + " or " + setting
+	return env + " ?? " + setting
 }
 
 func membersToSpanned(members []syntax.InterfaceMember) []syntax.Spanned {
@@ -688,7 +693,7 @@ func (p *printer) printAdapterDecl(d *syntax.AdapterDecl) {
 	}
 	for _, r := range d.PrincipalRefs {
 		p.emitLeading(startLine(r))
-		ref := "principal " + r.Name()
+		ref := "wire " + r.Name()
 		if r.As != "" {
 			ref += " as " + r.As
 		}
@@ -832,7 +837,7 @@ func (p *printer) printRoute(r *syntax.Route) {
 // `else` on a continuation line.
 func (p *printer) printPrincipal(pr *syntax.PrincipalDecl) {
 	line := startLine(pr)
-	head := "principal " + pr.Name + ": " + printType(pr.Type)
+	head := "wire " + pr.Name + ": " + printType(pr.Type)
 	if pr.From != nil {
 		head += " from " + pr.From.Name
 	} else {

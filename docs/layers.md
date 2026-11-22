@@ -75,20 +75,20 @@ principle 11):
 
    ```fiig
    // src/sessions/Me.fiig: how a caller is recognised, written once
-   principal me: accounts.Identity from cookie "sid" by signedIn else identityErrorResponse
+   wire me: accounts.Identity from cookie "sid" by signedIn else identityErrorResponse
 
-   // src/ratings/RatingsApi.fiig: which principal guards these routes
+   // src/ratings/RatingsApi.fiig: which wire guards these routes
    adapter http ratingsApi {
-       principal sessions.me
+       wire sessions.me
 
        PUT "/ratings/{itemId}" -> putRating(me, itemId: string, input: RatingInput)
        ...
    }
    ```
 
-   A principal shared by several adapters is declared once, in the package
-   that owns the identity, and each adapter names it (ADR 0141). One only
-   a single adapter settles stays inline: `principal peer: LinkedServer
+   A wire shared by several adapters is declared once, in the package
+   that owns the identity, and each adapter names it (ADR 0141, ADR 0143). One only
+   a single adapter settles stays inline: `wire peer: LinkedServer
    from header "Authorization" by callingServer else peerRefused`.
 2. **The workflow** runs its pure checks next: rules over the input, with no
    I/O.

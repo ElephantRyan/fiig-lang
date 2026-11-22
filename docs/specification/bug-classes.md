@@ -260,6 +260,7 @@ sessions.signInFirst`. These are checked in `compiler/checker/principal.go`.
 | U7 | `principal x.y` in an adapter names something that isn't a top-level principal (ADR 0141 §2) | Attested — `TestU7APrincipalReferenceNamesATopLevelPrincipal` |
 | U8 | Two principals in one adapter with the same name, inline, named, or renamed with `as` (ADR 0141 §2) | Attested — `TestU8AnAdapterHasOnePrincipalOfEachName` |
 | U9 | A top-level principal's `from` names something that isn't a top-level principal of its package, or top-level principals settled from each other in a cycle (ADR 0141 §3, §6) | Attested — `TestU9ATopLevelPrincipalIsSettledFromAnotherWithNoCycle` |
+| U10 | A wire source in the wrong shape: a `cookie`, `header` or another wire as a grouped wire's field, or `env`, `setting` or `startup` on a single wire (ADR 0143 §3) | Attested — `compiler/format`'s `TestASourceInTheWrongShapeIsU10` (reported by the parser) |
 
 ## I. Stream, schedule and startup adapter errors (ADR 0047, ADR 0111, ADR 0112, ADR 0124)
 

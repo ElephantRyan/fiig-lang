@@ -62,7 +62,7 @@ var foldersModule = map[string]string{
 	"src/orders/RegionOf.fiig": `activity regionOf(id: string) -> string {
     return "${id}@${OrderSettings.region}"
 }`,
-	"src/orders/OrderSettings.fiig": `config OrderSettings {
+	"src/orders/OrderSettings.fiig": `wire OrderSettings {
     region: string from env "ORDER_REGION"
 }`,
 	"src/orders/Health.fiig": `workflow health() -> string {

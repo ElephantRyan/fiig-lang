@@ -31,7 +31,7 @@ application P141 {
 	"app/src/admin/AdminApi.fiig": `use p141.sessions
 
 adapter http adminApi {
-    principal sessions.admin
+    wire sessions.admin
 
     GET "/admin/stats" -> stats(admin)
         produces "application/json"
@@ -49,7 +49,7 @@ workflow stats(admin: sessions.AdminUser) -> string {
 	"app/src/books/BooksApi.fiig": `use p141.sessions
 
 adapter http booksApi {
-    principal sessions.me
+    wire sessions.me
 
     GET "/books" -> myBooks(me)
         produces "application/json"
@@ -64,7 +64,7 @@ workflow myBooks(me: sessions.Identity) -> string {
     return "books of ${me.userId}"
 }
 `,
-	"app/src/sessions/Admin.fiig": `principal admin: AdminUser from me by signedInAdmin else refused
+	"app/src/sessions/Admin.fiig": `wire admin: AdminUser from me by signedInAdmin else refused
 `,
 	"app/src/sessions/AdminUser.fiig": `model AdminUser {
     userId: string
@@ -98,7 +98,7 @@ workflow myBooks(me: sessions.Identity) -> string {
     }
 }
 `,
-	"app/src/sessions/Me.fiig": `principal me: Identity from cookie "sid" by signedIn else refused
+	"app/src/sessions/Me.fiig": `wire me: Identity from cookie "sid" by signedIn else refused
 `,
 	"app/src/sessions/Refused.fiig": `conversion refused(e: IdentityError) -> HttpResponse<string> {
     match e {

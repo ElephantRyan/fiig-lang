@@ -665,8 +665,9 @@ for its deployment, `"environment": {"acme.stripe": {"STRIPE_API_KEY":
 
 ```fiig
 // A deployment's settings, read once from the environment before the
-// program starts (ADR 0071). Capitalized, read as Sessions.maxAge.
-config Sessions {
+// program starts (ADR 0071): a grouped wire (ADR 0143), capitalized, read
+// as Sessions.maxAge.
+wire Sessions {
     maxAge: int from env "SESSION_MAX_AGE" = 24 * 60 * 60
     exportToken: Secret from env "ACCOUNTS_EXPORT_TOKEN"
 }

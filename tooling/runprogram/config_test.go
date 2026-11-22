@@ -46,9 +46,9 @@ func TestEnvFile(t *testing.T) {
 // used as a value makes every gateway in it reachable.
 func TestReachableConfig(t *testing.T) {
 	srcs := []string{
-		"config Stripe {\n    key: Secret from env \"STRIPE_KEY\"\n}",
-		"config Square {\n    key: Secret from env \"SQUARE_KEY\"\n}",
-		"config Setup {\n    admin: string from env \"ADMIN\"\n}",
+		"wire Stripe {\n    key: Secret from env \"STRIPE_KEY\"\n}",
+		"wire Square {\n    key: Secret from env \"SQUARE_KEY\"\n}",
+		"wire Setup {\n    admin: string from env \"ADMIN\"\n}",
 		"interface Pay {\n    charge(amount: int) -> string\n}",
 		"capability StripePay {\n    gateway charge(amount: int) -> string\n        requires Socket\n    {\n        return Stripe.key.reveal()\n    }\n}",
 		"capability SquarePay {\n    gateway charge(amount: int) -> string\n        requires Socket\n    {\n        return Square.key.reveal()\n    }\n}",

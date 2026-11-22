@@ -27,7 +27,7 @@ import (
 // read as `Name.field`, so it is capitalized like a capability group.
 func (c *checker) checkConfigDecl(d *syntax.ConfigDecl) {
 	if !isUpper(d.Name) {
-		c.report(d.Start, "N1", "config %q must be capitalized; it is read as %s.field, like a capability group (ADR 0071 §1)", d.Name, d.Name)
+		c.report(d.Start, "N1", "wire %q must be capitalized; a grouped wire is read as %s.field, like a capability group (ADR 0071 §1, ADR 0143)", d.Name, d.Name)
 	}
 	c.checkWhen(d)
 	seen := map[string]bool{}

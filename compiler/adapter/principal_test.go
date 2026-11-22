@@ -56,8 +56,8 @@ var principalProgram = []string{
     return "cover ${id}"
 }`,
 	`adapter http api {
-    principal me: Identity from cookie "sid" by signedIn else signInFirst
-    principal admin: Admin from me by signedInAdmin else notAnAdmin
+    wire me: Identity from cookie "sid" by signedIn else signInFirst
+    wire admin: Admin from me by signedInAdmin else notAnAdmin
 
     POST "/notes" -> addNote(me, note: Note)
         consumes "application/json"
@@ -195,10 +195,10 @@ func TestOpenAPIDescribesPrincipals(t *testing.T) {
 func namedPrincipalProgram() []string {
 	out := append([]string(nil), principalProgram[:len(principalProgram)-1]...)
 	return append(out,
-		`principal me: Identity from cookie "sid" by signedIn else signInFirst`,
-		`principal admin: Admin from me by signedInAdmin else notAnAdmin`,
+		`wire me: Identity from cookie "sid" by signedIn else signInFirst`,
+		`wire admin: Admin from me by signedInAdmin else notAnAdmin`,
 		`adapter http api {
-    principal admin
+    wire admin
 
     GET "/settings" -> showSettings(admin)
         produces "application/json"

@@ -83,7 +83,7 @@ func Diff(old, newer []*Card) (Bump, []Change) {
 	for name := range newByName {
 		if _, ok := oldByName[name]; !ok {
 			changes = append(changes, Change{Name: name, Bump: Minor, Msg: fmt.Sprintf("%q added", name)})
-			if nc := newByName[name]; nc.Kind == "config" {
+			if nc := newByName[name]; wireKind(nc.Kind) == "wire" {
 				changes = append(changes, envChanges(name, nil, nc.Environment)...)
 			}
 		}
@@ -151,12 +151,12 @@ func cardDiff(old, newer *Card) []Change {
 		return Change{Name: old.Name, Bump: bump, Msg: fmt.Sprintf(format, args...)}
 	}
 
-	if old.Kind != newer.Kind {
+	if wireKind(old.Kind) != wireKind(newer.Kind) {
 		return []Change{note(Major, "kind changed from %q to %q", old.Kind, newer.Kind)}
 	}
 
 	var out []Change
-	switch old.Kind {
+	switch wireKind(old.Kind) {
 	case "rule", "conversion", "activity", "gateway", "workflow", "formula":
 		if !sameParams(old.Params, newer.Params) {
 			out = append(out, note(Major, "parameters changed from %s to %s", paramsString(old.Params), paramsString(newer.Params)))
@@ -188,10 +188,20 @@ func cardDiff(old, newer *Card) []Change {
 			out = append(out, note(Major, "adapter kind changed from %q to %q", old.AdapterKind, newer.AdapterKind))
 		}
 		out = append(out, routeChanges(old.Name, old.Routes, newer.Routes)...)
-	case "config":
+	case "wire":
 		out = append(out, envChanges(old.Name, old.Environment, newer.Environment)...)
 	}
 	return out
+}
+
+// wireKind is a card's kind with the kinds ADR 0143 renamed, `config` and
+// `principal`, read as `wire`, so a release catalogued before it doesn't
+// look like a change of kind.
+func wireKind(kind string) string {
+	if kind == "config" || kind == "principal" {
+		return "wire"
+	}
+	return kind
 }
 
 // envChanges is ADR 0071 §5: reading the environment is authority, so a

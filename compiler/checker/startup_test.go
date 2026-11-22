@@ -111,7 +111,7 @@ func TestStartupConfigFieldChecks(t *testing.T) {
     }
 }`
 	config := func(field string) []Diagnostic {
-		return checkSrc(t, startupErrors, verifyStorage, adapter, "config Health {\n    "+field+"\n}")
+		return checkSrc(t, startupErrors, verifyStorage, adapter, "wire Health {\n    "+field+"\n}")
 	}
 	if diags := config(`storageDown: bool from startup "Preflight.verifyStorage"`); len(diags) > 0 {
 		t.Errorf("a field naming a route: %v", diags)

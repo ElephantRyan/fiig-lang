@@ -899,7 +899,7 @@ func describe(d syntax.Decl, member string) string {
 			if pr.From != nil {
 				from = pr.From.Name
 			}
-			out := "principal (who is calling) " + pr.Name + ": " + ty(pr.Type) + " from " + from
+			out := "wire (who is calling) " + pr.Name + ": " + ty(pr.Type) + " from " + from
 			if pr.By != nil && pr.Else != nil {
 				out += "\n    by " + pr.By.Name() + " else " + pr.Else.Name()
 			}

@@ -9,9 +9,9 @@ import (
 
 // ADR 0140: config fields that read a setting saved in the app.
 
-var settingSources = []string{`config Abs {
-    url: string | None from env "ABS_URL" or setting "abs.url"
-    name: string from setting "abs.name" or env "ABS_NAME" = "Hearsay"
+var settingSources = []string{`wire Abs {
+    url: string | None from env "ABS_URL" ?? setting "abs.url"
+    name: string from setting "abs.name" ?? env "ABS_NAME" = "Hearsay"
     workers: int from setting "abs.workers" on restart = 4
 }`, `gateway save(name: string, text: string) -> Result<None, SettingError>
     requires Settings

@@ -43,6 +43,23 @@ These seven are the only primary declarations. Libraries normally publish
 models, enums, capability contracts, rules, conversions, activities, and
 gateways; only applications define workflows and adapters.
 
+## Wires
+
+- **Wire** — A named, typed value the runtime fills from outside the program
+  (ADR 0143): a request's credential, the environment, a saved setting, or
+  a startup route's outcome. A **single** wire is one value, `wire me:
+  accounts.Identity from cookie "sid" by signedIn else refused`, which an
+  adapter names and passes to its routes. A **grouped** wire is a record
+  read as `Abs.url`, `wire Abs { url: string | None from env "ABS_URL" ??
+  setting "abs.url" }`, which an activity or gateway reads. Its source
+  decides its lifetime, who may read it, and what happens when it can't be
+  filled (ADR 0143 §3). A wire has no body: it connects a source to a
+  name and decides nothing. `config` and `principal` are its old spellings.
+- **Wiring** — The general word for declarations that connect the outside
+  world to named values. It is a word, not a keyword. `application` and
+  `provides` connect parts of the program to each other and fill no value,
+  so they aren't wires.
+
 ## Capabilities and packages
 
 - **Capability** — A declared, provider-backed permission a gateway requires

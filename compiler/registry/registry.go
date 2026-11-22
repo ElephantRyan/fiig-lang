@@ -311,7 +311,7 @@ func BuildCard(decl syntax.Decl, source string) *Card {
 			depList = append(depList, n)
 		}
 		sort.Strings(depList)
-		return &Card{Name: d.Name, Kind: "principal", Catalog: Composition, Source: source, Principals: principalSummaries([]*syntax.PrincipalDecl{d}), Dependencies: depList}
+		return &Card{Name: d.Name, Kind: "wire", Catalog: Composition, Source: source, Principals: principalSummaries([]*syntax.PrincipalDecl{d}), Dependencies: depList}
 	case *syntax.ConfigDecl:
 		// A field read from startup (ADR 0127) is no variable to set.
 		vars := make([]EnvVar, 0, len(d.Fields))
@@ -325,7 +325,7 @@ func BuildCard(decl syntax.Decl, source string) *Card {
 			}
 			vars = append(vars, v)
 		}
-		return &Card{Name: d.Name, Kind: "config", Catalog: Default, Source: source, Environment: vars}
+		return &Card{Name: d.Name, Kind: "wire", Catalog: Default, Source: source, Environment: vars}
 	default:
 		return nil
 	}

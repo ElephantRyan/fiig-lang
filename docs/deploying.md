@@ -10,8 +10,8 @@ fiig serve [-addr :8080] [-caps caps.json] [-env-file .env] [-allow-origin ORIGI
 
 ## Configuration
 
-A program reads its settings from the environment, through `config`
-declarations (ADR 0071), and a package declares its own, so an
+A program reads its settings from the environment, through grouped
+`wire` declarations (ADR 0071, ADR 0143), and a package declares its own, so an
 application sets its dependencies' variables without declaring them.
 `fiig config` lists every variable the program reads, from every package
 and the caps file, which is the deployment's checklist:
@@ -57,10 +57,10 @@ an admin saves from the app's own screen, so a first-run setup needs no env
 file:
 
 ```fiig
-config Abs {
-    url: string | None from env "ABS_URL" or setting "abs.url"
-    token: Secret | None from env "ABS_SERVICE_TOKEN" or setting "abs.serviceToken"
-    workers: int from env "INDEX_WORKERS" or setting "abs.indexWorkers" on restart = 4
+wire Abs {
+    url: string | None from env "ABS_URL" ?? setting "abs.url"
+    token: Secret | None from env "ABS_SERVICE_TOKEN" ?? setting "abs.serviceToken"
+    workers: int from env "INDEX_WORKERS" ?? setting "abs.indexWorkers" on restart = 4
 }
 ```
 
@@ -471,7 +471,7 @@ adapter startup Preflight {
     }
 }
 
-config Health {
+wire Health {
     storageDown: bool from startup "Preflight.verifyStorage"
 }
 ```

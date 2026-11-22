@@ -13,8 +13,8 @@ import (
 // condition, and the config that condition reads, which nothing else may read.
 func TestAConditionalConfigIsListedWithItsConditionAndWhatItReads(t *testing.T) {
 	srcs := []string{
-		"config SignInConfig {\n    authMode: string from env \"AUTH_MODE\" = \"both\"\n}",
-		"config Oidc when SignInConfig.authMode != \"abs\" {\n    issuer: string from env \"OIDC_ISSUER\"\n    audience: string | None from env \"OIDC_AUDIENCE\"\n}",
+		"wire SignInConfig {\n    authMode: string from env \"AUTH_MODE\" = \"both\"\n}",
+		"wire Oidc when SignInConfig.authMode != \"abs\" {\n    issuer: string from env \"OIDC_ISSUER\"\n    audience: string | None from env \"OIDC_AUDIENCE\"\n}",
 		"activity issuer() -> string {\n    return Oidc.issuer\n}",
 	}
 	var files []*syntax.File

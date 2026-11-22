@@ -42,7 +42,7 @@
         <internalFileTemplate name="fiig Gateway"/>
         <internalFileTemplate name="fiig Workflow"/>
         <internalFileTemplate name="fiig Adapter"/>
-        <internalFileTemplate name="fiig Config"/>
+        <internalFileTemplate name="fiig Wire"/>
         <internalFileTemplate name="fiig Capability"/>
         <internalFileTemplate name="fiig Interface"/>
         <internalFileTemplate name="fiig Formulas"/>

@@ -136,7 +136,7 @@
               "name": "entity.name.function.fiig"
             }
           },
-          "match": "^\\s*(principal)\\s+([A-Za-z][A-Za-z0-9_]*)"
+          "match": "^\\s*(wire|principal)\\s+([A-Za-z][A-Za-z0-9_]*)"
         },
         {
           "captures": {

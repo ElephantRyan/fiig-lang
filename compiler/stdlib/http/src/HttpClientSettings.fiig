@@ -4,6 +4,6 @@
 // of a list endpoint many times over, while one runaway server can hold
 // no more than that of a process's memory per request. A program that
 // reads larger bodies, such as big fiig.s3 objects, raises it.
-config HttpClientSettings {
+wire HttpClientSettings {
     maxReplyBytes: int from env "HTTP_CLIENT_MAX_REPLY_BYTES" = 16777216
 }

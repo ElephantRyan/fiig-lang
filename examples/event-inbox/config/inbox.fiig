@@ -1,6 +1,6 @@
 // ADR 0071: the secret this inbox shares with its sender, which signs
 // every delivery with it (ADR 0077). No default: a default would put it in
 // the source.
-config Inbox {
+wire Inbox {
     webhookSecret: Secret from env "INBOX_WEBHOOK_SECRET"
 }

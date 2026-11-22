@@ -1,7 +1,7 @@
 // ADR 0110 §2: where the server is, as redis://[user[:password]@]host[:port][/database]
 // or rediss:// for TLS, and how long one command may take, connecting
 // included.
-config RedisServer {
+wire RedisServer {
     url: Secret from env "REDIS_URL"
     timeoutMillis: int from env "REDIS_TIMEOUT_MS" = 10000
 }

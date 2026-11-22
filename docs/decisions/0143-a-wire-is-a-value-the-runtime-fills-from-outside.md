@@ -1,7 +1,8 @@
 # ADR 0143: A Wire Is a Value the Runtime Fills From Outside the Program
 
 Status: Accepted (2026-11-21; the owner approved it). Written in ADR 0142's
-syntax (§7). Not implemented yet.
+syntax (§7). Step 1 implemented 2026-11-21, with ADR 0142's step 1; see
+Implementation notes.
 Date: 2026-11-21
 Supersedes: the `principal` keyword of ADR 0137 and ADR 0141, and the
 `config` keyword of ADR 0071. Their rules are kept and restated by source
@@ -285,3 +286,42 @@ This ADR is written in ADR 0142's syntax, and lands with it:
    wires`, or keeping it as "configuration", is a separate choice.
 3. **The migration window.** How many releases `config` and `principal`
    keep their message before they are ordinary names again.
+
+## Implementation notes (2026-11-21)
+
+Built on ADR 0142's step 1 (`b9d681c`, `9121648`), as §7 says.
+
+- **`wire` is contextual, not reserved** (a deviation from Consequences):
+  it is a keyword only at the start of a declaration, before a name and
+  `:`, `{` or `when`, and at the start of an adapter body line. The
+  standard library's HTTP tests call a helper `wire(...)`, and
+  `application`, `test` and `principal` are contextual the same way.
+  `config` stays a lexer keyword for its old spelling.
+- **Step 1:** `config`, `principal` and `or` between sources parse with no
+  error, and `fiig fmt -w` writes `wire`, `??` and `when (...)`. The
+  errors that name the fix come with ADR 0142 §5's second step. The
+  formatter writes the `when` condition's operators as written until ADR
+  0142's formatter writes `&&`, `||` and `!`.
+- **U10** is reported by the parser, since the shapes are told apart
+  while parsing.
+- **Go names unchanged:** `syntax.PrincipalDecl` and `syntax.ConfigDecl`
+  remain, each with a `Keyword` field recording the spelling.
+- **Registry:** both card kinds are `wire`. A release catalogued with the
+  old kinds `config` or `principal` compares as `wire`, so the bump check
+  doesn't report a change of kind (`compiler/registry/diff.go`'s
+  `wireKind`). Messages still say "config field" and "principal" where
+  they describe the value. Only the ones that tell you what to write say
+  `wire`.
+- **Editors:** the TextMate grammar reads `wire` (and `principal`) at a
+  line's start. In the IntelliJ plugin, `wire`, `principal` and `config`
+  files share a `wire` icon and kind (`config.svg` renamed to `wire.svg`),
+  and the new-file dialog offers a `fiig Wire` template, a grouped wire,
+  in place of `fiig Config`. Its tests pass against IntelliJ 2026.2.
+- **Migration:** the repo's `.fiig` files and the fiig held in Go tests
+  were rewritten with this ADR (38 files), and the living docs' samples
+  (`deploying.md`, `layers.md`, `tour.md`, `grammar.md`, which also gained
+  ADR 0140's `setting` and ADR 0141's references). Accepted ADRs keep the
+  syntax of their day. Hearsay is Lane A's: one `fiig fmt -w`.
+- Tests: `TestFormatWritesWire`, `TestASourceInTheWrongShapeIsU10`,
+  `TestWireIsStillAName` (format), `TestTheOldKeywordsStillCheck`
+  (checker), and the plugin's `testFileIconByKind`.

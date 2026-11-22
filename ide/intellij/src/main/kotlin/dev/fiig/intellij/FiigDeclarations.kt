@@ -13,8 +13,18 @@ data class FiigDeclaration(val kind: String, val name: String, val keyword: PsiE
 object FiigDeclarations {
     val KINDS = setOf(
         "model", "enum", "rule", "conversion", "activity", "gateway", "workflow",
-        "adapter", "config", "capability", "interface", "formulas",
+        "adapter", "capability", "interface", "formulas",
     )
+
+    /**
+     * ADR 0143: `wire` is contextual, so it lexes as a name, and `config` and
+     * `principal` are its old spellings, which still parse until ADR 0142
+     * §5's second step. Each is the kind "wire".
+     */
+    private val WIRE_WORDS = setOf("wire", "principal", "config")
+
+    private fun isWireWord(leaf: PsiElement): Boolean =
+        leaf.text in WIRE_WORDS && (leaf.elementType == FiigTokens.IDENTIFIER || leaf.elementType == FiigTokens.KEYWORD)
 
     /** The file's first declaration: its kind keyword at the start of a line, and the name after it. */
     fun first(file: PsiFile): FiigDeclaration? {
@@ -26,6 +36,7 @@ object FiigDeclarations {
                 FiigTokens.RBRACE -> depth--
                 FiigTokens.KEYWORD -> if (depth == 0 && leaf.text in KINDS) return of(leaf)
             }
+            if (depth == 0 && isWireWord(leaf)) of(leaf)?.let { return it }
         }
         return null
     }
@@ -45,23 +56,40 @@ object FiigDeclarations {
                 FiigTokens.IDENTIFIER -> if (depth == 0 && (leaf.text == "test" || leaf.text == "application")) return leaf.text
                 FiigTokens.KEYWORD -> if (depth == 0 && leaf.text in KINDS) return leaf.text
             }
+            if (depth == 0 && isWireWord(leaf) && of(leaf) != null) return "wire"
         }
         return null
     }
 
     /** The declaration whose kind keyword is [keyword]. */
     fun of(keyword: PsiElement): FiigDeclaration? {
-        if (keyword.elementType != FiigTokens.KEYWORD || keyword.text !in KINDS) return null
+        val wire = isWireWord(keyword)
+        if (!wire && (keyword.elementType != FiigTokens.KEYWORD || keyword.text !in KINDS)) return null
         for (leaf in keyword.nextSibling?.siblings() ?: return null) {
             when (leaf.elementType) {
                 FiigTokens.WHITE_SPACE, FiigTokens.LINE_COMMENT -> continue
                 // `adapter http name`, `adapter cli name`
                 FiigTokens.KEYWORD -> if (keyword.text == "adapter" && leaf.text in setOf("http", "cli")) continue else return null
-                FiigTokens.IDENTIFIER, FiigTokens.TYPE_NAME -> return FiigDeclaration(keyword.text, leaf.text, keyword)
+                FiigTokens.IDENTIFIER, FiigTokens.TYPE_NAME -> {
+                    // A wire is `wire name:` or `wire Name {`; `wire(...)` is a call.
+                    if (wire && !startsWire(leaf)) return null
+                    return FiigDeclaration(if (wire) "wire" else keyword.text, leaf.text, keyword)
+                }
                 else -> return null
             }
         }
         return null
+    }
+
+    /** Whether the token after a wire's [name] is `:`, `{` or `when` (ADR 0143 §1). */
+    private fun startsWire(name: PsiElement): Boolean {
+        for (leaf in name.nextSibling?.siblings() ?: return false) {
+            when (leaf.elementType) {
+                FiigTokens.WHITE_SPACE, FiigTokens.LINE_COMMENT -> continue
+                else -> return leaf.text == ":" || leaf.text == "{" || leaf.text == "when"
+            }
+        }
+        return false
     }
 
     /** How many `{` are open before [leaf], counting from the file's first token. */

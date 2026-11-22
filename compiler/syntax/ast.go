@@ -394,6 +394,9 @@ type FormulaDecl struct {
 // other config values, so a deployment that doesn't use a feature needn't
 // set the feature's variables.
 type ConfigDecl struct {
+	// Keyword is "wire" (ADR 0143), or "config", which still parses until
+	// ADR 0142 §5's second step.
+	Keyword string
 	Span
 	Name   string
 	When   Expr
@@ -505,8 +508,9 @@ type AdapterDecl struct {
 // 0141 §2): a top-level principal, brought in under its own name or As.
 type PrincipalRef struct {
 	Span
-	Path []string // [me] in its own package, [sessions me] in another
-	As   string
+	Keyword string   // "wire", or "principal" before ADR 0143
+	Path    []string // [me] in its own package, [sessions me] in another
+	As      string
 }
 
 // Name is the reference as written, dotted.
@@ -546,6 +550,9 @@ func (d *AdapterDecl) PrincipalNames() []string {
 // earlier principal (From, §2).
 type PrincipalDecl struct {
 	Span
+	// Keyword is the word it was written with: "wire" (ADR 0143), or
+	// "principal", which still parses until ADR 0142 §5's second step.
+	Keyword    string
 	Name       string
 	Type       Type
 	Source     string // "header" or "cookie"; "" when From is set

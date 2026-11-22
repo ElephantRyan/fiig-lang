@@ -61,7 +61,7 @@ conversion describe(level: kernel.Level) -> string {
     }
 }
 `,
-	"app/src/Limits.fiig": `config Limits {
+	"app/src/Limits.fiig": `wire Limits {
     max: int from env "LIMIT_MAX" = 10
 }
 `,
@@ -104,7 +104,7 @@ application Runs {
 	// A route names its adapter's principal, which Go to Declaration and hover
 	// reach (ADR 0137).
 	"app/src/ratings/WhoApi.fiig": `adapter http whoApi {
-    principal me: Caller from header "Authorization" by signedIn else refused
+    wire me: Caller from header "Authorization" by signedIn else refused
 
     GET "/who" -> who(me)
         produces "application/json"
@@ -552,15 +552,15 @@ func TestAPrincipalNavigates(t *testing.T) {
 	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
 	// `    GET "/who" -> who(me)`: line 3, me at character 22.
 	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/ratings/WhoApi.fiig", 3, 23)))
-	if len(locs) != 1 || locs[0].URI != c.uri("app/src/ratings/WhoApi.fiig") || locs[0].Range.Start.Line != 1 || locs[0].Range.Start.Character != 14 {
-		t.Fatalf("definition of me = %+v, want its principal at 2:15", locs)
+	if len(locs) != 1 || locs[0].URI != c.uri("app/src/ratings/WhoApi.fiig") || locs[0].Range.Start.Line != 1 || locs[0].Range.Start.Character != 9 {
+		t.Fatalf("definition of me = %+v, want its wire at 2:10", locs)
 	}
 	h := decode[hover](t, c.request("textDocument/hover", c.at("app/src/ratings/WhoApi.fiig", 3, 23)))
-	if !strings.Contains(h.Contents.Value, `principal (who is calling) me: Caller from header "Authorization"`) {
+	if !strings.Contains(h.Contents.Value, `wire (who is calling) me: Caller from header "Authorization"`) {
 		t.Errorf("hover on me = %q", h.Contents.Value)
 	}
-	// `by signedIn`: line 1, character 56.
-	locs = decode[[]location](t, c.request("textDocument/definition", c.at("app/src/ratings/WhoApi.fiig", 1, 57)))
+	// `by signedIn`: line 1, character 51.
+	locs = decode[[]location](t, c.request("textDocument/definition", c.at("app/src/ratings/WhoApi.fiig", 1, 52)))
 	if len(locs) != 1 || locs[0].URI != c.uri("app/src/ratings/SignedIn.fiig") {
 		t.Fatalf("definition of signedIn = %+v, want SignedIn.fiig", locs)
 	}

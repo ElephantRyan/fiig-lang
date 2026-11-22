@@ -12,7 +12,7 @@ const (
 	prSignIn    = "conversion signInFirst(error: IdentityError) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"sign in first\")\n}"
 	prFeature   = "workflow showMine(me: Identity) -> string {\n    return me.userId\n}"
 	prOpen      = "workflow showCover(id: string) -> string {\n    return id\n}"
-	prPrincipal = "    principal me: Identity from cookie \"sid\" by signedIn else signInFirst\n"
+	prPrincipal = "    wire me: Identity from cookie \"sid\" by signedIn else signInFirst\n"
 )
 
 func principalAdapter(body string) string {
@@ -50,29 +50,29 @@ func TestAPrincipalChecks(t *testing.T) {
 
 func TestU1TheBinderIsAWorkflowOfTheRightShape(t *testing.T) {
 	route := "    GET \"/mine\" -> showMine(me)\n        produces \"application/json\"\n"
-	got := checkPrincipals(t, principalAdapter("    principal me: Identity from cookie \"sid\" by signInFirst else signInFirst\n"+route))
+	got := checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by signInFirst else signInFirst\n"+route))
 	wantOnly(t, got, "U1", "a principal is settled by a workflow")
 
-	got = checkPrincipals(t, principalAdapter("    principal me: Identity from cookie \"sid\" by takesInt else signInFirst\n"+route),
+	got = checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by takesInt else signInFirst\n"+route),
 		"workflow takesInt(token: int) -> Result<Identity, IdentityError> {\n    return Err(IdentityError.NotSignedIn)\n}")
 	wantOnly(t, got, "U1", "takes int, but principal me gives it the cookie \"sid\"")
 
-	got = checkPrincipals(t, principalAdapter("    principal me: Identity from cookie \"sid\" by settlesString else signInFirst\n"+route),
+	got = checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by settlesString else signInFirst\n"+route),
 		"workflow settlesString(token: string | None) -> Result<string, IdentityError> {\n    return Ok(\"x\")\n}")
 	wantOnly(t, got, "U1", "settles string, but principal me is Identity")
 
-	got = checkPrincipals(t, principalAdapter("    principal me: Identity from cookie \"sid\" by nobody else signInFirst\n"+route))
+	got = checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by nobody else signInFirst\n"+route))
 	wantOnly(t, got, "U1", "no declaration named nobody")
 }
 
 func TestU2TheRefusalIsAConversionToAnHttpResponse(t *testing.T) {
 	route := "    GET \"/mine\" -> showMine(me)\n        produces \"application/json\"\n"
-	got := checkPrincipals(t, principalAdapter("    principal me: Identity from cookie \"sid\" by signedIn else wrongError\n"+route),
+	got := checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by signedIn else wrongError\n"+route),
 		"enum Other {\n    X\n}",
 		"conversion wrongError(error: Other) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"no\")\n}")
 	wantOnly(t, got, "U2", "takes Other, but signedIn's workflow refuses with IdentityError")
 
-	got = checkPrincipals(t, principalAdapter("    principal me: Identity from cookie \"sid\" by signedIn else signedIn\n"+route))
+	got = checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by signedIn else signedIn\n"+route))
 	wantOnly(t, got, "U2", "it is a conversion")
 }
 
@@ -104,11 +104,11 @@ func TestU5APrincipalIsSettledFromAnEarlierOne(t *testing.T) {
 		"workflow showSettings(admin: Admin) -> string {\n    return admin.userId\n}",
 	}
 	route := "    GET \"/settings\" -> showSettings(admin)\n        produces \"application/json\"\n"
-	got := checkPrincipals(t, principalAdapter(prPrincipal+"    principal admin: Admin from me by signedInAdmin else notAnAdmin\n"+route), admin...)
+	got := checkPrincipals(t, principalAdapter(prPrincipal+"    wire admin: Admin from me by signedInAdmin else notAnAdmin\n"+route), admin...)
 	if len(got) != 0 {
 		t.Fatalf("a role from me: diags = %v, want none", got)
 	}
-	got = checkPrincipals(t, principalAdapter("    principal admin: Admin from me by signedInAdmin else notAnAdmin\n"+prPrincipal+route), admin...)
+	got = checkPrincipals(t, principalAdapter("    wire admin: Admin from me by signedInAdmin else notAnAdmin\n"+prPrincipal+route), admin...)
 	wantOnly(t, got, "U5", "settled from me, which isn't a principal declared before it")
 }
 
@@ -129,10 +129,10 @@ func TestU4APrincipalHasTheParametersType(t *testing.T) {
 }
 
 // ADR 0141: a principal declared once at the top level, named by adapters.
-const prTopMe = "principal me: Identity from cookie \"sid\" by signedIn else signInFirst"
+const prTopMe = "wire me: Identity from cookie \"sid\" by signedIn else signInFirst"
 
 func TestANamedPrincipalChecks(t *testing.T) {
-	got := checkPrincipals(t, principalAdapter("    principal me\n"+
+	got := checkPrincipals(t, principalAdapter("    wire me\n"+
 		"    GET \"/mine\" -> showMine(me)\n        produces \"application/json\"\n"), prTopMe)
 	if len(got) != 0 {
 		t.Fatalf("diags = %v, want none", got)
@@ -140,8 +140,8 @@ func TestANamedPrincipalChecks(t *testing.T) {
 	// An inline principal may be settled from a named one.
 	role := "workflow signedInRole(me: Identity) -> Result<Identity, IdentityError> {\n    return Ok(me)\n}"
 	showAgain := "workflow showAgain(again: Identity) -> string {\n    return again.userId\n}"
-	got = checkPrincipals(t, principalAdapter("    principal me as person\n"+
-		"    principal again: Identity from person by signedInRole else signInFirst\n"+
+	got = checkPrincipals(t, principalAdapter("    wire me as person\n"+
+		"    wire again: Identity from person by signedInRole else signInFirst\n"+
 		"    GET \"/mine\" -> showAgain(again)\n        produces \"application/json\"\n"), prTopMe, role, showAgain)
 	if len(got) != 0 {
 		t.Fatalf("inline from named: diags = %v, want none", got)
@@ -149,12 +149,12 @@ func TestANamedPrincipalChecks(t *testing.T) {
 }
 
 func TestU7APrincipalReferenceNamesATopLevelPrincipal(t *testing.T) {
-	wantOnly(t, checkPrincipals(t, principalAdapter("    principal signedIn\n"+
+	wantOnly(t, checkPrincipals(t, principalAdapter("    wire signedIn\n"+
 		"    GET \"/covers/{id}\" public -> showCover(id: string)\n        produces \"application/json\"\n")), "U7", "names a workflow")
 }
 
 func TestU8AnAdapterHasOnePrincipalOfEachName(t *testing.T) {
-	got := checkPrincipals(t, principalAdapter("    principal me\n"+prPrincipal+
+	got := checkPrincipals(t, principalAdapter("    wire me\n"+prPrincipal+
 		"    GET \"/mine\" -> showMine(me)\n        produces \"application/json\"\n"), prTopMe)
 	wantOnly(t, got, "U8", "two principals named me")
 }
@@ -162,11 +162,22 @@ func TestU8AnAdapterHasOnePrincipalOfEachName(t *testing.T) {
 func TestU9ATopLevelPrincipalIsSettledFromAnotherWithNoCycle(t *testing.T) {
 	role := "workflow signedInRole(me: Identity) -> Result<Identity, IdentityError> {\n    return Ok(me)\n}"
 	got := checkPrincipals(t, principalAdapter("    GET \"/covers/{id}\" -> showCover(id: string)\n        produces \"application/json\"\n"),
-		"principal a: Identity from b by signedInRole else signInFirst",
-		"principal b: Identity from a by signedInRole else signInFirst", role)
+		"wire a: Identity from b by signedInRole else signInFirst",
+		"wire b: Identity from a by signedInRole else signInFirst", role)
 	if len(got) != 2 || !strings.Contains(got[0], "[U9]") || !strings.Contains(got[1], "settled from itself") {
 		t.Fatalf("a cycle: %v", got)
 	}
 	wantOnly(t, checkPrincipals(t, principalAdapter("    GET \"/covers/{id}\" -> showCover(id: string)\n        produces \"application/json\"\n"),
-		"principal a: Identity from signedIn by signedInRole else signInFirst", role), "U9", "isn't a top-level principal")
+		"wire a: Identity from signedIn by signedInRole else signInFirst", role), "U9", "isn't a top-level principal")
+}
+
+// ADR 0143 §7: until ADR 0142 §5's second step, the old keywords check as
+// `wire` does.
+func TestTheOldKeywordsStillCheck(t *testing.T) {
+	got := checkPrincipals(t, principalAdapter("    principal me: Identity from cookie \"sid\" by signedIn else signInFirst\n"+
+		"    GET \"/mine\" -> showMine(me)\n        produces \"application/json\"\n"),
+		"config Old {\n    url: string | None from env \"OLD_URL\" or setting \"old.url\"\n}")
+	if len(got) != 0 {
+		t.Fatalf("diags = %v, want none", got)
+	}
 }

@@ -11,13 +11,13 @@ import (
 // ADR 0122: a config with a `when` is read only when its condition, evaluated
 // at startup from other config, holds.
 
-var whenSources = []string{`config SignInConfig {
+var whenSources = []string{`wire SignInConfig {
     authMode: string from env "AUTH_MODE" = "both"
     mirror: bool from env "MIRROR" = false
-}`, `config Oidc when SignInConfig.authMode != "abs" {
+}`, `wire Oidc when SignInConfig.authMode != "abs" {
     issuer: string from env "OIDC_ISSUER"
     secret: Secret from env "OIDC_SECRET"
-}`, `config Mirror when SignInConfig.mirror and SignInConfig.authMode == "both" {
+}`, `wire Mirror when SignInConfig.mirror and SignInConfig.authMode == "both" {
     target: string from env "MIRROR_TARGET" = "replica"
 }`, `activity issuer() -> string {
     return Oidc.issuer

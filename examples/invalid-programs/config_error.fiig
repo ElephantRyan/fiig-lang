@@ -1,7 +1,7 @@
 // ADR 0071: config the runtime couldn't read, a value read where it may
 // not be, and a Secret shown. Four declarations in one file, so G1 fires
 // three times, incidentally but correctly.
-config Billing {
+wire Billing {
     // V1: a default on a Secret would put the secret in the source.
     apiKey: Secret from env "BILLING_API_KEY" = "sk_live_123"
     retries: int from env "BILLING_RETRIES" = 3

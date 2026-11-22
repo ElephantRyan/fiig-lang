@@ -226,7 +226,7 @@ func (c *checker) checkPrincipalArg(arg syntax.RouteArg, wd *syntax.WorkflowDecl
 	if !ok {
 		argTypes[arg.Name] = types.Unknown{}
 		if len(c.principals) == 0 {
-			c.report(arg.Start, "U4", "route argument %s has no type, and this adapter declares no principal named %s; write %s: Type, or declare `principal %s: ...` (ADR 0137 §1)", arg.Name, arg.Name, arg.Name, arg.Name)
+			c.report(arg.Start, "U4", "route argument %s has no type, and this adapter declares no principal named %s; write %s: Type, or declare `wire %s: ...` (ADR 0137 §1, ADR 0143)", arg.Name, arg.Name, arg.Name, arg.Name)
 		} else {
 			c.report(arg.Start, "U4", "route argument %s has no type and names no principal of this adapter; write %s: Type, or pass one of its principals (%s) (ADR 0137 §1)", arg.Name, arg.Name, principalNamesOf(c.principals))
 		}
