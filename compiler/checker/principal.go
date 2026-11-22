@@ -235,7 +235,15 @@ func describeInput(pr *syntax.PrincipalDecl, input types.Type) string {
 	if pr.From != nil {
 		return "principal " + pr.From.Name
 	}
-	return pr.Source + " " + `"` + pr.SourceName + `"`
+	return pr.Source + " " + `"` + pr.SourceName + `"` + schemeSuffix(pr)
+}
+
+// schemeSuffix is ` scheme "Bearer"` for a wire that names one (ADR 0144).
+func schemeSuffix(pr *syntax.PrincipalDecl) string {
+	if pr.Scheme == "" {
+		return ""
+	}
+	return ` scheme "` + pr.Scheme + `"`
 }
 
 // checkRefusal is U2: `else` names a conversion from the binder's error to

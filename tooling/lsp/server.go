@@ -896,6 +896,9 @@ func describe(d syntax.Decl, member string) string {
 	case *syntax.AdapterDecl:
 		if pr := d.Principal(member); pr != nil {
 			from := pr.Source + " " + strconv.Quote(pr.SourceName)
+			if pr.Scheme != "" {
+				from += " scheme " + strconv.Quote(pr.Scheme)
+			}
 			if pr.From != nil {
 				from = pr.From.Name
 			}

@@ -219,6 +219,9 @@ func settlePrincipals(ctx context.Context, in *runtime.Interp, steps []principal
 		case s.decl.Source == "header":
 			if v, ok := req.header(s.decl.SourceName); ok {
 				input = runtime.Str(v)
+				if s.decl.Scheme != "" {
+					input = credential(v, s.decl.Scheme)
+				}
 			}
 		}
 		// A named principal's binder and refusal are its package's names.
@@ -262,9 +265,22 @@ func settlePrincipals(ctx context.Context, in *runtime.Interp, steps []principal
 	return byName, nil, nil
 }
 
+// credential is the value after a header's auth scheme (ADR 0144 §2): the
+// scheme name matched without case, the rest trimmed, and None for another
+// scheme or nothing after it.
+func credential(header, scheme string) runtime.Value {
+	given, rest, _ := strings.Cut(strings.TrimLeft(header, " 	"), " ")
+	rest = strings.Trim(rest, " 	")
+	if !strings.EqualFold(given, scheme) || rest == "" {
+		return runtime.None{}
+	}
+	return runtime.Str(rest)
+}
+
 // describePrincipals adds what a route's principals mean to its OpenAPI
 // operation (ADR 0137 §5): each one read from a cookie or a header is an
-// `apiKey` security scheme the operation requires, and each refusal's
+// `apiKey` security scheme the operation requires (`http` bearer with
+// `scheme "Bearer"`, ADR 0144), and each refusal's
 // statuses are among its responses, as a response arm's conversion's are.
 func describePrincipals(op map[string]any, steps []principalStep, media string, r resolver) {
 	if len(steps) == 0 {
@@ -279,6 +295,10 @@ func describePrincipals(op map[string]any, steps []principalStep, media string, 
 		// naming it shares one (ADR 0141 §5).
 		if r.schemes != nil {
 			r.schemes[s.scheme] = map[string]any{"type": "apiKey", "in": s.decl.Source, "name": s.decl.SourceName}
+			// A bearer wire is the form clients know how to fill (ADR 0144 §3).
+			if s.decl.Scheme == "Bearer" {
+				r.schemes[s.scheme] = map[string]any{"type": "http", "scheme": "bearer"}
+			}
 		}
 		required[s.scheme] = []any{}
 	}

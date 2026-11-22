@@ -50,3 +50,33 @@ func TestWireIsStillAName(t *testing.T) {
 		t.Fatalf("errs = %v", errs)
 	}
 }
+
+// ADR 0144 §1: `scheme` is printed between a header source and `by`.
+func TestFormatWritesAWireScheme(t *testing.T) {
+	src := "wire peer: Peer from header \"Authorization\" scheme \"Bearer\" by callingPeer else peerRefused\n"
+	if got := mustFormat(t, src); got != src {
+		t.Errorf("got\n%s\nwant\n%s", got, src)
+	}
+}
+
+// ADR 0144 §5: `scheme` off a header, or a scheme other than Bearer, is U11.
+func TestASchemeOffAHeaderIsU11(t *testing.T) {
+	for _, src := range []string{
+		"wire me: Identity from cookie \"sid\" scheme \"Bearer\" by x else y",
+		"wire admin: Admin from me scheme \"Bearer\" by x else y",
+		"wire peer: Peer from header \"Authorization\" scheme \"Basic\" by x else y",
+	} {
+		_, errs := parser.Parse(src)
+		if len(errs) != 1 || !strings.Contains(errs[0].Msg, "U11") {
+			t.Errorf("%s: errs = %v, want one U11", src, errs)
+		}
+	}
+}
+
+// `scheme` is contextual.
+func TestSchemeIsStillAName(t *testing.T) {
+	src := "conversion scheme(text: string) -> string {\n    return text;\n}\n"
+	if _, errs := parser.Parse(src); len(errs) > 0 {
+		t.Fatalf("errs = %v", errs)
+	}
+}

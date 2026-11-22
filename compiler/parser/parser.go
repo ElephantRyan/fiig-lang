@@ -1174,6 +1174,7 @@ func (p *Parser) parsePrincipal() *syntax.PrincipalDecl {
 			tok := p.expectName()
 			pr.From = &syntax.Ident{Span: syntax.Span{Start: tok.Start, End: tok.End}, Name: tok.Text}
 		}
+		p.parseWireScheme(pr)
 	} else {
 		p.errorf(p.cur().Start, "expected 'from' after principal %s's type: from cookie \"name\", from header \"Name\", or from an earlier principal (ADR 0137 §1)", pr.Name)
 	}
@@ -1191,6 +1192,29 @@ func (p *Parser) parsePrincipal() *syntax.PrincipalDecl {
 	}
 	pr.Span = syntax.Span{Start: start, End: p.cur().Start}
 	return pr
+}
+
+// parseWireScheme parses `scheme "Bearer"` after a header source (ADR
+// 0144 §1). Anywhere else, or naming another scheme, it is U11.
+func (p *Parser) parseWireScheme(pr *syntax.PrincipalDecl) {
+	if !p.atContextual("scheme") || p.peek(1).Kind != lexer.StringStart {
+		return
+	}
+	at := p.advance().Start
+	lit := p.parseStringLit()
+	scheme := plainText(lit)
+	switch {
+	case pr.Source != "header":
+		source := "another wire"
+		if pr.Source != "" {
+			source = pr.Source + " " + strconv.Quote(pr.SourceName)
+		}
+		p.errorf(at, "[U11] wire %s reads %s, and only a header's value carries an auth scheme: `from header \"Authorization\" scheme \"Bearer\"` (ADR 0144 §1)", pr.Name, source)
+	case hasInterp(lit) || scheme != "Bearer":
+		p.errorf(lit.Start, "[U11] wire %s names scheme %q; the one scheme a wire reads is \"Bearer\" (ADR 0144 §4)", pr.Name, scheme)
+	default:
+		pr.Scheme = scheme
+	}
 }
 
 // parseQualifiedRef parses `name` or `alias.name`.

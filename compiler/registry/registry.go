@@ -714,6 +714,9 @@ func principalSummaries(prs []*syntax.PrincipalDecl) []string {
 	var out []string
 	for _, pr := range prs {
 		from := pr.Source + " " + pr.SourceName
+		if pr.Scheme != "" {
+			from += " scheme " + pr.Scheme
+		}
 		if pr.From != nil {
 			from = pr.From.Name
 		}

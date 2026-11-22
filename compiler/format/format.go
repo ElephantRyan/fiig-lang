@@ -863,6 +863,9 @@ func (p *printer) printPrincipal(pr *syntax.PrincipalDecl) {
 		head += " from " + pr.From.Name
 	} else {
 		head += " from " + pr.Source + " " + strconv.Quote(pr.SourceName)
+		if pr.Scheme != "" {
+			head += " scheme " + strconv.Quote(pr.Scheme)
+		}
 	}
 	tail := "by " + pr.By.Name() + " else " + pr.Else.Name()
 	if len(strings.Repeat("    ", p.indent))+len(head)+1+len(tail) <= maxLineWidth {

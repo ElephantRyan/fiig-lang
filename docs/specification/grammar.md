@@ -286,7 +286,8 @@ wire-decl    ::= wire-group | wire-single                                       
 wire-group   ::= 'wire' identifier [ 'when' '(' expression ')' ] '{' { wire-field } '}'   // `when`: ADR 0122, parenthesised (ADR 0142 §4)
 wire-field   ::= identifier ':' type 'from' ( field-source { '??' field-source } [ '=' expression ] | 'startup' string )
 field-source ::= 'env' string | 'setting' string [ 'on' 'restart' ]                       // setting: ADR 0140; `from`, `env`, `setting`, `on`, `restart`, `startup` are contextual
-wire-single  ::= 'wire' identifier ':' type 'from' ( ( 'header' | 'cookie' ) string-literal | identifier )
+wire-single  ::= 'wire' identifier ':' type 'from'
+                 ( 'header' string-literal [ 'scheme' string-literal ] | 'cookie' string-literal | identifier )   // scheme: ADR 0144, contextual, "Bearer" only; U11
                  'by' qualified-name 'else' qualified-name                                  // ADR 0137 §1, §2, ADR 0141; U1-U9
 ```
 
@@ -295,6 +296,10 @@ old spellings, and `or` between sources is ADR 0140's. They parse until ADR
 0142 §5's second step, and `fiig fmt -w` rewrites them. A request source
 (`cookie`, `header`, another wire) is a single wire's, and a process or run
 source (`env`, `setting`, `startup`) a group's field; anything else is U10.
+With `scheme "Bearer"`, the runtime strips the scheme (matched without
+case) and surrounding spaces from the header, and the binder gets the
+credential alone, or `None` for another scheme or an empty credential (ADR
+0144 §2).
 
 A grouped wire (`wire-group`) is ADR 0071's config: values a deployment supplies through the
 environment, each read and checked once, before the program starts, and

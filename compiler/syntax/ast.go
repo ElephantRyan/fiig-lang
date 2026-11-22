@@ -557,6 +557,7 @@ type PrincipalDecl struct {
 	Type       Type
 	Source     string // "header" or "cookie"; "" when From is set
 	SourceName string
+	Scheme     string // a header's auth scheme, "Bearer" or "", stripped before binding (ADR 0144)
 	From       *Ident // the earlier principal this one is settled from
 	By         *QualifiedRef
 	Else       *QualifiedRef
