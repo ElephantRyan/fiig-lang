@@ -5,13 +5,13 @@ import "testing"
 // ADR 0068 §3: bytes written as text, in fiig programs.
 func TestBytesEncodings(t *testing.T) {
 	src := `rule encode(s: string) -> string {
-    b = s.utf8()
-    return "${b.toHex()} ${b.toBase64()} ${b.toBase64Url()}"
+    b = s.utf8();
+    return "${b.toHex()} ${b.toBase64()} ${b.toBase64Url()}";
 }
 
 rule symbols() -> string {
-    b = <<0xfb: u8, 0xff: u8>>
-    return "${b.toHex()} ${b.toBase64()} ${b.toBase64Url()}"
+    b = <<0xfb: u8, 0xff: u8>>;
+    return "${b.toHex()} ${b.toBase64()} ${b.toBase64Url()}";
 }`
 	cases := []struct {
 		name string

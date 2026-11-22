@@ -11,7 +11,7 @@ import (
 
 func TestIntOverflowFaults(t *testing.T) {
 	src := `rule calc(a: int, b: int) -> int {
-    return a + b
+    return a + b;
 }
 `
 	ops := map[string]string{"+": "a + b", "-": "a - b", "*": "a * b", "/": "a / b", "%": "a % b", "neg": "-a"}
@@ -57,7 +57,7 @@ func TestIntOverflowFaults(t *testing.T) {
 // TestOverflowFaultNamesOperatorAndPosition is §1: the fault says which
 // operator and where.
 func TestOverflowFaultNamesOperatorAndPosition(t *testing.T) {
-	src := "rule grow(n: int) -> int {\n    return n * 4\n}\n"
+	src := "rule grow(n: int) -> int {\n    return n * 4;\n}\n"
 	_, fault := run(t, src, "grow", map[string]Value{"n": Int(math.MaxInt64 / 2)})
 	if fault == nil || !strings.Contains(fault.Message, "at 2:12") || !strings.Contains(fault.Message, "* 4") {
 		t.Fatalf("fault = %v, want the operator and 2:12", fault)
@@ -80,7 +80,7 @@ func TestMinIntLiteralIsLegal(t *testing.T) {
 // pass the bounds check and match.
 func TestOverflowingPatternSizeIsANonMatch(t *testing.T) {
 	src := `conversion frame(buffer: bytes) -> int {
-    match buffer {
+    return match (buffer) {
         <<len: i64be, body: bytes(len * 8)>> -> body.length()
         _ -> -1
     }

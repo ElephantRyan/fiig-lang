@@ -14,10 +14,10 @@ func writeModule(t *testing.T, kind string) string {
 	root := t.TempDir()
 	files := map[string]string{
 		"fiig.pkg.json":     `{"path": "t.app", "kind": "` + kind + `", "version": "1.0.0"}`,
-		"rules/double.fiig": "rule double(n: int) -> int {\n    return n * 2\n}\n",
-		"rules/triple.fiig": "rule triple(n: int) -> int {\n    return n * 3\n}\n",
-		"tests/double.fiig": "test doubles {\n    expect double(2) == 4\n}\n",
-		"tests/both.fiig":   "test bothAgree {\n    expect double(1) + triple(1) == 5\n}\n",
+		"rules/double.fiig": "rule double(n: int) -> int {\n    return n * 2;\n}\n",
+		"rules/triple.fiig": "rule triple(n: int) -> int {\n    return n * 3;\n}\n",
+		"tests/double.fiig": "test doubles {\n    expect double(2) == 4;\n}\n",
+		"tests/both.fiig":   "test bothAgree {\n    expect double(1) + triple(1) == 5;\n}\n",
 	}
 	for name, text := range files {
 		p := filepath.Join(root, filepath.FromSlash(name))

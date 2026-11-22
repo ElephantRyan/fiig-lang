@@ -22,31 +22,31 @@ func TestQueriesAreTheLiteralDatabaseCalls(t *testing.T) {
 	gateway := parse(t, `gateway find(id: string) -> int
     requires Database
 {
-    Database.queryOne("SELECT id FROM account WHERE id = ?", id)
-    Database.execute("UPDATE account SET seen = 1")
-    Database.queryMany("SELECT id FROM account")
-    return 1
+    Database.queryOne("SELECT id FROM account WHERE id = ?", id);
+    Database.execute("UPDATE account SET seen = 1");
+    Database.queryMany("SELECT id FROM account");
+    return 1;
 }`)
 	interpolated := parse(t, `gateway built(table: string) -> int
     requires Database
 {
-    Database.queryOne("SELECT id FROM ${table}")
-    return 1
+    Database.queryOne("SELECT id FROM ${table}");
+    return 1;
 }`)
 	helper := parse(t, `rule shape() -> int {
-    return 1
+    return 1;
 }
 
 private {
     cleanup() -> int {
-        return Database.execute("DELETE FROM account")
+        return Database.execute("DELETE FROM account");
     }
 }`)
 	group := parse(t, `capability Ledger {
     gateway record(entry: string) -> int
         requires Database
     {
-        return Database.execute("INSERT INTO ledger (entry) VALUES (?)", entry)
+        return Database.execute("INSERT INTO ledger (entry) VALUES (?)", entry);
     }
 }`)
 	got := Queries([]*syntax.File{gateway, interpolated, helper, group}, []string{"a.fiig", "b.fiig", "c.fiig", "d.fiig"})

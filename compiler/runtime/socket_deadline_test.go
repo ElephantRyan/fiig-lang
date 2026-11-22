@@ -14,8 +14,8 @@ import (
 const deadlineSource = `gateway readBy(host: string, port: int, until: int) -> Result<bytes, SocketError>
     requires Socket
 {
-    connection = Socket.connect(host, port, deadline: until)?
-    return Socket.read(connection, until)
+    connection = Socket.connect(host, port, deadline: until)?;
+    return Socket.read(connection, until);
 }
 `
 
@@ -88,8 +88,8 @@ func TestNoDeadlineStillStopsAtTheCallsDeadline(t *testing.T) {
 	src := `gateway readPlain(host: string) -> Result<bytes, SocketError>
     requires Socket
 {
-    connection = Socket.connect(host, 80, deadline: None)?
-    return Socket.read(connection)
+    connection = Socket.connect(host, 80, deadline: None)?;
+    return Socket.read(connection);
 }
 `
 	peer := &SocketPeer{Host: "api", Port: 80, Steps: []SocketStep{{Stall: true}}}

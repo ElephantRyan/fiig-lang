@@ -52,7 +52,7 @@ func TestFaultReportsCallStack(t *testing.T) {
 }
 
 func TestDivisionByZeroIsAFault(t *testing.T) {
-	u := universeFromSource(t, "rule divide(a: int, b: int) -> int {\n    return a / b\n}\n")
+	u := universeFromSource(t, "rule divide(a: int, b: int) -> int {\n    return a / b;\n}\n")
 	in := newTestInterp(u, nil)
 
 	_, fault := in.Call(context.Background(), "divide", map[string]Value{"a": Int(1), "b": Int(0)})
@@ -124,7 +124,7 @@ func TestUnexhaustiveMatchAtRuntimeIsAFault(t *testing.T) {
     B()
 }
 `, `rule r(e: E) -> int {
-    match e {
+    return match (e) {
         E.A(_) -> 1
     }
 }

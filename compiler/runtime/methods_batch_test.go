@@ -79,13 +79,13 @@ func TestEnumValuesListsTheVariantsInOrder(t *testing.T) {
     Mid
     High
 }`, `conversion levels() -> List<Level> {
-    return Level.values()
+    return Level.values();
 }`, `conversion names() -> string {
-    names: List<string> = []
-    for level in Level.values() {
-        names = append(names, "${level}")
+    names: List<string> = [];
+    for (level in Level.values()) {
+        names = append(names, "${level}");
     }
-    return names.join(",")
+    return names.join(",");
 }`), nil)
 	if v, f := in.Call(context.Background(), "names", nil); f != nil || v != Str("Level.Low,Level.Mid,Level.High") {
 		t.Fatalf("names = %v, %v", v, f)

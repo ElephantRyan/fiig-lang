@@ -23,7 +23,7 @@ func writeManifest(t *testing.T, dir string, m manifest.Manifest) {
 func TestGenerateTagsDeprecatedCard(t *testing.T) {
 	dir := t.TempDir()
 	writeFiigFile(t, dir, "add_business_days.fiig", `rule addBusinessDays(from: int, days: int) -> int {
-    return from + days
+    return from + days;
 }`)
 	writeManifest(t, dir, manifest.Manifest{
 		Path: "company.time", Kind: manifest.Library, Version: "2.4.0",

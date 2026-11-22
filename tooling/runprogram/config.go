@@ -172,7 +172,12 @@ func ReachableConfigFrom(p Program, entries []Entry) []runtime.ConfigSource {
 			Package: sc.path, Rename: p.Renames[sc.path], Groups: sc.groups,
 		}
 		if d.When != nil {
-			src.WhenText = format.Expr(d.When)
+			// Written `when (cond)` (ADR 0142 §4); the text is the condition.
+			when := d.When
+			if p, ok := when.(*syntax.ParenExpr); ok {
+				when = p.Inner
+			}
+			src.WhenText = format.Expr(when)
 		}
 		out = append(out, src)
 	}

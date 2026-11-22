@@ -10,26 +10,26 @@ import (
 // whatever order they're written in.
 func TestBuiltinNamedArgs(t *testing.T) {
 	src := `rule replaced(s: string) -> string {
-    return s.replaceAll(new: "/", old: "-")
+    return s.replaceAll(new: "/", old: "-");
 }
 
 rule sliced(s: string) -> string {
-    return s.slice(to: 3, from: 1)
+    return s.slice(to: 3, from: 1);
 }
 
 rule mixed(s: string) -> string {
-    return s.replaceAll("-", new: "+")
+    return s.replaceAll("-", new: "+");
 }
 
 rule appended(s: string) -> string {
-    xs = append(element: s, list: ["a", "b"])
-    return xs.join(separator: ", ")
+    xs = append(element: s, list: ["a", "b"]);
+    return xs.join(separator: ", ");
 }
 
 rule put(n: int) -> string {
-    empty: Map<string, int> = [:]
-    m = empty.put(value: n, key: "k")
-    return "${m.at(key: "k")}"
+    empty: Map<string, int> = [:];
+    m = empty.put(value: n, key: "k");
+    return "${m.at(key: "k")}";
 }`
 	cases := []struct {
 		name string
@@ -57,9 +57,9 @@ func TestSocketNamedArgs(t *testing.T) {
 	src := `gateway upgraded(host: string) -> Result<None, SocketError>
     requires Socket
 {
-    connection = Socket.connect(port: 1, host: host)?
-    secure = Socket.startTls(serverName: host, connection: connection)?
-    return Socket.write(data: <<1: u8>>, connection: connection)
+    connection = Socket.connect(port: 1, host: host)?;
+    secure = Socket.startTls(serverName: host, connection: connection)?;
+    return Socket.write(data: <<1: u8>>, connection: connection);
 }
 `
 	caps := NewCapabilityRegistry()

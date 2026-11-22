@@ -12,7 +12,7 @@ func TestAPlainValueWorkflowMapsWithAName(t *testing.T) {
 	h := handlerFor(t, `model Health {
     ok: bool
 }`, `workflow healthCheck() -> Health {
-    return Health(ok: true)
+    return Health(ok: true);
 }`, `adapter http healthApi {
     GET "/health" -> healthCheck() {
         status -> 200 status

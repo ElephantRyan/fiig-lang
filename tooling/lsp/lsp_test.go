@@ -28,21 +28,21 @@ model Money {
 
 // Adds two amounts.
 rule total(a: kernel.Money, b: kernel.Money) -> decimal {
-    sum = a.amount + b.amount
-    return sum
+    sum = a.amount + b.amount;
+    return sum;
 }
 `,
 	"app/src/Greet.fiig": `rule greet(name: string) -> string {
-    return "é${name}"
+    return "é${name}";
 }
 `,
 	"app/src/Welcome.fiig": `conversion welcome(name: string) -> string {
-    return shout(greet(name))
+    return shout(greet(name));
 }
 
 private {
     shout(s: string) -> string {
-        return "${s}!"
+        return "${s}!";
     }
 }
 `,
@@ -55,7 +55,7 @@ private {
 	"app/src/Describe.fiig": `use t.kernel
 
 conversion describe(level: kernel.Level) -> string {
-    match level {
+    return match (level) {
         kernel.Level.Low -> "low"
         kernel.Level.High -> "high"
     }
@@ -66,8 +66,8 @@ conversion describe(level: kernel.Level) -> string {
 }
 `,
 	"app/src/Cap.fiig": `activity cap() -> int {
-    first = Limits.max
-    return first
+    first = Limits.max;
+    return first;
 }
 `,
 	// A gateway requires a capability group.
@@ -75,14 +75,14 @@ conversion describe(level: kernel.Level) -> string {
     gateway record(entry: string) -> int
         requires Database
     {
-        return Database.execute("INSERT INTO ledger (entry) VALUES (?)", entry)
+        return Database.execute("INSERT INTO ledger (entry) VALUES (?)", entry);
     }
 }
 `,
 	"app/src/Audit.fiig": `gateway audit(entry: string) -> int
     requires Ledger
 {
-    return Ledger.record(entry)
+    return Ledger.record(entry);
 }
 `,
 	// An application names adapters, which Go to Declaration reaches (ADR 0132).
@@ -119,31 +119,31 @@ application Runs {
 }
 `,
 	"app/src/ratings/SignedIn.fiig": `workflow signedIn(key: string | None) -> Result<Caller, CallerError> {
-    match key {
+    return match (key) {
         None -> {
-            return Err(CallerError.Unknown)
+            return Err(CallerError.Unknown);
         }
         given -> {
-            return Ok(Caller(id: given))
+            return Ok(Caller(id: given));
         }
     }
 }
 `,
 	"app/src/ratings/Refused.fiig": `conversion refused(error: CallerError) -> HttpResponse<string> {
-    return HttpResponse(status: 401, body: "who are you")
+    return HttpResponse(status: 401, body: "who are you");
 }
 `,
 	"app/src/ratings/Who.fiig": `workflow who(me: Caller) -> string {
-    return me.id
+    return me.id;
 }
 `,
 	"app/src/ratings/ClampRoute.fiig": `workflow clampRoute(score: int) -> int {
-    return score
+    return score;
 }
 `,
 	// A route names a workflow, which Go to Declaration reaches.
 	"app/src/Hello.fiig": `workflow hello() -> string {
-    return "hi"
+    return "hi";
 }
 `,
 	"app/src/Api.fiig": `adapter http Api {
@@ -154,19 +154,19 @@ application Runs {
 	"app/src/Rated.fiig": `use t.app.ratings
 
 conversion rated(score: int) -> int {
-    return ratings.clamp(score)
+    return ratings.clamp(score);
 }
 `,
 	"app/src/ratings/Clamp.fiig": `conversion clamp(score: int) -> int {
-    return math.min(score, 10)
+    return math.min(score, 10);
 }
 `,
 	"app/test/ratings/Clamp.fiig": `test clampsHigh {
-    expect clamp(11) == 10
+    expect clamp(11) == 10;
 }
 `,
 	"app/src/Broken.fiig": `rule broken(n: int) -> string {
-    return n
+    return n;
 }
 `,
 }
@@ -323,7 +323,7 @@ func TestDiagnosticsAppearAndClear(t *testing.T) {
 	if d.Code != "A1" || d.Severity != 1 || d.Range.Start.Line != 1 || d.Range.End.Character <= d.Range.Start.Character {
 		t.Fatalf("diagnostic = %+v, want A1 as an error with a range on line 2", d)
 	}
-	c.open("app/src/Broken.fiig", "rule broken(n: int) -> int {\n    return n\n}\n")
+	c.open("app/src/Broken.fiig", "rule broken(n: int) -> int {\n    return n;\n}\n")
 	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) == 0 })
 }
 
@@ -383,7 +383,7 @@ func TestReferencesHoverSymbolsAndFormatting(t *testing.T) {
 	if len(ws) != 1 || ws[0].Name != "Money" || ws[0].ContainerName != "t.kernel" {
 		t.Errorf("workspace symbols = %+v", ws)
 	}
-	c.open("app/src/Greet.fiig", "rule greet(name: string) -> string {\n  return \"é${name}\"\n}\n")
+	c.open("app/src/Greet.fiig", "rule greet(name: string) -> string {\n  return \"é${name}\";\n}\n")
 	edits := decode[[]textEdit](t, c.request("textDocument/formatting", map[string]any{"textDocument": map[string]any{"uri": c.uri("app/src/Greet.fiig")}}))
 	if len(edits) != 1 || !strings.Contains(edits[0].NewText, "    return") {
 		t.Errorf("formatting = %+v", edits)
@@ -408,7 +408,7 @@ func TestPositionsCountTheNegotiatedUnits(t *testing.T) {
 func TestAHalfTypedFileKeepsNavigation(t *testing.T) {
 	c, _ := startClient(t, nil)
 	c.diagnostics(c.uri("app/src/Broken.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
-	c.open("app/src/Total.fiig", strings.Replace(workspaceFiles["app/src/Total.fiig"], "    return sum\n", "    return sum +\n", 1))
+	c.open("app/src/Total.fiig", strings.Replace(workspaceFiles["app/src/Total.fiig"], "    return sum;\n", "    return sum +;\n", 1))
 	c.diagnostics(c.uri("app/src/Total.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
 	locs := decode[[]location](t, c.request("textDocument/definition", c.at("app/src/Total.fiig", 3, 23)))
 	if len(locs) != 1 || locs[0].URI != c.uri("kernel/src/Money.fiig") {
@@ -541,7 +541,7 @@ func TestFolderPackagesNavigate(t *testing.T) {
 	if len(locs) != 1 || locs[0].URI != c.uri("app/src/ratings/Clamp.fiig") {
 		t.Fatalf("definition of ratings.clamp = %+v, want app/src/ratings/Clamp.fiig", locs)
 	}
-	c.open("app/test/ratings/Clamp.fiig", "test clampsHigh {\n    expect clamp(11) == \"ten\"\n}\n")
+	c.open("app/test/ratings/Clamp.fiig", "test clampsHigh {\n    expect clamp(11) == \"ten\";\n}\n")
 	c.diagnostics(c.uri("app/test/ratings/Clamp.fiig"), func(d []lspDiagnostic) bool { return len(d) > 0 })
 }
 

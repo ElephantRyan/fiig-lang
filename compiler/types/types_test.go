@@ -22,7 +22,7 @@ func buildTestUniverse(t *testing.T, src string) (*Universe, *syntax.File) {
 
 func TestResolvePrimitives(t *testing.T) {
 	u, f := buildTestUniverse(t, `rule r(a: int, b: string) -> int {
-    return a
+    return a;
 }`)
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	at, ok := Resolve(rd.Params[0].Type, u)
@@ -37,7 +37,7 @@ func TestResolvePrimitives(t *testing.T) {
 
 func TestResolvePreludeGenericsAndNone(t *testing.T) {
 	u, f := buildTestUniverse(t, `rule r(a: List<int>, b: Result<int, string>, c: int | None) -> int {
-    return a
+    return a;
 }`)
 	rd := f.Decls[0].(*syntax.RuleDecl)
 
@@ -126,7 +126,7 @@ func TestUnknownIsAssignableEverywhere(t *testing.T) {
 }
 
 func TestResolveUnresolvedNameFails(t *testing.T) {
-	u, f := buildTestUniverse(t, "rule r(a: DoesNotExist) -> int {\n    return 1\n}\n")
+	u, f := buildTestUniverse(t, "rule r(a: DoesNotExist) -> int {\n    return 1;\n}\n")
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	_, ok := Resolve(rd.Params[0].Type, u)
 	if ok {
@@ -139,7 +139,7 @@ func TestResolveQualifiedNameIsUnknownNotError(t *testing.T) {
 	// resolution needs ResolveWithImports, below) — a dotted/aliased type
 	// reference resolves to Unknown, deliberately unmodeled rather than a
 	// false-positive error.
-	u, f := buildTestUniverse(t, "rule r(a: systemTime.Instant) -> int {\n    return 1\n}\n")
+	u, f := buildTestUniverse(t, "rule r(a: systemTime.Instant) -> int {\n    return 1;\n}\n")
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	got, ok := Resolve(rd.Params[0].Type, u)
 	if !ok {
@@ -155,7 +155,7 @@ func TestResolveQualifiedNameIsUnknownNotError(t *testing.T) {
 // its alias is a known entry in imports, instead of staying Unknown.
 func TestResolveWithImportsResolvesKnownAlias(t *testing.T) {
 	standardTime, _ := buildTestUniverse(t, "model Instant {\n    days: int\n}\n")
-	u, f := buildTestUniverse(t, "rule r(a: systemTime.Instant) -> int {\n    return 1\n}\n")
+	u, f := buildTestUniverse(t, "rule r(a: systemTime.Instant) -> int {\n    return 1;\n}\n")
 	rd := f.Decls[0].(*syntax.RuleDecl)
 
 	got, ok := ResolveWithImports(rd.Params[0].Type, u, map[string]*Universe{"systemTime": standardTime})
@@ -177,7 +177,7 @@ func TestResolveWithImportsResolvesKnownAlias(t *testing.T) {
 // qualified reference) stays Unknown, exactly like Resolve alone —
 // nothing regresses for a dependency that simply isn't loaded.
 func TestResolveWithImportsUnknownAliasStaysUnknown(t *testing.T) {
-	u, f := buildTestUniverse(t, "rule r(a: systemTime.Instant) -> int {\n    return 1\n}\n")
+	u, f := buildTestUniverse(t, "rule r(a: systemTime.Instant) -> int {\n    return 1;\n}\n")
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	got, ok := ResolveWithImports(rd.Params[0].Type, u, map[string]*Universe{"other": u})
 	if !ok {
@@ -194,7 +194,7 @@ func TestResolveWithImportsUnknownAliasStaysUnknown(t *testing.T) {
 // silently Unknown.
 func TestResolveWithImportsKnownAliasMissingMemberFails(t *testing.T) {
 	standardTime, _ := buildTestUniverse(t, "model Instant {\n    days: int\n}\n")
-	u, f := buildTestUniverse(t, "rule r(a: systemTime.DoesNotExist) -> int {\n    return 1\n}\n")
+	u, f := buildTestUniverse(t, "rule r(a: systemTime.DoesNotExist) -> int {\n    return 1;\n}\n")
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	_, ok := ResolveWithImports(rd.Params[0].Type, u, map[string]*Universe{"systemTime": standardTime})
 	if ok {

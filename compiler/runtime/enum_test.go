@@ -17,19 +17,19 @@ func TestHeadedEnumLookupAndFieldAccessRun(t *testing.T) {
     Csv
 }
 `, `rule resolve(raw: string) -> DeductionSource | None {
-    return DeductionSource(code: raw)
+    return DeductionSource(code: raw);
 }
 `, `rule byAlias(raw: string) -> DeductionSource | None {
-    return DeductionSource(aliases: raw)
+    return DeductionSource(aliases: raw);
 }
 `, `rule layoutFor(raw: string) -> string {
-    match DeductionSource(code: raw) {
+    return match (DeductionSource(code: raw)) {
         None -> "unknown"
         found -> describe(found)
     }
 }
 `, `rule describe(source: DeductionSource) -> string {
-    match source.layout {
+    return match (source.layout) {
         FieldLayout.FixedWidth -> "fixed width ${source.code}"
         FieldLayout.Csv -> "csv ${source.code}"
     }

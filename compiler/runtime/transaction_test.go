@@ -92,12 +92,12 @@ func (tx *kvTx) Rollback() *Fault {
 }
 
 func TestTransactionCommitsOnSuccessAndWriteIsVisibleAfterward(t *testing.T) {
-	u := universeFromSource(t, `rule noop() -> int { return 0 }
+	u := universeFromSource(t, `rule noop() -> int { return 0; }
 `, `workflow setAndRead(key: string, value: string) -> string {
     transaction KV {
-        KV.set(key, value)
-        result = KV.get(key)
-        return result
+        KV.set(key, value);
+        result = KV.get(key);
+        return result;
     }
 }
 `)
@@ -130,8 +130,8 @@ func TestTransactionRollsBackOnPropagatedError(t *testing.T) {
 }
 `, `workflow writeThenFail(key: string, value: string) -> Result<None, E> {
     transaction KV {
-        KV.set(key, value)
-        return Err(E.Bad())
+        KV.set(key, value);
+        return Err(E.Bad());
     }
 }
 `)
@@ -161,8 +161,8 @@ func TestTransactionRollsBackOnPropagatedError(t *testing.T) {
 func TestTransactionRollsBackOnFault(t *testing.T) {
 	u := universeFromSource(t, `workflow writeThenFault(key: string, value: string) -> int {
     transaction KV {
-        KV.set(key, value)
-        return 1 / 0
+        KV.set(key, value);
+        return 1 / 0;
     }
 }
 `)
@@ -188,7 +188,7 @@ func TestTransactionRollsBackOnFault(t *testing.T) {
 func TestTransactionAgainstNonTransactionalProviderFaults(t *testing.T) {
 	u := universeFromSource(t, `workflow doWrite(key: string, value: string) -> None {
     transaction KV {
-        KV.set(key, value)
+        KV.set(key, value);
     }
 }
 `)

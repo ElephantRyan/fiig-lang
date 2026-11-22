@@ -9,43 +9,43 @@ import (
 
 func TestListQueries(t *testing.T) {
 	src := `rule ends(xs: List<int>) -> string {
-    return "${xs.first()} ${xs.last()} ${xs.firstOrNone()} ${xs.lastOrNone()}"
+    return "${xs.first()} ${xs.last()} ${xs.firstOrNone()} ${xs.lastOrNone()}";
 }
 
 rule endsOfEmpty(xs: List<int>) -> string {
-    return "${xs.firstOrNone()} ${xs.lastOrNone()}"
+    return "${xs.firstOrNone()} ${xs.lastOrNone()}";
 }
 
 rule firstOfEmpty(xs: List<int>) -> int {
-    return xs.first()
+    return xs.first();
 }
 
 rule has(xs: List<decimal>, x: decimal) -> bool {
-    return xs.contains(x)
+    return xs.contains(x);
 }
 
 rule hasName(xs: List<string>, x: string) -> bool {
-    return xs.contains(x)
+    return xs.contains(x);
 }
 
 rule sortUp(xs: List<decimal>) -> List<decimal> {
-    return xs.sorted()
+    return xs.sorted();
 }
 
 rule sortDown(xs: List<decimal>) -> List<decimal> {
-    return xs.sortedDescending()
+    return xs.sortedDescending();
 }
 
 rule sortNames(xs: List<string>) -> List<string> {
-    return xs.sorted()
+    return xs.sorted();
 }
 
 rule near(xs: List<float>, x: float) -> bool {
-    return math.containsClose(xs, x, relative: 1e-9, absolute: 0.0)
+    return math.containsClose(xs, x, relative: 1e-9, absolute: 0.0);
 }
 
 rule same(a: List<float>, b: List<float>) -> bool {
-    return math.allClose(a, b, relative: 1e-9, absolute: 0.0)
+    return math.allClose(a, b, relative: 1e-9, absolute: 0.0);
 }`
 	ints := func(ns ...int) List {
 		l := List{}

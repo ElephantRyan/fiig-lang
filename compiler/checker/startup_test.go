@@ -15,11 +15,11 @@ const startupErrors = `enum StorageError {
 }`
 
 const verifyStorage = `workflow verifyStorage() -> Result<None, StorageError> {
-    return Ok(None)
+    return Ok(None);
 }`
 
 const verifyNamed = `workflow verifyNamed(bucket: string) -> Result<None, StorageError> {
-    return Ok(None)
+    return Ok(None);
 }`
 
 func checkStartup(t *testing.T, adapter string) []Diagnostic {
@@ -89,7 +89,7 @@ func TestStartupRouteCallsAWorkflow(t *testing.T) {
     run -> startupHelper() { _ -> halt }
 }`
 	diags := checkSrc(t, `activity startupHelper() -> int {
-    return 1
+    return 1;
 }`, src)
 	found := false
 	for _, d := range diags {

@@ -12,7 +12,7 @@ import (
 func TestBuildCardGateway(t *testing.T) {
 	file, errs := parser.Parse(`
 gateway getCustomer(id: CustomerId) -> Result<Customer, CustomerError> requires Database idempotent {
-    return Ok(Customer(id: id, name: "x", email: "y"))
+    return Ok(Customer(id: id, name: "x", email: "y"));
 }`)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected parse errors: %v", errs)
@@ -45,7 +45,7 @@ gateway getCustomer(id: CustomerId) -> Result<Customer, CustomerError> requires 
 func TestBuildCardRuleIsPureWithErrorType(t *testing.T) {
 	file, errs := parser.Parse(`
 rule validate(input: NewCustomer) -> Result<NewCustomer, CustomerError> {
-    return Ok(input)
+    return Ok(input);
 }`)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected parse errors: %v", errs)
@@ -65,7 +65,7 @@ rule validate(input: NewCustomer) -> Result<NewCustomer, CustomerError> {
 func TestBuildCardNoErrorWhenReturnIsNotResult(t *testing.T) {
 	file, errs := parser.Parse(`
 rule greet(name: string) -> string {
-    return name
+    return name;
 }`)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected parse errors: %v", errs)
@@ -106,7 +106,7 @@ enum CustomerError {
 func TestBuildCardWorkflowIsCompositionCatalog(t *testing.T) {
 	file, errs := parser.Parse(`
 workflow readCustomer(id: CustomerId) -> Result<Customer, CustomerError> {
-    return getCustomer(id)
+    return getCustomer(id);
 }`)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected parse errors: %v", errs)
@@ -427,8 +427,8 @@ func TestDependenciesExcludeCapabilityCallsAndConstructions(t *testing.T) {
 		"get_widget.fiig": `gateway getWidget(id: string) -> Result<Widget, WidgetError>
     requires Database
 {
-    row = Database.queryOne("...", id)
-    match row {
+    row = Database.queryOne("...", id);
+    return match (row) {
         found -> Ok(copy(Widget(id: id, count: 0), count: 1))
         None -> Err(WidgetError.NotFound(id))
     }
@@ -465,7 +465,7 @@ func TestGenerateDropsDependenciesOnUnknownOrNonCallableNames(t *testing.T) {
 	}
 	// bogus() doesn't exist anywhere in this build; Widget(...) names a
 	// model, never a callable dependency.
-	rule := "rule makeWidget(id: string) -> Widget {\n\tbogus()\n\treturn Widget(id: id)\n}\n"
+	rule := "rule makeWidget(id: string) -> Widget {\n\tbogus();\n\treturn Widget(id: id);\n}\n"
 	if err := os.WriteFile(filepath.Join(dir, "make_widget.fiig"), []byte(rule), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -528,9 +528,9 @@ func TestActivityPurityIsDerivedFromCallees(t *testing.T) {
 func TestPrivateMembersGetNoCardButTheirCallsCount(t *testing.T) {
 	dir := t.TempDir()
 	files := map[string]string{
-		"save.fiig": "gateway save(n: int) -> int\n\trequires Database\n{\n\treturn n\n}\n",
-		"coordinate.fiig": "activity coordinate(n: int) -> int {\n\treturn persist(n)\n}\n\n" +
-			"private {\n\tpersist(n: int) -> int {\n\t\treturn save(n)\n\t}\n\n\tmodel Scratch {\n\t\tn: int\n\t}\n}\n",
+		"save.fiig": "gateway save(n: int) -> int\n\trequires Database\n{\n\treturn n;\n}\n",
+		"coordinate.fiig": "activity coordinate(n: int) -> int {\n\treturn persist(n);\n}\n\n" +
+			"private {\n\tpersist(n: int) -> int {\n\t\treturn save(n);\n\t}\n\n\tmodel Scratch {\n\t\tn: int\n\t}\n}\n",
 	}
 	for name, src := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644); err != nil {

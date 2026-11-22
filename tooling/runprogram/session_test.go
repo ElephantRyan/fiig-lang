@@ -35,17 +35,17 @@ var sessionLibrary = map[string]string{
     gateway shout(port: int, movePort: int, text: string) -> Result<string, SessionError>
         requires Session
     {
-        settings: Map<string, string> = ["host": "127.0.0.1", "port": "${port}", "movePort": "${movePort}"]
-        parts = Session.call(settings, text.utf8(), deadline: Clock.now() + 2000)?
-        return Ok(parts.first().utf8() or "")
+        settings: Map<string, string> = ["host": "127.0.0.1", "port": "${port}", "movePort": "${movePort}"];
+        parts = Session.call(settings, text.utf8(), deadline: Clock.now() + 2000)?;
+        return Ok(parts.first().utf8() ?? "");
     }
 
     gateway shoutVia(port: int, alternates: string, text: string) -> Result<string, SessionError>
         requires Session
     {
-        settings: Map<string, string> = ["host": "127.0.0.1", "port": "${port}", "movePort": "0", "alternates": alternates]
-        parts = Session.call(settings, text.utf8(), deadline: Clock.now() + 8000)?
-        return Ok(parts.first().utf8() or "")
+        settings: Map<string, string> = ["host": "127.0.0.1", "port": "${port}", "movePort": "0", "alternates": alternates];
+        parts = Session.call(settings, text.utf8(), deadline: Clock.now() + 8000)?;
+        return Ok(parts.first().utf8() ?? "");
     }
 }`,
 	"line_session.fiig": `use fiig.session
@@ -54,48 +54,48 @@ capability LineSession provides session.SessionProtocol {
     gateway opened(settings: Map<string, string>, now: int) -> session.Step
         requires Session
     {
-        movePort = settings.at("movePort")
-        if movePort != "0" and settings.at("port") != movePort {
-            match movePort.toIntOrNone() {
+        movePort = settings.at("movePort");
+        if (movePort != "0" && settings.at("port") != movePort) {
+            match (movePort.toIntOrNone()) {
                 None -> None
                 port -> {
-                    return lineStep(<<1: i64be>>, <<>>, None, [], session.SessionClose.MoveTo(host: settings.at("host"), port: port))
+                    return lineStep(<<1: i64be>>, <<>>, None, [], session.SessionClose.MoveTo(host: settings.at("host"), port: port));
                 }
             }
         }
-        return lineStep(<<1: i64be>>, "HELLO ${settings.at("sessionId")} ${settings.at("port")}\n".utf8(), None, [], None)
+        return lineStep(<<1: i64be>>, "HELLO ${settings.at("sessionId")} ${settings.at("port")}\n".utf8(), None, [], None);
     }
 
     gateway received(state: bytes, data: bytes, now: int) -> session.Step
         requires Session
     {
-        match state {
+        return match (state) {
             <<next: i64be, buffered: bytes>> -> {
-                rest: bytes = <<buffered: bytes, data: bytes>>
-                replies: List<session.SessionReply> = []
-                start: int = 0
-                i: int = 0
-                for b in rest {
-                    if b == 10 {
-                        line = rest.slice(start, i).utf8() or ""
-                        start = i + 1
-                        if line == "CLOSE" {
-                            return lineStep(state, <<>>, None, replies, session.SessionClose.Failed(reason: "the server said CLOSE"))
+                rest: bytes = <<buffered: bytes, data: bytes>>;
+                replies: List<session.SessionReply> = [];
+                start: int = 0;
+                i: int = 0;
+                for (b in rest) {
+                    if (b == 10) {
+                        line = rest.slice(start, i).utf8() ?? "";
+                        start = i + 1;
+                        if (line == "CLOSE") {
+                            return lineStep(state, <<>>, None, replies, session.SessionClose.Failed(reason: "the server said CLOSE"));
                         }
-                        pieces = line.split(" ")
-                        match pieces.first().toIntOrNone() {
+                        pieces = line.split(" ");
+                        match (pieces.first().toIntOrNone()) {
                             None -> None
                             key -> {
-                                replies = append(replies, session.SessionReply(key: key, message: line.removePrefix("${key} ").utf8(), last: true))
+                                replies = append(replies, session.SessionReply(key: key, message: line.removePrefix("${key} ").utf8(), last: true));
                             }
                         }
                     }
-                    i = i + 1
+                    i = i + 1;
                 }
-                return lineStep(<<next: i64be, rest.slice(start, rest.length()): bytes>>, <<>>, None, replies, None)
+                return lineStep(<<next: i64be, rest.slice(start, rest.length()): bytes>>, <<>>, None, replies, None);
             }
             _ -> {
-                return lineStep(state, <<>>, None, [], session.SessionClose.Failed(reason: "no state"))
+                return lineStep(state, <<>>, None, [], session.SessionClose.Failed(reason: "no state"));
             }
         }
     }
@@ -103,12 +103,12 @@ capability LineSession provides session.SessionProtocol {
     gateway asked(state: bytes, message: bytes, now: int) -> session.Step
         requires Session
     {
-        match state {
+        return match (state) {
             <<next: i64be, buffered: bytes>> -> {
-                return lineStep(<<next + 1: i64be, buffered: bytes>>, <<"${next} ".utf8(): bytes, message: bytes, 10: u8>>, next, [], None)
+                return lineStep(<<next + 1: i64be, buffered: bytes>>, <<"${next} ".utf8(): bytes, message: bytes, 10: u8>>, next, [], None);
             }
             _ -> {
-                return lineStep(state, <<>>, None, [], session.SessionClose.Failed(reason: "no state"))
+                return lineStep(state, <<>>, None, [], session.SessionClose.Failed(reason: "no state"));
             }
         }
     }
@@ -116,19 +116,19 @@ capability LineSession provides session.SessionProtocol {
     gateway tick(state: bytes, now: int) -> session.Step
         requires Session
     {
-        return lineStep(state, <<>>, None, [], None)
+        return lineStep(state, <<>>, None, [], None);
     }
 
     gateway closing(state: bytes, now: int) -> session.Step
         requires Session
     {
-        return lineStep(state, "BYE\n".utf8(), None, [], None)
+        return lineStep(state, "BYE\n".utf8(), None, [], None);
     }
 }`,
 	"line_step.fiig": `use fiig.session
 
 conversion lineStep(state: bytes, write: bytes, accepted: int | None, replies: List<session.SessionReply>, close: session.SessionClose | None) -> session.Step {
-    return session.Step(state: state, write: write, accepted: accepted, replies: replies, nextTickAt: None, close: close)
+    return session.Step(state: state, write: write, accepted: accepted, replies: replies, nextTickAt: None, close: close);
 }`,
 }
 
@@ -143,12 +143,12 @@ var sessionApp = map[string]string{
 	"shout.fiig": `use sessiontest.lines.Lines
 
 activity shout(port: int, movePort: int, text: string) -> Result<string, SessionError> {
-    return Lines.shout(port, movePort, text)
+    return Lines.shout(port, movePort, text);
 }`,
 	"shout_via.fiig": `use sessiontest.lines.Lines
 
 activity shoutVia(port: int, alternates: string, text: string) -> Result<string, SessionError> {
-    return Lines.shoutVia(port, alternates, text)
+    return Lines.shoutVia(port, alternates, text);
 }`,
 }
 

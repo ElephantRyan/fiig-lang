@@ -27,7 +27,7 @@ func TestFormatTestDecl(t *testing.T) {
 	if got := mustFormat(t, src); got != src {
 		t.Errorf("got:\n%s\nwant:\n%s", got, src)
 	}
-	if got := mustFormat(t, "test t {\n    expect  x   is   Ok( y )\n}\n"); got != "test t {\n    expect x is Ok(y);\n}\n" {
+	if got := mustFormat(t, "test t {\n    expect  x   is   Ok( y );\n}\n"); got != "test t {\n    expect x is Ok(y);\n}\n" {
 		t.Errorf("got:\n%s", got)
 	}
 }

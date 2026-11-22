@@ -47,7 +47,7 @@ func TestAPlainValueWorkflowHasItsSchema(t *testing.T) {
 	u, files := universeOf(t, `model Health {
     ok: bool
 }`, `workflow healthCheck() -> Health {
-    return Health(ok: true)
+    return Health(ok: true);
 }`, `adapter http healthApi {
     GET "/health" -> healthCheck() {
         status -> 200 status
@@ -71,12 +71,12 @@ func TestAResponseBuiltInAnotherPackageKeepsItsStatuses(t *testing.T) {
     Missing
     Denied
 }`, `conversion refusalResponse(error: Refusal) -> HttpResponse<string> {
-    match error {
+    return match (error) {
         Refusal.Missing -> {
-            return HttpResponse(status: 404, body: "missing")
+            return HttpResponse(status: 404, body: "missing");
         }
         Refusal.Denied -> {
-            return HttpResponse(status: 403, body: "denied")
+            return HttpResponse(status: 403, body: "denied");
         }
     }
 }`)
@@ -85,7 +85,7 @@ func TestAResponseBuiltInAnotherPackageKeepsItsStatuses(t *testing.T) {
 model Item {
     name: string
 }`, `workflow readItem() -> Result<Item, common.Refusal> {
-    return Ok(Item(name: "x"))
+    return Ok(Item(name: "x"));
 }`, `adapter http itemApi {
     GET "/item" -> readItem() {
         Ok(item) -> 200 item
@@ -123,10 +123,10 @@ func TestAResponseFromANestedConversionKeepsItsStatus(t *testing.T) {
 	u, files := universeOf(t,
 		"enum IdentityError {\n    NotSignedIn\n}",
 		"enum RatingError {\n    Session(cause: IdentityError)\n    NoRating\n}",
-		"workflow deleteMine(token: string) -> Result<string, RatingError> {\n    return Err(RatingError.NoRating)\n}",
-		"conversion identityErrorResponse(error: IdentityError) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"sign in first\")\n}",
+		"workflow deleteMine(token: string) -> Result<string, RatingError> {\n    return Err(RatingError.NoRating);\n}",
+		"conversion identityErrorResponse(error: IdentityError) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"sign in first\");\n}",
 		`conversion ratingErrorResponse(error: RatingError) -> HttpResponse<string> {
-    match error {
+    return match (error) {
         RatingError.Session(cause) -> identityErrorResponse(cause)
         RatingError.NoRating -> HttpResponse(status: 404, body: "no rating")
     }

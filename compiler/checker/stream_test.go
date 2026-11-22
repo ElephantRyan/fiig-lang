@@ -21,11 +21,11 @@ const streamErrors = `enum OrderError {
 }`
 
 const placeOrder = `workflow placeOrder(order: OrderPlaced) -> Result<None, OrderError> {
-    return Ok(None)
+    return Ok(None);
 }`
 
 const placeRaw = `workflow placeRaw(payload: bytes) -> Result<None, OrderError> {
-    return Ok(None)
+    return Ok(None);
 }`
 
 func checkStream(t *testing.T, adapter string) []Diagnostic {
@@ -99,7 +99,7 @@ func TestStreamRouteBugClasses(t *testing.T) {
 
 func TestStreamElementMustBeAModelOrBytes(t *testing.T) {
 	diags := checkSrc(t, streamErrors, `workflow count(n: int) -> Result<None, OrderError> {
-    return Ok(None)
+    return Ok(None);
 }`, `adapter stream Counts {
     source "counts" group "intake" from earliest -> count(n: int) { _ -> ack }
 }`)

@@ -16,17 +16,17 @@ var settingSources = []string{`wire Abs {
 }`, `gateway save(name: string, text: string) -> Result<None, SettingError>
     requires Settings
 {
-    return Settings.save(name, text, by: "admin")
+    return Settings.save(name, text, by: "admin");
 }`, `gateway source(name: string) -> SettingSource
     requires Settings
 {
-    return Settings.source(name)
+    return Settings.source(name);
 }`, `activity show() -> string {
-    return "${Abs.url or "-"} ${Abs.name} ${Abs.workers}"
+    return "${Abs.url ?? "-"} ${Abs.name} ${Abs.workers}";
 }`, `activity saveThenShow(url: string) -> string {
-    before = show()
-    saved = save("abs.url", url)
-    return "${before} | ${show()}"
+    before = show();
+    saved = save("abs.url", url);
+    return "${before} | ${show()}";
 }`}
 
 func settingsInterp(t *testing.T, store SettingsStore, env map[string]string) *Interp {

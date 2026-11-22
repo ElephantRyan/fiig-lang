@@ -21,19 +21,19 @@ var base64URLProgram = []string{
     Sent(body: bytes from json "data" base64url)
 }`,
 	`rule sample(b: bytes, small: bytes, thumb: bytes | None) -> Message {
-    return Message(id: "m1", raw: b, chunks: [b, small], thumb: thumb, plain: b)
+    return Message(id: "m1", raw: b, chunks: [b, small], thumb: thumb, plain: b);
 }`,
 	`conversion writeMessage(b: bytes, small: bytes, thumb: bytes | None) -> bytes {
-    return json.encode(sample(b: b, small: small, thumb: thumb))
+    return json.encode(sample(b: b, small: small, thumb: thumb));
 }`,
 	`conversion writePretty(b: bytes, small: bytes, thumb: bytes | None) -> bytes {
-    return json.encodePretty(sample(b: b, small: small, thumb: thumb))
+    return json.encodePretty(sample(b: b, small: small, thumb: thumb));
 }`,
 	`rule writeUpload(b: bytes) -> bytes {
-    return json.encode(Upload.Sent(body: b))
+    return json.encode(Upload.Sent(body: b));
 }`,
 	`rule readMessage(body: string) -> Result<Message, JsonError> {
-    return json.decode(body)
+    return json.decode(body);
 }`,
 }
 

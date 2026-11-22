@@ -26,23 +26,23 @@ func runEach(t *testing.T, src, name string, args map[string]Value) (Value, *Fau
 
 func TestFloatArithmetic(t *testing.T) {
 	src := `rule fahrenheit(celsius: float) -> float {
-    return celsius * 9 / 5 + 32
+    return celsius * 9 / 5 + 32;
 }
 
 rule halfOfSeven() -> float {
-    return 7 / 2
+    return 7 / 2;
 }
 
 rule remainder(a: float, b: float) -> float {
-    return a % b
+    return a % b;
 }
 
 rule label(x: float) -> string {
-    return "x=${x}"
+    return "x=${x}";
 }
 
 rule colder(a: float, b: float) -> bool {
-    return a < b
+    return a < b;
 }`
 	cases := []struct {
 		name string
@@ -73,15 +73,15 @@ rule colder(a: float, b: float) -> bool {
 // indistinguishable, so -0.0 never appears.
 func TestNegativeZeroIsNormalized(t *testing.T) {
 	src := `rule wrap(a: float, b: float) -> float {
-    return a % b
+    return a % b;
 }
 
 rule flip(x: float) -> float {
-    return -x
+    return -x;
 }
 
 rule scale(x: float) -> float {
-    return x * -1.0
+    return x * -1.0;
 }`
 	for _, c := range []struct {
 		name string
@@ -103,15 +103,15 @@ rule scale(x: float) -> float {
 // answers with NaN or Inf is a fault. Underflow is not.
 func TestNonFiniteResultsFault(t *testing.T) {
 	src := `rule divide(a: float, b: float) -> float {
-    return a / b
+    return a / b;
 }
 
 rule remainder(a: float, b: float) -> float {
-    return a % b
+    return a % b;
 }
 
 rule multiply(a: float, b: float) -> float {
-    return a * b
+    return a * b;
 }`
 	cases := []struct {
 		name  string

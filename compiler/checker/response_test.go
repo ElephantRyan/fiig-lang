@@ -16,14 +16,14 @@ func TestHttpResponseConstruction(t *testing.T) {
         body: user,
         headers: ["Cache-Control": "no-store"],
         cookies: [Cookie(name: "sid", value: token, maxAge: 86400, sameSite: SameSite.Strict)],
-    )
+    );
 }`, `conversion noContent() -> HttpResponse<User> {
-    response = HttpResponse(status: 204)
-    return response
+    response = HttpResponse(status: 204);
+    return response;
 }`, `conversion inferred(user: User) -> int {
-    response = HttpResponse(status: 201, body: user)
-    named: User | None = response.body
-    return response.status
+    response = HttpResponse(status: 201, body: user);
+    named: User | None = response.body;
+    return response.status;
 }`)
 	if len(diags) != 0 {
 		t.Fatalf("diags = %v, want none", diags)
@@ -33,23 +33,23 @@ func TestHttpResponseConstruction(t *testing.T) {
 func TestHttpResponseErrors(t *testing.T) {
 	cases := []struct{ src, rule, fragment string }{
 		{`conversion c() -> HttpResponse<None> {
-    return HttpResponse(body: None)
+    return HttpResponse(body: None);
 }`, "A3", "HttpResponse.status is required and not supplied"},
 		{`conversion c(user: User) -> HttpResponse<string> {
-    return HttpResponse(status: 200, body: user)
+    return HttpResponse(status: 200, body: user);
 }`, "A1", "type mismatch: got User, expected string | None"},
 		{`conversion c(user: User) -> HttpResponse<string> {
-    return HttpResponse(status: 200, headers: ["X-Count": 3])
+    return HttpResponse(status: 200, headers: ["X-Count": 3]);
 }`, "A1", ""},
 		{`conversion c(user: User) -> HttpResponse<User> {
-    return HttpResponse(status: 200, cookies: [Cookie(name: "sid")])
+    return HttpResponse(status: 200, cookies: [Cookie(name: "sid")]);
 }`, "A3", "Cookie.value is required and not supplied"},
 		{`conversion c(user: User) -> int {
-    return HttpResponse(status: 200, body: user).contentType
+    return HttpResponse(status: 200, body: user).contentType;
 }`, "", `HttpResponse<User> has no field "contentType"`},
 		{`conversion c(user: User) -> HttpResponse<string> {
-    response = HttpResponse(status: 200, body: user)
-    return response
+    response = HttpResponse(status: 200, body: user);
+    return response;
 }`, "A1", "got HttpResponse<User>, expected HttpResponse<string>"},
 		{`model HttpResponse {
     status: int
@@ -69,16 +69,16 @@ func responseRouteSrc(adapter string) []string {
     Missing(name: string)
 }`,
 		`workflow readUser(name: string) -> Result<User, UserError> {
-    return Ok(User(name: name))
+    return Ok(User(name: name));
 }`,
 		`conversion userErrorToHttpResponse(error: UserError) -> HttpResponse<UserError> {
-    return HttpResponse(status: 404, body: error)
+    return HttpResponse(status: 404, body: error);
 }`,
 		`conversion userToCsv(user: User) -> HttpResponse<string> {
-    return HttpResponse(status: 200, body: "name\n${user.name}")
+    return HttpResponse(status: 200, body: "name\n${user.name}");
 }`,
 		`rule describe(error: UserError) -> string {
-    return "missing"
+    return "missing";
 }`,
 		adapter,
 	}
@@ -172,7 +172,7 @@ func TestWireConstantsAreChecked(t *testing.T) {
         status: status,
         headers: ["X-User": user.name],
         cookies: [Cookie(name: "__Host-sid", value: token, sameSite: SameSite.AnySite)],
-    )
+    );
 }`)
 	if len(diags) != 0 {
 		t.Fatalf("diags = %v, want none", diags)

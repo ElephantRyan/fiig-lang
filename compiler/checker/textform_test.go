@@ -17,16 +17,16 @@ var textFormSources = []string{
     grams: int
 }`,
 	`workflow rate(speed: Speed, weight: int) -> int {
-    return weight
+    return weight;
 }`,
 	`workflow maybeRate(speed: Speed | None) -> int {
-    return 1
+    return 1;
 }`,
 	`workflow ship(destination: Destination) -> int {
-    return 1
+    return 1;
 }`,
 	`workflow weigh(parcel: Parcel) -> int {
-    return parcel.grams
+    return parcel.grams;
 }`,
 }
 

@@ -14,13 +14,13 @@ const orModel = `model Input {
 
 func TestOrDefaultChecks(t *testing.T) {
 	diags := checkSrc(t, `rule r(input: Input, ok: bool) -> string {
-    note: string = input.note or ""
-    name: string = input.alias or input.note or "anonymous"
-    tags: List<string> = input.tags or []
-    n: int = input.count or 0
-    finished: bool = input.done or false
-    both: bool = ok or finished
-    return "${note}${name}${tags.length()}${n}${both}"
+    note: string = input.note ?? "";
+    name: string = input.alias ?? input.note ?? "anonymous";
+    tags: List<string> = input.tags ?? [];
+    n: int = input.count ?? 0;
+    finished: bool = input.done ?? false;
+    both: bool = ok || finished;
+    return "${note}${name}${tags.length()}${n}${both}";
 }`, orModel)
 	if len(diags) != 0 {
 		t.Fatalf("diags = %v, want none", diags)

@@ -152,9 +152,9 @@ func TestFormatPreservesTrailingCommentOnCallReturnInMatchArm(t *testing.T) {
     B(x: int)
 }
 workflow w(x: int) -> int {
-    match x {
-        A(y) -> { return f(y) } // first
-        B(y) -> { return g(y) } // second
+    return match (x) {
+        A(y) -> { return f(y); } // first
+        B(y) -> { return g(y); } // second
     }
 }
 `
@@ -172,8 +172,8 @@ func TestFormatPreservesMatchArmTrailingComment(t *testing.T) {
     A(x: int)
 }
 workflow w(x: int) -> int {
-    match x {
-        _ -> { return x } // kept
+    return match (x) {
+        _ -> { return x; } // kept
     }
 }
 `
@@ -187,7 +187,7 @@ func TestFormatWrapsLongCallArguments(t *testing.T) {
 	src := `gateway s(a: string, b: string, c: string, d: string) -> int
     requires Database
 {
-    Database.execute("a very long string literal that pushes this call well past the line width threshold", a, b, c, d)
+    return Database.execute("a very long string literal that pushes this call well past the line width threshold", a, b, c, d);
 }
 `
 	out := mustFormat(t, src)
@@ -211,12 +211,12 @@ func TestFormatHeaderClauses(t *testing.T) {
 	for _, tc := range []struct{ name, src, want string }{
 		{
 			"a gateway that fits is one line",
-			"gateway s(id: CustomerId) -> Result<Customer, CustomerError>\n    requires Database\n    idempotent\n{\n    return Ok(id)\n}\n",
+			"gateway s(id: CustomerId) -> Result<Customer, CustomerError>\n    requires Database\n    idempotent\n{\n    return Ok(id);\n}\n",
 			"gateway s(id: CustomerId) -> Result<Customer, CustomerError> requires Database idempotent {\n    return Ok(id);\n}\n",
 		},
 		{
 			"a gateway that doesn't fit wraps its clauses",
-			"gateway itemsAsService(target: AbsTarget, itemIds: List<string>) -> Result<List<Book>, AbsError> requires HttpClient idempotent {\n    return Ok([])\n}\n",
+			"gateway itemsAsService(target: AbsTarget, itemIds: List<string>) -> Result<List<Book>, AbsError> requires HttpClient idempotent {\n    return Ok([]);\n}\n",
 			"gateway itemsAsService(target: AbsTarget, itemIds: List<string>) -> Result<List<Book>, AbsError>\n        requires HttpClient\n        idempotent {\n    return Ok([]);\n}\n",
 		},
 		{
@@ -298,12 +298,12 @@ func syntaxErrors(errs []parser.Error) []parser.Error {
 // in, with their comments kept.
 func TestFormatPrivateBlock(t *testing.T) {
 	src := "rule fooBar(number: int) -> int {\n" +
-		"  return 4\n" +
+		"  return 4;\n" +
 		"}\n" +
 		"private {\n" +
 		"  // decides the branch\n" +
 		"  interiorFunctionCall(number: int) -> bool {\n" +
-		"  return number > 0 // positive only\n" +
+		"  return number > 0; // positive only\n" +
 		"  }\n" +
 		"  model Threshold {\n" +
 		"  minimum: int\n" +
@@ -373,7 +373,7 @@ func TestFormatListLiteral(t *testing.T) {
 // long binary expression wraps one segment per line.
 func TestFormatBinarySegments(t *testing.T) {
 	src := "conversion c(b: bytes) -> bytes {\n" +
-		"  match b {\n" +
+		"  return match (b) {\n" +
 		"    <<0x52:u8,n:i32be,body:bytes(n-4)>> -> <<n:u16le, body:bytes>>\n" +
 		"    _ -> <<\"user\": utf8, 0: u8, \"database\": utf8, 0: u8, \"application_name\": utf8, 0: u8, 0: u8>>\n" +
 		"  }\n" +
@@ -447,7 +447,7 @@ func TestBlankAfterBlocksSkipsStringLiterals(t *testing.T) {
 	src := `rule r() -> string {
     return "a
 }
-b"
+b";
 }
 `
 	if out := blankAfterBlocks(src); out != src {

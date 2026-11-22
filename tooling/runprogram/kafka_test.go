@@ -238,7 +238,7 @@ gateway publish(topic: string) -> Result<List<kafka.Sent>, kafka.KafkaError>
             kafka.KafkaRecord(key: "order-2".utf8(), value: "b".utf8(), headers: [kafka.KafkaHeader(name: "trace", value: "t".utf8())]),
             kafka.KafkaRecord(key: "order-3".utf8(), value: "c".utf8(), headers: None),
         ],
-    )
+    );
 }`,
 }
 

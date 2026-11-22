@@ -12,11 +12,11 @@ import (
 
 var observeProgram = []string{
 	`workflow boom(account: string) -> int {
-    zero: int = 0
-    return 1 / zero
+    zero: int = 0;
+    return 1 / zero;
 }`,
 	`workflow fine() -> string {
-    return "fine"
+    return "fine";
 }`,
 	`adapter http Api {
     GET "/boom/{account}" -> boom(account: account)

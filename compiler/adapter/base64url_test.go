@@ -21,7 +21,7 @@ var base64URLProgram = []string{
     plain: bytes | None
 }`,
 	`workflow echoDraft(draft: Draft) -> Draft {
-    return draft
+    return draft;
 }`,
 	`adapter http draftApi {
     POST "/drafts" -> echoDraft(draft: Draft)

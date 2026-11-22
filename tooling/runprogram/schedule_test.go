@@ -39,29 +39,29 @@ var scheduleProgram = map[string]string{
 gateway countTick(firedAt: int) -> Result<None, JobError>
     requires Redis
 {
-    match Redis.send(["INCR", "ticks"]) {
+    return match (Redis.send(["INCR", "ticks"])) {
         Ok(_) -> {
-            return Ok(None)
+            return Ok(None);
         }
         Err(_) -> {
-            return Err(JobError.Broken)
+            return Err(JobError.Broken);
         }
     }
 }`,
 	"note_tick.fiig": `activity noteTick(firedAt: int) -> Result<None, JobError> {
-    return countTick(firedAt)
+    return countTick(firedAt);
 }`,
 	// A firing on the hour fails with Busy, logged and carried past; one at
 	// 13:00 is Broken, which halts.
 	"tick.fiig": `workflow tick(firedAt: int) -> Result<None, JobError> {
-    noteTick(firedAt)?
-    if firedAt % 3600000 == 0 {
-        if firedAt % 86400000 == 46800000 {
-            return Err(JobError.Broken)
+    noteTick(firedAt)?;
+    if (firedAt % 3600000 == 0) {
+        if (firedAt % 86400000 == 46800000) {
+            return Err(JobError.Broken);
         }
-        return Err(JobError.Busy)
+        return Err(JobError.Busy);
     }
-    return Ok(None)
+    return Ok(None);
 }`,
 	// ADR 0124 §6: a startup route that runs once per deploy, counted.
 	"count_seed.fiig": `use fiig.redis.Redis
@@ -69,21 +69,21 @@ gateway countTick(firedAt: int) -> Result<None, JobError>
 gateway countSeed() -> Result<None, JobError>
     requires Redis
 {
-    match Redis.send(["INCR", "seeds"]) {
+    return match (Redis.send(["INCR", "seeds"])) {
         Ok(_) -> {
-            return Ok(None)
+            return Ok(None);
         }
         Err(_) -> {
-            return Err(JobError.Broken)
+            return Err(JobError.Broken);
         }
     }
 }`,
 	"note_seed.fiig": `activity noteSeed() -> Result<None, JobError> {
-    return countSeed()
+    return countSeed();
 }`,
 	"seed.fiig": `workflow seed() -> Result<None, JobError> {
-    noteSeed()?
-    return Ok(None)
+    noteSeed()?;
+    return Ok(None);
 }`,
 	"seeded.fiig": `adapter startup Seeded {
     run once -> seed() {
@@ -92,17 +92,17 @@ gateway countSeed() -> Result<None, JobError>
     }
 }`,
 	"spin.fiig": `workflow spin() -> Result<None, JobError> {
-    while true {
+    while (true) {
     }
-    return Ok(None)
+    return Ok(None);
 }`,
 	"broken.fiig": `workflow broken(firedAt: int) -> Result<None, JobError> {
-    zero = firedAt - firedAt
-    n = firedAt / zero
-    if n > 0 {
-        return Ok(None)
+    zero = firedAt - firedAt;
+    n = firedAt / zero;
+    if (n > 0) {
+        return Ok(None);
     }
-    return Ok(None)
+    return Ok(None);
 }`,
 	"faulter.fiig": `adapter schedule Faulter {
     every "15m" -> broken(firedAt: int) {

@@ -19,25 +19,25 @@ var corsProgram = []string{
     id: string
 }`,
 	`workflow getItem(id: string) -> Item {
-    return Item(id: id)
+    return Item(id: id);
 }`,
 	`workflow putItem(id: string, item: Item, token: string) -> Item {
-    return item
+    return item;
 }`,
 	`workflow deleteItem(key: string) -> Result<None, string> {
-    return Err(key)
+    return Err(key);
 }`,
 	`workflow me(session: string | None) -> string {
-    return "${session}"
+    return "${session}";
 }`,
 	`workflow boom(n: int) -> int {
-    return 10 / (n - n)
+    return 10 / (n - n);
 }`,
 	`conversion created(item: Item) -> HttpResponse<Item> {
-    return HttpResponse(status: 201, body: item, headers: ["Location": "/items/${item.id}", "Vary": "Accept-Language"])
+    return HttpResponse(status: 201, body: item, headers: ["Location": "/items/${item.id}", "Vary": "Accept-Language"]);
 }`,
 	`conversion refused(reason: string) -> HttpResponse<None> {
-    return HttpResponse(status: 401, headers: ["WWW-Authenticate": "Bearer"])
+    return HttpResponse(status: 401, headers: ["WWW-Authenticate": "Bearer"]);
 }`,
 	`adapter http api {
     GET "/items/{id}" -> getItem(id: string)

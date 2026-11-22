@@ -15,16 +15,16 @@ import (
 
 var twoDomainsWorkflows = []string{
 	`workflow listOrders() -> string {
-    return "orders"
+    return "orders";
 }`,
 	`workflow showOrder(id: string) -> string {
-    return "order ${id}"
+    return "order ${id}";
 }`,
 	`workflow showPayment(id: string) -> string {
-    return "payment ${id}"
+    return "payment ${id}";
 }`,
 	`workflow deletePayment(id: string) -> string {
-    return "deleted ${id}"
+    return "deleted ${id}";
 }`,
 }
 

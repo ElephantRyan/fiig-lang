@@ -42,26 +42,26 @@ var streamProgram = map[string]string{
 gateway markProcessed(orderId: string) -> Result<None, OrderError>
     requires Redis
 {
-    match Redis.send(["INCR", "processed:${orderId}"]) {
+    return match (Redis.send(["INCR", "processed:${orderId}"])) {
         Ok(_) -> {
-            return Ok(None)
+            return Ok(None);
         }
         Err(_) -> {
-            return Err(OrderError.Unrecorded(reason: "Redis refused"))
+            return Err(OrderError.Unrecorded(reason: "Redis refused"));
         }
     }
 }`,
 	"record.fiig": `activity record(order: OrderPlaced) -> Result<None, OrderError> {
-    return markProcessed(order.orderId)
+    return markProcessed(order.orderId);
 }`,
 	"place_order.fiig": `workflow placeOrder(order: OrderPlaced) -> Result<None, OrderError> {
-    if order.quantity <= 0 {
-        return Err(OrderError.Invalid(reason: "quantity ${order.quantity}"))
+    if (order.quantity <= 0) {
+        return Err(OrderError.Invalid(reason: "quantity ${order.quantity}"));
     }
-    if order.quantity > 100 {
-        return Err(OrderError.OutOfStock(sku: order.orderId))
+    if (order.quantity > 100) {
+        return Err(OrderError.OutOfStock(sku: order.orderId));
     }
-    return record(order)
+    return record(order);
 }`,
 	"order_intake.fiig": `adapter stream OrderIntake {
     source "orders" group "intake" from earliest key orderId -> placeOrder(order: OrderPlaced) {
@@ -256,7 +256,7 @@ func TestStreamDeadLettersBinaryPayloads(t *testing.T) {
 		program[name] = src
 	}
 	program["take_raw.fiig"] = `workflow takeRaw(payload: bytes) -> Result<None, OrderError> {
-    return Err(OrderError.Invalid(reason: "unreadable"))
+    return Err(OrderError.Invalid(reason: "unreadable"));
 }`
 	program["raw_intake.fiig"] = `adapter stream RawIntake {
     source "raw" group "raw" from earliest -> takeRaw(payload: bytes) {

@@ -15,26 +15,26 @@ import (
 
 var cryptoProgram = []string{
 	`rule digest(data: bytes) -> string {
-    return crypto.sha256(data).toHex()
+    return crypto.sha256(data).toHex();
 }`,
 	`rule signWith(key: Secret, data: bytes) -> string {
-    return crypto.hmacSha256(key: key, data: data).toHex()
+    return crypto.hmacSha256(key: key, data: data).toHex();
 }`,
 	`rule signWithBytes(key: bytes, data: bytes) -> string {
-    return crypto.hmacSha256(key, data).toHex()
+    return crypto.hmacSha256(key, data).toHex();
 }`,
 	// §1's example: GitHub's X-Hub-Signature-256.
 	`rule signatureValid(secret: Secret, body: bytes, header: string) -> bool {
-    match header.removePrefix("sha256=").fromHex() {
+    return match (header.removePrefix("sha256=").fromHex()) {
         None -> false
         sent -> crypto.equal(crypto.hmacSha256(key: secret, data: body), sent)
     }
 }`,
 	`activity hash(password: string) -> string {
-    return crypto.hashPassword(password)
+    return crypto.hashPassword(password);
 }`,
 	`rule matches(password: string, stored: string) -> bool {
-    return crypto.passwordMatches(password, stored: stored)
+    return crypto.passwordMatches(password, stored: stored);
 }`,
 }
 
@@ -100,16 +100,16 @@ func TestShaAndHmacVectors(t *testing.T) {
 func TestSha1AndSha512Vectors(t *testing.T) {
 	in := checkedInterp(t,
 		`rule digest1(data: bytes) -> string {
-    return crypto.sha1(data).toHex()
+    return crypto.sha1(data).toHex();
 }`,
 		`rule digest512(data: bytes) -> string {
-    return crypto.sha512(data).toHex()
+    return crypto.sha512(data).toHex();
 }`,
 		`rule sign1(key: Secret, data: bytes) -> string {
-    return crypto.hmacSha1(key: key, data: data).toHex()
+    return crypto.hmacSha1(key: key, data: data).toHex();
 }`,
 		`rule sign512(key: bytes, data: bytes) -> string {
-    return crypto.hmacSha512(key, data).toHex()
+    return crypto.hmacSha512(key, data).toHex();
 }`)
 	b := func(s string) Value { return Bytes{B: []byte(s)} }
 	jefe := "what do ya want for nothing?"
@@ -134,9 +134,9 @@ func TestSha1AndSha512Vectors(t *testing.T) {
 // case 1, and the length bounds.
 func TestHkdfSha256(t *testing.T) {
 	in := checkedInterp(t, `rule derive(key: bytes, salt: bytes, info: bytes, length: int) -> string {
-    return crypto.hkdfSha256(key, salt: salt, info: info, length: length).toHex()
+    return crypto.hkdfSha256(key, salt: salt, info: info, length: length).toHex();
 }`, `rule deriveFromSecret(key: Secret, length: int) -> bytes {
-    return crypto.hkdfSha256(key, salt: "".utf8(), info: "".utf8(), length: length)
+    return crypto.hkdfSha256(key, salt: "".utf8(), info: "".utf8(), length: length);
 }`)
 	run := func(n int, f func(i int) byte) Value {
 		out := make([]byte, n)
@@ -274,7 +274,7 @@ func TestPasswordHashesWaitForASlot(t *testing.T) {
 // 32-byte iSCSI vectors (which it writes low byte first).
 func TestCrc32cVectors(t *testing.T) {
 	in := checkedInterp(t, `rule checksum(data: bytes) -> int {
-    return crypto.crc32c(data)
+    return crypto.crc32c(data);
 }`)
 	run := func(n int, f func(i int) byte) []byte {
 		out := make([]byte, n)
@@ -309,7 +309,7 @@ func TestCrc32cVectors(t *testing.T) {
 func TestPbkdf2Sha512(t *testing.T) {
 	in := checkedInterp(t,
 		`rule derive(password: bytes, salt: bytes, iterations: int) -> string {
-    return crypto.pbkdf2Sha512(password, salt, iterations).toHex()
+    return crypto.pbkdf2Sha512(password, salt, iterations).toHex();
 }`)
 	cases := []struct {
 		password, salt string
@@ -335,10 +335,10 @@ func TestPbkdf2Sha512(t *testing.T) {
 func TestPbkdf2AndXor(t *testing.T) {
 	in := checkedInterp(t,
 		`rule derive(password: bytes, salt: bytes, iterations: int) -> string {
-    return crypto.pbkdf2Sha256(password, salt, iterations).toHex()
+    return crypto.pbkdf2Sha256(password, salt, iterations).toHex();
 }`,
 		`rule flip(a: bytes, b: bytes) -> bytes {
-    return a.xor(b)
+    return a.xor(b);
 }`)
 	got := callOK(t, in, "derive", map[string]Value{"password": Bytes{B: []byte("passwd")}, "salt": Bytes{B: []byte("salt")}, "iterations": Int(1)})
 	if got != Value(Str("55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc")) {

@@ -11,7 +11,7 @@ func TestFormatLiteralPatterns(t *testing.T) {
 		"        _ -> \"other\"\n" +
 		"    }\n" +
 		"}\n"
-	src := "rule describe(code: int, name: string, on: bool) -> string {\n match code {\n  200->\"ok\"\n  -1  ->\"unset\"\n  _->\"other\"\n }\n}"
+	src := "rule describe(code: int, name: string, on: bool) -> string {\n return match (code) {\n  200->\"ok\"\n  -1  ->\"unset\"\n  _->\"other\"\n }\n}"
 	got, errs := Format(src)
 	if len(errs) > 0 || got != want {
 		t.Fatalf("got:\n%s\nerrs: %v", got, errs)

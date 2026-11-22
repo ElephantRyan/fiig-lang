@@ -8,10 +8,10 @@ import (
 const (
 	prIdentity  = "model Identity {\n    userId: string\n}"
 	prRefusal   = "enum IdentityError {\n    NotSignedIn\n}"
-	prBinder    = "workflow signedIn(token: string | None) -> Result<Identity, IdentityError> {\n    return Err(IdentityError.NotSignedIn)\n}"
-	prSignIn    = "conversion signInFirst(error: IdentityError) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"sign in first\")\n}"
-	prFeature   = "workflow showMine(me: Identity) -> string {\n    return me.userId\n}"
-	prOpen      = "workflow showCover(id: string) -> string {\n    return id\n}"
+	prBinder    = "workflow signedIn(token: string | None) -> Result<Identity, IdentityError> {\n    return Err(IdentityError.NotSignedIn);\n}"
+	prSignIn    = "conversion signInFirst(error: IdentityError) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"sign in first\");\n}"
+	prFeature   = "workflow showMine(me: Identity) -> string {\n    return me.userId;\n}"
+	prOpen      = "workflow showCover(id: string) -> string {\n    return id;\n}"
 	prPrincipal = "    wire me: Identity from cookie \"sid\" by signedIn else signInFirst\n"
 )
 
@@ -54,11 +54,11 @@ func TestU1TheBinderIsAWorkflowOfTheRightShape(t *testing.T) {
 	wantOnly(t, got, "U1", "a principal is settled by a workflow")
 
 	got = checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by takesInt else signInFirst\n"+route),
-		"workflow takesInt(token: int) -> Result<Identity, IdentityError> {\n    return Err(IdentityError.NotSignedIn)\n}")
+		"workflow takesInt(token: int) -> Result<Identity, IdentityError> {\n    return Err(IdentityError.NotSignedIn);\n}")
 	wantOnly(t, got, "U1", "takes int, but principal me gives it the cookie \"sid\"")
 
 	got = checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by settlesString else signInFirst\n"+route),
-		"workflow settlesString(token: string | None) -> Result<string, IdentityError> {\n    return Ok(\"x\")\n}")
+		"workflow settlesString(token: string | None) -> Result<string, IdentityError> {\n    return Ok(\"x\");\n}")
 	wantOnly(t, got, "U1", "settles string, but principal me is Identity")
 
 	got = checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by nobody else signInFirst\n"+route))
@@ -69,7 +69,7 @@ func TestU2TheRefusalIsAConversionToAnHttpResponse(t *testing.T) {
 	route := "    GET \"/mine\" -> showMine(me)\n        produces \"application/json\"\n"
 	got := checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by signedIn else wrongError\n"+route),
 		"enum Other {\n    X\n}",
-		"conversion wrongError(error: Other) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"no\")\n}")
+		"conversion wrongError(error: Other) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"no\");\n}")
 	wantOnly(t, got, "U2", "takes Other, but signedIn's workflow refuses with IdentityError")
 
 	got = checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by signedIn else signedIn\n"+route))
@@ -99,9 +99,9 @@ func TestU5APrincipalIsSettledFromAnEarlierOne(t *testing.T) {
 	admin := []string{
 		"model Admin {\n    userId: string\n}",
 		"enum AdminRefusal {\n    NotAnAdmin\n}",
-		"workflow signedInAdmin(me: Identity) -> Result<Admin, AdminRefusal> {\n    return Err(AdminRefusal.NotAnAdmin)\n}",
-		"conversion notAnAdmin(error: AdminRefusal) -> HttpResponse<string> {\n    return HttpResponse(status: 403, body: \"admins only\")\n}",
-		"workflow showSettings(admin: Admin) -> string {\n    return admin.userId\n}",
+		"workflow signedInAdmin(me: Identity) -> Result<Admin, AdminRefusal> {\n    return Err(AdminRefusal.NotAnAdmin);\n}",
+		"conversion notAnAdmin(error: AdminRefusal) -> HttpResponse<string> {\n    return HttpResponse(status: 403, body: \"admins only\");\n}",
+		"workflow showSettings(admin: Admin) -> string {\n    return admin.userId;\n}",
 	}
 	route := "    GET \"/settings\" -> showSettings(admin)\n        produces \"application/json\"\n"
 	got := checkPrincipals(t, principalAdapter(prPrincipal+"    wire admin: Admin from me by signedInAdmin else notAnAdmin\n"+route), admin...)
@@ -124,7 +124,7 @@ func TestU4APlaceholderCantShareAPrincipalsName(t *testing.T) {
 
 func TestU4APrincipalHasTheParametersType(t *testing.T) {
 	got := checkPrincipals(t, principalAdapter(prPrincipal+"    GET \"/x\" -> takesString(me)\n        produces \"application/json\"\n"),
-		"workflow takesString(me: string) -> string {\n    return me\n}")
+		"workflow takesString(me: string) -> string {\n    return me;\n}")
 	wantOnly(t, got, "U4", "principal me is Identity, but takesString's parameter me is string")
 }
 
@@ -138,8 +138,8 @@ func TestANamedPrincipalChecks(t *testing.T) {
 		t.Fatalf("diags = %v, want none", got)
 	}
 	// An inline principal may be settled from a named one.
-	role := "workflow signedInRole(me: Identity) -> Result<Identity, IdentityError> {\n    return Ok(me)\n}"
-	showAgain := "workflow showAgain(again: Identity) -> string {\n    return again.userId\n}"
+	role := "workflow signedInRole(me: Identity) -> Result<Identity, IdentityError> {\n    return Ok(me);\n}"
+	showAgain := "workflow showAgain(again: Identity) -> string {\n    return again.userId;\n}"
 	got = checkPrincipals(t, principalAdapter("    wire me as person\n"+
 		"    wire again: Identity from person by signedInRole else signInFirst\n"+
 		"    GET \"/mine\" -> showAgain(again)\n        produces \"application/json\"\n"), prTopMe, role, showAgain)
@@ -160,7 +160,7 @@ func TestU8AnAdapterHasOnePrincipalOfEachName(t *testing.T) {
 }
 
 func TestU9ATopLevelPrincipalIsSettledFromAnotherWithNoCycle(t *testing.T) {
-	role := "workflow signedInRole(me: Identity) -> Result<Identity, IdentityError> {\n    return Ok(me)\n}"
+	role := "workflow signedInRole(me: Identity) -> Result<Identity, IdentityError> {\n    return Ok(me);\n}"
 	got := checkPrincipals(t, principalAdapter("    GET \"/covers/{id}\" -> showCover(id: string)\n        produces \"application/json\"\n"),
 		"wire a: Identity from b by signedInRole else signInFirst",
 		"wire b: Identity from a by signedInRole else signInFirst", role)

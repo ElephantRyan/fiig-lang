@@ -9,7 +9,7 @@ func TestFormatConfigWhen(t *testing.T) {
 	want := "wire Oidc when (SignInConfig.authMode != \"abs\" && Flags.on) {\n" +
 		"    issuer: string from env \"OIDC_ISSUER\"\n" +
 		"}\n"
-	got, errs := Format("config   Oidc  when SignInConfig.authMode!=\"abs\"   and   Flags.on {\n  issuer:string from env \"OIDC_ISSUER\"\n}")
+	got, errs := Format("config   Oidc  when (SignInConfig.authMode!=\"abs\"   &&   Flags.on) {\n  issuer:string from env \"OIDC_ISSUER\"\n}")
 	if len(errs) > 0 {
 		t.Fatalf("format errors: %v", errs)
 	}

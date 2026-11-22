@@ -40,10 +40,10 @@ var enumProgram = []string{
     source: Source
 }`,
 	`workflow echoShipment(shipment: Shipment) -> Shipment {
-    return shipment
+    return shipment;
 }`,
 	`workflow sourceCode(shipment: Shipment) -> string {
-    return shipment.source.code
+    return shipment.source.code;
 }`,
 	`adapter http enumApi {
     POST "/echo" -> echoShipment(shipment: Shipment)

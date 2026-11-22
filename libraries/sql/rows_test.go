@@ -41,25 +41,25 @@ var parcelSources = []string{
         p.state,
         p.fragile,
         p.label,
-    )
+    );
 }`,
 	`gateway findParcel(id: string) -> Parcel | None
     requires Database
     idempotent
 {
-    return Database.queryOne("SELECT id, weight, note, state, fragile, label FROM parcels WHERE id = ?", id)
+    return Database.queryOne("SELECT id, weight, note, state, fragile, label FROM parcels WHERE id = ?", id);
 }`,
 	`gateway parcelIds() -> List<string>
     requires Database
     idempotent
 {
-    return Database.queryMany("SELECT id FROM parcels ORDER BY id")
+    return Database.queryMany("SELECT id FROM parcels ORDER BY id");
 }`,
 	`gateway readBoth() -> List<string>
     requires Database
     idempotent
 {
-    return Database.queryMany("SELECT a.id, b.id FROM parcels a JOIN parcels b ON a.id = b.id")
+    return Database.queryMany("SELECT a.id, b.id FROM parcels a JOIN parcels b ON a.id = b.id");
 }`,
 }
 

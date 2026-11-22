@@ -30,15 +30,15 @@ func TestFloatArithmeticAndConstantsCheck(t *testing.T) {
     celsius: float
     count: int
 }`, `rule fahrenheit(r: Reading) -> float {
-    half = r.celsius / 2
-    scale: float = 9
-    offset = 32.0
-    return half * 2 * scale / 5 + offset - 0.5 % 0.25
+    half = r.celsius / 2;
+    scale: float = 9;
+    offset = 32.0;
+    return half * 2 * scale / 5 + offset - 0.5 % 0.25;
 }`, `rule colder(a: Reading, b: Reading) -> bool {
-    return a.celsius < b.celsius and a.celsius >= -40 and -a.celsius > 0.5
+    return a.celsius < b.celsius && a.celsius >= -40 && -a.celsius > 0.5;
 }`, `rule tally(r: Reading) -> int {
-    whole: int = 3.0
-    return r.count * 2 + whole
+    whole: int = 3.0;
+    return r.count * 2 + whole;
 }`)
 	if len(diags) != 0 {
 		t.Fatalf("diags = %v, want none", diags)
@@ -48,24 +48,24 @@ func TestFloatArithmeticAndConstantsCheck(t *testing.T) {
 // TestNumericTypesNeverMix is ADR 0019's addendum, which §2.2 leaves
 // unmodified: no implicit widening under arithmetic or comparison (§2.9).
 func TestNumericTypesNeverMix(t *testing.T) {
-	wantDiag(t, checkSrc(t, "rule r(n: int, x: float) -> float {\n    return n * x\n}"), "A1", "int * float mixes numeric types")
-	wantDiag(t, checkSrc(t, "rule r(n: int, x: float) -> bool {\n    return n < x\n}"), "M2", "cannot compare int with float")
+	wantDiag(t, checkSrc(t, "rule r(n: int, x: float) -> float {\n    return n * x;\n}"), "A1", "int * float mixes numeric types")
+	wantDiag(t, checkSrc(t, "rule r(n: int, x: float) -> bool {\n    return n < x;\n}"), "M2", "cannot compare int with float")
 	// A default-typed binding is typed: `y` is a float, so `y * n` mixes.
-	wantDiag(t, checkSrc(t, "rule r(n: int) -> float {\n    y = 2.5\n    return y * n\n}"), "A1", "float * int")
-	wantDiag(t, checkSrc(t, "rule r(n: int) -> float {\n    return n\n}"), "A1", "got int, expected float")
-	wantDiag(t, checkSrc(t, "rule r(s: string) -> int {\n    return -s\n}"), "A1", "expected int, float, or decimal")
+	wantDiag(t, checkSrc(t, "rule r(n: int) -> float {\n    y = 2.5;\n    return y * n;\n}"), "A1", "float * int")
+	wantDiag(t, checkSrc(t, "rule r(n: int) -> float {\n    return n;\n}"), "A1", "got int, expected float")
+	wantDiag(t, checkSrc(t, "rule r(s: string) -> int {\n    return -s;\n}"), "A1", "expected int, float, or decimal")
 }
 
 // TestConstantsLandWhereTheyAreUsed is §2.4: representability is checked
 // in the type the constant lands in, at compile time.
 func TestConstantsLandWhereTheyAreUsed(t *testing.T) {
-	wantDiag(t, checkSrc(t, "rule r() -> int {\n    return 2.5\n}"), "A1", "constant 2.5 is not a whole number")
-	wantDiag(t, checkSrc(t, "rule r(n: int) -> int {\n    return n + 0.5\n}"), "A1", "constant 0.5 is not a whole number")
-	wantDiag(t, checkSrc(t, "rule r() -> float {\n    return 1e308 * 10\n}"), "", "constant 1e308 * 10 does not fit in float")
-	wantDiag(t, checkSrc(t, "rule r() -> int {\n    return 1 / (2 - 2)\n}"), "", "constant division by zero")
-	wantDiag(t, checkSrc(t, "rule r() -> float {\n    return 1e99999\n}"), "", "exponent beyond")
+	wantDiag(t, checkSrc(t, "rule r() -> int {\n    return 2.5;\n}"), "A1", "constant 2.5 is not a whole number")
+	wantDiag(t, checkSrc(t, "rule r(n: int) -> int {\n    return n + 0.5;\n}"), "A1", "constant 0.5 is not a whole number")
+	wantDiag(t, checkSrc(t, "rule r() -> float {\n    return 1e308 * 10;\n}"), "", "constant 1e308 * 10 does not fit in float")
+	wantDiag(t, checkSrc(t, "rule r() -> int {\n    return 1 / (2 - 2);\n}"), "", "constant division by zero")
+	wantDiag(t, checkSrc(t, "rule r() -> float {\n    return 1e99999;\n}"), "", "exponent beyond")
 	// Underflow is not an error (§2.3, added 2026-10-28).
-	if diags := checkSrc(t, "rule r() -> float {\n    return 1e-300 * 1e-300\n}"); len(diags) != 0 {
+	if diags := checkSrc(t, "rule r() -> float {\n    return 1e-300 * 1e-300;\n}"); len(diags) != 0 {
 		t.Fatalf("underflow: diags = %v, want none", diags)
 	}
 }
@@ -120,7 +120,7 @@ func TestFloatEqualityIsM1(t *testing.T) {
 		wantDiag(t, diags, "M1", c.fragment)
 	}
 	// Comparing a specific non-float field is the fix the message offers.
-	if diags := checkSrc(t, money, order, "rule r(a: Order, b: Order) -> bool {\n    return a.id == b.id and a.total.amount <= b.total.amount\n}"); len(diags) != 0 {
+	if diags := checkSrc(t, money, order, "rule r(a: Order, b: Order) -> bool {\n    return a.id == b.id && a.total.amount <= b.total.amount;\n}"); len(diags) != 0 {
 		t.Fatalf("diags = %v, want none", diags)
 	}
 }
@@ -129,18 +129,18 @@ func TestFloatEqualityIsM1(t *testing.T) {
 // with no declared type.
 func TestListLiteralConstantsTakeTheElementType(t *testing.T) {
 	ok := []string{
-		"rule r(x: float) -> List<float> {\n    return [1, x, 2]\n}",
-		"rule r() -> float {\n    xs = [1, 2.5]\n    return xs.at(0)\n}",
+		"rule r(x: float) -> List<float> {\n    return [1, x, 2];\n}",
+		"rule r() -> float {\n    xs = [1, 2.5];\n    return xs.at(0);\n}",
 	}
 	for _, src := range ok {
 		if diags := checkSrc(t, src); len(diags) != 0 {
 			t.Errorf("%s: diags = %v, want none", src, diags)
 		}
 	}
-	wantDiag(t, checkSrc(t, "rule r(n: int) -> int {\n    xs = [n, 2.5]\n    return n\n}"), "A1", "constant 2.5 is not a whole number")
+	wantDiag(t, checkSrc(t, "rule r(n: int) -> int {\n    xs = [n, 2.5];\n    return n;\n}"), "A1", "constant 2.5 is not a whole number")
 }
 
 // `+` on a string says to interpolate, with the string to write.
 func TestPlusOnStringsSuggestsInterpolation(t *testing.T) {
-	wantDiag(t, checkSrc(t, "rule r(note: string) -> string {\n    return note + \"x\"\n}"), "A1", "interpolate instead: \"${note}x\"")
+	wantDiag(t, checkSrc(t, "rule r(note: string) -> string {\n    return note + \"x\";\n}"), "A1", "interpolate instead: \"${note}x\"")
 }

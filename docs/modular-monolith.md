@@ -24,7 +24,7 @@ out.
   gateway chargeOrder(order: string, amount: kernel.Money) -> Result<Charge, ChargeError>
       requires payments
   {
-      match payments.capturePayment(reference: order, amount: amount) {
+      return match (payments.capturePayment(reference: order, amount: amount)) {
           Ok(receipt) -> Ok(Charge(id: receipt.id, refundable: receipt.refundable))
           Err(failure) -> Err(chargeErrorOf(failure))
       }

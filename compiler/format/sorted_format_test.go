@@ -20,7 +20,7 @@ func TestFormatSortedFormIsStable(t *testing.T) {
 // header modifier is printed on the key.
 func TestFormatRewritesHeaderDescending(t *testing.T) {
 	src := "rule r(orders: List<Order>) -> List<Order> {\n" +
-		"    return sorted(order in orders, descending): order.total\n" +
+		"    return sorted(order in orders, descending): order.total;\n" +
 		"}\n"
 	want := "rule r(orders: List<Order>) -> List<Order> {\n" +
 		"    return sorted(order in orders): order.total descending;\n" +

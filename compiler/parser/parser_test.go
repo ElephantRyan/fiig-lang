@@ -25,7 +25,7 @@ func mustParse(t *testing.T, src string) *syntax.File {
 // for comment placement.
 func TestCallExprAndFieldAccessHaveNonZeroSpan(t *testing.T) {
 	f := mustParse(t, `rule r(x: Thing) -> int {
-    return x.y.z(1)
+    return x.y.z(1);
 }`)
 	body := f.Decls[0].(*syntax.RuleDecl).Body
 	ret := body.Stmts[0].(*syntax.ReturnStmt)
@@ -101,7 +101,7 @@ enum CheckoutError {
 func TestParseRuleWithTryAndInterpolation(t *testing.T) {
 	f := mustParse(t, `
 rule greet(name: string) -> string {
-    return "Hello, ${name}!"
+    return "Hello, ${name}!";
 }`)
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	ret := rd.Body.Stmts[0].(*syntax.ReturnStmt)
@@ -126,8 +126,8 @@ gateway getCustomer(id: CustomerId) -> Result<Customer, CustomerError>
     requires Database
     idempotent
 {
-    row = Database.queryOne("x", id)
-    match row {
+    row = Database.queryOne("x", id);
+    return match (row) {
         found -> Ok(Customer(id: found.id, name: found.name, email: found.email))
         None -> Err(CustomerError.NotFound(id))
     }
@@ -143,7 +143,7 @@ gateway getCustomer(id: CustomerId) -> Result<Customer, CustomerError>
 	if binding.Name != "row" {
 		t.Fatalf("binding = %+v", binding)
 	}
-	match := sd.Body.Stmts[1].(*syntax.MatchStmt)
+	match := sd.Body.Stmts[1].(*syntax.ReturnStmt).Value.(*syntax.MatchExpr).Match
 	if len(match.Arms) != 2 {
 		t.Fatalf("got %d match arms", len(match.Arms))
 	}
@@ -159,12 +159,12 @@ gateway getCustomer(id: CustomerId) -> Result<Customer, CustomerError>
 func TestParseConcurrentWithLimit(t *testing.T) {
 	f := mustParse(t, `
 workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {
-    concurrent(id in ids, limit: 5):
+    return concurrent(id in ids, limit: 5):
         concurrent(innerId in ids, limit: 50):
-            getCustomer(innerId)
+            getCustomer(innerId);
 }`)
 	wd := f.Decls[0].(*syntax.WorkflowDecl)
-	stmt := wd.Body.Stmts[0].(*syntax.ExprStmt)
+	stmt := wd.Body.Stmts[0].(*syntax.ReturnStmt)
 	outer := stmt.Value.(*syntax.ConcurrentExpr)
 	if outer.Var != "id" || outer.Limit == nil || outer.Limit.Unbounded {
 		t.Fatalf("outer = %+v", outer)
@@ -185,11 +185,11 @@ workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerE
 func TestParseConcurrentWithPreserveOrder(t *testing.T) {
 	f := mustParse(t, `
 workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {
-    concurrent(id in ids, limit: 5, preserveOrder):
-        getCustomer(id)
+    return concurrent(id in ids, limit: 5, preserveOrder):
+        getCustomer(id);
 }`)
 	wd := f.Decls[0].(*syntax.WorkflowDecl)
-	stmt := wd.Body.Stmts[0].(*syntax.ExprStmt)
+	stmt := wd.Body.Stmts[0].(*syntax.ReturnStmt)
 	ce := stmt.Value.(*syntax.ConcurrentExpr)
 	if !ce.PreserveOrder {
 		t.Fatalf("PreserveOrder = false, want true")
@@ -201,11 +201,11 @@ workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerE
 	// Order-independent: `preserveOrder` may come before `limit:` too.
 	f2 := mustParse(t, `
 workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {
-    concurrent(id in ids, preserveOrder, limit: 5):
-        getCustomer(id)
+    return concurrent(id in ids, preserveOrder, limit: 5):
+        getCustomer(id);
 }`)
 	wd2 := f2.Decls[0].(*syntax.WorkflowDecl)
-	ce2 := wd2.Body.Stmts[0].(*syntax.ExprStmt).Value.(*syntax.ConcurrentExpr)
+	ce2 := wd2.Body.Stmts[0].(*syntax.ReturnStmt).Value.(*syntax.ConcurrentExpr)
 	if !ce2.PreserveOrder || ce2.Limit == nil {
 		t.Fatalf("ce2 = %+v", ce2)
 	}
@@ -213,11 +213,11 @@ workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerE
 	// Bare form: `preserveOrder` with no `limit:` clause at all.
 	f3 := mustParse(t, `
 workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {
-    concurrent(id in ids, preserveOrder):
-        getCustomer(id)
+    return concurrent(id in ids, preserveOrder):
+        getCustomer(id);
 }`)
 	wd3 := f3.Decls[0].(*syntax.WorkflowDecl)
-	ce3 := wd3.Body.Stmts[0].(*syntax.ExprStmt).Value.(*syntax.ConcurrentExpr)
+	ce3 := wd3.Body.Stmts[0].(*syntax.ReturnStmt).Value.(*syntax.ConcurrentExpr)
 	if !ce3.PreserveOrder || ce3.Limit != nil {
 		t.Fatalf("ce3 = %+v", ce3)
 	}
@@ -227,11 +227,11 @@ func TestParseUnboundedLimitParsesButIsFlaggedForChecker(t *testing.T) {
 	// D1: parses fine, checker-rejected — not this package's job.
 	f := mustParse(t, `
 workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {
-    concurrent(id in ids, limit: unbounded):
-        getCustomer(id)
+    return concurrent(id in ids, limit: unbounded):
+        getCustomer(id);
 }`)
 	wd := f.Decls[0].(*syntax.WorkflowDecl)
-	stmt := wd.Body.Stmts[0].(*syntax.ExprStmt)
+	stmt := wd.Body.Stmts[0].(*syntax.ReturnStmt)
 	ce := stmt.Value.(*syntax.ConcurrentExpr)
 	if ce.Limit == nil || !ce.Limit.Unbounded {
 		t.Fatalf("Limit = %+v, want Unbounded", ce.Limit)
@@ -241,7 +241,7 @@ workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerE
 func TestParseRetry(t *testing.T) {
 	f := mustParse(t, `
 workflow w(id: CustomerId) -> Result<Customer, CustomerError> {
-    return retry(attempts: 3): getCustomer(id)
+    return retry(attempts: 3): getCustomer(id);
 }`)
 	wd := f.Decls[0].(*syntax.WorkflowDecl)
 	ret := wd.Body.Stmts[0].(*syntax.ReturnStmt)
@@ -264,9 +264,9 @@ func TestParseTransactionNesting(t *testing.T) {
 	f := mustParse(t, `
 workflow w(orderId: OrderId) -> Result<None, OrderError> {
     transaction Database {
-        reserveInventory(orderId)?
+        reserveInventory(orderId)?;
         transaction Database {
-            releaseInventory(orderId)?
+            releaseInventory(orderId)?;
         }
     }
 }`)
@@ -291,24 +291,24 @@ workflow w(orderId: OrderId) -> Result<None, OrderError> {
 func TestParseIfElseIfElse(t *testing.T) {
 	f := mustParse(t, `
 rule classify(x: int) -> string {
-    if x == 0 {
-        return "zero"
-    } else if x < 0 {
-        return "negative"
+    if (x == 0) {
+        return "zero";
+    } else if (x < 0) {
+        return "negative";
     } else {
-        return "positive"
+        return "positive";
     }
 }`)
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	ifs := rd.Body.Stmts[0].(*syntax.IfStmt)
-	cmp := ifs.Cond.(*syntax.BinaryExpr)
+	cmp := unparen(ifs.Cond).(*syntax.BinaryExpr)
 	if cmp.Op != syntax.OpEq {
 		t.Fatalf("Cond.Op = %v", cmp.Op)
 	}
 	if len(ifs.ElseIfs) != 1 {
 		t.Fatalf("got %d else-if branches, want 1", len(ifs.ElseIfs))
 	}
-	if ifs.ElseIfs[0].Cond.(*syntax.BinaryExpr).Op != syntax.OpLt {
+	if unparen(ifs.ElseIfs[0].Cond).(*syntax.BinaryExpr).Op != syntax.OpLt {
 		t.Fatalf("else-if Cond = %+v", ifs.ElseIfs[0].Cond)
 	}
 	if ifs.Else == nil {
@@ -322,7 +322,7 @@ use company.time as businessTime
 use standard.time as systemTime
 
 rule r() -> string {
-    return "x"
+    return "x";
 }`)
 	if len(f.Imports) != 2 {
 		t.Fatalf("got %d imports", len(f.Imports))
@@ -530,15 +530,15 @@ func TestParseUnionTypeAndRecordType(t *testing.T) {
 func TestParseComparisonAndBooleanOperators(t *testing.T) {
 	f := mustParse(t, `
 rule r(a: int, b: int) -> string {
-    if a == b and not (a < b) or a >= b {
-        return "x"
+    if (a == b && !(a < b) || a >= b) {
+        return "x";
     }
-    return "y"
+    return "y";
 }`)
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	ifs := rd.Body.Stmts[0].(*syntax.IfStmt)
 	// or-expression is the outermost: (a == b and not (a < b)) or (a >= b)
-	or := ifs.Cond.(*syntax.BinaryExpr)
+	or := unparen(ifs.Cond).(*syntax.BinaryExpr)
 	if or.Op != syntax.OpOr {
 		t.Fatalf("outermost op = %v, want or", or.Op)
 	}
@@ -560,15 +560,15 @@ func TestParseArithmeticPrecedence(t *testing.T) {
 	// one — same pattern TestParseComparisonAndBooleanOperators above uses.
 	f := mustParse(t, `
 rule r(a: int, b: int, c: int) -> int {
-    if a + b * c == c {
-        return c
+    if (a + b * c == c) {
+        return c;
     }
-    return a
+    return a;
 }`)
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	ifs := rd.Body.Stmts[0].(*syntax.IfStmt)
 
-	eq := ifs.Cond.(*syntax.BinaryExpr)
+	eq := unparen(ifs.Cond).(*syntax.BinaryExpr)
 	if eq.Op != syntax.OpEq {
 		t.Fatalf("outermost op = %v, want ==", eq.Op)
 	}
@@ -591,7 +591,7 @@ rule r(a: int, b: int, c: int) -> int {
 func TestParseUnaryMinusBindsTighterThanMultiplicativeLooserThanPostfix(t *testing.T) {
 	f := mustParse(t, `
 rule r(a: Thing, c: int) -> int {
-    return -a.b * c
+    return -a.b * c;
 }`)
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	ret := rd.Body.Stmts[0].(*syntax.ReturnStmt)
@@ -616,14 +616,14 @@ rule r(a: Thing, c: int) -> int {
 func TestParseNotBindsTighterThanPostfixOperand(t *testing.T) {
 	f := mustParse(t, `
 rule r(input: Thing) -> int {
-    if not input.email.value.contains("@") {
-        return 1
+    if (!input.email.value.contains("@")) {
+        return 1;
     }
-    return 0
+    return 0;
 }`)
 	rd := f.Decls[0].(*syntax.RuleDecl)
 	ifs := rd.Body.Stmts[0].(*syntax.IfStmt)
-	not, ok := ifs.Cond.(*syntax.NotExpr)
+	not, ok := unparen(ifs.Cond).(*syntax.NotExpr)
 	if !ok {
 		t.Fatalf("Cond = %#v, want NotExpr", ifs.Cond)
 	}
@@ -659,15 +659,15 @@ model BillingAddress {
 
 func TestPrivateBlockParsesHelpersAndModels(t *testing.T) {
 	f, errs := Parse(`rule fooBar(number: int) -> int {
-    if interiorFunctionCall(number) {
-        return 3
+    if (interiorFunctionCall(number)) {
+        return 3;
     }
-    return 4
+    return 4;
 }
 
 private {
     interiorFunctionCall(number: int) -> bool {
-        return number > 0
+        return number > 0;
     }
 
     model Threshold {
@@ -715,12 +715,12 @@ private {
 }
 `, "only one private block"},
 		{"decl after the block", `rule r() -> int {
-    return 1
+    return 1;
 }
 private {
 }
 rule s() -> int {
-    return 2
+    return 2;
 }
 `, "second public declaration"},
 		{"kind keyword on a helper", `rule r() -> int {
@@ -847,12 +847,12 @@ func withoutTaggedParseErrors(errs []Error) []Error {
 // across lines.
 func TestListLiteral(t *testing.T) {
 	f := mustParse(t, `rule r(x: int) -> List<int> {
-    a = []
-    b = [x, x + 1]
+    a = [];
+    b = [x, x + 1];
     return [
         x,
         2,
-    ]
+    ];
 }`)
 	stmts := f.Decls[0].(*syntax.RuleDecl).Body.Stmts
 	for i, want := range []int{0, 2} {
@@ -875,12 +875,12 @@ func TestListLiteral(t *testing.T) {
 // two `>` tokens, hex literals, and segments on both sides.
 func TestBinaryPatternAndExpression(t *testing.T) {
 	f := mustParse(t, `conversion c(buf: bytes) -> bytes {
-    match buf {
+    return match (buf) {
         <<0x52: u8, n: i32be, body: bytes(n - 4), _: u4, "ok": utf8, rest: bytes>> -> <<n + 1: u16le, body: bytes>>
         _ -> <<>>
     }
 }`)
-	m := f.Decls[0].(*syntax.ConversionDecl).Body.Stmts[0].(*syntax.MatchStmt)
+	m := f.Decls[0].(*syntax.ConversionDecl).Body.Stmts[0].(*syntax.ReturnStmt).Value.(*syntax.MatchExpr).Match
 	pat := m.Arms[0].Pattern.(*syntax.BytesPattern)
 	if len(pat.Segments) != 6 {
 		t.Fatalf("want 6 segments, got %d", len(pat.Segments))
@@ -907,7 +907,7 @@ func TestBinaryPatternAndExpression(t *testing.T) {
 	}
 
 	// Nested generics still close with two separate `>` tokens.
-	mustParse(t, "rule r(x: List<List<int>>) -> int {\n    return 0\n}")
+	mustParse(t, "rule r(x: List<List<int>>) -> int {\n    return 0;\n}")
 }
 
 // ADR 0071 §1: a config declaration's fields, their variables, and
@@ -935,7 +935,7 @@ func TestParseConfigDecl(t *testing.T) {
 		t.Fatal("interpolated variable name parsed")
 	}
 	// config is reserved only where a declaration starts.
-	if _, errs := Parse("rule r(config: int) -> int {\n    return config\n}"); len(errs) != 0 {
+	if _, errs := Parse("rule r(config: int) -> int {\n    return config;\n}"); len(errs) != 0 {
 		t.Fatalf("config as a name: %v", errs)
 	}
 }
@@ -950,8 +950,8 @@ func TestKeywordsAsFieldNames(t *testing.T) {
     match: bool | None
 }`)
 	mustParse(t, `rule next(page: Page) -> Page {
-    later: Page = copy(page, limit: page.limit + 10)
-    return Page(limit: later.limit, in: page.in, match: None)
+    later: Page = copy(page, limit: page.limit + 10);
+    return Page(limit: later.limit, in: page.in, match: None);
 }`)
 	m := f.Decls[0].(*syntax.ModelDecl)
 	if m.Fields[0].Name != "limit" || m.Fields[1].Name != "in" || m.Fields[2].Name != "match" {
@@ -972,7 +972,7 @@ func TestKeywordsAsFieldNames(t *testing.T) {
 		}
 	}
 	// `limit:` in a concurrent header stays the clause (ADR 0016).
-	c := mustParse(t, "workflow w(xs: List<int>) -> List<int> {\n    return concurrent(x in xs, limit: 2): f(limit: x)\n}")
+	c := mustParse(t, "workflow w(xs: List<int>) -> List<int> {\n    return concurrent(x in xs, limit: 2): f(limit: x);\n}")
 	ret := c.Decls[0].(*syntax.WorkflowDecl).Body.Stmts[0].(*syntax.ReturnStmt)
 	ce := ret.Value.(*syntax.ConcurrentExpr)
 	if ce.Limit == nil {
@@ -1006,4 +1006,13 @@ func TestFromJsonName(t *testing.T) {
 			t.Errorf("parsed %q", src)
 		}
 	}
+}
+
+// unparen is a condition without the parentheses it is written in (ADR
+// 0142 §4), which the parser keeps as a ParenExpr.
+func unparen(e syntax.Expr) syntax.Expr {
+	if p, ok := e.(*syntax.ParenExpr); ok {
+		return p.Inner
+	}
+	return e
 }

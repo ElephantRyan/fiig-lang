@@ -27,9 +27,9 @@ func siblingPackage(t *testing.T, src string) *types.Package {
 }
 
 const (
-	siblingRule = "rule double(n: int) -> int {\n    return n * 2\n}\n"
-	usesSibling = "use t.app.b\n\ntest doubles {\n    expect b.double(3) == 6\n}\n"
-	ownRule     = "rule own() -> int {\n    return 1\n}\n"
+	siblingRule = "rule double(n: int) -> int {\n    return n * 2;\n}\n"
+	usesSibling = "use t.app.b\n\ntest doubles {\n    expect b.double(3) == 6;\n}\n"
+	ownRule     = "rule own() -> int {\n    return 1;\n}\n"
 )
 
 func notADependency(diags []Diagnostic) bool {
@@ -62,7 +62,7 @@ func TestTestMayImportASiblingPackage(t *testing.T) {
 func TestSourceStillImportsOnlyItsDependencies(t *testing.T) {
 	b := types.Packages{"t.app.b": siblingPackage(t, siblingRule)}
 	sources := map[string]string{
-		"src/Own.fiig": "use t.app.b\n\nrule own() -> int {\n    return b.double(1)\n}\n",
+		"src/Own.fiig": "use t.app.b\n\nrule own() -> int {\n    return b.double(1);\n}\n",
 	}
 	diags, _ := CheckSourcesWithSiblings(sources, types.Packages{"t.app.other": b["t.app.b"]}, b, "t.app.a", nil)
 	if !notADependency(diags) {
@@ -73,10 +73,10 @@ func TestSourceStillImportsOnlyItsDependencies(t *testing.T) {
 // ADR 0102 §3a: a test may call a workflow of a package of its own module,
 // as an adapter does; another module's workflow is still refused (B8).
 func TestATestMayCallASiblingsWorkflow(t *testing.T) {
-	b := types.Packages{"t.app.b": siblingPackage(t, "workflow run(n: int) -> int {\n    return n\n}\n")}
+	b := types.Packages{"t.app.b": siblingPackage(t, "workflow run(n: int) -> int {\n    return n;\n}\n")}
 	sources := map[string]string{
 		"src/Own.fiig":   ownRule,
-		"test/Runs.fiig": "use t.app.b\n\ntest runs {\n    expect b.run(3) == 3\n}\n",
+		"test/Runs.fiig": "use t.app.b\n\ntest runs {\n    expect b.run(3) == 3;\n}\n",
 	}
 	diags, _ := CheckSourcesWithSiblings(sources, nil, b, "t.app.a", nil)
 	for _, d := range diags {

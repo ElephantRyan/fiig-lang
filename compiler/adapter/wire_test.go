@@ -17,7 +17,7 @@ func wireProgram(conversion string) []string {
     name: string
 }`,
 		`workflow logIn(name: string) -> User {
-    return User(name: name)
+    return User(name: name);
 }`,
 		conversion,
 		`adapter http api {
@@ -49,7 +49,7 @@ func TestCookiesAndHeadersAreWritten(t *testing.T) {
             ),
             Cookie(name: "embed", value: "x", sameSite: SameSite.AnySite),
         ],
-    )
+    );
 }`)...)
 	code, hdr, body := serve(h, httptest.NewRequest(http.MethodPost, "/login/ada", nil))
 	if code != 200 || strings.TrimSpace(body) != `{"name":"ada"}` {

@@ -9,20 +9,20 @@ import (
 func TestSortedForm(t *testing.T) {
 	model := "model Parcel {\n    id: string\n    kilograms: decimal\n    region: string\n}"
 	rule := `activity order(parcels: List<Parcel>, descending: bool) -> string {
-    if descending {
-        heavy = sorted(p in parcels): p.kilograms descending
-        return "${ids(heavy)}"
+    if (descending) {
+        heavy = sorted(p in parcels): p.kilograms descending;
+        return "${ids(heavy)}";
     }
-    light = sorted(p in parcels): p.kilograms
-    byRegionThenWeight = sorted(p in light): p.region
-    return "${ids(light)} ${ids(byRegionThenWeight)}"
+    light = sorted(p in parcels): p.kilograms;
+    byRegionThenWeight = sorted(p in light): p.region;
+    return "${ids(light)} ${ids(byRegionThenWeight)}";
 }`
 	ids := `rule ids(parcels: List<Parcel>) -> string {
-    out: string = ""
-    for p in parcels {
-        out = "${out}${p.id}"
+    out: string = "";
+    for (p in parcels) {
+        out = "${out}${p.id}";
     }
-    return out
+    return out;
 }`
 	checkClean(t, model, rule, ids)
 	in := newTestInterp(universeFromSource(t, model, rule, ids), nil)

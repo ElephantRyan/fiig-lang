@@ -33,17 +33,17 @@ func checkWithSource(t *testing.T, srcs ...string) map[string]int {
 // is DeductionSource | None, and header fields read off any value.
 func TestHeadedEnumLookupAndFieldAccess(t *testing.T) {
 	got := checkWithSource(t, `rule resolve(raw: string) -> DeductionSource | None {
-    return DeductionSource(code: raw)
+    return DeductionSource(code: raw);
 }
 `, `rule byAlias(raw: string) -> DeductionSource | None {
-    return DeductionSource(aliases: raw)
+    return DeductionSource(aliases: raw);
 }
 `, `rule codeOf(source: DeductionSource) -> string {
-    return source.code
+    return source.code;
 }
 `, `rule layoutOf() -> FieldLayout {
-    source = DeductionSource.Acme
-    return source.layout
+    source = DeductionSource.Acme;
+    return source.layout;
 }
 `)
 	if len(got) != 0 {
@@ -55,7 +55,7 @@ func TestHeadedEnumLookupAndFieldAccess(t *testing.T) {
 // DeductionSource.
 func TestLookupResultMayBeNone(t *testing.T) {
 	got := checkWithSource(t, `rule resolve(raw: string) -> DeductionSource {
-    return DeductionSource(code: raw)
+    return DeductionSource(code: raw);
 }
 `)
 	if len(got) == 0 {
@@ -168,19 +168,19 @@ func TestDuplicateKeyValuesAreA16(t *testing.T) {
 func TestKeyLookupMisuseIsA17(t *testing.T) {
 	cases := map[string]string{
 		"not a key": `rule r(x: FieldLayout) -> DeductionSource | None {
-    return DeductionSource(layout: x)
+    return DeductionSource(layout: x);
 }
 `,
 		"positional": `rule r(raw: string) -> DeductionSource | None {
-    return DeductionSource(raw)
+    return DeductionSource(raw);
 }
 `,
 		"two keys": `rule r(raw: string) -> DeductionSource | None {
-    return DeductionSource(code: raw, aliases: raw)
+    return DeductionSource(code: raw, aliases: raw);
 }
 `,
 		"no header": `rule r(raw: string) -> FieldLayout | None {
-    return FieldLayout(code: raw)
+    return FieldLayout(code: raw);
 }
 `,
 	}

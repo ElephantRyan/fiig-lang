@@ -7,14 +7,14 @@ import "testing"
 // Found by ADR 0084's relay driver, whose reply is a decoded nested Result.
 func TestNameInsideOkKeepsANestedResult(t *testing.T) {
 	src := `rule unwrapOnce(n: int) -> Result<int, string> {
-    inner: Result<int, string> = Ok(n)
-    outer: Result<Result<int, string>, string> = Ok(inner)
-    match outer {
+    inner: Result<int, string> = Ok(n);
+    outer: Result<Result<int, string>, string> = Ok(inner);
+    return match (outer) {
         Ok(reply) -> {
-            return reply
+            return reply;
         }
         Err(problem) -> {
-            return Err(problem)
+            return Err(problem);
         }
     }
 }`

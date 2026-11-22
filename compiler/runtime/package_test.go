@@ -118,7 +118,7 @@ func TestCallCrossPackageUndefinedDeclarationFaults(t *testing.T) {
 use standard.time as systemTime
 
 activity bogus(from: systemTime.Instant) -> systemTime.Instant {
-    return systemTime.doesNotExist(from)
+    return systemTime.doesNotExist(from);
 }`)
 	universe, conflicts := types.BuildUniverse([]*syntax.File{file})
 	if len(conflicts) > 0 {

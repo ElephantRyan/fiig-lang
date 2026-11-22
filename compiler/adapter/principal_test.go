@@ -22,38 +22,38 @@ var principalProgram = []string{
 	"enum AdminRefusal {\n    NotAnAdmin\n}",
 	"model Note {\n    text: string\n}",
 	`workflow signedIn(token: string | None) -> Result<Identity, IdentityError> {
-    match token {
+    return match (token) {
         None -> {
-            return Err(IdentityError.NotSignedIn)
+            return Err(IdentityError.NotSignedIn);
         }
         given -> {
-            if given == "ann" or given == "boss" {
-                return Ok(Identity(userId: given))
+            if (given == "ann" || given == "boss") {
+                return Ok(Identity(userId: given));
             }
-            return Err(IdentityError.NotSignedIn)
+            return Err(IdentityError.NotSignedIn);
         }
     }
 }`,
 	`workflow signedInAdmin(me: Identity) -> Result<Admin, AdminRefusal> {
-    if me.userId == "boss" {
-        return Ok(Admin(userId: me.userId))
+    if (me.userId == "boss") {
+        return Ok(Admin(userId: me.userId));
     }
-    return Err(AdminRefusal.NotAnAdmin)
+    return Err(AdminRefusal.NotAnAdmin);
 }`,
 	`conversion signInFirst(error: IdentityError) -> HttpResponse<string> {
-    return HttpResponse(status: 401, body: "sign in first")
+    return HttpResponse(status: 401, body: "sign in first");
 }`,
 	`conversion notAnAdmin(error: AdminRefusal) -> HttpResponse<string> {
-    return HttpResponse(status: 403, body: "admins only")
+    return HttpResponse(status: 403, body: "admins only");
 }`,
 	`workflow addNote(me: Identity, note: Note) -> string {
-    return "${me.userId}: ${note.text}"
+    return "${me.userId}: ${note.text}";
 }`,
 	`workflow showSettings(admin: Admin) -> string {
-    return "settings for ${admin.userId}"
+    return "settings for ${admin.userId}";
 }`,
 	`workflow showCover(id: string) -> string {
-    return "cover ${id}"
+    return "cover ${id}";
 }`,
 	`adapter http api {
     wire me: Identity from cookie "sid" by signedIn else signInFirst

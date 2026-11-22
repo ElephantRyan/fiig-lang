@@ -33,26 +33,26 @@ var startupProgram = map[string]string{
     Slow
 }`,
 	"storage_ok.fiig": `workflow storageOk() -> Result<None, CheckError> {
-    return Ok(None)
+    return Ok(None);
 }`,
 	"storage_missing.fiig": `workflow storageMissing() -> Result<None, CheckError> {
-    return Err(CheckError.Missing)
+    return Err(CheckError.Missing);
 }`,
 	"cache_slow.fiig": `workflow cacheSlow() -> Result<None, CheckError> {
-    return Err(CheckError.Slow)
+    return Err(CheckError.Slow);
 }`,
 	"faulty.fiig": `workflow faulty() -> Result<None, CheckError> {
-    zero = 1 - 1
-    n = 1 / zero
-    if n > 0 {
-        return Ok(None)
+    zero = 1 - 1;
+    n = 1 / zero;
+    if (n > 0) {
+        return Ok(None);
     }
-    return Ok(None)
+    return Ok(None);
 }`,
 	"hung.fiig": `workflow hung() -> Result<None, CheckError> {
-    while true {
+    while (true) {
     }
-    return Ok(None)
+    return Ok(None);
 }`,
 	// Every check passes or is tolerated: a slow cache is only logged.
 	"good.fiig": `adapter startup Good {

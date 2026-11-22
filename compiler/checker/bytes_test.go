@@ -10,16 +10,16 @@ import (
 
 func TestBinaryPatternsAndExpressionsTypeCheck(t *testing.T) {
 	f := mustParse(t, `conversion frame(buffer: bytes) -> int {
-    match buffer {
+    return match (buffer) {
         <<kind: u8, length: i32be, body: bytes(length - 4), rest: bytes>> -> {
-            out = <<kind: u8, body.length() + 4: i32be, body: bytes, rest: bytes>>
-            return out.length() + body.at(0) + kind
+            out = <<kind: u8, body.length() + 4: i32be, body: bytes, rest: bytes>>;
+            return out.length() + body.at(0) + kind;
         }
         <<0x52: u8, _: u16le, "ok": utf8, word: utf8(2)>> -> {
-            return word.utf8().length()
+            return word.utf8().length();
         }
         _ -> {
-            return 0
+            return 0;
         }
     }
 }
@@ -31,19 +31,19 @@ func TestBinaryPatternsAndExpressionsTypeCheck(t *testing.T) {
 
 func TestBytesMethodsAreTyped(t *testing.T) {
 	f := mustParse(t, `rule methods(b: bytes, s: string) -> bool {
-    n: int = b.length()
-    first: int = b.at(0)
-    head: bytes = b.slice(0, 2)
-    raw: bytes = s.utf8()
-    for x in b {
-        n = n + x
+    n: int = b.length();
+    first: int = b.at(0);
+    head: bytes = b.slice(0, 2);
+    raw: bytes = s.utf8();
+    for (x in b) {
+        n = n + x;
     }
-    match b.utf8() {
+    return match (b.utf8()) {
         None -> {
-            return false
+            return false;
         }
         text -> {
-            return text.contains("@")
+            return text.contains("@");
         }
     }
 }
@@ -53,8 +53,8 @@ func TestBytesMethodsAreTyped(t *testing.T) {
 	}
 
 	bad := mustParse(t, `rule bad(b: bytes) -> int {
-    s: string = b.at(0)
-    return b.size()
+    s: string = b.at(0);
+    return b.size();
 }
 `)
 	got := Check([]*syntax.File{bad}, nil)
@@ -65,7 +65,7 @@ func TestBytesMethodsAreTyped(t *testing.T) {
 
 func TestBinaryPatternWithoutCatchAllIsA9(t *testing.T) {
 	f := mustParse(t, `conversion code(body: bytes) -> int {
-    match body {
+    return match (body) {
         <<n: i32be>> -> n
     }
 }
@@ -96,7 +96,7 @@ func TestSegmentErrorsAreA14(t *testing.T) {
 		"int literal as utf8": "<<7: utf8(1)>> -> 0",
 	}
 	for name, arm := range cases {
-		src := "conversion c(b: bytes, outside: int) -> int {\n    match b {\n        " + arm + "\n        _ -> 0\n    }\n}\n"
+		src := "conversion c(b: bytes, outside: int) -> int {\n    return match (b) {\n        " + arm + "\n        _ -> 0\n    }\n}\n"
 		got := rules(Check([]*syntax.File{mustParse(t, src)}, nil))
 		if got["A14"] != 1 {
 			t.Errorf("%s: want one A14, got %v", name, got)
@@ -120,7 +120,7 @@ func TestSegmentErrorsAreA14(t *testing.T) {
 
 func TestBinaryPatternNeedsBytes(t *testing.T) {
 	f := mustParse(t, `conversion c(n: int) -> int {
-    match n {
+    return match (n) {
         <<x: u8>> -> x
         _ -> 0
     }
@@ -135,10 +135,10 @@ func TestBinaryPatternNeedsBytes(t *testing.T) {
 // take no argument.
 func TestBytesEncodingsCheck(t *testing.T) {
 	if diags := checkSrc(t, `rule r(b: bytes) -> string {
-    return "${b.toHex()} ${b.toBase64()} ${b.toBase64Url()}"
+    return "${b.toHex()} ${b.toBase64()} ${b.toBase64Url()}";
 }`); len(diags) != 0 {
 		t.Fatalf("diags = %v, want none", diags)
 	}
-	wantDiag(t, checkSrc(t, "rule r(b: bytes) -> string {\n    return b.toHex(2)\n}"), "", "bytes.toHex takes 0 argument(s), got 1")
-	wantDiag(t, checkSrc(t, "rule r(s: string) -> string {\n    return s.toHex()\n}"), "K1", `string has no method "toHex"`)
+	wantDiag(t, checkSrc(t, "rule r(b: bytes) -> string {\n    return b.toHex(2);\n}"), "", "bytes.toHex takes 0 argument(s), got 1")
+	wantDiag(t, checkSrc(t, "rule r(s: string) -> string {\n    return s.toHex();\n}"), "K1", `string has no method "toHex"`)
 }

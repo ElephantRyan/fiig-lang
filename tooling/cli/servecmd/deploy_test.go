@@ -36,16 +36,16 @@ func mustID(t *testing.T, root string, lookup func(string) (string, bool)) int64
 // ADR 0124 §6: replicas of one deploy agree, changed code is a new deploy,
 // and neither line endings nor files that aren't the program matter.
 func TestDeployIDFollowsTheProgram(t *testing.T) {
-	app := map[string]string{"a.fiig": "workflow a() -> int {\n    return 1\n}\n", "fiig.pkg.json": `{"path": "x"}`}
+	app := map[string]string{"a.fiig": "workflow a() -> int {\n    return 1;\n}\n", "fiig.pkg.json": `{"path": "x"}`}
 	a := mustID(t, writeApp(t, app), none)
 	if b := mustID(t, writeApp(t, app), none); a != b {
 		t.Errorf("the same program has ids %d and %d", a, b)
 	}
-	changed := map[string]string{"a.fiig": "workflow a() -> int {\n    return 2\n}\n", "fiig.pkg.json": app["fiig.pkg.json"]}
+	changed := map[string]string{"a.fiig": "workflow a() -> int {\n    return 2;\n}\n", "fiig.pkg.json": app["fiig.pkg.json"]}
 	if c := mustID(t, writeApp(t, changed), none); c == a {
 		t.Errorf("changed code has the same id %d", a)
 	}
-	crlf := map[string]string{"a.fiig": "workflow a() -> int {\r\n    return 1\r\n}\r\n", "fiig.pkg.json": app["fiig.pkg.json"]}
+	crlf := map[string]string{"a.fiig": "workflow a() -> int {\r\n    return 1;\r\n}\r\n", "fiig.pkg.json": app["fiig.pkg.json"]}
 	if d := mustID(t, writeApp(t, crlf), none); d != a {
 		t.Errorf("CRLF line endings changed the id: %d, %d", d, a)
 	}
@@ -57,7 +57,7 @@ func TestDeployIDFollowsTheProgram(t *testing.T) {
 
 // $FIIG_DEPLOY names the deploy outright.
 func TestDeployIDCanBeNamed(t *testing.T) {
-	root := writeApp(t, map[string]string{"a.fiig": "workflow a() -> int {\n    return 1\n}\n"})
+	root := writeApp(t, map[string]string{"a.fiig": "workflow a() -> int {\n    return 1;\n}\n"})
 	named := func(v string) func(string) (string, bool) {
 		return func(k string) (string, bool) { return v, k == "FIIG_DEPLOY" }
 	}

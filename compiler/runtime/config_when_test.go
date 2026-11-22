@@ -14,17 +14,17 @@ import (
 var whenSources = []string{`wire SignInConfig {
     authMode: string from env "AUTH_MODE" = "both"
     mirror: bool from env "MIRROR" = false
-}`, `wire Oidc when SignInConfig.authMode != "abs" {
+}`, `wire Oidc when (SignInConfig.authMode != "abs") {
     issuer: string from env "OIDC_ISSUER"
     secret: Secret from env "OIDC_SECRET"
-}`, `wire Mirror when SignInConfig.mirror and SignInConfig.authMode == "both" {
+}`, `wire Mirror when (SignInConfig.mirror && SignInConfig.authMode == "both") {
     target: string from env "MIRROR_TARGET" = "replica"
 }`, `activity issuer() -> string {
-    return Oidc.issuer
+    return Oidc.issuer;
 }`, `activity target() -> string {
-    return Mirror.target
+    return Mirror.target;
 }`, `activity mode() -> string {
-    return SignInConfig.authMode
+    return SignInConfig.authMode;
 }`}
 
 func whenInterp(t *testing.T, partial bool, env map[string]string) (*Interp, []string) {

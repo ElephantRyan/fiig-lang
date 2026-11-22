@@ -14,28 +14,28 @@ func TestPatternLiteralAndArmStatementAreOneError(t *testing.T) {
 		// ADR 0130 allows an int, a string and a bool in a pattern; a float and
 		// a decimal stay refused, in one error.
 		"float in a pattern": {`rule r(x: Result<float, Failure>) -> int {
-    match x {
+    return match (x) {
         Ok(1.5) -> 1
         _ -> 0
     }
 }
 `, "a pattern can't hold a float or decimal literal (1.5)"},
 		"string with an interpolation": {`rule r(x: string) -> int {
-    match x {
+    return match (x) {
         "a${x}" -> 1
         _ -> 0
     }
 }
 `, "a string pattern can't interpolate"},
 		"expect after an arrow": {`test t {
-    match found {
+    match (found) {
         None -> expect false
         seen -> expect seen == 1
     }
 }
 `, "`expect` is a statement, and an arm takes an expression or a block"},
 		"return after an arrow": {`rule r(x: int | None) -> int {
-    match x {
+    return match (x) {
         None -> return 0
         n -> n
     }
@@ -62,12 +62,12 @@ func TestPrivateBlockInACapabilityGroupIsOneError(t *testing.T) {
 	gateway := `    gateway me(token: string) -> Result<User, ApiError>
         requires HttpClient
     {
-        return Err(ApiError.Down)
+        return Err(ApiError.Down);
     }
 `
 	helper := `private {
     okBody(request: http.Request) -> Result<bytes, ApiError> {
-        match HttpClient.send(request) {
+        return match (HttpClient.send(request)) {
             Err(failure) -> Err(ApiError.Down)
             Ok(reply) -> Ok(reply.body)
         }

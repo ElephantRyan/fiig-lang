@@ -31,7 +31,7 @@ use company.time as businessTime
 use standard.time as systemTime
 
 activity computeFollowUpDate(from: systemTime.Instant) -> systemTime.Instant {
-    return businessTime.addBusinessDays(from, 3)
+    return businessTime.addBusinessDays(from, 3);
 }
 ```
 
@@ -117,7 +117,7 @@ what each may call and whether it may touch the outside world.
 // RULE — pure, and calls nothing but formulas (ADR 0029, narrowed by
 // ADR 0049).                                                         [built]
 rule regionDisplayName(region: Region) -> string {
-    match region {
+    return match (region) {
         Region.US -> "United States"
         Region.EU -> "Europe"
         Region.APAC -> "Asia-Pacific"
@@ -129,7 +129,7 @@ rule regionDisplayName(region: Region) -> string {
 // CONVERSION — a rule specialized to relating two types. Pure; may call
 // rules and other conversions.                                       [built]
 conversion customerToSummary(customer: Customer) -> CustomerSummary {
-    return CustomerSummary(id: customer.id, name: customer.name)
+    return CustomerSummary(id: customer.id, name: customer.name);
 }
 ```
 
@@ -139,11 +139,11 @@ conversion customerToSummary(customer: Customer) -> CustomerSummary {
 // Result, never `requires` (ADR 0049).                               [built]
 formulas text {
     formula isEmailShaped(s: string) -> bool {
-        return s.contains("@") and not hasSpace(s)   // siblings: unqualified
+        return s.contains("@") && !hasSpace(s);   // siblings: unqualified
     }
 
     formula hasSpace(s: string) -> bool {
-        return s.contains(" ")
+        return s.contains(" ");
     }
 }
 
@@ -152,10 +152,10 @@ formulas text {
 use customer.service.text
 
 rule validateEmail(email: string) -> Result<string, CustomerError> {
-    if not text.isEmailShaped(email) {
-        return Err(CustomerError.Invalid("email", "must be a valid address"))
+    if (!text.isEmailShaped(email)) {
+        return Err(CustomerError.Invalid("email", "must be a valid address"));
     }
-    return Ok(email)
+    return Ok(email);
 }
 ```
 
@@ -163,11 +163,11 @@ rule validateEmail(email: string) -> Result<string, CustomerError> {
 // ACTIVITY — reusable coordination. Identical in shape to a rule; it has no
 // `requires` clause, ever.                                           [built]
 activity validateNewCustomer(input: NewCustomer) -> Result<NewCustomer, CustomerError> {
-    if input.name.isBlank() {
-        return Err(CustomerError.Invalid("name", "must not be blank"))
+    if (input.name.isBlank()) {
+        return Err(CustomerError.Invalid("name", "must not be blank"));
     }
-    validateEmail(input.email)?
-    return Ok(input)
+    validateEmail(input.email)?;
+    return Ok(input);
 }
 ```
 
@@ -182,8 +182,8 @@ gateway getCustomer(id: string) -> Result<Customer, CustomerError>
     requires Database
     idempotent
 {
-    row: Customer | None = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id)
-    match row {
+    row: Customer | None = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id);
+    return match (row) {
         found -> Ok(found)
         None -> Err(CustomerError.NotFound(id))
     }
@@ -194,8 +194,8 @@ gateway getCustomer(id: string) -> Result<Customer, CustomerError>
 // WORKFLOW — the adapter boundary. `?` propagates Err out of the
 // enclosing declaration.                                             [built]
 workflow createCustomer(input: NewCustomer) -> Result<Customer, CustomerError> {
-    validated = validateNewCustomer(input)?
-    return insertCustomer(validated)
+    validated = validateNewCustomer(input)?;
+    return insertCustomer(validated);
 }
 ```
 
@@ -203,8 +203,8 @@ workflow createCustomer(input: NewCustomer) -> Result<Customer, CustomerError> {
 // A Database call opts in to the conflicts a program decides on by the
 // type its context expects; every other call still faults on them
 // (ADR 0087).                                                        [built]
-inserted: Result<int, DatabaseConflict> = Database.execute("INSERT INTO customers ...", id, name, email)
-match inserted {
+inserted: Result<int, DatabaseConflict> = Database.execute("INSERT INTO customers ...", id, name, email);
+match (inserted) {
     Ok(_) -> Ok(Customer(id: id, name: name, email: email))
     Err(DatabaseConflict.Unique(constraint)) -> Err(CustomerError.EmailAlreadyInUse(email))
     Err(other) -> Err(CustomerError.Invalid("customer", "${other}"))
@@ -217,8 +217,8 @@ match inserted {
 // database aborts it as a serialization failure or a deadlock; each
 // attempt starts over from the block's starting locals (ADR 0088).  [built]
 transaction Database serializable retry(attempts: 5) {
-    number = nextNumber()
-    takeNumber(number, holder)
+    number = nextNumber();
+    takeNumber(number, holder);
 }
 ```
 
@@ -250,30 +250,33 @@ final.
 ```fiig
 // Binding, if/else, return, match, and bare expressions.
 activity example(input: NewCustomer) -> Result<None, CustomerError> {
-    trimmed = input.name                      // binding              [built]
+    trimmed = input.name;                      // binding              [built]
 
-    if input.name.isBlank() {                 // single-sided guard    [built]
-        return Err(CustomerError.Invalid("name", "blank"))
-    } else if trimmed == "test" {             // else / else if  [unattested]
-        return Err(CustomerError.Invalid("name", "reserved"))
+    if (input.name.isBlank()) {                 // single-sided guard    [built]
+        return Err(CustomerError.Invalid("name", "blank"));
+    } else if (trimmed == "test") {             // else / else if  [unattested]
+        return Err(CustomerError.Invalid("name", "reserved"));
     } else {
-        return Ok(None)
+        return Ok(None);
     }
 }
 ```
 
-A block's final statement, if it is a bare expression or a `match`, implicitly
-becomes the return value. `return expr` as the last statement is exactly
-equivalent sugar. This is why some corpus files end in a bare
-`concurrent(...)` with no `return`, and others write `return` explicitly.
-`if`/`else` in final position is *not* covered by this rule.
+A statement ends with `;`, and one that ends in `}` (an `if`, a loop, a
+`match` statement) takes none. A condition is written in parentheses:
+`if (...)`, `while (...)`, `for (x in xs)`, `match (x)` (ADR 0142).
+
+A block has no implicit last value: a declaration's result is always
+`return`ed. A `match` is a value after `return` or as a binding's value,
+`return match (x) { ... }` or `name = match (x) { ... }`, and an arm's block
+there ends in `return` (ADR 0142 §2).
 
 ```fiig
 // MATCH. Patterns are `_`, a qualified name with optional sub-patterns, or a
 // bare identifier that binds the whole value. Matches over enums must be
 // exhaustive (bug class A9).                                          [built]
 conversion customerErrorToHttpResponse(error: CustomerError) -> HttpResponse {
-    match error {
+    return match (error) {
         CustomerError.NotFound(_) -> HttpResponse(status: 404, body: None)
         CustomerError.EmailAlreadyInUse(_) -> HttpResponse(status: 409, body: None)
         error -> HttpResponse(status: 500, body: None)
@@ -286,7 +289,7 @@ a status code or a name is matched where it is:
 
 ```fiig
 conversion describe(code: int) -> string {
-    match code {
+    return match (code) {
         200 -> "ok"
         404 -> "missing"
         -1 -> "unset"
@@ -302,18 +305,19 @@ enough. A float or a decimal has no literal pattern: bind it and compare.
 ## 6. Expressions
 
 ```fiig
-// Operators, in precedence order: postfix access/call, unary (`not`, `-`),
-// `* / %`, `+ -`, comparison, `and`, `or`.
+// Operators, in precedence order: postfix access/call, unary (`!`, `-`),
+// `* / %`, `+ -`, comparison, `&&`, `||`, `??`. `&&`, `||` and `!` take
+// bools only; `??` beside `&&` or `||` needs parentheses (ADR 0142 §3).
 // Arithmetic is on int or on float, never one of each, and never
 // overloadable (ADR 0019, ADR 0048).
 rule orderTotal(subtotal: int, shipping: int) -> int {
-    return subtotal + shipping
+    return subtotal + shipping;
 }
 
-// `or` after a `T | None` is its default, used only when it's None
-// (ADR 0099): `input.note or ""` is a string.
+// `??` after a `T | None` is its default, used only when it's None
+// (ADR 0099, spelled `??` by ADR 0142): `input.note ?? ""` is a string.
 rule displayName(alias: string | None, name: string | None) -> string {
-    return alias or name or "anonymous"
+    return alias ?? name ?? "anonymous";
 }
 ```
 
@@ -323,18 +327,18 @@ rule displayName(alias: string | None, name: string | None) -> string {
 // as in Go: one takes its type from where it lands, so `/ 5000` divides a
 // float by a float here, with no conversion written.
 rule billableWeightKg(parcel: Parcel) -> float {
-    dimensional = parcel.lengthCm * parcel.widthCm * parcel.heightCm / 5000
-    if dimensional > parcel.weightKg {
-        return dimensional
+    dimensional = parcel.lengthCm * parcel.widthCm * parcel.heightCm / 5000;
+    if (dimensional > parcel.weightKg) {
+        return dimensional;
     }
-    return parcel.weightKg
+    return parcel.weightKg;
 }
 
 // A constant is evaluated exactly and rounded once, where it lands, so
 // `0.1 + 0.2` is the float nearest 0.3. The wart, inherited from Go: `/` on
 // two integer constants is integer division even in a float context.
-whole: float = 7 / 2      // 3.0
-exact: float = 7.0 / 2    // 3.5
+whole: float = 7 / 2;      // 3.0
+exact: float = 7.0 / 2;    // 3.5
 
 // No float ==: two floats that should agree can differ in the last bit
 // (M1, at any depth: a model holding a float has no == either). < <= > >=
@@ -356,11 +360,11 @@ everything it holds is.
 // every file with no `use`. Crossing between int and float is a call that
 // says how it rounds; a result with no int, or no finite float, faults.
 rule billedKilograms(parcel: Parcel) -> int {
-    return math.ceilToInt(parcel.weightKg)   // 19.2 -> 20
+    return math.ceilToInt(parcel.weightKg);   // 19.2 -> 20
 }
 
-average = total / math.toFloat(count)
-near = math.closeTo(average, expected, relative: 1e-9, absolute: 0.005)
+average = total / math.toFloat(count);
+near = math.closeTo(average, expected, relative: 1e-9, absolute: 0.005);
 math.abs(-3)          // int form: a constant with no typed partner is an int
 math.max(x, 0)        // float form, when x is a float; math.max(n, x) is A1
 math.addOrNone(a, b)  // int | None: None where `a + b` would fault (ADR 0063)
@@ -368,7 +372,7 @@ math.sqrt(-1.0)       // fault: not a real number
 
 // Its constants are untyped, like any literal: math.pi * 2 folds exactly,
 // and math.maxInt + 1 is a compile error. pi tau e minInt maxInt maxFloat.
-area = math.pi * r * r
+area = math.pi * r * r;
 ```
 
 ```fiig
@@ -378,7 +382,7 @@ area = math.pi * r * r
 // (1.50 == 1.5). A constant becomes a decimal only where one is wanted, and
 // only if it is exact: 1.0 / 3.0 or math.pi as a decimal is A1.
 rule declaredWeightKg(pounds: decimal) -> decimal {
-    return math.round(shipping.poundsToKilograms(pounds), places: 1, rounding: Rounding.HalfUp)
+    return math.round(shipping.poundsToKilograms(pounds), places: 1, rounding: Rounding.HalfUp);
 }
 
 // No `/`: most quotients have no exact decimal value, so the places and the
@@ -396,12 +400,12 @@ math.roundToInt(price)       // the *ToInt crossings take decimals too
 Customer(id: id, name: input.name, email: input.email)        // named
 CustomerError.NotFound(id)                                     // positional
 s.replaceAll(old: "-", new: "/")      // builtins take names too (ADR 0068 §5)
-xs = append(xs, element: x)          // positional first, then named
+xs = append(xs, element: x);          // positional first, then named
 Database.queryOne("SELECT ...", id)   // capability call = ordinary postfix
 
 // `copy` produces a new value of the same model, changing only what's named.
 rule renameCustomer(customer: Customer, newName: string) -> Customer {
-    return copy(customer, name: newName)
+    return copy(customer, name: newName);
 }
 
 // String interpolation.
@@ -413,7 +417,7 @@ rule renameCustomer(customer: Customer, newName: string) -> Customer {
 // `name: encoding` segments. Byte order is always written; a short buffer
 // falls through to the next arm; a built value that doesn't fit faults.
 conversion readFrame(buffer: bytes) -> Frame | None {
-    match buffer {
+    return match (buffer) {
         <<kind: u8, length: i32be, body: bytes(length - 4), rest: bytes>> -> Frame(kind: kind, body: body, rest: rest)
         _ -> None
     }
@@ -426,53 +430,53 @@ conversion readFrame(buffer: bytes) -> Frame | None {
 // List literals (ADR 0057). The element type is inferred; `[]` needs a
 // declared type. `append` returns a new list and must be assigned.
 // `==` on lists compares contents, in order.
-codes = ["ACME", "GLBX"]
+codes = ["ACME", "GLBX"];
 rule largeOrderIds(orders: List<Order>, threshold: int) -> List<string> {
-    ids: List<string> = []
-    for order in orders {
-        if order.total >= threshold {
-            ids = append(ids, order.id)
+    ids: List<string> = [];
+    for (order in orders) {
+        if (order.total >= threshold) {
+            ids = append(ids, order.id);
         }
     }
-    return ids
+    return ids;
 }
 
 // List queries (ADR 0065). Every method returns a value and changes
 // nothing, so a bare `xs.sorted()` statement is an error (A13).
-best = scores.sortedDescending()   // stable; sorted() ascends
-top = best.firstOrNone()           // int | None; first() faults when empty
-seen = best.contains(10)           // ==, so floats use math.containsClose
-where = best.indexOfOrNone(10)     // int | None (ADR 0129)
-page = best.drop(20).take(10)      // clamped to the length; reverse() and distinct() too
-all = best.concat(others)          // a new list: best's elements, then others' (ADR 0129 §2a)
-label = "${n}".padLeft(5, "0")     // "00007": width in grapheme clusters (ADR 0129)
-rule = "-".repeat(40)              // 40 dashes; a negative count faults (ADR 0129 §1a)
-levels = Level.values()            // an enum's variants in order, when none carries data
+best = scores.sortedDescending();   // stable; sorted() ascends
+top = best.firstOrNone();           // int | None; first() faults when empty
+seen = best.contains(10);           // ==, so floats use math.containsClose
+where = best.indexOfOrNone(10);     // int | None (ADR 0129)
+page = best.drop(20).take(10);      // clamped to the length; reverse() and distinct() too
+all = best.concat(others);          // a new list: best's elements, then others' (ADR 0129 §2a)
+label = "${n}".padLeft(5, "0");     // "00007": width in grapheme clusters (ADR 0129)
+rule = "-".repeat(40);              // 40 dashes; a negative count faults (ADR 0129 §1a)
+levels = Level.values();            // an enum's variants in order, when none carries data
 // Sorting records needs a key: evaluated once per element, stable, and
 // limited to calls with no effect (ADR 0100). Ties keep their order.
-ranked = sorted(book in books): book.score descending
+ranked = sorted(book in books): book.score descending;
 // More keys join with `then`, each with its own direction (ADR 0093).
-shelf = sorted(book in books): book.author then book.year descending
+shelf = sorted(book in books): book.author then book.year descending;
 
 // List forms (ADR 0093): the body is written in place, runs once per
 // element, and may call what its declaration may, minus effects (ADR 0100).
-good = filter(r in ratings): r.score >= 4         // List<Rating>
-ids = map(r in ratings): r.itemId                 // List<string>
-byItem = groupBy(r in ratings): r.itemId          // Map<string, List<Rating>>
-total = sum(r in ratings): r.score                // 0 for []
-newest = max(r in ratings): r.updatedAt           // faults on []; maxOrNone doesn't
-many = count(r in ratings): r.recommended         // also any(...) and all(...)
-seen = byItem.atOr("b-12", [])                    // a map value or a default
+good = filter(r in ratings): r.score >= 4;         // List<Rating>
+ids = map(r in ratings): r.itemId;                 // List<string>
+byItem = groupBy(r in ratings): r.itemId;          // Map<string, List<Rating>>
+total = sum(r in ratings): r.score;                // 0 for []
+newest = max(r in ratings): r.updatedAt;           // faults on []; maxOrNone doesn't
+many = count(r in ratings): r.recommended;         // also any(...) and all(...)
+seen = byItem.atOr("b-12", []);                    // a map value or a default
 
 // mapErr (ADR 0095): change a Result's error, written in place. `?`
 // after it applies to the whole form.
-user: User = mapErr(e in json.decode(body)): ApiError.Unreadable(failure: e)?
+user: User = mapErr(e in json.decode(body)): ApiError.Unreadable(failure: e)?;
 
 // Map (ADR 0065): immutable, in insertion order, keys compared with ==.
-limits = ["small": 10, "large": 500]       // Map<string, int>; [:] is empty
-limits = limits.put("medium", 50)           // a new map; assign it
-for size, limit in limits {                 // two names; _ discards one
-    total = total + limit
+limits = ["small": 10, "large": 500];       // Map<string, int>; [:] is empty
+limits = limits.put("medium", 50);           // a new map; assign it
+for (size, limit in limits) {               // two names; _ discards one
+    total = total + limit;
 }
 
 // Strings (ADR 0067): every count is named.
@@ -481,22 +485,22 @@ for size, limit in limits {                 // two names; _ discards one
 "Zoë 👍🏽".utf8().length()           // 13 bytes
 "hi".utf8().toHex()                 // "6869"; also toBase64(), toBase64Url()
 "Njg2OQ".fromBase64()               // bytes | None (ADR 0069): also fromHex(), fromBase64Url()
-email = input.email.trim().lowercase()
-token = header.removePrefix("Bearer ")
-tags = "a,b,,c".split(",")          // ["a", "b", "", "c"]
-line = tags.join(", ")
-page = query.toIntOrNone()          // int | None
+email = input.email.trim().lowercase();
+token = header.removePrefix("Bearer ");
+tags = "a,b,,c".split(",");          // ["a", "b", "", "c"]
+line = tags.join(", ");
+page = query.toIntOrNone();          // int | None
 ```
 
 ```fiig
 // Clock and Random are local effects (ADR 0068): an activity or a gateway
 // reads them directly, and a rule takes the value as a parameter.
 activity newSessionToken() -> string {
-    return Random.bytes(count: 32).toBase64Url()   // 256 bits, cookie-safe
+    return Random.bytes(count: 32).toBase64Url();   // 256 bits, cookie-safe
 }
 
 activity nextRetryDelay(attempt: int) -> int {
-    return backoffDelay(attempt: attempt, jitter: Random.int(min: 0, max: 99))
+    return backoffDelay(attempt: attempt, jitter: Random.int(min: 0, max: 99));
 }
 // Random.int includes both ends; Random.float() is in [0, 1);
 // Random.uuid() is a version 4 UUID; Clock.now() is Unix milliseconds.
@@ -509,15 +513,15 @@ activity nextRetryDelay(attempt: int) -> int {
 // thing that walks a List. Modifiers are comma-separated, each at most once,
 // in any order: `limit: N | unbounded`, `preserveOrder`.              [built]
 workflow retrieveCustomers(customerIds: List<string>) -> BatchResult<string, Customer, CustomerError> {
-    concurrent(customerId in customerIds, limit: 5, preserveOrder):
-        getCustomer(customerId)
+    return concurrent(customerId in customerIds, limit: 5, preserveOrder):
+        getCustomer(customerId);
 }
 ```
 
 ```fiig
 // `retry` is explicit, and only legal around an idempotent gateway (ADR 0014).
 workflow readCustomerWithRetry(id: string) -> Result<Customer, CustomerError> {
-    return retry(attempts: 3): getCustomer(id)
+    return retry(attempts: 3): getCustomer(id);
 }
 ```
 
@@ -527,8 +531,8 @@ workflow readCustomerWithRetry(id: string) -> Result<Customer, CustomerError> {
 // capability. No transaction handle appears anywhere.                [built]
 workflow changeCustomerEmail(id: string, newEmail: string) -> Result<Customer, CustomerError> {
     transaction Database {
-        updateCustomerEmail(id, newEmail)?
-        return getCustomer(id)
+        updateCustomerEmail(id, newEmail)?;
+        return getCustomer(id);
     }
 }
 ```
@@ -578,7 +582,7 @@ conversion loggedIn(session: Session) -> HttpResponse<Account> {
         body: session.account,
         headers: ["Cache-Control": "no-store"],
         cookies: [Cookie(name: "sid", value: session.token, maxAge: 86400)],
-    )
+    );
 }
 ```
 
@@ -675,7 +679,7 @@ wire Sessions {
 // Only an activity or a gateway reads config; a rule takes the value as a
 // parameter (B10). A Secret is matched in constant time, never shown.
 activity exportAllowed(token: string) -> bool {
-    return Sessions.exportToken.matches(token)
+    return Sessions.exportToken.matches(token);
 }
 
 // .reveal() only in a gateway, where the value leaves (S2).
@@ -736,14 +740,14 @@ requires Database
 gateway openSecure(host: string, port: int) -> Result<Connection, SocketError>
     requires Socket
 {
-    connection = Socket.connect(host, port)?
-    Socket.write(connection, <<8: i32be, 80877103: i32be>>)?
-    answer = Socket.read(connection)?
-    match answer {
+    connection = Socket.connect(host, port)?;
+    Socket.write(connection, <<8: i32be, 80877103: i32be>>)?;
+    answer = Socket.read(connection)?;
+    return match (answer) {
         <<83: u8>> -> Socket.startTls(connection, host)
         _ -> {
-            Socket.close(connection)
-            return Err(SocketError.Refused)
+            Socket.close(connection);
+            return Err(SocketError.Refused);
         }
     }
 }
@@ -781,8 +785,8 @@ use acme/stripe
 use acme/square
 
 rule choosePaymentProvider(merchant: Merchant) -> PaymentProvider {
-    if merchant.region == Region.EU { return square }
-    return stripe
+    if (merchant.region == Region.EU) { return square; }
+    return stripe;
 }
 ```
 
@@ -823,23 +827,23 @@ header; a `match` on the enum is for per-client logic. Corpus:
 // test/CreateValidRating.fiig: the tests of src/CreateValidRating.fiig,
 // as many as it needs, sharing one private block (ADR 0102).
 test ratingAboveTenIsRefused {
-    result = createValidRating(NewRating(item: "dune", score: 11, note: ""))
-    expect result is Err(problem)        // a shape; binds problem
-    expect problem == RatingError.Invalid("score", "must be from 1 to 10")
+    result = createValidRating(NewRating(item: "dune", score: 11, note: ""));
+    expect result is Err(problem);        // a shape; binds problem
+    expect problem == RatingError.Invalid("score", "must be from 1 to 10");
 }
 
 test chargeIsRecorded {
     fake LedgerApi {                      // replaces LedgerApi at any depth
         gateway record(entry: string) -> Result<None, string> {
-            return Ok(None)
+            return Ok(None);
         }
     }
     fake StripeAccount {                  // a config's values
         apiKey: "sk_test_1"
     }
 
-    expect takePayment(merchant, request) is Ok(_)
-    expect calls(LedgerApi.record) == 1
+    expect takePayment(merchant, request) is Ok(_);
+    expect calls(LedgerApi.record) == 1;
 }
 ```
 

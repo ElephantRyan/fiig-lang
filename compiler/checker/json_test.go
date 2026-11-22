@@ -15,14 +15,14 @@ const eventModel = `model Event {
 
 func TestJsonDecodeTakesItsTypeFromContext(t *testing.T) {
 	diags := checkSrc(t, eventModel, `rule parse(body: bytes) -> Result<Event, JsonError> {
-    event: Event = json.decode(body)?
-    tree: JsonValue = json.decode(event.data)?
-    text: string = json.decode("\"x\"")?
-    return json.decode(tree)
+    event: Event = json.decode(body)?;
+    tree: JsonValue = json.decode(event.data)?;
+    text: string = json.decode("\"x\"")?;
+    return json.decode(tree);
 }`, `rule send(event: Event) -> bytes {
-    return json.encode(event)
+    return json.encode(event);
 }`, `rule show(event: Event) -> bytes {
-    return json.encodePretty(value: event)
+    return json.encodePretty(value: event);
 }`)
 	if len(diags) > 0 {
 		t.Fatalf("diags = %v", diags)
@@ -30,8 +30,8 @@ func TestJsonDecodeTakesItsTypeFromContext(t *testing.T) {
 
 	// The call records what it decodes into, for the runtime.
 	f := mustParse(t, `rule parse(body: bytes) -> Result<Event, JsonError> {
-    event: Event = json.decode(body)?
-    return Ok(event)
+    event: Event = json.decode(body)?;
+    return Ok(event);
 }`)
 	Check([]*syntax.File{mustParse(t, eventModel), f}, nil)
 	call := f.Decls[0].(*syntax.RuleDecl).Body.Stmts[0].(*syntax.Binding).Value.(*syntax.TryExpr).Operand.(*syntax.CallExpr)
@@ -45,28 +45,28 @@ func TestJsonDecodeRefusals(t *testing.T) {
 		name, src, rule, fragment string
 	}{
 		{"no context", `rule r(body: bytes) -> int {
-    match json.decode(body) {
-        Ok(_) -> { return 1 }
-        Err(_) -> { return 0 }
+    return match (json.decode(body)) {
+        Ok(_) -> { return 1; }
+        Err(_) -> { return 0; }
     }
 }`, "A12", "json.decode has no type to decode into"},
 		{"no ?", `rule r(body: bytes) -> Event {
-    return json.decode(body)
+    return json.decode(body);
 }`, "A1", "add `?`"},
 		{"wrong error type", `rule r(body: bytes) -> Result<Event, string> {
-    return json.decode(body)
+    return json.decode(body);
 }`, "A1", "Result<Event, JsonError>"},
 		{"wrong input", `rule r(n: int) -> Result<Event, JsonError> {
-    return json.decode(n)
+    return json.decode(n);
 }`, "A1", "takes a string, bytes, or a JsonValue, got int"},
 		{"no member", `rule r(body: bytes) -> bytes {
-    return json.parse(body)
+    return json.parse(body);
 }`, "", "has no member \"parse\"; it has decode, encode, and encodePretty"},
 		{"encodePretty arity", `rule r(body: bytes) -> bytes {
-    return json.encodePretty(body, body)
+    return json.encodePretty(body, body);
 }`, "", "json calls take one argument, value"},
 		{"local named json", `rule r(json: int) -> int {
-    return json
+    return json;
 }`, "G4", "prelude json group"},
 	}
 	for _, c := range cases {
@@ -78,7 +78,7 @@ func TestJsonDecodeRefusals(t *testing.T) {
     a: int
 }`), "K2", "a prelude type")
 	wantDiag(t, checkSrc(t, `rule json(a: int) -> int {
-    return a
+    return a;
 }`), "K2", "the prelude json group")
 }
 
@@ -92,19 +92,19 @@ func TestJ1(t *testing.T) {
 		name, src, fragment string
 	}{
 		{"secret field", `rule r(body: bytes) -> Result<Session, JsonError> {
-    return json.decode(body)
+    return json.decode(body);
 }`, "json.decode into Session: field token is a Secret"},
 		{"encode secret", `rule r(s: Session) -> bytes {
-    return json.encode(s)
+    return json.encode(s);
 }`, "json.encode of Session: field token is a Secret"},
 		{"encodePretty secret", `rule r(s: Session) -> bytes {
-    return json.encodePretty(s)
+    return json.encodePretty(s);
 }`, "json.encodePretty of Session: field token is a Secret"},
 		{"map keys", `rule r(body: string) -> Result<Map<int, string>, JsonError> {
-    return json.decode(body)
+    return json.decode(body);
 }`, "a Map with int keys"},
 		{"nested in an enum", `rule r(body: string) -> Result<Holder, JsonError> {
-    return json.decode(body)
+    return json.decode(body);
 }`, "field Has.session.token is a Secret"},
 	}
 	holder := `enum Holder {
@@ -118,7 +118,7 @@ func TestJ1(t *testing.T) {
 	}
 	// Encoding a Map with int keys is allowed: it is a list of pairs.
 	if diags := checkSrc(t, `rule r(m: Map<int, string>) -> bytes {
-    return json.encode(m)
+    return json.encode(m);
 }`); len(diags) > 0 {
 		t.Errorf("encode Map<int, string>: %v", diags)
 	}
@@ -126,7 +126,7 @@ func TestJ1(t *testing.T) {
     name: string
     parts: Map<int, string>
 }`, `workflow upload(file: Upload) -> string {
-    return file.name
+    return file.name;
 }`, `adapter http api {
     POST "/uploads" -> upload(file: Upload)
         consumes "application/json"
@@ -141,11 +141,11 @@ func TestBytesIsNotJ1(t *testing.T) {
     name: string
     content: bytes
 }`, `rule read(body: string) -> Result<List<bytes>, JsonError> {
-    return json.decode(body)
+    return json.decode(body);
 }`, `rule write(file: Upload) -> bytes {
-    return json.encode(file)
+    return json.encode(file);
 }`, `workflow upload(file: Upload) -> Upload {
-    return file
+    return file;
 }`, `adapter http api {
     POST "/uploads" -> upload(file: Upload)
         consumes "application/json"

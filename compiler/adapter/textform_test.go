@@ -16,15 +16,15 @@ var textFormProgram = []string{
     Express from json "express"
 }`,
 	`workflow describe(speed: Speed | None) -> string {
-    match speed {
+    return match (speed) {
         None -> {
-            return "none"
+            return "none";
         }
         Speed.Standard -> {
-            return "standard"
+            return "standard";
         }
         Speed.Express -> {
-            return "express"
+            return "express";
         }
     }
 }`,

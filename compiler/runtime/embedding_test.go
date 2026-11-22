@@ -17,8 +17,8 @@ func TestEmbeddedModelIsFlatAtRuntime(t *testing.T) {
 		"model Address {\n    line1: string\n    city: string\n}",
 		"model ContactInfo {\n    Address\n    email: string\n}",
 		"model Customer {\n    ContactInfo\n    id: string\n    city: string\n}",
-		"rule build(a: Address, email: string) -> Customer {\n    return Customer(ContactInfo: ContactInfo(Address: a, email: email), id: \"c1\", city: \"Shadow\")\n}",
-		"rule plain(a: Address, email: string) -> ContactInfo {\n    return ContactInfo(Address: a, email: email)\n}",
+		"rule build(a: Address, email: string) -> Customer {\n    return Customer(ContactInfo: ContactInfo(Address: a, email: email), id: \"c1\", city: \"Shadow\");\n}",
+		"rule plain(a: Address, email: string) -> ContactInfo {\n    return ContactInfo(Address: a, email: email);\n}",
 	}
 	files := make([]*syntax.File, len(srcs))
 	for i, s := range srcs {

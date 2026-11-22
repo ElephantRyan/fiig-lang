@@ -17,15 +17,15 @@ func TestListMethodsAreTyped(t *testing.T) {
 }
 `)
 	f := mustParse(t, `rule methods(order: Order) -> int {
-    n: int = order.lines.length()
-    first: int = order.lines.at(0)
-    head: List<int> = order.lines.slice(0, n)
-    match order.lines.atOrNone(5) {
+    n: int = order.lines.length();
+    first: int = order.lines.at(0);
+    head: List<int> = order.lines.slice(0, n);
+    return match (order.lines.atOrNone(5)) {
         None -> {
-            return n
+            return n;
         }
         x -> {
-            return x + first + head.length()
+            return x + first + head.length();
         }
     }
 }
@@ -35,8 +35,8 @@ func TestListMethodsAreTyped(t *testing.T) {
 	}
 
 	bad := mustParse(t, `rule bad(xs: List<string>) -> int {
-    s: int = xs.at(0)
-    return xs.at("0").isBlank()
+    s: int = xs.at(0);
+    return xs.at("0").isBlank();
 }
 `)
 	// Three A1s: at() on a List<string> gives a string, not an int; its

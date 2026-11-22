@@ -23,11 +23,11 @@ var configSources = []string{`wire Settings {
     Debug
     Info
 }`, `activity show() -> string {
-    return "${Settings.maxAge} ${Settings.ratio} ${Settings.rate} ${Settings.name} ${Settings.verbose} ${Settings.level} ${Settings.region}"
+    return "${Settings.maxAge} ${Settings.ratio} ${Settings.rate} ${Settings.name} ${Settings.verbose} ${Settings.level} ${Settings.region}";
 }`, `activity key() -> Secret {
-    return Settings.key
+    return Settings.key;
 }`, `activity allowed(token: string) -> bool {
-    return Settings.key.matches(token)
+    return Settings.key.matches(token);
 }`}
 
 func configInterp(t *testing.T, env map[string]string) (*Interp, []string) {

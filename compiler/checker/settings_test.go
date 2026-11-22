@@ -17,7 +17,7 @@ const settingsConfig = `wire Abs {
 const saveUrl = `gateway saveUrl(url: string) -> Result<None, SettingError>
     requires Settings
 {
-    return Settings.save("abs.url", url, by: "admin")
+    return Settings.save("abs.url", url, by: "admin");
 }`
 
 func TestSettingFieldsCheck(t *testing.T) {
@@ -45,25 +45,25 @@ func TestASettingsCallNamesADeclaredSetting(t *testing.T) {
 	typo := `gateway saveUrl(url: string) -> Result<None, SettingError>
     requires Settings
 {
-    return Settings.save("abs.ulr", url, by: "admin")
+    return Settings.save("abs.ulr", url, by: "admin");
 }`
 	wantDiag(t, checkSrc(t, settingsConfig, typo), "V1", `names setting "abs.ulr", which no config field of this package reads`)
 	computed := `gateway saveAny(name: string, url: string) -> Result<None, SettingError>
     requires Settings
 {
-    return Settings.save(name, url, by: "admin")
+    return Settings.save(name, url, by: "admin");
 }`
 	wantDiag(t, checkSrc(t, settingsConfig, computed), "V1", "with a string literal")
 	activity := `activity saveUrl(url: string) -> Result<None, SettingError> {
-    return Settings.save("abs.url", url, by: "admin")
+    return Settings.save("abs.url", url, by: "admin");
 }`
 	wantDiag(t, checkSrc(t, settingsConfig, activity), "B10", "Settings")
 }
 
 func TestAWhenReadsOnlyHardSettings(t *testing.T) {
-	soft := "wire Mirror when Abs.url != \"\" {\n    on: bool from env \"MIRROR\" = false\n}"
+	soft := "wire Mirror when (Abs.url != \"\") {\n    on: bool from env \"MIRROR\" = false\n}"
 	wantDiag(t, checkSrc(t, settingsConfig, soft), "V2", "a setting that changes while the process runs")
-	hard := "wire Pool when Abs.workers != 0 {\n    size: int from env \"POOL\" = 1\n}"
+	hard := "wire Pool when (Abs.workers != 0) {\n    size: int from env \"POOL\" = 1\n}"
 	if diags := checkSrc(t, settingsConfig, hard); len(diags) > 0 {
 		t.Fatalf("a when reading a hard setting: %v", diags)
 	}

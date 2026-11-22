@@ -15,16 +15,16 @@ var bytesProgram = []string{
     content: bytes
 }`,
 	`rule readAttachment(body: string) -> Result<Attachment, JsonError> {
-    return json.decode(body)
+    return json.decode(body);
 }`,
 	`rule writeAttachment(name: string, content: bytes) -> bytes {
-    return json.encode(Attachment(name: name, content: content))
+    return json.encode(Attachment(name: name, content: content));
 }`,
 	`rule writeBytes(b: bytes) -> bytes {
-    return json.encode(b)
+    return json.encode(b);
 }`,
 	`rule fromTree(text: string) -> Result<bytes, JsonError> {
-    return json.decode(JsonValue.Text(value: text))
+    return json.decode(JsonValue.Text(value: text));
 }`,
 }
 

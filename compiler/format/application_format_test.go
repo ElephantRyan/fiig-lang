@@ -57,7 +57,7 @@ func TestApplicationParses(t *testing.T) {
 
 // `application` and `serve` are contextual: elsewhere they are names.
 func TestApplicationAndServeAreOrdinaryNamesElsewhere(t *testing.T) {
-	src := "rule r(application: int, serve: int) -> int {\n    return application + serve\n}\n"
+	src := "rule r(application: int, serve: int) -> int {\n    return application + serve;\n}\n"
 	if _, errs := parser.Parse(src); len(errs) > 0 {
 		t.Errorf("errs = %v", errs)
 	}

@@ -58,11 +58,11 @@ func BenchmarkBytes(b *testing.B) {
 		data[i] = byte(i)
 	}
 	in := benchInterp(b, `rule walk(data: bytes) -> int {
-    sum: int = 0
-    for b in data {
-        sum = (sum + b) % 65521
+    sum: int = 0;
+    for (b in data) {
+        sum = (sum + b) % 65521;
     }
-    return sum
+    return sum;
 }`)
 	b.SetBytes(int64(len(data)))
 	benchCall(b, in, "walk", map[string]Value{"data": Bytes{B: data}})
@@ -71,15 +71,15 @@ func BenchmarkBytes(b *testing.B) {
 // build: appending 10,000 elements to a list and 10,000 bytes to bytes.
 func BenchmarkBuild(b *testing.B) {
 	in := benchInterp(b, `rule build(n: int) -> int {
-    list: List<int> = []
-    data: bytes = <<>>
-    i: int = 0
-    while i < n {
-        list = append(list, i)
-        data = <<data: bytes, i % 256: u8>>
-        i = i + 1
+    list: List<int> = [];
+    data: bytes = <<>>;
+    i: int = 0;
+    while (i < n) {
+        list = append(list, i);
+        data = <<data: bytes, i % 256: u8>>;
+        i = i + 1;
     }
-    return list.length() + data.length()
+    return list.length() + data.length();
 }`)
 	benchCall(b, in, "build", map[string]Value{"n": Int(10_000)})
 }
@@ -90,14 +90,14 @@ func BenchmarkRecords(b *testing.B) {
     x: int
     y: int
 }`, `rule records(n: int) -> int {
-    total: int = 0
-    i: int = 0
-    while i < n {
-        p = Point(x: i, y: i + 1)
-        total = total + p.x * p.y % 7
-        i = i + 1
+    total: int = 0;
+    i: int = 0;
+    while (i < n) {
+        p = Point(x: i, y: i + 1);
+        total = total + p.x * p.y % 7;
+        i = i + 1;
     }
-    return total
+    return total;
 }`)
 	benchCall(b, in, "records", map[string]Value{"n": Int(10_000)})
 }
@@ -109,11 +109,11 @@ func BenchmarkMurmur2(b *testing.B) {
 		b.Fatal(err)
 	}
 	in := benchInterp(b, string(src), `activity hashAll(keys: List<bytes>) -> int {
-    total: int = 0
-    for key in keys {
-        total = (total + murmur2(key)) % 1000000007
+    total: int = 0;
+    for (key in keys) {
+        total = (total + murmur2(key)) % 1000000007;
     }
-    return total
+    return total;
 }`)
 	keys := make([]Value, 10_000)
 	for i := range keys {
@@ -126,21 +126,21 @@ func BenchmarkMurmur2(b *testing.B) {
 // 100,000 times.
 func BenchmarkCalls(b *testing.B) {
 	in := benchInterp(b, `conversion step(n: int) -> int {
-    return twice(n) + 1
+    return twice(n) + 1;
 }
 
 private {
     twice(n: int) -> int {
-        return n * 2
+        return n * 2;
     }
 }`, `activity calls(n: int) -> int {
-    total: int = 0
-    i: int = 0
-    while i < n {
-        total = (total + step(i)) % 1000003
-        i = i + 1
+    total: int = 0;
+    i: int = 0;
+    while (i < n) {
+        total = (total + step(i)) % 1000003;
+        i = i + 1;
     }
-    return total
+    return total;
 }`)
 	benchCall(b, in, "calls", map[string]Value{"n": Int(100_000)})
 }
@@ -161,31 +161,31 @@ func BenchmarkParse(b *testing.B) {
 		stream = append(stream, body...)
 	}
 	in := benchInterp(b, `rule rows(stream: bytes) -> int {
-    rest: bytes = stream
-    width: int = 0
-    while rest.length() > 0 {
-        match rest {
+    rest: bytes = stream;
+    width: int = 0;
+    while (rest.length() > 0) {
+        match (rest) {
             <<68: u8, length: i32be, body: bytes(length - 4), more: bytes>> -> {
-                cols: bytes = body.slice(2, body.length())
-                while cols.length() > 0 {
-                    match cols {
+                cols: bytes = body.slice(2, body.length());
+                while (cols.length() > 0) {
+                    match (cols) {
                         <<n: i32be, value: bytes(n), after: bytes>> -> {
-                            width = width + value.length()
-                            cols = after
+                            width = width + value.length();
+                            cols = after;
                         }
                         _ -> {
-                            return 0 - 1
+                            return 0 - 1;
                         }
                     }
                 }
-                rest = more
+                rest = more;
             }
             _ -> {
-                return 0 - 1
+                return 0 - 1;
             }
         }
     }
-    return width
+    return width;
 }`)
 	b.SetBytes(int64(len(stream)))
 	benchCall(b, in, "rows", map[string]Value{"stream": Bytes{B: stream}})

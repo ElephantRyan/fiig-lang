@@ -21,8 +21,8 @@ var replayApp = map[string]string{
 	"app/fiig.pkg.json": `{"path": "t.replay", "kind": "application", "version": "1.0.0",
     "dependencies": {"fiig.redis": "1.0.0"}, "capabilities": ["Socket"]}`,
 	"app/order_placed.fiig": "model OrderPlaced {\n    orderId: string\n}\n",
-	"app/place_order.fiig":  "workflow placeOrder(order: OrderPlaced) -> Result<None, string> {\n    return Ok(None)\n}\n",
-	"app/hello.fiig":        "workflow hello() -> string {\n    return \"hi\"\n}\n",
+	"app/place_order.fiig":  "workflow placeOrder(order: OrderPlaced) -> Result<None, string> {\n    return Ok(None);\n}\n",
+	"app/hello.fiig":        "workflow hello() -> string {\n    return \"hi\";\n}\n",
 	"app/api.fiig":          "adapter http api {\n    GET \"/hello\" -> hello()\n        produces \"application/json\"\n}\n",
 	"app/intake.fiig": "adapter stream intake {\n" +
 		"    source \"orders\" group \"intake\" from earliest key orderId -> placeOrder(order: OrderPlaced) {\n        Ok(_) -> ack\n        Err(_) -> halt\n    }\n" +

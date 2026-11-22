@@ -8,13 +8,13 @@ invalid transaction nesting.
 
 ```fiig
 rule createValidRating(input: NewRating) -> Result<Rating, RatingError> {
-    if input.score < 1 or input.score > 10 {
-        return Err(RatingError.Invalid("score", "must be from 1 to 10"))
+    if (input.score < 1 || input.score > 10) {
+        return Err(RatingError.Invalid("score", "must be from 1 to 10"));
     }
-    if input.item.isBlank() {
-        return Err(RatingError.Invalid("item", "must not be blank"))
+    if (input.item.isBlank()) {
+        return Err(RatingError.Invalid("item", "must not be blank"));
     }
-    return Ok(Rating(item: input.item, score: input.score, note: input.note))
+    return Ok(Rating(item: input.item, score: input.score, note: input.note));
 }
 ```
 

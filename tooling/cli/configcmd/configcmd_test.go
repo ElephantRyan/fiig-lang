@@ -57,22 +57,22 @@ var foldersModule = map[string]string{
         produces "application/json"
 }`,
 	"src/orders/GetOrder.fiig": `workflow getOrder(id: string) -> string {
-    return regionOf(id)
+    return regionOf(id);
 }`,
 	"src/orders/RegionOf.fiig": `activity regionOf(id: string) -> string {
-    return "${id}@${OrderSettings.region}"
+    return "${id}@${OrderSettings.region}";
 }`,
 	"src/orders/OrderSettings.fiig": `wire OrderSettings {
     region: string from env "ORDER_REGION"
 }`,
 	"src/orders/Health.fiig": `workflow health() -> string {
-    return "orders"
+    return "orders";
 }`,
 	"src/billing/Health.fiig": `workflow health() -> string {
-    return "billing"
+    return "billing";
 }`,
 	"src/billing/Invoice.fiig": `workflow invoice() -> string {
-    return "invoice"
+    return "invoice";
 }`,
 }
 

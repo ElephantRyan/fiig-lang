@@ -12,7 +12,7 @@ import (
 // and `find` reaches a member by its own name.
 func TestFormulaCardsAreOnePerMember(t *testing.T) {
 	root := t.TempDir()
-	src := "formulas vector {\n\tformula dot(a: int, b: int) -> int {\n\t\treturn a * b\n\t}\n\n\tformula square(a: int) -> int {\n\t\treturn dot(a, a)\n\t}\n}\n"
+	src := "formulas vector {\n\tformula dot(a: int, b: int) -> int {\n\t\treturn a * b;\n\t}\n\n\tformula square(a: int) -> int {\n\t\treturn dot(a, a);\n\t}\n}\n"
 	if err := os.WriteFile(filepath.Join(root, "vector.fiig"), []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}

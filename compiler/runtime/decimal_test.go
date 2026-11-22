@@ -22,26 +22,26 @@ func dec(t *testing.T, s string) Decimal {
 
 func TestDecimalArithmetic(t *testing.T) {
 	src := `rule tax(price: decimal) -> decimal {
-    rate: decimal = 0.0725
-    return price * rate
+    rate: decimal = 0.0725;
+    return price * rate;
 }
 
 rule label(d: decimal) -> string {
-    return "d=${d}"
+    return "d=${d}";
 }
 
 rule scaled() -> string {
-    a: decimal = 1.50
-    quarter: decimal = 10.0 / 40.0
-    return "${a} ${quarter} ${a * (1.0 / 4.0)} ${-a + 0.25} ${a % 0.4} ${a - 1.50}"
+    a: decimal = 1.50;
+    quarter: decimal = 10.0 / 40.0;
+    return "${a} ${quarter} ${a * (1.0 / 4.0)} ${-a + 0.25} ${a % 0.4} ${a - 1.50}";
 }
 
 rule cheaper(a: decimal, b: decimal) -> bool {
-    return a < b
+    return a < b;
 }
 
 rule same(a: decimal, b: decimal) -> bool {
-    return a == b
+    return a == b;
 }`
 	cases := []struct {
 		name string
@@ -66,17 +66,17 @@ rule same(a: decimal, b: decimal) -> bool {
 // rather than rounding.
 func TestDecimalOverflowFaults(t *testing.T) {
 	src := `rule grow(start: decimal, times: int) -> decimal {
-    x: decimal = start
-    n: int = times
-    while n > 0 {
-        x = x * 1.05
-        n = n - 1
+    x: decimal = start;
+    n: int = times;
+    while (n > 0) {
+        x = x * 1.05;
+        n = n - 1;
     }
-    return x
+    return x;
 }
 
 rule remainder(a: decimal, b: decimal) -> decimal {
-    return a % b
+    return a % b;
 }`
 	_, fault := runEach(t, src, "grow", map[string]Value{"start": dec(t, "1.05"), "times": Int(17)})
 	if fault == nil || !strings.Contains(fault.Message, "does not fit in decimal (34 digits written in full)") {
@@ -114,31 +114,31 @@ func TestDecimalJSON(t *testing.T) {
 // TestDecimalMath is ADR 0064's math members at runtime.
 func TestDecimalMath(t *testing.T) {
 	src := `rule round2(x: decimal) -> string {
-    return "${math.round(x, places: 2, rounding: Rounding.HalfUp)} ${math.round(x, places: 2, rounding: Rounding.HalfEven)} ${math.round(x, places: 2, rounding: Rounding.Up)} ${math.round(x, places: 2, rounding: Rounding.Down)} ${math.round(x, places: 2, rounding: Rounding.Ceiling)} ${math.round(x, places: 2, rounding: Rounding.Floor)} ${math.round(x, places: -1, rounding: Rounding.HalfUp)}"
+    return "${math.round(x, places: 2, rounding: Rounding.HalfUp)} ${math.round(x, places: 2, rounding: Rounding.HalfEven)} ${math.round(x, places: 2, rounding: Rounding.Up)} ${math.round(x, places: 2, rounding: Rounding.Down)} ${math.round(x, places: 2, rounding: Rounding.Ceiling)} ${math.round(x, places: 2, rounding: Rounding.Floor)} ${math.round(x, places: -1, rounding: Rounding.HalfUp)}";
 }
 
 rule split(amount: decimal, n: int) -> List<decimal> {
-    return math.allocate(amount, parts: n, places: 2)
+    return math.allocate(amount, parts: n, places: 2);
 }
 
 rule third(x: decimal, by: decimal) -> decimal {
-    return math.divide(x, by, places: 2, rounding: Rounding.HalfEven)
+    return math.divide(x, by, places: 2, rounding: Rounding.HalfEven);
 }
 
 rule crossings(x: decimal) -> string {
-    return "${math.floorToInt(x)} ${math.ceilToInt(x)} ${math.truncToInt(x)} ${math.roundToInt(x)} ${math.roundHalfEvenToInt(x)} ${math.toFloat(x)}"
+    return "${math.floorToInt(x)} ${math.ceilToInt(x)} ${math.truncToInt(x)} ${math.roundToInt(x)} ${math.roundHalfEvenToInt(x)} ${math.toFloat(x)}";
 }
 
 rule fromFloat(f: float) -> decimal {
-    return math.toDecimal(f)
+    return math.toDecimal(f);
 }
 
 rule others(a: decimal, b: decimal) -> string {
-    return "${math.abs(a)} ${math.min(a, b)} ${math.max(a, b)} ${math.floorMod(a, b)} ${math.addOrNone(a, b)} ${math.mulOrNone(a, b)}"
+    return "${math.abs(a)} ${math.min(a, b)} ${math.max(a, b)} ${math.floorMod(a, b)} ${math.addOrNone(a, b)} ${math.mulOrNone(a, b)}";
 }
 
 rule parse(s: string) -> decimal | None {
-    return s.toDecimalOrNone()
+    return s.toDecimalOrNone();
 }`
 	cases := []struct {
 		name string

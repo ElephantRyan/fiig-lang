@@ -10,7 +10,7 @@ import (
 // ADR 0049 §2.1: `formulas name { formula ... }`.
 
 func TestParseFormulasGroup(t *testing.T) {
-	f, errs := Parse("formulas vector {\n    formula dot(a: int, b: int) -> int {\n        return a * b\n    }\n\n    formula sqrt(x: int) -> int\n\n    formula fetch(x: int) -> int requires Socket {\n        return x\n    }\n}\n")
+	f, errs := Parse("formulas vector {\n    formula dot(a: int, b: int) -> int {\n        return a * b;\n    }\n\n    formula sqrt(x: int) -> int\n\n    formula fetch(x: int) -> int requires Socket {\n        return x;\n    }\n}\n")
 	if len(errs) > 0 {
 		t.Fatalf("parse errors: %v", errs)
 	}
@@ -36,7 +36,7 @@ func TestFormulasGroupHoldsOnlyFormulas(t *testing.T) {
 // TestFormulaIsANameOutsideDeclarationStart is ADR 0018: the new keywords
 // are reserved only where a declaration starts.
 func TestFormulaIsANameOutsideDeclarationStart(t *testing.T) {
-	if _, errs := Parse("rule f(formula: int, formulas: int) -> int {\n    return formula + formulas\n}\n"); len(errs) > 0 {
+	if _, errs := Parse("rule f(formula: int, formulas: int) -> int {\n    return formula + formulas;\n}\n"); len(errs) > 0 {
 		t.Fatalf("parse errors: %v", errs)
 	}
 }

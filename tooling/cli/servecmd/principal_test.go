@@ -47,7 +47,7 @@ adapter http adminApi {
 	"app/src/admin/Stats.fiig": `use p141.sessions
 
 workflow stats(admin: sessions.AdminUser) -> string {
-    return "stats for ${admin.userId}"
+    return "stats for ${admin.userId}";
 }
 `,
 	"app/src/books/BooksApi.fiig": `use p141.sessions
@@ -65,7 +65,7 @@ adapter http booksApi {
 	"app/src/books/MyBooks.fiig": `use p141.sessions
 
 workflow myBooks(me: sessions.Identity) -> string {
-    return "books of ${me.userId}"
+    return "books of ${me.userId}";
 }
 `,
 	"app/src/sessions/Admin.fiig": `wire admin: AdminUser from me by signedInAdmin else refused
@@ -75,10 +75,10 @@ workflow myBooks(me: sessions.Identity) -> string {
 }
 `,
 	"app/src/sessions/CheckAdmin.fiig": `activity checkAdmin(me: Identity) -> Result<AdminUser, IdentityError> {
-    if not me.admin {
-        return Err(IdentityError.NotAnAdmin)
+    if (!me.admin) {
+        return Err(IdentityError.NotAnAdmin);
     }
-    return Ok(AdminUser(userId: me.userId))
+    return Ok(AdminUser(userId: me.userId));
 }
 `,
 	"app/src/sessions/Identity.fiig": `model Identity {
@@ -92,12 +92,12 @@ workflow myBooks(me: sessions.Identity) -> string {
 }
 `,
 	"app/src/sessions/LookUp.fiig": `activity lookUp(token: string | None) -> Result<Identity, IdentityError> {
-    match token {
+    return match (token) {
         None -> {
-            return Err(IdentityError.NotSignedIn)
+            return Err(IdentityError.NotSignedIn);
         }
         given -> {
-            return Ok(Identity(userId: given, admin: given == "boss"))
+            return Ok(Identity(userId: given, admin: given == "boss"));
         }
     }
 }
@@ -119,22 +119,22 @@ workflow myBooks(me: sessions.Identity) -> string {
 	"app/src/sessions/Me.fiig": `wire me: Identity from cookie "sid" by signedIn else refused
 `,
 	"app/src/sessions/Refused.fiig": `conversion refused(e: IdentityError) -> HttpResponse<string> {
-    match e {
+    return match (e) {
         IdentityError.NotSignedIn -> {
-            return HttpResponse(status: 401, body: "sign in first")
+            return HttpResponse(status: 401, body: "sign in first");
         }
         IdentityError.NotAnAdmin -> {
-            return HttpResponse(status: 403, body: "admins only")
+            return HttpResponse(status: 403, body: "admins only");
         }
     }
 }
 `,
 	"app/src/sessions/SignedIn.fiig": `workflow signedIn(token: string | None) -> Result<Identity, IdentityError> {
-    return lookUp(token)
+    return lookUp(token);
 }
 `,
 	"app/src/sessions/SignedInAdmin.fiig": `workflow signedInAdmin(me: Identity) -> Result<AdminUser, IdentityError> {
-    return checkAdmin(me)
+    return checkAdmin(me);
 }
 `,
 }

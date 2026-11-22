@@ -66,32 +66,32 @@ var retrySources = []string{
 	`gateway record(n: int) -> int
     requires Database
 {
-    return Database.execute("INSERT INTO t VALUES (?)", n)
+    return Database.execute("INSERT INTO t VALUES (?)", n);
 }`,
 	`activity recordThree() -> int {
-    written: int = 0
+    written: int = 0;
     transaction Database serializable retry(attempts: 4) {
-        for n in [1, 2, 3] {
-            record(n)
-            written = written + 1
+        for (n in [1, 2, 3]) {
+            record(n);
+            written = written + 1;
         }
     }
-    return written
+    return written;
 }`,
 	`activity refuseEven(n: int) -> Result<int, string> {
     transaction Database retry(attempts: 4) {
-        record(n)
-        if n % 2 == 0 {
-            return Err("even")
+        record(n);
+        if (n % 2 == 0) {
+            return Err("even");
         }
     }
-    return Ok(n)
+    return Ok(n);
 }`,
 	`activity once() -> int {
     transaction Database repeatableRead {
-        record(1)
+        record(1);
     }
-    return 1
+    return 1;
 }`,
 }
 

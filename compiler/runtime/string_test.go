@@ -8,48 +8,48 @@ import (
 // ADR 0067: string methods in fiig programs.
 func TestStringPrograms(t *testing.T) {
 	src := `rule counts(s: string) -> string {
-    return "${s.length()} ${s.codePointCount()} ${s.utf8().length()}"
+    return "${s.length()} ${s.codePointCount()} ${s.utf8().length()}";
 }
 
 rule cut(s: string, from: int, to: int) -> string {
-    return s.slice(from, to)
+    return s.slice(from, to);
 }
 
 rule affixes(s: string) -> string {
-    return "${s.startsWith("Bearer ")} ${s.endsWith("3")} [${s.removePrefix("Bearer ")}] [${s.removeSuffix("x")}]"
+    return "${s.startsWith("Bearer ")} ${s.endsWith("3")} [${s.removePrefix("Bearer ")}] [${s.removeSuffix("x")}]";
 }
 
 rule trims(s: string) -> string {
-    return "[${s.trim()}] [${s.trimStart()}] [${s.trimEnd()}] ${s.isBlank() == (s.trim() == "")}"
+    return "[${s.trim()}] [${s.trimStart()}] [${s.trimEnd()}] ${s.isBlank() == (s.trim() == "")}";
 }
 
 rule cases(s: string) -> string {
-    return "${s.lowercase()} ${s.uppercase()}"
+    return "${s.lowercase()} ${s.uppercase()}";
 }
 
 rule same(a: string, b: string) -> bool {
-    return a.equalsIgnoringCase(b)
+    return a.equalsIgnoringCase(b);
 }
 
 rule pieces(s: string, sep: string) -> string {
-    parts = s.split(sep)
-    return "${parts.length()} ${parts.join("|")}"
+    parts = s.split(sep);
+    return "${parts.length()} ${parts.join("|")}";
 }
 
 rule replace(s: string, old: string, new: string) -> string {
-    return s.replaceAll(old, new)
+    return s.replaceAll(old, new);
 }
 
 rule toInt(s: string) -> int | None {
-    return s.toIntOrNone()
+    return s.toIntOrNone();
 }
 
 rule toFloat(s: string) -> float | None {
-    return s.toFloatOrNone()
+    return s.toFloatOrNone();
 }
 
 rule dec(s: string) -> decimal | None {
-    return s.toDecimalOrNone()
+    return s.toDecimalOrNone();
 }`
 	str := func(s string) map[string]Value { return map[string]Value{"s": Str(s)} }
 	cases := []struct {

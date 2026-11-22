@@ -34,30 +34,30 @@ var jsonProgram = []string{
     amount: int
 }`,
 	`rule parsePage(body: string) -> Result<Page, JsonError> {
-    page: Page = json.decode(body)?
-    return Ok(page)
+    page: Page = json.decode(body)?;
+    return Ok(page);
 }`,
 	`rule parseBytes(body: bytes) -> Result<Page, JsonError> {
-    return json.decode(body)
+    return json.decode(body);
 }`,
 	`rule parseOrder(body: string) -> Result<Order, JsonError> {
-    return json.decode(body)
+    return json.decode(body);
 }`,
 	`rule encodePage(page: Page) -> bytes {
-    return json.encode(page)
+    return json.encode(page);
 }`,
 	`rule tree(body: string) -> Result<JsonValue, JsonError> {
-    return json.decode(body)
+    return json.decode(body);
 }`,
 	`rule encodeTree(v: JsonValue) -> bytes {
-    return json.encode(v)
+    return json.encode(v);
 }`,
 	`rule amount(v: JsonValue) -> Result<int, JsonError> {
-    n: int = json.decode(v)?
-    return Ok(n)
+    n: int = json.decode(v)?;
+    return Ok(n);
 }`,
 	`rule badNumber(text: string) -> bytes {
-    return json.encode(JsonValue.Number(text: text))
+    return json.encode(JsonValue.Number(text: text));
 }`,
 }
 
@@ -216,16 +216,16 @@ func TestJsonEncodeEscapesStrings(t *testing.T) {
 func TestJsonEncodePretty(t *testing.T) {
 	in := checkedInterp(t, append(jsonProgram,
 		`rule prettyPage(page: Page) -> bytes {
-    return json.encodePretty(page)
+    return json.encodePretty(page);
 }`,
 		`rule prettyTree(v: JsonValue) -> bytes {
-    return json.encodePretty(v)
+    return json.encodePretty(v);
 }`,
 		`rule prettyList(items: List<string>) -> bytes {
-    return json.encodePretty(value: items)
+    return json.encodePretty(value: items);
 }`,
 		`rule prettyBadNumber(text: string) -> bytes {
-    return json.encodePretty(JsonValue.Number(text: text))
+    return json.encodePretty(JsonValue.Number(text: text));
 }`)...)
 	r := callJSON(t, in, "parsePage", map[string]Value{"body": Str(pageJSON)}).(Result)
 	if !r.Ok {

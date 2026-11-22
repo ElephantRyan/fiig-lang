@@ -47,7 +47,7 @@ var pgProgram = map[string]string{
     requires Database
     idempotent
 {
-    return Database.queryOne("SELECT name, weight, born FROM pets WHERE name = ?", name)
+    return Database.queryOne("SELECT name, weight, born FROM pets WHERE name = ?", name);
 }`,
 }
 

@@ -50,12 +50,12 @@ func TestReachableConfig(t *testing.T) {
 		"wire Square {\n    key: Secret from env \"SQUARE_KEY\"\n}",
 		"wire Setup {\n    admin: string from env \"ADMIN\"\n}",
 		"interface Pay {\n    charge(amount: int) -> string\n}",
-		"capability StripePay {\n    gateway charge(amount: int) -> string\n        requires Socket\n    {\n        return Stripe.key.reveal()\n    }\n}",
-		"capability SquarePay {\n    gateway charge(amount: int) -> string\n        requires Socket\n    {\n        return Square.key.reveal()\n    }\n}",
-		"rule choose(eu: bool) -> Pay {\n    if eu {\n        return SquarePay\n    }\n    return StripePay\n}",
-		"activity pay(eu: bool) -> string {\n    Provider = choose(eu)\n    return Provider.charge(1)\n}",
-		"workflow checkout(eu: bool) -> string {\n    return pay(eu)\n}",
-		"activity setup() -> string {\n    return Setup.admin\n}",
+		"capability StripePay {\n    gateway charge(amount: int) -> string\n        requires Socket\n    {\n        return Stripe.key.reveal();\n    }\n}",
+		"capability SquarePay {\n    gateway charge(amount: int) -> string\n        requires Socket\n    {\n        return Square.key.reveal();\n    }\n}",
+		"rule choose(eu: bool) -> Pay {\n    if (eu) {\n        return SquarePay;\n    }\n    return StripePay;\n}",
+		"activity pay(eu: bool) -> string {\n    Provider = choose(eu);\n    return Provider.charge(1);\n}",
+		"workflow checkout(eu: bool) -> string {\n    return pay(eu);\n}",
+		"activity setup() -> string {\n    return Setup.admin;\n}",
 	}
 	var files []*syntax.File
 	for _, src := range srcs {

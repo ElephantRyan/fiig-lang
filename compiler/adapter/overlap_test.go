@@ -21,15 +21,15 @@ var shadeProgram = []string{
     shade: string | Shade
 }`,
 	`workflow describe(paint: Paint) -> string {
-    match paint.shade {
+    return match (paint.shade) {
         text -> {
-            return "text ${text}"
+            return "text ${text}";
         }
         Shade.Light -> {
-            return "the light shade"
+            return "the light shade";
         }
         Shade.Dark -> {
-            return "the dark shade"
+            return "the dark shade";
         }
     }
 }`,

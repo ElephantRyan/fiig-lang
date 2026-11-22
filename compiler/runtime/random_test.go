@@ -10,10 +10,10 @@ import (
 // ADR 0068 §2: the four operations, in a fiig activity.
 func TestRandomInAnActivity(t *testing.T) {
 	src := `activity draw() -> string {
-    die = Random.int(min: 1, max: 6)
-    token = Random.bytes(count: 32).toBase64Url()
-    f = Random.float()
-    return "${die} ${token} ${f >= 0.0 and f < 1.0} ${Random.uuid()}"
+    die = Random.int(min: 1, max: 6);
+    token = Random.bytes(count: 32).toBase64Url();
+    f = Random.float();
+    return "${die} ${token} ${f >= 0.0 && f < 1.0} ${Random.uuid()}";
 }
 `
 	caps := NewCapabilityRegistry()

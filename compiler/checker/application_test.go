@@ -12,12 +12,12 @@ import (
 func checkApplication(t *testing.T, src string) []Diagnostic {
 	t.Helper()
 	ratings := buildDep(t, "t.app.ratings", nil, nil,
-		"workflow hello() -> string {\n    return \"hi\"\n}",
+		"workflow hello() -> string {\n    return \"hi\";\n}",
 		"adapter http ratingsApi {\n    GET \"/hello\" -> hello()\n        produces \"application/json\"\n}",
 		"adapter http adminApi {\n    GET \"/admin\" -> hello()\n        produces \"application/json\"\n}",
 	)
 	sync := buildDep(t, "t.app.sync", nil, nil,
-		"workflow tick() -> string {\n    return \"tick\"\n}",
+		"workflow tick() -> string {\n    return \"tick\";\n}",
 		"adapter startup syncStartup {\n    run -> tick() {\n        _ -> proceed\n    }\n}",
 	)
 	packages := types.Packages{"t.app.ratings": ratings, "t.app.sync": sync}

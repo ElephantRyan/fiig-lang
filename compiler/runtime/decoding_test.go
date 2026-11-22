@@ -6,20 +6,20 @@ import "testing"
 // send, and None for text that isn't in the alphabet.
 func TestTextDecodings(t *testing.T) {
 	src := `rule decode(s: string, how: string) -> string {
-    decoded: bytes | None = None
-    if how == "hex" {
-        decoded = s.fromHex()
-    } else if how == "base64" {
-        decoded = s.fromBase64()
+    decoded: bytes | None = None;
+    if (how == "hex") {
+        decoded = s.fromHex();
+    } else if (how == "base64") {
+        decoded = s.fromBase64();
     } else {
-        decoded = s.fromBase64Url()
+        decoded = s.fromBase64Url();
     }
-    match decoded {
+    return match (decoded) {
         None -> {
-            return "None"
+            return "None";
         }
         b -> {
-            return b.toHex()
+            return b.toHex();
         }
     }
 }`
@@ -55,21 +55,21 @@ func TestTextDecodings(t *testing.T) {
 // Basic auth, the case §7 exists for: a pure rule over the header.
 func TestBasicAuthIsARule(t *testing.T) {
 	src := `rule basicUser(header: string) -> string | None {
-    if not header.startsWith(prefix: "Basic ") {
-        return None
+    if (!header.startsWith(prefix: "Basic ")) {
+        return None;
     }
-    decoded = header.removePrefix(prefix: "Basic ").fromBase64()
-    match decoded {
+    decoded = header.removePrefix(prefix: "Basic ").fromBase64();
+    return match (decoded) {
         None -> {
-            return None
+            return None;
         }
         b -> {
-            match b.utf8() {
+            return match (b.utf8()) {
                 None -> {
-                    return None
+                    return None;
                 }
                 text -> {
-                    return text.split(separator: ":").first()
+                    return text.split(separator: ":").first();
                 }
             }
         }

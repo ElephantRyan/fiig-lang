@@ -47,37 +47,37 @@ func consumerProgram(topic string) map[string]string {
 gateway markHandled(orderId: string) -> Result<None, OrderError>
     requires Redis
 {
-    match Redis.send(["XADD", "handled", "*", "payload", orderId]) {
+    return match (Redis.send(["XADD", "handled", "*", "payload", orderId])) {
         Ok(_) -> {
-            return Ok(None)
+            return Ok(None);
         }
         Err(_) -> {
-            return Err(OrderError.Unrecorded(reason: "Redis refused"))
+            return Err(OrderError.Unrecorded(reason: "Redis refused"));
         }
     }
 }`,
 		"record.fiig": `activity record(order: OrderPlaced) -> Result<None, OrderError> {
-    return markHandled(order.orderId)
+    return markHandled(order.orderId);
 }`,
 		"place_order.fiig": `workflow placeOrder(order: OrderPlaced) -> Result<None, OrderError> {
-    record(order)?
-    if order.quantity <= 0 {
-        return Err(OrderError.Invalid(reason: "quantity ${order.quantity}"))
+    record(order)?;
+    if (order.quantity <= 0) {
+        return Err(OrderError.Invalid(reason: "quantity ${order.quantity}"));
     }
-    if order.quantity > 100 {
-        return Err(OrderError.OutOfStock(sku: order.orderId))
+    if (order.quantity > 100) {
+        return Err(OrderError.OutOfStock(sku: order.orderId));
     }
-    return Ok(None)
+    return Ok(None);
 }`,
 		"publish.fiig": `use fiig.kafka
 use fiig.kafka.Kafka
 
 activity publish(topic: string, values: List<string>) -> Result<List<kafka.Sent>, kafka.KafkaError> {
-    records: List<kafka.KafkaRecord> = []
-    for v in values {
-        records = append(records, kafka.KafkaRecord(key: None, value: v.utf8(), headers: None))
+    records: List<kafka.KafkaRecord> = [];
+    for (v in values) {
+        records = append(records, kafka.KafkaRecord(key: None, value: v.utf8(), headers: None));
     }
-    return Kafka.send(topic, records)
+    return Kafka.send(topic, records);
 }`,
 		"order_intake.fiig": `adapter stream OrderIntake {
     source "` + topic + `" group "` + topic + `-intake" from earliest key orderId -> placeOrder(order: OrderPlaced) {

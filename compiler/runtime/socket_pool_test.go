@@ -17,51 +17,51 @@ import (
 const keepSource = `gateway exchange(host: string, port: int, message: string, session: string) -> Result<bytes, SocketError>
     requires Socket
 {
-    reused: Connection | None = Socket.reuse(host, port, tls: false, session: session)
-    opened: Result<Connection, SocketError> = Err(SocketError.Closed)
-    match reused {
+    reused: Connection | None = Socket.reuse(host, port, tls: false, session: session);
+    opened: Result<Connection, SocketError> = Err(SocketError.Closed);
+    match (reused) {
         None -> {
-            opened = Socket.connect(host, port)
+            opened = Socket.connect(host, port);
         }
         kept -> {
-            opened = Ok(kept)
+            opened = Ok(kept);
         }
     }
-    connection = opened?
-    Socket.write(connection, message.utf8())?
-    reply = Socket.read(connection)?
-    Socket.keep(connection, session: session)
-    return Ok(reply)
+    connection = opened?;
+    Socket.write(connection, message.utf8())?;
+    reply = Socket.read(connection)?;
+    Socket.keep(connection, session: session);
+    return Ok(reply);
 }
 `
 
 const keepAfterFailureSource = `gateway keepAfterFailure(host: string, port: int) -> Result<bytes, SocketError>
     requires Socket
 {
-    connection = Socket.connect(host, port)?
-    reply = Socket.read(connection)
-    Socket.keep(connection, session: "")
-    return reply
+    connection = Socket.connect(host, port)?;
+    reply = Socket.read(connection);
+    Socket.keep(connection, session: "");
+    return reply;
 }
 `
 
 const readAfterKeepSource = `gateway readAfterKeep(host: string, port: int) -> Result<bytes, SocketError>
     requires Socket
 {
-    connection = Socket.connect(host, port)?
-    Socket.keep(connection, session: "")
-    return Socket.read(connection)
+    connection = Socket.connect(host, port)?;
+    Socket.keep(connection, session: "");
+    return Socket.read(connection);
 }
 `
 
 const keepTwoSource = `gateway keepTwo(host: string, port: int, first: string, second: string) -> Result<None, SocketError>
     requires Socket
 {
-    a = Socket.connect(host, port)?
-    b = Socket.connect(host, port)?
-    Socket.keep(a, session: first)
-    Socket.keep(b, session: second)
-    return Ok(None)
+    a = Socket.connect(host, port)?;
+    b = Socket.connect(host, port)?;
+    Socket.keep(a, session: first);
+    Socket.keep(b, session: second);
+    return Ok(None);
 }
 `
 

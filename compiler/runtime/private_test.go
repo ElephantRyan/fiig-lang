@@ -17,16 +17,16 @@ import (
 
 func TestPrivateHelperAndModelRunInTheirFilesScope(t *testing.T) {
 	u := universeFromSource(t, `rule fooBar(number: int) -> int {
-    floor = Threshold(minimum: 0)
-    if interiorFunctionCall(number, floor) {
-        return 3
+    floor = Threshold(minimum: 0);
+    if (interiorFunctionCall(number, floor)) {
+        return 3;
     }
-    return 4
+    return 4;
 }
 
 private {
     interiorFunctionCall(number: int, floor: Threshold) -> bool {
-        return number > floor.minimum
+        return number > floor.minimum;
     }
 
     model Threshold {
@@ -53,8 +53,8 @@ private {
 // a private `helper`, and each entry must reach its own.
 func TestSamePrivateNameInTwoFilesRunsEachFilesOwn(t *testing.T) {
 	u := universeFromSource(t,
-		"rule a(n: int) -> int {\n    return helper(n)\n}\n\nprivate {\n    helper(n: int) -> int {\n        return n + 1\n    }\n}\n",
-		"rule b(n: int) -> int {\n    return helper(n)\n}\n\nprivate {\n    helper(n: int) -> int {\n        return n * 10\n    }\n}\n",
+		"rule a(n: int) -> int {\n    return helper(n);\n}\n\nprivate {\n    helper(n: int) -> int {\n        return n + 1;\n    }\n}\n",
+		"rule b(n: int) -> int {\n    return helper(n);\n}\n\nprivate {\n    helper(n: int) -> int {\n        return n * 10;\n    }\n}\n",
 	)
 	in := newTestInterp(u, nil)
 	if v, fault := in.Call(context.Background(), "a", map[string]Value{"n": Int(2)}); fault != nil || v != Int(3) {
@@ -68,10 +68,10 @@ func TestSamePrivateNameInTwoFilesRunsEachFilesOwn(t *testing.T) {
 // sumTo is an activity: a rule may not call itself (ADR 0054 §6), an
 // activity may.
 const sumToSource = `activity sumTo(n: int) -> int {
-    if n <= 0 {
-        return 0
+    if (n <= 0) {
+        return 0;
     }
-    return n + sumTo(n - 1)
+    return n + sumTo(n - 1);
 }
 `
 
@@ -114,8 +114,8 @@ func TestRecursionPastTheDepthLimitIsAnOrdinaryFault(t *testing.T) {
 // models of the same file resolves those fields in the file's scope.
 func TestJSONDecodesNestedPrivateModels(t *testing.T) {
 	in := checkedInterp(t, `conversion titleOf(body: bytes) -> Result<string, JsonError> {
-    item: Item = json.decode(body)?
-    return Ok(item.media.title)
+    item: Item = json.decode(body)?;
+    return Ok(item.media.title);
 }
 
 private {
@@ -147,8 +147,8 @@ private {
 // package the run starts in.
 func TestJSONDecodesNestedPrivateModelsOfADependency(t *testing.T) {
 	libFile := mustParseFile(t, `conversion titleOf(body: bytes) -> Result<string, JsonError> {
-    item: Item = json.decode(body)?
-    return Ok(item.media.title)
+    item: Item = json.decode(body)?;
+    return Ok(item.media.title);
 }
 
 private {
@@ -168,7 +168,7 @@ private {
 	rootFile := mustParseFile(t, `use lib.books as books
 
 rule read(body: bytes) -> Result<string, JsonError> {
-    return books.titleOf(body)
+    return books.titleOf(body);
 }
 `)
 	packages := types.Packages{"lib.books": lib}

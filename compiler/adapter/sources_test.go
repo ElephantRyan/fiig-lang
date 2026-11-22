@@ -57,16 +57,16 @@ func serve(h http.Handler, req *http.Request) (int, http.Header, string) {
 
 var sourcesProgram = []string{
 	`workflow whoAmI(token: string, requestId: string | None, session: string | None, page: int | None) -> string {
-    return "${token}|${requestId}|${session}|${page}"
+    return "${token}|${requestId}|${session}|${page}";
 }`,
 	`workflow echoCsv(csv: string) -> Result<string, string> {
-    return Ok("rows: ${csv}")
+    return Ok("rows: ${csv}");
 }`,
 	`workflow echoBytes(data: bytes) -> bytes {
-    return data
+    return data;
 }`,
 	`workflow nothing() -> Result<None, string> {
-    return Ok(None)
+    return Ok(None);
 }`,
 	`adapter http api {
     GET "/me" -> whoAmI(

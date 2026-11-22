@@ -39,14 +39,14 @@ func TestEveryBuiltinMethodIsImplemented(t *testing.T) {
 // TestListMethods is ADR 0049 §2.6's four List methods.
 func TestListMethods(t *testing.T) {
 	src := `rule probe(xs: List<string>, i: int) -> string {
-    head = xs.slice(0, 2)
-    tail = append(head, "z")
-    match xs.atOrNone(i) {
+    head = xs.slice(0, 2);
+    tail = append(head, "z");
+    return match (xs.atOrNone(i)) {
         None -> {
-            return "none ${xs.length()} ${tail.length()} ${xs.at(1)}"
+            return "none ${xs.length()} ${tail.length()} ${xs.at(1)}";
         }
         x -> {
-            return "${x} ${head.length()} ${xs.at(2)}"
+            return "${x} ${head.length()} ${xs.at(2)}";
         }
     }
 }

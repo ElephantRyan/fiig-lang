@@ -77,23 +77,23 @@ var program = map[string]string{
 }
 `,
 	"rules/check_size.fiig": `rule checkSize(n: int) -> Result<int, Problem> {
-    if n > 10 {
-        return Err(Problem.TooBig(10))
+    if (n > 10) {
+        return Err(Problem.TooBig(10));
     }
-    return Ok(n)
+    return Ok(n);
 }
 `,
 	"capabilities/ledger.fiig": `capability Ledger {
     gateway record(entry: string) -> Result<None, string>
         requires Socket
     {
-        return Ok(None)
+        return Ok(None);
     }
 }
 `,
 	"activities/pay.fiig": `activity pay(entry: string) -> Result<None, string> {
-    Ledger.record(entry)?
-    return Ok(None)
+    Ledger.record(entry)?;
+    return Ok(None);
 }
 `,
 }
@@ -112,21 +112,21 @@ func withTests(tests map[string]string) map[string]string {
 func TestPassingTestsExitZero(t *testing.T) {
 	root := writePackage(t, withTests(map[string]string{
 		"tests/too_big.fiig": `test tooBigIsRefused {
-    expect checkSize(11) is Err(problem)
-    expect problem == Problem.TooBig(10)
-    expect checkSize(3) is Ok(_)
+    expect checkSize(11) is Err(problem);
+    expect problem == Problem.TooBig(10);
+    expect checkSize(3) is Ok(_);
 }
 `,
 		"tests/pays.fiig": `test paysTheLedger {
     fake Ledger {
         gateway record(entry: string) -> Result<None, string> {
-            expect entry == "o-1"
-            return Ok(None)
+            expect entry == "o-1";
+            return Ok(None);
         }
     }
-    expect pay("o-1") is Ok(_)
-    expect calls(Ledger.record) == 1
-    expect Clock.now() == 1767225600000
+    expect pay("o-1") is Ok(_);
+    expect calls(Ledger.record) == 1;
+    expect Clock.now() == 1767225600000;
 }
 `,
 	}))
@@ -139,7 +139,7 @@ func TestPassingTestsExitZero(t *testing.T) {
 func TestFailuresAreReportedWithTheirValues(t *testing.T) {
 	root := writePackage(t, withTests(map[string]string{
 		"tests/fails.fiig": `test failsOnPurpose {
-    expect checkSize(3) == checkSize(3) is Ok(_)
+    expect checkSize(3) == checkSize(3) is Ok(_);
 }
 `,
 	}))
@@ -149,15 +149,15 @@ func TestFailuresAreReportedWithTheirValues(t *testing.T) {
 
 	root = writePackage(t, withTests(map[string]string{
 		"tests/fails.fiig": `test failsOnPurpose {
-    expect checkSize(3) is Err(_)
-    expect checkSize(11) is Ok(n)
-    expect n == 99
+    expect checkSize(3) is Err(_);
+    expect checkSize(11) is Ok(n);
+    expect n == 99;
 }
 `,
 		"tests/compares.fiig": `test comparesWrongly {
-    expect checkSize(11) is Err(problem)
-    expect problem == Problem.Blank
-    expect 1 + 1 == 3
+    expect checkSize(11) is Err(problem);
+    expect problem == Problem.Blank;
+    expect 1 + 1 == 3;
 }
 `,
 	}))
@@ -185,10 +185,10 @@ func TestAConfigIsFakedPerTest(t *testing.T) {
 }
 `,
 		"activities/greet.fiig": `activity greet(name: string) -> string {
-    if Shop.token.matches("t-1") {
-        return "${Shop.greeting}, ${name}"
+    if (Shop.token.matches("t-1")) {
+        return "${Shop.greeting}, ${name}";
     }
-    return "who are you?"
+    return "who are you?";
 }
 `,
 		"tests/greets.fiig": `test greetsByConfig {
@@ -196,11 +196,11 @@ func TestAConfigIsFakedPerTest(t *testing.T) {
         greeting: "Hello"
         token: "t-1"
     }
-    expect greet("Ada") == "Hello, Ada"
+    expect greet("Ada") == "Hello, Ada";
 }
 `,
 		"tests/unfaked.fiig": `test readsUnfakedConfig {
-    expect greet("Ada") == "Hello, Ada"
+    expect greet("Ada") == "Hello, Ada";
 }
 `,
 	}))
@@ -224,14 +224,14 @@ func TestOptionalConfigInTests(t *testing.T) {
 }
 `,
 		"activities/token_set.fiig": `activity tokenSet() -> bool {
-    match Shop.token {
+    return match (Shop.token) {
         None -> false
         given -> true
     }
 }
 `,
 		"activities/url_set.fiig": `activity urlSet() -> bool {
-    match Shop.url {
+    return match (Shop.url) {
         None -> false
         given -> true
     }
@@ -239,16 +239,16 @@ func TestOptionalConfigInTests(t *testing.T) {
 `,
 		"tests/token.fiig": `test aLiteralIsTheToken {
     fake Shop { token: "t-1" }
-    expect tokenSet()
+    expect tokenSet();
 }
 
 test noneIsNoToken {
     fake Shop { token: None }
-    expect not tokenSet()
+    expect !tokenSet();
 }
 `,
 		"tests/url.fiig": `test urlFromTheEnvFile {
-    expect urlSet()
+    expect urlSet();
 }
 `,
 	})
@@ -280,14 +280,14 @@ func TestAnUnfakedOptionalConfigFailsTheTest(t *testing.T) {
 }
 `,
 		"activities/url_set.fiig": `activity urlSet() -> bool {
-    match Plain.url {
+    return match (Plain.url) {
         None -> false
         given -> true
     }
 }
 `,
 		"tests/plain.fiig": `test plainIsUnset {
-    expect not urlSet()
+    expect !urlSet();
 }
 `,
 	})
@@ -302,7 +302,7 @@ func TestAnUnfakedOptionalConfigFailsTheTest(t *testing.T) {
 	if code, results := runJSONWith(t, root, envFile); code != 0 {
 		t.Fatalf("PLAIN_URL= in the env file is unset on purpose: %d %+v", code, results)
 	}
-	files["tests/plain.fiig"] = "test plainIsUnset {\n    fake Plain { url: None }\n    expect not urlSet()\n}\n"
+	files["tests/plain.fiig"] = "test plainIsUnset {\n    fake Plain { url: None }\n    expect !urlSet();\n}\n"
 	if code, results := runJSON(t, writePackage(t, files)); code != 0 {
 		t.Fatalf("fake Plain { url: None } is unset on purpose: %d %+v", code, results)
 	}
@@ -312,16 +312,16 @@ func TestAnUnfakedOptionalConfigFailsTheTest(t *testing.T) {
 func TestManyTestsInOneFileShareHelpers(t *testing.T) {
 	root := writePackage(t, withTests(map[string]string{
 		"tests/check_size.fiig": `test smallIsFine {
-    expect checkSize(small()) is Ok(_)
+    expect checkSize(small()) is Ok(_);
 }
 
 test bigIsRefused {
-    expect checkSize(small() + 8) is Err(_)
+    expect checkSize(small() + 8) is Err(_);
 }
 
 private {
     small() -> int {
-        return 3
+        return 3;
     }
 }
 `,
@@ -337,9 +337,9 @@ private {
 func TestClockSleepMovesTheTestClock(t *testing.T) {
 	root := writePackage(t, withTests(map[string]string{
 		"tests/sleep.fiig": `test aDayLater {
-    expect Clock.now() == 1767225600000
-    Clock.sleep(24 * 60 * 60 * 1000)
-    expect Clock.now() == 1767312000000
+    expect Clock.now() == 1767225600000;
+    Clock.sleep(24 * 60 * 60 * 1000);
+    expect Clock.now() == 1767312000000;
 }
 `,
 	}))

@@ -10,21 +10,21 @@ import (
 func TestIfOrMatchAsAValueIsOneError(t *testing.T) {
 	cases := map[string]string{
 		"if in a binding": `rule pick(a: int, b: int) -> int {
-    larger = if a > b { a } else { b }
-    return larger
+    larger = if (a > b) { a } else { b };
+    return larger;
 }
 `,
 		"if in a match arm": `rule newest(seen: int | None, updatedAt: int) -> int {
-    match seen {
+    return match (seen) {
         None -> updatedAt
-        seen -> if updatedAt > seen { updatedAt } else { seen }
+        seen -> if (updatedAt > seen) { updatedAt } else { seen }
     }
 }
 `,
 		// A whole binding's or return's value may be a match (ADR 0142 §2);
 		// inside another expression it may not.
 		"match in an argument": `rule pick(a: int | None) -> int {
-    return math.max(1, match a {
+    return math.max(1, match (a) {
         None -> 0
         n -> n
     })

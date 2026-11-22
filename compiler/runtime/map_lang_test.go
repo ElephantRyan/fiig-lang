@@ -11,47 +11,47 @@ import (
 // ADR 0065 §4-§8: Map in fiig programs.
 func TestMapPrograms(t *testing.T) {
 	src := `rule count(names: List<string>) -> Map<string, int> {
-    counts: Map<string, int> = [:]
-    for name in names {
-        if counts.containsKey(name) {
-            counts = counts.put(name, counts.at(name) + 1)
+    counts: Map<string, int> = [:];
+    for (name in names) {
+        if (counts.containsKey(name)) {
+            counts = counts.put(name, counts.at(name) + 1);
         } else {
-            counts = counts.put(name, 1)
+            counts = counts.put(name, 1);
         }
     }
-    return counts
+    return counts;
 }
 
 rule describe(m: Map<string, int>) -> string {
-    out: string = ""
-    for key, value in m {
-        out = "${out}${key}=${value};"
+    out: string = "";
+    for (key, value in m) {
+        out = "${out}${key}=${value};";
     }
-    return "${out} keys ${m.keys()} values ${m.values()} length ${m.length()}"
+    return "${out} keys ${m.keys()} values ${m.values()} length ${m.length()}";
 }
 
 rule edits() -> string {
-    base = ["small": 10, "large": 500]
-    kept = base.putIfAbsent("small", 99)
-    moved = base.remove("small").put("small", 1)
-    return "${base} ${kept} ${moved} ${base.atOrNone("tiny")} ${base == ["large": 500, "small": 10]}"
+    base = ["small": 10, "large": 500];
+    kept = base.putIfAbsent("small", 99);
+    moved = base.remove("small").put("small", 1);
+    return "${base} ${kept} ${moved} ${base.atOrNone("tiny")} ${base == ["large": 500, "small": 10]}";
 }
 
 rule missing(m: Map<string, int>) -> int {
-    return m.at("nope")
+    return m.at("nope");
 }
 
 rule repeated(a: string, b: string) -> Map<string, int> {
-    return [a: 1, b: 2]
+    return [a: 1, b: 2];
 }
 
 rule decimalKeys() -> string {
-    m: Map<decimal, string> = [1.50: "a"]
-    return "${m.put(1.5, "b")} ${m.containsKey(1.500)}"
+    m: Map<decimal, string> = [1.50: "a"];
+    return "${m.put(1.5, "b")} ${m.containsKey(1.500)}";
 }
 
 rule close(a: Map<string, float>, b: Map<string, float>) -> bool {
-    return math.allClose(a, b, relative: 1e-9, absolute: 0.0)
+    return math.allClose(a, b, relative: 1e-9, absolute: 0.0);
 }`
 	names := List{Elems: []Value{Str("b"), Str("a"), Str("b")}}
 	got, fault := runEach(t, src, "count", map[string]Value{"names": names})

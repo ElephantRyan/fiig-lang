@@ -29,10 +29,10 @@ func TestEmbeddingFlattensThroughSeveralLevels(t *testing.T) {
 		embeddingModels,
 		"model ContactInfo {\n    Address\n    email: string\n}",
 		"model Customer {\n    ContactInfo\n    id: string\n}",
-		"rule cityOf(c: Customer) -> string {\n    return c.city\n}",
-		"rule emailOf(c: Customer) -> string {\n    return c.email\n}",
-		"rule build(a: Address, id: string) -> Customer {\n    return Customer(ContactInfo: ContactInfo(Address: a, email: \"x\"), id: id)\n}",
-		"rule renamed(c: Customer) -> Customer {\n    return copy(c, city: \"Oslo\")\n}",
+		"rule cityOf(c: Customer) -> string {\n    return c.city;\n}",
+		"rule emailOf(c: Customer) -> string {\n    return c.email;\n}",
+		"rule build(a: Address, id: string) -> Customer {\n    return Customer(ContactInfo: ContactInfo(Address: a, email: \"x\"), id: id);\n}",
+		"rule renamed(c: Customer) -> Customer {\n    return copy(c, city: \"Oslo\");\n}",
 	)
 	if diags := Check(files, nil); len(diags) != 0 {
 		t.Fatalf("want no diagnostics, got %v", diags)
@@ -43,8 +43,8 @@ func TestEmbeddingRejectsUnknownPromotedFieldAndMissingEmbed(t *testing.T) {
 	files := parseAll(t,
 		embeddingModels,
 		"model Customer {\n    Address\n    id: string\n}",
-		"rule bad(c: Customer) -> string {\n    return c.zip\n}",
-		"rule short(id: string) -> Customer {\n    return Customer(id: id)\n}",
+		"rule bad(c: Customer) -> string {\n    return c.zip;\n}",
+		"rule short(id: string) -> Customer {\n    return Customer(id: id);\n}",
 	)
 	diags := Check(files, nil)
 	if len(diags) != 2 {
@@ -59,8 +59,8 @@ func TestEmbeddingDoesNotImplySubtyping(t *testing.T) {
 	files := parseAll(t,
 		embeddingModels,
 		"model Customer {\n    Address\n    id: string\n}",
-		"rule takesAddress(a: Address) -> string {\n    return a.city\n}",
-		"activity bad(c: Customer) -> string {\n    return takesAddress(c)\n}",
+		"rule takesAddress(a: Address) -> string {\n    return a.city;\n}",
+		"activity bad(c: Customer) -> string {\n    return takesAddress(c);\n}",
 	)
 	diags := Check(files, nil)
 	if len(diags) != 1 || !strings.Contains(diags[0].Msg, "Address") {
@@ -75,7 +75,7 @@ func TestEmbeddingShadowingAndSameDepthCollision(t *testing.T) {
 	shadow := parseAll(t,
 		embeddingModels,
 		"model Customer {\n    Address\n    city: int\n}",
-		"rule cityOf(c: Customer) -> int {\n    return c.city\n}",
+		"rule cityOf(c: Customer) -> int {\n    return c.city;\n}",
 	)
 	if diags := Check(shadow, nil); len(diags) != 0 {
 		t.Fatalf("explicit field must shadow the promoted one, got %v", diags)

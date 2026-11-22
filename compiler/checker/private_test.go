@@ -11,16 +11,16 @@ import (
 // block of helpers and models only that file can see.
 
 const fooBarFile = `rule fooBar(number: int) -> int {
-    floor = Threshold(minimum: 0)
-    if interiorFunctionCall(number, floor) {
-        return 3
+    floor = Threshold(minimum: 0);
+    if (interiorFunctionCall(number, floor)) {
+        return 3;
     }
-    return 4
+    return 4;
 }
 
 private {
     interiorFunctionCall(number: int, floor: Threshold) -> bool {
-        return number > floor.minimum
+        return number > floor.minimum;
     }
 
     model Threshold {
@@ -41,15 +41,15 @@ func TestRuleMayCallItsOwnHelpersAndUseItsPrivateModels(t *testing.T) {
 // like a call to any other rule.
 func TestRuleRecursesOnlyThroughItsHelpers(t *testing.T) {
 	ok := mustParse(t, `rule countdown(n: int) -> int {
-    return step(n)
+    return step(n);
 }
 
 private {
     step(n: int) -> int {
-        if n <= 0 {
-            return 0
+        if (n <= 0) {
+            return 0;
         }
-        return step(n - 1)
+        return step(n - 1);
     }
 }
 `)
@@ -58,19 +58,19 @@ private {
 	}
 
 	direct := mustParse(t, `rule fact(n: int) -> int {
-    if n <= 1 {
-        return 1
+    if (n <= 1) {
+        return 1;
     }
-    return n * fact(n - 1)
+    return n * fact(n - 1);
 }
 `)
 	viaHelper := mustParse(t, `rule bounce(n: int) -> int {
-    return back(n)
+    return back(n);
 }
 
 private {
     back(n: int) -> int {
-        return bounce(n)
+        return bounce(n);
     }
 }
 `)
@@ -85,17 +85,17 @@ private {
 // may not.
 func TestSelfCallFollowsTheMatrix(t *testing.T) {
 	act := mustParse(t, `activity walk(n: int) -> int {
-    if n <= 0 {
-        return 0
+    if (n <= 0) {
+        return 0;
     }
-    return walk(n - 1)
+    return walk(n - 1);
 }
 `)
 	conv := mustParse(t, `conversion unwind(n: int) -> int {
-    if n <= 0 {
-        return 0
+    if (n <= 0) {
+        return 0;
     }
-    return unwind(n - 1)
+    return unwind(n - 1);
 }
 `)
 	if diags := Check([]*syntax.File{act, conv}, nil); len(diags) != 0 {
@@ -105,11 +105,11 @@ func TestSelfCallFollowsTheMatrix(t *testing.T) {
 	gw := mustParse(t, `gateway poll(n: int) -> int
     requires Database
 {
-    return poll(n)
+    return poll(n);
 }
 `)
 	wf := mustParse(t, `workflow retryAll(n: int) -> int {
-    return retryAll(n)
+    return retryAll(n);
 }
 `)
 	if got := rules(Check([]*syntax.File{gw, wf}, nil)); got["B3"] != 1 || got["B8"] != 1 || len(got) != 2 {
@@ -121,9 +121,9 @@ func TestSelfCallFollowsTheMatrix(t *testing.T) {
 // ideas.md B2), for each kind that can't call itself.
 func TestSelfCallMessageSaysWhereRecursionGoes(t *testing.T) {
 	cases := []struct{ src, rule string }{
-		{"rule fact(n: int) -> int {\n    return fact(n - 1)\n}", "B7"},
-		{"gateway poll(n: int) -> int\n    requires Database\n{\n    return poll(n)\n}", "B3"},
-		{"workflow again(n: int) -> int {\n    return again(n)\n}", "B8"},
+		{"rule fact(n: int) -> int {\n    return fact(n - 1);\n}", "B7"},
+		{"gateway poll(n: int) -> int\n    requires Database\n{\n    return poll(n);\n}", "B3"},
+		{"workflow again(n: int) -> int {\n    return again(n);\n}", "B8"},
 	}
 	for _, c := range cases {
 		wantDiag(t, checkSrc(t, c.src), c.rule, "recursion belongs in a private helper that calls only itself")
@@ -133,16 +133,16 @@ func TestSelfCallMessageSaysWhereRecursionGoes(t *testing.T) {
 // TestHelperInheritsItsFilesCompositionRules is §4/§5: a rule's helper is
 // held to the rule's matrix for calls that leave the file.
 func TestHelperInheritsItsFilesCompositionRules(t *testing.T) {
-	other := mustParse(t, "rule doubled(n: int) -> int {\n    return n * 2\n}\n")
-	gw := mustParse(t, "gateway fetch(n: int) -> int\n    requires Database\n{\n    return n\n}\n")
+	other := mustParse(t, "rule doubled(n: int) -> int {\n    return n * 2;\n}\n")
+	gw := mustParse(t, "gateway fetch(n: int) -> int\n    requires Database\n{\n    return n;\n}\n")
 	f := mustParse(t, `rule entry(n: int) -> int {
-    return helper(n)
+    return helper(n);
 }
 
 private {
     helper(n: int) -> int {
-        a = doubled(n)
-        return fetch(a)
+        a = doubled(n);
+        return fetch(a);
     }
 }
 `)
@@ -153,13 +153,13 @@ private {
 
 	// An activity's helper may do what an activity may.
 	act := mustParse(t, `activity coordinate(n: int) -> int {
-    return helper(n)
+    return helper(n);
 }
 
 private {
     helper(n: int) -> int {
-        a = doubled(n)
-        return fetch(a)
+        a = doubled(n);
+        return fetch(a);
     }
 }
 `)
@@ -172,8 +172,8 @@ private {
 // rule. Scoping alone would make it "undefined"; H4 says why.
 func TestPrivateMemberReferencedFromAnotherFileIsH4(t *testing.T) {
 	outsider := mustParse(t, `rule outsider(n: int) -> bool {
-    t = Threshold(minimum: 1)
-    return interiorFunctionCall(n, t)
+    t = Threshold(minimum: 1);
+    return interiorFunctionCall(n, t);
 }
 `)
 	diags := Check([]*syntax.File{mustParse(t, fooBarFile), outsider}, nil)
@@ -191,7 +191,7 @@ func TestPrivateMemberReferencedFromAnotherFileIsH4(t *testing.T) {
 // depth of the signature's type.
 func TestPrivateTypeInPublicSignatureIsH4(t *testing.T) {
 	f := mustParse(t, `rule leaky(t: Threshold) -> List<Threshold> | None {
-    return None
+    return None;
 }
 
 private {
@@ -206,16 +206,16 @@ private {
 
 	// A private type may still flow between private members.
 	ok := mustParse(t, `rule fine(n: int) -> int {
-    return unwrap(build(n))
+    return unwrap(build(n));
 }
 
 private {
     build(n: int) -> Threshold {
-        return Threshold(minimum: n)
+        return Threshold(minimum: n);
     }
 
     unwrap(t: Threshold) -> int {
-        return t.minimum
+        return t.minimum;
     }
 
     model Threshold {
@@ -232,15 +232,15 @@ private {
 // both sites, and only inside the private member's file does the name go
 // ambiguous; every other file keeps using the package-level declaration.
 func TestPrivateNameCollidingWithPackageDeclIsAnError(t *testing.T) {
-	pkgRule := mustParse(t, "rule helper(n: int) -> int {\n    return n\n}\n")
-	user := mustParse(t, "conversion user(n: int) -> int {\n    return helper(n)\n}\n")
+	pkgRule := mustParse(t, "rule helper(n: int) -> int {\n    return n;\n}\n")
+	user := mustParse(t, "conversion user(n: int) -> int {\n    return helper(n);\n}\n")
 	f := mustParse(t, `rule entry(n: int) -> int {
-    return helper(n)
+    return helper(n);
 }
 
 private {
     helper(n: int) -> int {
-        return n + 1
+        return n + 1;
     }
 }
 `)
@@ -261,8 +261,8 @@ private {
 // TestSamePrivateNameInTwoFilesDoesNotCollide: neither file can see the
 // other's private members.
 func TestSamePrivateNameInTwoFilesDoesNotCollide(t *testing.T) {
-	a := mustParse(t, "rule a(n: int) -> int {\n    return helper(n)\n}\n\nprivate {\n    helper(n: int) -> int {\n        return n\n    }\n}\n")
-	b := mustParse(t, "rule b(s: string) -> string {\n    return helper(s)\n}\n\nprivate {\n    helper(s: string) -> string {\n        return s\n    }\n}\n")
+	a := mustParse(t, "rule a(n: int) -> int {\n    return helper(n);\n}\n\nprivate {\n    helper(n: int) -> int {\n        return n;\n    }\n}\n")
+	b := mustParse(t, "rule b(s: string) -> string {\n    return helper(s);\n}\n\nprivate {\n    helper(s: string) -> string {\n        return s;\n    }\n}\n")
 	if diags := Check([]*syntax.File{a, b}, nil); len(diags) != 0 {
 		t.Fatalf("same-named private helpers in two files must not collide, got %v", diags)
 	}
@@ -271,8 +271,8 @@ func TestSamePrivateNameInTwoFilesDoesNotCollide(t *testing.T) {
 // TestActivityCycleThroughHelpersIsStillB9 is §6's limit: recursion that
 // leaves the file, here through a helper, is still a B9 cycle.
 func TestActivityCycleThroughHelpersIsStillB9(t *testing.T) {
-	ping := mustParse(t, "activity ping(n: int) -> int {\n    return relay(n)\n}\n\nprivate {\n    relay(n: int) -> int {\n        return pong(n)\n    }\n}\n")
-	pong := mustParse(t, "activity pong(n: int) -> int {\n    return ping(n)\n}\n")
+	ping := mustParse(t, "activity ping(n: int) -> int {\n    return relay(n);\n}\n\nprivate {\n    relay(n: int) -> int {\n        return pong(n);\n    }\n}\n")
+	pong := mustParse(t, "activity pong(n: int) -> int {\n    return ping(n);\n}\n")
 	if got := rules(Check([]*syntax.File{ping, pong}, nil)); got["B9"] != 2 {
 		t.Fatalf("want B9 at ping and pong, got %v", got)
 	}

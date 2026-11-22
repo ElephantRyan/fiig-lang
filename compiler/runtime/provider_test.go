@@ -44,7 +44,7 @@ func buildProviderPackage(t *testing.T, path string, deps types.Packages, provid
 // is called alongside, and a list of providers is iterated.
 func TestProviderDispatchAcrossPackages(t *testing.T) {
 	httpPkg := buildProviderPackage(t, "acme.http", nil, nil,
-		"capability Client {\n\tgateway send(body: string) -> Result<bytes, SocketError>\n\t\trequires Socket\n\t{\n\t\tconnection = Socket.connectTls(\"pay.example\", 443)?\n\t\tSocket.write(connection, body.utf8())?\n\t\treturn Socket.read(connection)\n\t}\n}",
+		"capability Client {\n\tgateway send(body: string) -> Result<bytes, SocketError>\n\t\trequires Socket\n\t{\n\t\tconnection = Socket.connectTls(\"pay.example\", 443)?;\n\t\tSocket.write(connection, body.utf8())?;\n\t\treturn Socket.read(connection);\n\t}\n}",
 	)
 	paymentsPkg := buildProviderPackage(t, "acme.payments", nil, nil,
 		"interface PaymentProvider {\n\tcharge(orderId: string) -> Result<bytes, SocketError>\n}",
@@ -52,21 +52,21 @@ func TestProviderDispatchAcrossPackages(t *testing.T) {
 	providerDeps := types.Packages{"acme.http": httpPkg, "acme.payments": paymentsPkg}
 	provides := map[string]string{"acme.payments.PaymentProvider": "Stripe"}
 	stripePkg := buildProviderPackage(t, "acme.stripe", providerDeps, provides,
-		"use acme.http.Client\n\ncapability Stripe {\n\tgateway charge(orderId: string) -> Result<bytes, SocketError>\n\t\trequires Client\n\t{\n\t\treturn Client.send(\"stripe:${orderId}\")\n\t}\n}",
+		"use acme.http.Client\n\ncapability Stripe {\n\tgateway charge(orderId: string) -> Result<bytes, SocketError>\n\t\trequires Client\n\t{\n\t\treturn Client.send(\"stripe:${orderId}\");\n\t}\n}",
 	)
 	squarePkg := buildProviderPackage(t, "acme.square", providerDeps, map[string]string{"acme.payments.PaymentProvider": "Square"},
-		"use acme.http.Client\n\ncapability Square {\n\tgateway charge(orderId: string) -> Result<bytes, SocketError>\n\t\trequires Client\n\t{\n\t\treturn Client.send(\"square:${orderId}\")\n\t}\n}",
+		"use acme.http.Client\n\ncapability Square {\n\tgateway charge(orderId: string) -> Result<bytes, SocketError>\n\t\trequires Client\n\t{\n\t\treturn Client.send(\"square:${orderId}\");\n\t}\n}",
 	)
 	packages := types.Packages{"acme.payments": paymentsPkg, "acme.stripe": stripePkg, "acme.square": squarePkg}
 
 	files := parseSources(t,
 		"use acme.payments\nuse acme.stripe.Stripe\nuse acme.square.Square\n\n"+
-			"rule choosePaymentProvider(region: string) -> payments.PaymentProvider {\n\tif region == \"EU\" {\n\t\treturn Square\n\t}\n\treturn Stripe\n}",
-		"activity pay(region: string, orderId: string) -> Result<bytes, SocketError> {\n\tProvider = choosePaymentProvider(region)\n\treturn Provider.charge(orderId: orderId)\n}",
+			"rule choosePaymentProvider(region: string) -> payments.PaymentProvider {\n\tif (region == \"EU\") {\n\t\treturn Square;\n\t}\n\treturn Stripe;\n}",
+		"activity pay(region: string, orderId: string) -> Result<bytes, SocketError> {\n\tProvider = choosePaymentProvider(region);\n\treturn Provider.charge(orderId: orderId);\n}",
 		"use acme.stripe.Stripe\nuse acme.square.Square\n\n"+
-			"activity chargeEverywhere(orderId: string) -> Result<bytes, SocketError> {\n\tlast: bytes = <<>>\n\tfor Candidate in [Stripe, Square] {\n\t\tlast = Candidate.charge(orderId: orderId)?\n\t}\n\treturn Ok(last)\n}",
-		"capability Ledger {\n\tgateway record(entry: string) -> Result<None, SocketError>\n\t\trequires Socket\n\t{\n\t\tconnection = Socket.connect(\"ledger\", 7000)?\n\t\treturn Socket.write(connection, entry.utf8())\n\t}\n}",
-		"activity log(entry: string) -> Result<None, SocketError> {\n\treturn Ledger.record(entry)\n}",
+			"activity chargeEverywhere(orderId: string) -> Result<bytes, SocketError> {\n\tlast: bytes = <<>>;\n\tfor (Candidate in [Stripe, Square]) {\n\t\tlast = Candidate.charge(orderId: orderId)?;\n\t}\n\treturn Ok(last);\n}",
+		"capability Ledger {\n\tgateway record(entry: string) -> Result<None, SocketError>\n\t\trequires Socket\n\t{\n\t\tconnection = Socket.connect(\"ledger\", 7000)?;\n\t\treturn Socket.write(connection, entry.utf8());\n\t}\n}",
+		"activity log(entry: string) -> Result<None, SocketError> {\n\treturn Ledger.record(entry);\n}",
 	)
 	if diags := checker.Check(files, packages); len(diags) > 0 {
 		t.Fatalf("checker diagnostics: %+v", diags)

@@ -33,7 +33,7 @@ use fiig.smtp.Smtp
 gateway sendWelcome(to: string, subject: string) -> Result<None, smtp.SmtpError>
     requires Smtp
 {
-    return Smtp.send(smtp.Mail(from: "noreply@shop.example", to: [to], subject: subject, body: "Thanks for signing up."))
+    return Smtp.send(smtp.Mail(from: "noreply@shop.example", to: [to], subject: subject, body: "Thanks for signing up."));
 }`,
 	"send_report.fiig": `use fiig.smtp
 use fiig.smtp.Smtp
@@ -52,7 +52,7 @@ gateway sendReport() -> Result<None, smtp.SmtpError>
             replyTo: "help@shop.example",
             names: ["reports@shop.example": "Shop Reports", "ann@y.org": "Ann Smith", "bob@y.org": "Bob Ünal"],
         ),
-    )
+    );
 }`,
 	"send_invoice.fiig": `use fiig.smtp
 use fiig.smtp.Smtp
@@ -69,7 +69,7 @@ gateway sendInvoice(pdf: bytes) -> Result<None, smtp.SmtpError>
             html: "<p>Your invoice is <b>attached</b>.</p>",
             attachments: [smtp.Attachment(name: "Rechnung März.pdf", contentType: "application/pdf", data: pdf)],
         ),
-    )
+    );
 }`,
 }
 

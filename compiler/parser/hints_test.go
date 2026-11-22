@@ -18,7 +18,7 @@ func TestALeftOutConstructIsOneErrorThatSaysWhatToWrite(t *testing.T) {
 		{"ternary", rule("    c = a > 1 ? 2 : 3"), "there is no `cond ? a : b`"},
 		{"map literal", rule("    m = {\"a\": 1}"), "[\"a\": 1, \"b\": 2]"},
 		{"c for", rule("    for (i = 0; i < 3; i++) {\n    }"), "`for (x in xs) { ... }`"},
-		{"elif", "rule r(a: int) -> int {\n    if a > 1 {\n        return 1\n    } elif a > 0 {\n        return 2\n    }\n    return 3\n}", "write `else if`"},
+		{"elif", "rule r(a: int) -> int {\n    if (a > 1) {\n        return 1;\n    } elif (a > 0) {\n        return 2;\n    }\n    return 3;\n}", "write `else if`"},
 		{"switch", rule("    switch a {\n    }"), "write a `match`"},
 		{"const", "const MAX = 3", "there are no constants of their own"},
 		{"import", "import foo\nrule r() -> int {\n    return 1\n}", "an import is `use acme.package`"},
@@ -40,7 +40,7 @@ func TestAHintKeepsTheErrorsBeforeIt(t *testing.T) {
 	if len(errs) < 2 || !strings.Contains(errs[len(errs)-1].Msg, "write `&&`") {
 		t.Errorf("errs = %v, want the model's error and then the hint", errs)
 	}
-	if _, errs := Parse("rule r(a: bool, b: bool) -> bool {\n    return a and not b\n}"); len(errs) != 0 {
+	if _, errs := Parse("rule r(a: bool, b: bool) -> bool {\n    return a && !b;\n}"); len(errs) != 0 {
 		t.Errorf("errs = %v", errs)
 	}
 	// An error with none of the known constructs on its line is reported as before.

@@ -111,7 +111,7 @@ func run(t *testing.T, src, name string, args map[string]Value) (Value, *Fault) 
 // reserved bit, and a 31-bit stream identifier.
 func TestSubByteFields(t *testing.T) {
 	src := `conversion stream(frame: bytes) -> int {
-    match frame {
+    return match (frame) {
         <<length: u24be, kind: u8, flags: u8, _: u1, stream: u31, payload: bytes(length)>> -> stream * 1000 + length
         _ -> -1
     }
@@ -126,7 +126,7 @@ func TestSubByteFields(t *testing.T) {
 
 func TestWebSocketHeaderAndLittleEndian(t *testing.T) {
 	src := `conversion opcode(frame: bytes) -> int {
-    match frame {
+    return match (frame) {
         <<1: u1, _: u3, op: u4, 0: u1, length: u7, word: u16le>> -> op * 100000 + length * 1000 + word
         _ -> -1
     }
@@ -145,8 +145,8 @@ func TestWebSocketHeaderAndLittleEndian(t *testing.T) {
 
 func TestSignedFieldsAndRoundTrip(t *testing.T) {
 	src := `conversion roundTrip(n: int) -> int {
-    encoded = <<n: i16be, n: i32le, 0xFF: u8>>
-    match encoded {
+    encoded = <<n: i16be, n: i32le, 0xFF: u8>>;
+    return match (encoded) {
         <<a: i16be, b: i32le, 255: u8>> -> a + b
         _ -> 0
     }
@@ -160,7 +160,7 @@ func TestSignedFieldsAndRoundTrip(t *testing.T) {
 
 // TestValueThatDoesNotFitFaults is §4: no silent truncation.
 func TestValueThatDoesNotFitFaults(t *testing.T) {
-	src := "conversion one(n: int) -> bytes {\n    return <<n: u8>>\n}\n"
+	src := "conversion one(n: int) -> bytes {\n    return <<n: u8>>;\n}\n"
 	if _, fault := run(t, src, "one", map[string]Value{"n": Int(300)}); fault == nil || !strings.Contains(fault.Message, "does not fit in u8") {
 		t.Fatalf("<<300: u8>> = %v, want a fault", fault)
 	}

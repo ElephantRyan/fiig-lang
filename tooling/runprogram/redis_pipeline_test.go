@@ -34,7 +34,7 @@ use fiig.redis.Redis
 gateway pipeline(commands: List<List<string>>) -> Result<List<redis.RespValue>, redis.RedisError>
     requires Redis
 {
-    return Redis.sendAll(commands)
+    return Redis.sendAll(commands);
 }`,
 	"pipeline_bytes.fiig": `use fiig.redis
 use fiig.redis.Redis
@@ -42,7 +42,7 @@ use fiig.redis.Redis
 gateway pipelineBytes(key: string, value: bytes) -> Result<List<redis.RespValue>, redis.RedisError>
     requires Redis
 {
-    return Redis.sendAllBytes([["XADD".utf8(), key.utf8(), "*".utf8(), "payload".utf8(), value], ["XLEN".utf8(), key.utf8()]])
+    return Redis.sendAllBytes([["XADD".utf8(), key.utf8(), "*".utf8(), "payload".utf8(), value], ["XLEN".utf8(), key.utf8()]]);
 }`,
 }
 

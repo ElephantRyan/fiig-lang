@@ -159,19 +159,19 @@ func TestStalledReadStopsAtDeadline(t *testing.T) {
 const misuseSource = `gateway readAfterClose(host: string) -> Result<bytes, SocketError>
     requires Socket
 {
-    connection = Socket.connect(host, 1)?
-    Socket.close(connection)
-    Socket.close(connection)
-    return Socket.read(connection)
+    connection = Socket.connect(host, 1)?;
+    Socket.close(connection);
+    Socket.close(connection);
+    return Socket.read(connection);
 }
 `
 
 const supersededSource = `gateway plaintextAfterUpgrade(host: string) -> Result<None, SocketError>
     requires Socket
 {
-    connection = Socket.connect(host, 1)?
-    secure = Socket.startTls(connection, host)?
-    return Socket.write(connection, <<1: u8>>)
+    connection = Socket.connect(host, 1)?;
+    secure = Socket.startTls(connection, host)?;
+    return Socket.write(connection, <<1: u8>>);
 }
 `
 
@@ -198,11 +198,11 @@ func TestMisusingAConnectionFaults(t *testing.T) {
 const echoSource = `gateway echo(host: string, port: int, message: string) -> Result<bytes, SocketError>
     requires Socket
 {
-    connection = Socket.connect(host, port)?
-    Socket.write(connection, message.utf8())?
-    reply = Socket.read(connection)?
-    Socket.close(connection)
-    return Ok(reply)
+    connection = Socket.connect(host, port)?;
+    Socket.write(connection, message.utf8())?;
+    reply = Socket.read(connection)?;
+    Socket.close(connection);
+    return Ok(reply);
 }
 `
 
@@ -293,9 +293,9 @@ func TestRealPeerClosingIsClosed(t *testing.T) {
 const tlsSource = `gateway hello(host: string, port: int) -> Result<None, SocketError>
     requires Socket
 {
-    connection = Socket.connectTls(host, port)?
-    Socket.close(connection)
-    return Ok(None)
+    connection = Socket.connectTls(host, port)?;
+    Socket.close(connection);
+    return Ok(None);
 }
 `
 
@@ -337,8 +337,8 @@ func TestRealConnectionLeftOpenIsClosedByItsCall(t *testing.T) {
 	src := `gateway leak(host: string, port: int) -> Result<None, SocketError>
     requires Socket
 {
-    connection = Socket.connect(host, port)?
-    return Ok(None)
+    connection = Socket.connect(host, port)?;
+    return Ok(None);
 }
 `
 	if _, fault := realSocketInterp(t, src).Call(context.Background(), "leak", map[string]Value{

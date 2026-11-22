@@ -29,7 +29,7 @@ var webhookProgram = []string{
     items: List<int>
 }`,
 	`workflow echoHook(hook: Hook) -> Hook {
-    return hook
+    return hook;
 }`,
 	`adapter http hookApi {
     POST "/hooks" -> echoHook(hook: Hook)
@@ -182,7 +182,7 @@ func TestCorpusEventInbox(t *testing.T) {
 // no parse and so no 400, but still the 415.
 var rawHookProgram = []string{
 	`workflow hookBytes(body: bytes) -> string {
-    return body.toHex()
+    return body.toHex();
 }`,
 	`adapter http rawHookApi {
     POST "/hooks" -> hookBytes(body: bytes)
@@ -243,13 +243,13 @@ var bytesBodyProgram = []string{
     digest: bytes
 }`,
 	`workflow report(title: string) -> bytes {
-    return json.encode(Report(title: title, digest: crypto.sha256(title.utf8())))
+    return json.encode(Report(title: title, digest: crypto.sha256(title.utf8())));
 }`,
 	`workflow broken() -> bytes {
-    return "not json".utf8()
+    return "not json".utf8();
 }`,
 	`workflow nested(title: string) -> Report {
-    return Report(title: title, digest: "hi".utf8())
+    return Report(title: title, digest: "hi".utf8());
 }`,
 	`adapter http reportApi {
     GET "/report/{title}" -> report(title: string)

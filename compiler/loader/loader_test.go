@@ -152,7 +152,7 @@ func TestLoadCrossMajorCoexistence(t *testing.T) {
 func TestLoadRejectsUndeclaredDependencyCapability(t *testing.T) {
 	ws := t.TempDir()
 	writePkg(t, ws, "leaf", "leaf", "library", "1.0.0", nil, nil, `gateway getThing() -> Result<int, int> requires Database {
-    return Ok(1)
+    return Ok(1);
 }`)
 	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, nil, "model AppMarker { n: int }")
 
@@ -177,7 +177,7 @@ func TestLoadRejectsUndeclaredDependencyCapability(t *testing.T) {
 func TestLoadAcceptsDeclaredDependencyCapability(t *testing.T) {
 	ws := t.TempDir()
 	writePkg(t, ws, "leaf", "leaf", "library", "1.0.0", nil, nil, `gateway getThing() -> Result<int, int> requires Database {
-    return Ok(1)
+    return Ok(1);
 }`)
 	app := writePkgNative(t, ws, "app", "app", "application", "1.0.0", map[string]string{"leaf": "1.0.0"}, []string{"Database"}, []string{"Database"}, "model AppMarker { n: int }")
 
@@ -204,7 +204,7 @@ func TestLoadAcceptsDeclaredDependencyCapability(t *testing.T) {
 func TestLoadRejectsUndeclaredOwnCapability(t *testing.T) {
 	ws := t.TempDir()
 	app := writePkg(t, ws, "app", "app", "application", "1.0.0", nil, nil, `gateway getThing() -> Result<int, int> requires Database {
-    return Ok(1)
+    return Ok(1);
 }`)
 
 	_, errs := Load(app, []string{ws})
@@ -320,7 +320,7 @@ func writePkgNative(t *testing.T, ws, dirName, path, kind, version string, deps 
 func TestLoadRejectsDomainCapabilityWithoutNativeEntry(t *testing.T) {
 	ws := t.TempDir()
 	app := writePkg(t, ws, "app", "app", "application", "1.0.0", nil, []string{"ShippingProvider"}, `gateway ship() -> Result<int, int> requires ShippingProvider {
-    return Ok(1)
+    return Ok(1);
 }`)
 	_, errs := Load(app, []string{ws})
 	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "neither a primitive") {
@@ -333,7 +333,7 @@ func TestLoadRejectsDomainCapabilityWithoutNativeEntry(t *testing.T) {
 func TestLoadAcceptsPrimitiveCapabilityWithoutNativeEntry(t *testing.T) {
 	ws := t.TempDir()
 	app := writePkg(t, ws, "app", "app", "application", "1.0.0", nil, []string{"Clock"}, `gateway now() -> Result<int, int> requires Clock {
-    return Ok(1)
+    return Ok(1);
 }`)
 	if _, errs := Load(app, []string{ws}); len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)
@@ -346,7 +346,7 @@ func TestLoadAcceptsPrimitiveCapabilityWithoutNativeEntry(t *testing.T) {
 // number alone points nowhere.
 func TestLoadChecksDependencies(t *testing.T) {
 	ws := t.TempDir()
-	writePkg(t, ws, "units", "units", "library", "1.0.0", nil, nil, "rule same(a: float, b: float) -> bool {\n    return a == b\n}")
+	writePkg(t, ws, "units", "units", "library", "1.0.0", nil, nil, "rule same(a: float, b: float) -> bool {\n    return a == b;\n}")
 	app := writePkg(t, ws, "app", "app", "application", "1.0.0", map[string]string{"units": "1.0.0"}, nil, "model AppMarker { n: int }")
 
 	_, errs := Load(app, []string{ws})

@@ -12,25 +12,25 @@ const routeWorkflows = `model NewOrder {
 func routeSrc(adapter string) []string {
 	return []string{routeWorkflows,
 		`workflow placeOrder(input: NewOrder, token: string, requestId: string | None) -> Result<NewOrder, string> {
-    return Ok(input)
+    return Ok(input);
 }`,
 		`workflow readOrder(id: string, token: string) -> Result<NewOrder, string> {
-    return Err(id)
+    return Err(id);
 }`,
 		`workflow importOrders(csv: string) -> Result<int, string> {
-    return Ok(1)
+    return Ok(1);
 }`,
 		`workflow exportOrders() -> Result<string, string> {
-    return Ok("a,b")
+    return Ok("a,b");
 }`,
 		`workflow orderCount() -> int {
-    return 1
+    return 1;
 }`,
 		`workflow receiveHook(body: bytes) -> Result<int, string> {
-    return Ok(body.length())
+    return Ok(body.length());
 }`,
 		`workflow receiveMaybeHook(body: bytes | None) -> Result<int, string> {
-    return Ok(1)
+    return Ok(1);
 }`,
 		adapter,
 	}

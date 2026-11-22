@@ -20,36 +20,36 @@ var conflictSources = []string{
 	`gateway addPerson(id: string, name: string | None, age: int, team: string | None) -> Result<int, DatabaseConflict>
     requires Database
 {
-    return Database.execute("INSERT INTO people (id, name, age, team) VALUES (?, ?, ?, ?)", id, name, age, team)
+    return Database.execute("INSERT INTO people (id, name, age, team) VALUES (?, ?, ?, ?)", id, name, age, team);
 }`,
 	`gateway addPersonUnhandled(id: string) -> int
     requires Database
 {
-    return Database.execute("INSERT INTO people (id, name, age) VALUES (?, 'x', 1)", id)
+    return Database.execute("INSERT INTO people (id, name, age) VALUES (?, 'x', 1)", id);
 }`,
 	`gateway claimId(id: string) -> Result<string | None, DatabaseConflict>
     requires Database
 {
-    return Database.queryOne("INSERT INTO people (id, name, age) VALUES (?, 'x', 1) RETURNING id", id)
+    return Database.queryOne("INSERT INTO people (id, name, age) VALUES (?, 'x', 1) RETURNING id", id);
 }`,
 	`gateway countPeople() -> int | None
     requires Database
 {
-    return Database.queryOne("SELECT COUNT(*) FROM people")
+    return Database.queryOne("SELECT COUNT(*) FROM people");
 }`,
 	`activity addAllSkippingTaken(ids: List<string>) -> int {
-    added: int = 0
+    added: int = 0;
     transaction Database {
-        for id in ids {
-            match addPerson(id, "x", 1, None) {
+        for (id in ids) {
+            match (addPerson(id, "x", 1, None)) {
                 Ok(_) -> {
-                    added = added + 1
+                    added = added + 1;
                 }
                 Err(_) -> None
             }
         }
     }
-    return added
+    return added;
 }`,
 }
 

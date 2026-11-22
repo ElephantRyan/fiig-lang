@@ -9,9 +9,9 @@ import (
 // false stays false (boolean `or` would have taken the right side).
 func TestOrDefault(t *testing.T) {
 	rule := `rule r(note: string | None, alias: string | None, done: bool | None) -> string {
-    name = alias or note or "anonymous"
-    finished: bool = done or true
-    return "${note or ""}|${name}|${finished}"
+    name = alias ?? note ?? "anonymous";
+    finished: bool = done ?? true;
+    return "${note ?? ""}|${name}|${finished}";
 }`
 	checkClean(t, rule)
 	in := newTestInterp(universeFromSource(t, rule), nil)

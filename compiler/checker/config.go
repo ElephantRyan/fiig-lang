@@ -306,7 +306,7 @@ func (c *checker) checkWhen(d *syntax.ConfigDecl) {
 func (c *checker) whenShape(d *syntax.ConfigDecl, e syntax.Expr) bool {
 	start, _ := e.(syntax.Spanned).Bounds()
 	bad := func(what string) bool {
-		c.report(start, "V2", "config %s's `when` can't use %s; it is read once at startup, from comparisons (==, !=), and, or, not, literals, enum variants, and fields of config that has no `when` of its own (ADR 0122 §1)", d.Name, what)
+		c.report(start, "V2", "config %s's `when` can't use %s; it is read once at startup, from comparisons (==, !=), &&, ||, !, literals, enum variants, and fields of config that has no `when` of its own (ADR 0122 §1)", d.Name, what)
 		return false
 	}
 	switch e := e.(type) {

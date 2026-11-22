@@ -21,7 +21,7 @@ Rules and conversions are pure, and any layer may call them.
 gateway findBook(id: string) -> Result<Book, AppError>
     requires AbsApi
 {
-    return mapErr(e in AbsApi.item(id)): appErrorOfAbs(e)
+    return mapErr(e in AbsApi.item(id)): appErrorOfAbs(e);
 }
 ```
 
@@ -30,9 +30,9 @@ It knows nothing about why it was called:
 
 ```fiig
 activity loadUserAndBook(session: string | None, itemId: string) -> Result<UserAndBook, AppError> {
-    me = currentUser(session)?
-    book = findBook(itemId)?
-    return Ok(UserAndBook(user: me, book: book))
+    me = currentUser(session)?;
+    book = findBook(itemId)?;
+    return Ok(UserAndBook(user: me, book: book));
 }
 ```
 
@@ -42,10 +42,10 @@ can't see:
 
 ```fiig
 workflow rate(session: string | None, itemId: string, input: RatingInput) -> Result<Rating, AppError> {
-    match loadUserAndBook(session, itemId) {
-        Err(AppError.NotFound) -> return Err(AppError.Unauthorized)
-        Err(other) -> return Err(other)
-        Ok(found) -> return saveRating(found, input)
+    return match (loadUserAndBook(session, itemId)) {
+        Err(AppError.NotFound) -> Err(AppError.Unauthorized)
+        Err(other) -> Err(other)
+        Ok(found) -> saveRating(found, input)
     }
 }
 ```
@@ -104,15 +104,15 @@ input alone, called first in the workflow, and the building in the step.
 // Slow: a score of 12 costs an ABS round trip before it is refused, because
 // the check is inside storeRating.
 workflow putRating(me: Identity, itemId: string, input: RatingInput) -> Result<Rating, RatingError> {
-    book = mapErr(e in latestBook(itemId)): RatingError.NoSuchBook?
-    return storeRating(me, book, input)
+    book = mapErr(e in latestBook(itemId)): RatingError.NoSuchBook?;
+    return storeRating(me, book, input);
 }
 
 // Fast: the pure check first; the step takes what it returned.
 workflow putRating(me: Identity, itemId: string, input: RatingInput) -> Result<Rating, RatingError> {
-    valid = validRating(input)?
-    book = mapErr(e in latestBook(itemId)): RatingError.NoSuchBook?
-    return storeRating(me, book, valid)
+    valid = validRating(input)?;
+    book = mapErr(e in latestBook(itemId)): RatingError.NoSuchBook?;
+    return storeRating(me, book, valid);
 }
 ```
 
@@ -128,9 +128,9 @@ error gets its meaning for the feature:
 
 ```fiig
 workflow showMyListening(me: Identity) -> Result<Listening, ListeningError> {
-    progress = mapErr(e in loadProgress(me.userId)): ListeningError.AbsDown?
-    books = mapErr(e in cachedBooks(progress.ids)): ListeningError.BooksUnavailable?
-    return Ok(Listening(progress, books))
+    progress = mapErr(e in loadProgress(me.userId)): ListeningError.AbsDown?;
+    books = mapErr(e in cachedBooks(progress.ids)): ListeningError.BooksUnavailable?;
+    return Ok(Listening(progress, books));
 }
 ```
 
@@ -145,9 +145,9 @@ enum ListeningError {
 }
 
 activity loadMyListening(userId: string) -> Result<Listening, ListeningError> {
-    progress = mapErr(e in loadProgress(userId)): ListeningError.Progress(e)?
-    books = mapErr(e in cachedBooks(progress.ids)): ListeningError.Books(e)?
-    return Ok(Listening(progress, books))
+    progress = mapErr(e in loadProgress(userId)): ListeningError.Progress(e)?;
+    books = mapErr(e in cachedBooks(progress.ids)): ListeningError.Books(e)?;
+    return Ok(Listening(progress, books));
 }
 ```
 
@@ -166,7 +166,7 @@ calls it makes both decisions and passes the answer by name (ADR 0139):
 rule syncTargets(me: accounts.Identity, admin: bool, requested: string | None, everyone: List<string>) -> Result<List<string>, SyncError> { ... }
 
 // in the activity
-targets = syncTargets(me, admin: client.canAdminister(me.userType), requested: userId, everyone: all)?
+targets = syncTargets(me, admin: client.canAdminister(me.userType), requested: userId, everyone: all)?;
 ```
 
 Its tests then say `admin: true` and `admin: false` directly, and

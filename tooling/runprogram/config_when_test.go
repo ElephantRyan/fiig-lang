@@ -14,8 +14,8 @@ import (
 func TestAConditionalConfigIsListedWithItsConditionAndWhatItReads(t *testing.T) {
 	srcs := []string{
 		"wire SignInConfig {\n    authMode: string from env \"AUTH_MODE\" = \"both\"\n}",
-		"wire Oidc when SignInConfig.authMode != \"abs\" {\n    issuer: string from env \"OIDC_ISSUER\"\n    audience: string | None from env \"OIDC_AUDIENCE\"\n}",
-		"activity issuer() -> string {\n    return Oidc.issuer\n}",
+		"wire Oidc when (SignInConfig.authMode != \"abs\") {\n    issuer: string from env \"OIDC_ISSUER\"\n    audience: string | None from env \"OIDC_AUDIENCE\"\n}",
+		"activity issuer() -> string {\n    return Oidc.issuer;\n}",
 	}
 	var files []*syntax.File
 	for _, src := range srcs {

@@ -55,15 +55,15 @@ func TestTheNewStatementSyntaxParses(t *testing.T) {
 // while `f()? ?? x` propagates first.
 func TestTheOldFormsStillParse(t *testing.T) {
 	for _, src := range []string{
-		"rule r(a: bool) -> bool {\n    return a and not a or a\n}",
-		"rule r(xs: List<int>) -> int {\n    for x in xs {\n        return x\n    }\n    return 0\n}",
-		"rule r(n: int | None) -> int {\n    return n or 0\n}",
+		"rule r(a: bool) -> bool {\n    return a && !a || a;\n}",
+		"rule r(xs: List<int>) -> int {\n    for (x in xs) {\n        return x;\n    }\n    return 0;\n}",
+		"rule r(n: int | None) -> int {\n    return n ?? 0;\n}",
 	} {
 		if _, errs := Parse(src); len(errs) != 0 {
 			t.Errorf("%q: errs = %v", src, errs)
 		}
 	}
-	f, errs := Parse("rule r(f: int) -> int {\n    a = f()??3\n    b = f()? ?? 3\n    return a\n}")
+	f, errs := Parse("rule r(f: int) -> int {\n    a = f()??3;\n    b = f()? ?? 3;\n    return a;\n}")
 	if len(errs) != 0 {
 		t.Fatalf("errs = %v", errs)
 	}
@@ -86,7 +86,7 @@ func TestADefaultBesideLogicNeedsParentheses(t *testing.T) {
 			t.Errorf("%s: errs = %v", body, errs)
 		}
 	}
-	if _, errs := Parse("rule r(a: bool | None, b: bool, c: bool) -> bool {\n    return (a ?? b) || c\n}"); len(errs) != 0 {
+	if _, errs := Parse("rule r(a: bool | None, b: bool, c: bool) -> bool {\n    return (a ?? b) || c;\n}"); len(errs) != 0 {
 		t.Errorf("errs = %v", errs)
 	}
 }

@@ -153,24 +153,24 @@ func socketWith(t *testing.T, cfg map[string]any) runtime.SocketProvider {
 const fetchSource = `gateway fetch(host: string, port: int) -> string
     requires Socket
 {
-    match Socket.connectTls(host, port) {
+    return match (Socket.connectTls(host, port)) {
         Err(failure) -> {
-            return "failed: ${failure}"
+            return "failed: ${failure}";
         }
         Ok(connection) -> {
-            match Socket.read(connection) {
+            return match (Socket.read(connection)) {
                 Ok(data) -> {
-                    match data.utf8() {
+                    return match (data.utf8()) {
                         None -> {
-                            return "not text"
+                            return "not text";
                         }
                         text -> {
-                            return text
+                            return text;
                         }
                     }
                 }
                 Err(failure) -> {
-                    return "failed: ${failure}"
+                    return "failed: ${failure}";
                 }
             }
         }

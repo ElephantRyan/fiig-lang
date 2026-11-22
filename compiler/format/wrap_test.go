@@ -10,7 +10,7 @@ import (
 // as one 575-character line.
 func TestANestedLongCallWraps(t *testing.T) {
 	src := "rule check(change: SettingsChange) -> Result<SettingsChange, SettingsChangeError> {\n" +
-		"    return Ok(SettingsChange(absUrl: checkUrl(\"absUrl\", change.absUrl)?, serviceToken: checkText(\"serviceToken\", change.serviceToken)?, mirrorEnabled: change.mirrorEnabled))\n}\n"
+		"    return Ok(SettingsChange(absUrl: checkUrl(\"absUrl\", change.absUrl)?, serviceToken: checkText(\"serviceToken\", change.serviceToken)?, mirrorEnabled: change.mirrorEnabled));\n}\n"
 	want := "rule check(change: SettingsChange) -> Result<SettingsChange, SettingsChangeError> {\n" +
 		"    return Ok(\n" +
 		"        SettingsChange(\n" +
@@ -36,7 +36,7 @@ func TestANestedLongCallWraps(t *testing.T) {
 
 // A long element of a wrapped list wraps the same way.
 func TestALongCallInAWrappedListWraps(t *testing.T) {
-	src := "rule books() -> List<Book> {\n    return [Book(itemId: \"dune-here\", libraryId: \"lib-1\", title: \"Dune\", authors: \"Frank Herbert\", asin: \"B0DUNE\"), Book(itemId: \"b\", libraryId: \"l\", title: \"t\", authors: \"a\", asin: \"x\")]\n}\n"
+	src := "rule books() -> List<Book> {\n    return [Book(itemId: \"dune-here\", libraryId: \"lib-1\", title: \"Dune\", authors: \"Frank Herbert\", asin: \"B0DUNE\"), Book(itemId: \"b\", libraryId: \"l\", title: \"t\", authors: \"a\", asin: \"x\")];\n}\n"
 	out := mustFormat(t, src)
 	if !strings.Contains(out, "        Book(\n            itemId: \"dune-here\",\n") || !strings.Contains(out, "        Book(itemId: \"b\", libraryId: \"l\", title: \"t\", authors: \"a\", asin: \"x\"),\n") {
 		t.Fatalf("got:\n%s", out)
@@ -54,8 +54,8 @@ func TestAStatementWrapsAtItsOpeningParen(t *testing.T) {
 		{
 			"a call and ?",
 			"rule r(abs: Target, itemIdSegment: string) -> Result<Reply, AbsError> {\n" +
-				"    reply = absclient.absReply(HttpClient.send(absclient.absGet(abs.url, \"/api/items/${itemIdSegment}\", abs.token.reveal())))?\n" +
-				"    return Ok(reply)\n}\n",
+				"    reply = absclient.absReply(HttpClient.send(absclient.absGet(abs.url, \"/api/items/${itemIdSegment}\", abs.token.reveal())))?;\n" +
+				"    return Ok(reply);\n}\n",
 			"rule r(abs: Target, itemIdSegment: string) -> Result<Reply, AbsError> {\n" +
 				"    reply = absclient.absReply(\n" +
 				"        HttpClient.send(\n" +
@@ -68,8 +68,8 @@ func TestAStatementWrapsAtItsOpeningParen(t *testing.T) {
 		{
 			"mapErr wraps at its body's call",
 			"rule r(reply: Reply) -> Result<List<AbsLibrary>, AbsError> {\n" +
-				"    found: AbsLibrariesReply = mapErr(e in json.decode(reply.body)): absclient.AbsError.Unreadable(failure: e)?\n" +
-				"    return Ok(found.libraries)\n}\n",
+				"    found: AbsLibrariesReply = mapErr(e in json.decode(reply.body)): absclient.AbsError.Unreadable(failure: e)?;\n" +
+				"    return Ok(found.libraries);\n}\n",
 			"rule r(reply: Reply) -> Result<List<AbsLibrary>, AbsError> {\n" +
 				"    found: AbsLibrariesReply = mapErr(e in json.decode(reply.body)): absclient.AbsError.Unreadable(\n" +
 				"        failure: e,\n" +
@@ -101,7 +101,7 @@ func TestAStatementWrapsAtItsOpeningParen(t *testing.T) {
 func TestALongSignatureWrapsItsParameters(t *testing.T) {
 	src := "capability AbsCatalog {\n" +
 		"    gateway pageAsService(abs: absclient.AbsTarget, libraryId: string, page: int, size: int) -> Result<BookPage, absclient.AbsError> requires HttpClient {\n" +
-		"        return Ok(page)\n    }\n}\n"
+		"        return Ok(page);\n    }\n}\n"
 	want := "capability AbsCatalog {\n" +
 		"    gateway pageAsService(\n" +
 		"        abs: absclient.AbsTarget,\n" +

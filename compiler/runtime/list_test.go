@@ -99,12 +99,12 @@ func TestListEqualityComparesContents(t *testing.T) {
 
 func TestListLiteralAndAppendRun(t *testing.T) {
 	u := universeFromSource(t, `rule codes(extra: string) -> List<string> {
-    ids: List<string> = ["ACME"]
-    ids = append(ids, extra)
-    return ids
+    ids: List<string> = ["ACME"];
+    ids = append(ids, extra);
+    return ids;
 }
 `, `rule same() -> bool {
-    return [1, 2] == [1, 2]
+    return [1, 2] == [1, 2];
 }
 `)
 	in := newTestInterp(u, nil)

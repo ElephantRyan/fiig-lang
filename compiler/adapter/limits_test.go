@@ -19,17 +19,17 @@ import (
 
 var limitsProgram = []string{
 	`workflow echo(text: string) -> string {
-    return text
+    return text;
 }`,
 	`workflow spin() -> int {
-    n: int = 0
-    while n >= 0 {
-        n = 0
+    n: int = 0;
+    while (n >= 0) {
+        n = 0;
     }
-    return n
+    return n;
 }`,
 	`workflow hello() -> string {
-    return "hello"
+    return "hello";
 }`,
 	`adapter http limitsApi {
     POST "/echo" -> echo(text: string)

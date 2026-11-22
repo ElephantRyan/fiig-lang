@@ -121,7 +121,7 @@ func (c *checker) checkForStmt(s *syntax.ForStmt, declReturn types.Type, env map
 // languages disagree on what it would mean.
 func (c *checker) checkMapFor(s *syntax.ForStmt, key, val types.Type, declReturn types.Type, env map[string]types.Type) {
 	if s.Value == "" {
-		c.report(s.Start, "I1", "for over a Map binds two names, `for key, value in m`; to iterate one, use `for key in m.keys()` or `for value in m.values()`")
+		c.report(s.Start, "I1", "for over a Map binds two names, `for (key, value in m)`; to iterate one, use `for (key in m.keys())` or `for (value in m.values())`")
 	}
 	bodyEnv := childEnv(env)
 	for _, b := range []struct {

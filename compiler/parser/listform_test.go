@@ -11,10 +11,10 @@ import (
 // `( name in`.
 func TestSortedKeysStayOnTheirLine(t *testing.T) {
 	f, errs := Parse(`rule r(xs: List<Order>, descending: int) -> int {
-    a = sorted(x in xs): x.region then x.total descending
-    b = sorted(x in xs): x.total
-    descending = 2
-    return count(descending) + max(x in xs): x.total
+    a = sorted(x in xs): x.region then x.total descending;
+    b = sorted(x in xs): x.total;
+    descending = 2;
+    return count(descending) + max(x in xs): x.total;
 }
 `)
 	if len(errs) != 0 {

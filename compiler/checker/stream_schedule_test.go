@@ -15,15 +15,15 @@ const scheduleErrors = `enum RefreshError {
 }`
 
 const refreshRates = `workflow refreshRates() -> Result<None, RefreshError> {
-    return Ok(None)
+    return Ok(None);
 }`
 
 const purgeSessions = `workflow purgeSessions(firedAt: int) -> int {
-    return firedAt
+    return firedAt;
 }`
 
 const badJob = `workflow badJob(name: string) -> Result<None, RefreshError> {
-    return Ok(None)
+    return Ok(None);
 }`
 
 func checkSchedule(t *testing.T, adapter string) []Diagnostic {

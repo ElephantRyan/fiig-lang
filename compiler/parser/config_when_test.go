@@ -8,7 +8,7 @@ import (
 
 // ADR 0122: a config may say when it is present; `when` is contextual.
 func TestParseConfigWhen(t *testing.T) {
-	f, errs := Parse("wire Oidc when SignInConfig.authMode != \"abs\" and not Flags.off {\n    issuer: string from env \"OIDC_ISSUER\"\n}")
+	f, errs := Parse("wire Oidc when (SignInConfig.authMode != \"abs\" && !Flags.off) {\n    issuer: string from env \"OIDC_ISSUER\"\n}")
 	if len(errs) != 0 {
 		t.Fatalf("errs = %v", errs)
 	}
@@ -16,8 +16,12 @@ func TestParseConfigWhen(t *testing.T) {
 	if d.Name != "Oidc" || d.When == nil || len(d.Fields) != 1 {
 		t.Fatalf("decl = %+v", d)
 	}
-	if _, ok := d.When.(*syntax.BinaryExpr); !ok {
-		t.Fatalf("when = %T, want the and of two conditions", d.When)
+	paren, ok := d.When.(*syntax.ParenExpr)
+	if !ok {
+		t.Fatalf("when = %T, want the condition in its parentheses", d.When)
+	}
+	if _, ok := paren.Inner.(*syntax.BinaryExpr); !ok {
+		t.Fatalf("when = %T, want the and of two conditions", paren.Inner)
 	}
 }
 
@@ -28,7 +32,7 @@ func TestWhenIsStillAName(t *testing.T) {
 	if len(errs) != 0 || f.Decls[0].(*syntax.ConfigDecl).When != nil {
 		t.Fatalf("a field named when: %v", errs)
 	}
-	if _, errs := Parse("rule r(when: int) -> int {\n    return when\n}"); len(errs) != 0 {
+	if _, errs := Parse("rule r(when: int) -> int {\n    return when;\n}"); len(errs) != 0 {
 		t.Fatalf("when as a name: %v", errs)
 	}
 }

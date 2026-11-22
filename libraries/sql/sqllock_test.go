@@ -36,16 +36,16 @@ var sqlLockProgram = map[string]string{
 	"count_seed.fiig": `gateway countSeed() -> Result<None, JobError>
     requires Database
 {
-    Database.execute("CREATE TABLE IF NOT EXISTS seeds (n INTEGER)")
-    Database.execute("INSERT INTO seeds (n) VALUES (1)")
-    return Ok(None)
+    Database.execute("CREATE TABLE IF NOT EXISTS seeds (n INTEGER)");
+    Database.execute("INSERT INTO seeds (n) VALUES (1)");
+    return Ok(None);
 }`,
 	"note_seed.fiig": `activity noteSeed() -> Result<None, JobError> {
-    return countSeed()
+    return countSeed();
 }`,
 	"seed.fiig": `workflow seed() -> Result<None, JobError> {
-    noteSeed()?
-    return Ok(None)
+    noteSeed()?;
+    return Ok(None);
 }`,
 	"seeded.fiig": `adapter startup Seeded {
     run once -> seed() {

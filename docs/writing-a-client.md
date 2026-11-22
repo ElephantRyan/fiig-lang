@@ -16,8 +16,8 @@ capability ShelfApi {
     gateway book(token: string, id: string) -> Result<Book, ShelfError>
         requires HttpClient
     {
-        reply = shelfReply(HttpClient.send(shelfGet(Shelf.url, "/api/books/${id}", token)))?
-        return mapErr(e in json.decode(reply.body)): ShelfError.Unreadable(failure: e)
+        reply = shelfReply(HttpClient.send(shelfGet(Shelf.url, "/api/books/${id}", token)))?;
+        return mapErr(e in json.decode(reply.body)): ShelfError.Unreadable(failure: e);
     }
 }
 ```
@@ -30,13 +30,13 @@ use fiig.http
 // A sent request as the server answers it: unreachable, refused by
 // status, or a 200 reply to decode.
 conversion shelfReply(sent: Result<http.Reply, http.HttpError>) -> Result<http.Reply, ShelfError> {
-    match sent {
+    return match (sent) {
         Err(failure) -> Err(ShelfError.Unreachable(failure: failure))
         Ok(reply) -> {
-            if reply.status != 200 {
-                return Err(shelfFailure(reply.status))
+            if (reply.status != 200) {
+                return Err(shelfFailure(reply.status));
             }
-            return Ok(reply)
+            return Ok(reply);
         }
     }
 }
@@ -72,7 +72,7 @@ client's credentials. It percent-encodes what could change the URL's
 shape, and is `None` for empty, `.` and `..`:
 
 ```fiig
-match http.pathSegment(id) {
+return match (http.pathSegment(id)) {
     None -> Err(ShelfError.NotFound)
     safe -> shelfBook(token, safe)
 }
@@ -94,12 +94,12 @@ test bookSendsTheToken {
     }
     fake HttpClient {
         gateway send(request: http.Request) -> Result<http.Reply, http.HttpError> {
-            expect http.headerValue(request.headers, "authorization") == "Bearer tok-1"
-            return Ok(http.Reply(status: 200, headers: [], body: "{\"id\":\"b-1\",\"title\":\"Dune\"}".utf8()))
+            expect http.headerValue(request.headers, "authorization") == "Bearer tok-1";
+            return Ok(http.Reply(status: 200, headers: [], body: "{\"id\":\"b-1\",\"title\":\"Dune\"}".utf8()));
         }
     }
-    expect ShelfApi.book("tok-1", "b-1") is Ok(found)
-    expect found.title == "Dune"
+    expect ShelfApi.book("tok-1", "b-1") is Ok(found);
+    expect found.title == "Dune";
 }
 ```
 
@@ -110,8 +110,8 @@ turns its error into the client's, so the decode is one line. To keep the
 value and do more with it, add `?`:
 
 ```fiig
-found: ShelfItem = mapErr(e in json.decode(reply.body)): ShelfError.Unreadable(failure: e)?
-return Ok(bookOfItem(found))
+found: ShelfItem = mapErr(e in json.decode(reply.body)): ShelfError.Unreadable(failure: e)?;
+return Ok(bookOfItem(found));
 ```
 
 `json.decode` still takes its type from the line it's on (`found:

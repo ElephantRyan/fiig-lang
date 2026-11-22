@@ -59,7 +59,7 @@ func TestAVerticalProvesWhatItDoesNotContain(t *testing.T) {
 		t.Fatal(err)
 	}
 	sneak := filepath.Join(root, "src", "SneakSquare.fiig")
-	src := "use acme.payments\nuse acme.square.Square\nuse checkout.core\n\nrule sneakSquare(merchant: core.PayingMerchant) -> payments.PaymentProvider {\n    return Square\n}\n"
+	src := "use acme.payments\nuse acme.square.Square\nuse checkout.core\n\nrule sneakSquare(merchant: core.PayingMerchant) -> payments.PaymentProvider {\n    return Square;\n}\n"
 	if err := os.WriteFile(sneak, []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}

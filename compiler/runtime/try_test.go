@@ -16,34 +16,34 @@ import (
 func TestTryReturnsTheErrFromAnyPosition(t *testing.T) {
 	cases := []struct{ name, src string }{
 		{"if condition", `conversion f(r: Result<int, string>) -> Result<int, string> {
-    if (r?) > 0 {
-        return Ok(1)
+    if ((r?) > 0) {
+        return Ok(1);
     }
-    return Ok(0)
+    return Ok(0);
 }`},
 		{"else-if condition", `conversion f(r: Result<int, string>) -> Result<int, string> {
-    if false {
-        return Ok(2)
-    } else if (r?) > 0 {
-        return Ok(1)
+    if (false) {
+        return Ok(2);
+    } else if ((r?) > 0) {
+        return Ok(1);
     }
-    return Ok(0)
+    return Ok(0);
 }`},
 		{"while condition", `conversion f(r: Result<int, string>) -> Result<int, string> {
-    while (r?) > 0 {
-        return Ok(1)
+    while ((r?) > 0) {
+        return Ok(1);
     }
-    return Ok(0)
+    return Ok(0);
 }`},
 		{"call argument", `conversion f(r: Result<int, string>) -> Result<int, string> {
-    return Ok(g(r?))
+    return Ok(g(r?));
 }`},
 		{"method argument", `conversion f(r: Result<int, string>) -> Result<int, string> {
-    return Ok("abc".slice(0, r?).length())
+    return Ok("abc".slice(0, r?).length());
 }`},
 	}
 	g := `rule g(n: int) -> int {
-    return n + 1
+    return n + 1;
 }`
 	for _, c := range cases {
 		for _, walk := range []bool{true, false} {

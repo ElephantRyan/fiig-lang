@@ -23,16 +23,16 @@ func withOverlapEnums(srcs ...string) []string {
 func TestJ3RefusesUnionsWhoseMembersReadTheSameJSON(t *testing.T) {
 	cases := []struct{ src, fragment string }{
 		// Two enums with payloads sharing a variant, as a response's Err side.
-		{"workflow lookup(id: string) -> Result<Order, OrderError | CustomerError> {\n    return Err(OrderError.NotFound(id: id))\n}",
+		{"workflow lookup(id: string) -> Result<Order, OrderError | CustomerError> {\n    return Err(OrderError.NotFound(id: id));\n}",
 			`OrderError and CustomerError both read {"variant": "NotFound", ...}`},
 		// Two payload-free enums sharing a text, through json.decode.
-		{"rule readShade(text: string) -> Result<Shade | Tone, JsonError> {\n    picked: Shade | Tone = json.decode(text)?\n    return Ok(picked)\n}",
+		{"rule readShade(text: string) -> Result<Shade | Tone, JsonError> {\n    picked: Shade | Tone = json.decode(text)?;\n    return Ok(picked);\n}",
 			`Shade and Tone both read "Dark"`},
 		// A spelling that is the other's variant name.
-		{"rule readMood(text: string) -> Result<Shade | Mood, JsonError> {\n    picked: Shade | Mood = json.decode(text)?\n    return Ok(picked)\n}",
+		{"rule readMood(text: string) -> Result<Shade | Mood, JsonError> {\n    picked: Shade | Mood = json.decode(text)?;\n    return Ok(picked);\n}",
 			`Shade and Mood both read "Dark"`},
 		// A variant spelled as Result's own tag, in json.encode.
-		{"rule send(r: Result<string, string> | Outcome) -> bytes {\n    return json.encode(r)\n}",
+		{"rule send(r: Result<string, string> | Outcome) -> bytes {\n    return json.encode(r);\n}",
 			`both read {"variant": "Ok", ...}`},
 	}
 	route := `adapter http a {
@@ -62,9 +62,9 @@ func TestJ3RefusesUnionsWhoseMembersReadTheSameJSON(t *testing.T) {
 // union outside JSON isn't checked.
 func TestJ3AllowsWhatAReaderCanTellApart(t *testing.T) {
 	for _, src := range []string{
-		"workflow lookup(id: string) -> Result<Order, OrderError | RenamedError> {\n    return Err(OrderError.NotFound(id: id))\n}",
-		"rule readStatus(text: string) -> Result<Shade | string, JsonError> {\n    picked: Shade | string = json.decode(text)?\n    return Ok(picked)\n}",
-		"rule local(dark: bool) -> int {\n    picked: Shade | Tone = Shade.Light\n    if dark {\n        picked = Tone.Dark\n    }\n    return 1\n}",
+		"workflow lookup(id: string) -> Result<Order, OrderError | RenamedError> {\n    return Err(OrderError.NotFound(id: id));\n}",
+		"rule readStatus(text: string) -> Result<Shade | string, JsonError> {\n    picked: Shade | string = json.decode(text)?;\n    return Ok(picked);\n}",
+		"rule local(dark: bool) -> int {\n    picked: Shade | Tone = Shade.Light;\n    if (dark) {\n        picked = Tone.Dark;\n    }\n    return 1;\n}",
 	} {
 		if diags := checkSrc(t, withOverlapEnums(src)...); len(diags) != 0 {
 			t.Errorf("%s\nunexpected diagnostics: %+v", src, diags)
@@ -75,16 +75,16 @@ func TestJ3AllowsWhatAReaderCanTellApart(t *testing.T) {
 // §3: a match over Enum | string names every variant and the text, and the
 // bare name that takes the text is a string.
 func TestMatchOverEnumAndString(t *testing.T) {
-	full := "rule describe(s: Shade | string) -> string {\n    match s {\n        text -> {\n            return text.trim()\n        }\n        Shade.Light -> {\n            return \"light\"\n        }\n        Shade.Dark -> {\n            return \"dark\"\n        }\n    }\n}"
+	full := "rule describe(s: Shade | string) -> string {\n    return match (s) {\n        text -> {\n            return text.trim();\n        }\n        Shade.Light -> {\n            return \"light\";\n        }\n        Shade.Dark -> {\n            return \"dark\";\n        }\n    }\n}"
 	if diags := checkSrc(t, withOverlapEnums(full)...); len(diags) != 0 {
 		t.Errorf("full match: unexpected diagnostics %+v", diags)
 	}
-	noText := "rule describe(s: Shade | string) -> string {\n    match s {\n        Shade.Light -> {\n            return \"light\"\n        }\n        Shade.Dark -> {\n            return \"dark\"\n        }\n    }\n}"
+	noText := "rule describe(s: Shade | string) -> string {\n    return match (s) {\n        Shade.Light -> {\n            return \"light\";\n        }\n        Shade.Dark -> {\n            return \"dark\";\n        }\n    }\n}"
 	wantDiag(t, checkSrc(t, withOverlapEnums(noText)...), "A9", "missing case(s): string (a bare name binds it)")
-	noDark := "rule describe(s: Shade | string) -> string {\n    match s {\n        Shade.Light -> {\n            return \"light\"\n        }\n        text -> {\n            return text\n        }\n    }\n}"
+	noDark := "rule describe(s: Shade | string) -> string {\n    return match (s) {\n        Shade.Light -> {\n            return \"light\";\n        }\n        text -> {\n            return text;\n        }\n    }\n}"
 	wantDiag(t, checkSrc(t, withOverlapEnums(noDark)...), "A9", "missing case(s): Dark")
 	// Two enums and None: a bare name is every variant, not None.
-	withNone := "rule describe(s: Shade | Outcome | None) -> string {\n    match s {\n        None -> {\n            return \"none\"\n        }\n        other -> {\n            return \"some\"\n        }\n    }\n}"
+	withNone := "rule describe(s: Shade | Outcome | None) -> string {\n    return match (s) {\n        None -> {\n            return \"none\";\n        }\n        other -> {\n            return \"some\";\n        }\n    }\n}"
 	if diags := checkSrc(t, withOverlapEnums(withNone)...); len(diags) != 0 {
 		t.Errorf("enums and None: unexpected diagnostics %+v", diags)
 	}

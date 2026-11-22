@@ -351,7 +351,7 @@ func result(t test, failures []runtime.TestFailure, lines []string, d time.Durat
 	for _, f := range failures {
 		out := Failure{Line: f.At.Line, Left: f.Left, Right: f.Right, Value: f.Value, Message: f.Message}
 		if f.Expect && f.At.Line >= 1 && f.At.Line <= len(lines) {
-			out.Source = strings.TrimSpace(lines[f.At.Line-1])
+			out.Source = strings.TrimSuffix(strings.TrimSpace(lines[f.At.Line-1]), ";")
 		}
 		r.Failures = append(r.Failures, out)
 	}

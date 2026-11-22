@@ -10,7 +10,7 @@ import (
 func TestLiteralPatternsMatchByEquality(t *testing.T) {
 	in := newTestInterp(universeFromSource(t,
 		`conversion describe(code: int) -> string {
-    match code {
+    return match (code) {
         200 -> "ok"
         404 -> "missing"
         -1 -> "unset"
@@ -19,20 +19,20 @@ func TestLiteralPatternsMatchByEquality(t *testing.T) {
     }
 }`,
 		`conversion owner(name: string) -> int {
-    match name {
+    return match (name) {
         "ACME" -> 1
         "Globex" -> 2
         _ -> 0
     }
 }`,
 		`conversion flag(on: bool) -> int {
-    match on {
+    return match (on) {
         true -> 1
         false -> 2
     }
 }`,
 		`conversion optional(name: string | None) -> string {
-    match name {
+    return match (name) {
         "a" -> "A"
         None -> "none"
         other -> other
@@ -74,7 +74,7 @@ func TestLiteralPatternsMatchByEquality(t *testing.T) {
 // bound the value and always matched, so flag(false) was 1.
 func TestTrueAndFalseInAPatternAreValuesNotBindings(t *testing.T) {
 	in := newTestInterp(universeFromSource(t, `conversion flag(on: bool) -> int {
-    match on {
+    return match (on) {
         true -> 1
         false -> 2
     }
@@ -92,7 +92,7 @@ func TestALiteralInsideAConstructorPattern(t *testing.T) {
     Rejected(status: int)
     Unknown
 }`, `conversion kind(x: Result<int, Failure>) -> string {
-    match x {
+    return match (x) {
         Err(Failure.Rejected(404)) -> "missing"
         Err(Failure.Rejected(_)) -> "rejected"
         Err(Failure.Unknown) -> "unknown"

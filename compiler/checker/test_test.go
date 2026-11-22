@@ -10,25 +10,25 @@ import (
 // capability group with two operations, and an activity that calls one.
 var testProgram = map[string]string{
 	"rules/double.fiig": `rule double(n: int) -> int {
-    return n * 2
+    return n * 2;
 }
 `,
 	"capabilities/ledger.fiig": `capability Ledger {
     gateway record(entry: string) -> Result<None, string>
         requires Socket
     {
-        return Ok(None)
+        return Ok(None);
     }
     gateway total() -> Result<int, string>
         requires Socket
     {
-        return Ok(0)
+        return Ok(0);
     }
 }
 `,
 	"activities/pay.fiig": `activity pay(entry: string) -> Result<None, string> {
-    Ledger.record(entry)?
-    return Ok(None)
+    Ledger.record(entry)?;
+    return Ok(None);
 }
 `,
 }
@@ -50,16 +50,16 @@ func TestATestThatFitsChecksClean(t *testing.T) {
 	got := checkWithTests(map[string]string{"tests/pays.fiig": `test paysLedger {
     fake Ledger {
         gateway record(entry: string) -> Result<None, string> {
-            expect entry == "a"
-            return Ok(None)
+            expect entry == "a";
+            return Ok(None);
         }
     }
-    expect pay("a") is Ok(_)
-    result = pay("b")
-    expect result is Ok(nothing)
-    expect nothing == None
-    expect double(2) == 4
-    expect calls(Ledger.record) == 2
+    expect pay("a") is Ok(_);
+    result = pay("b");
+    expect result is Ok(nothing);
+    expect nothing == None;
+    expect double(2) == 4;
+    expect calls(Ledger.record) == 2;
 }
 `})
 	if len(got) != 0 {
@@ -76,60 +76,60 @@ func TestTestBugClasses(t *testing.T) {
 	}{
 		{"a program file names a test helper", map[string]string{
 			"tests/helper.fiig": `rule helper() -> int {
-    return 1
+    return 1;
 }
 `,
 			"activities/user.fiig": `activity user() -> int {
-    return helper()
+    return helper();
 }
 `,
 		}, "T1", 1},
 		{"expect outside tests/", map[string]string{"rules/bad.fiig": `rule bad() -> bool {
-    expect true
-    return true
+    expect true;
+    return true;
 }
 `}, "T2", 1},
 		{"expect takes a bool, and is a pattern that fits", map[string]string{"tests/t3.fiig": `test t3 {
-    expect 1
-    expect double(1) is Ok(x)
-    expect pay("a") is Some(x)
-    expect pay("a") is Err(None)
+    expect 1;
+    expect double(1) is Ok(x);
+    expect pay("a") is Some(x);
+    expect pay("a") is Err(None);
 }
 `}, "T3", 4},
 		{"a fake doesn't match what it replaces", map[string]string{"tests/t4.fiig": `test t4 {
     fake Ledger {
         gateway record(entry: int) -> Result<None, string> {
-            return Ok(None)
+            return Ok(None);
         }
     }
-    expect pay("a") is Ok(_)
+    expect pay("a") is Ok(_);
 }
 `}, "T4", 1},
 		{"a fake the test never reaches", map[string]string{"tests/t5.fiig": `test t5 {
     fake Ledger {
         gateway record(entry: string) -> Result<None, string> {
-            return Ok(None)
+            return Ok(None);
         }
     }
-    expect double(1) == 2
+    expect double(1) == 2;
 }
 `}, "T5", 1},
 		{"a fake lacks an operation the test reaches", map[string]string{"tests/t6.fiig": `test t6 {
     fake Ledger {
         gateway total() -> Result<int, string> {
-            return Ok(1)
+            return Ok(1);
         }
     }
-    expect pay("a") is Ok(_)
+    expect pay("a") is Ok(_);
 }
 `}, "T6", 1},
 		{"a fake of a capability with no declaration", map[string]string{"tests/t7.fiig": `test t7 {
     fake Mailer {
         gateway send(to: string) -> Result<None, string> {
-            return Ok(None)
+            return Ok(None);
         }
     }
-    expect double(1) == 2
+    expect double(1) == 2;
 }
 `}, "T7", 1},
 	}
@@ -145,6 +145,6 @@ func TestTestBugClasses(t *testing.T) {
 
 // ADR 0091 §5: only a test sleeps; program code would hold a request.
 func TestClockSleepIsForTests(t *testing.T) {
-	diags := checkSrc(t, "activity wait() -> int {\n    Clock.sleep(1000)\n    return Clock.now()\n}")
+	diags := checkSrc(t, "activity wait() -> int {\n    Clock.sleep(1000);\n    return Clock.now();\n}")
 	wantDiag(t, diags, "T2", "Clock.sleep is for tests")
 }

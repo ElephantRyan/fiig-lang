@@ -29,7 +29,7 @@ use fiig.redis.Redis
 gateway bump(key: string) -> Result<redis.RespValue, redis.RedisError>
     requires Redis
 {
-    return Redis.send(["INCR", key])
+    return Redis.send(["INCR", key]);
 }`,
 }
 

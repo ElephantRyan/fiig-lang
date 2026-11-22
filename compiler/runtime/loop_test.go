@@ -55,11 +55,11 @@ func intList(ns ...int64) List {
 
 func TestForLoopSumsAFieldOfEachModel(t *testing.T) {
 	src := "rule orderTotal(orders: List<Order>) -> int {\n" +
-		"\ttotal: int = 0\n" +
-		"\tfor order in orders {\n" +
-		"\t\ttotal = total + order.amount\n" +
+		"\ttotal: int = 0;\n" +
+		"\tfor (order in orders) {\n" +
+		"\t\ttotal = total + order.amount;\n" +
 		"\t}\n" +
-		"\treturn total\n}\n"
+		"\treturn total;\n}\n"
 	v := runLoopProgram(t, src, "orderTotal", map[string]Value{"orders": orderList(1, 2, 3)})
 	if v != Int(6) {
 		t.Fatalf("orderTotal = %v, want 6", v)
@@ -68,11 +68,11 @@ func TestForLoopSumsAFieldOfEachModel(t *testing.T) {
 
 func TestForLoopOverEmptyListKeepsInitializer(t *testing.T) {
 	src := "rule orderTotal(orders: List<Order>) -> int {\n" +
-		"\ttotal: int = 7\n" +
-		"\tfor order in orders {\n" +
-		"\t\ttotal = total + order.amount\n" +
+		"\ttotal: int = 7;\n" +
+		"\tfor (order in orders) {\n" +
+		"\t\ttotal = total + order.amount;\n" +
 		"\t}\n" +
-		"\treturn total\n}\n"
+		"\treturn total;\n}\n"
 	v := runLoopProgram(t, src, "orderTotal", map[string]Value{"orders": orderList()})
 	if v != Int(7) {
 		t.Fatalf("orderTotal over empty list = %v, want 7", v)
@@ -81,12 +81,12 @@ func TestForLoopOverEmptyListKeepsInitializer(t *testing.T) {
 
 func TestReturnFromInsideLoopExitsTheDeclaration(t *testing.T) {
 	src := "rule firstNegative(orders: List<Order>) -> int {\n" +
-		"\tfor order in orders {\n" +
-		"\t\tif order.amount < 0 {\n" +
-		"\t\t\treturn order.amount\n" +
+		"\tfor (order in orders) {\n" +
+		"\t\tif (order.amount < 0) {\n" +
+		"\t\t\treturn order.amount;\n" +
 		"\t\t}\n" +
 		"\t}\n" +
-		"\treturn 0\n}\n"
+		"\treturn 0;\n}\n"
 	v := runLoopProgram(t, src, "firstNegative", map[string]Value{"orders": orderList(5, -2, 7, -9)})
 	if v != Int(-2) {
 		t.Fatalf("firstNegative = %v, want -2", v)
@@ -95,14 +95,14 @@ func TestReturnFromInsideLoopExitsTheDeclaration(t *testing.T) {
 
 func TestBreakStopsTheLoop(t *testing.T) {
 	src := "rule sumUntilNegative(orders: List<Order>) -> int {\n" +
-		"\ttotal: int = 0\n" +
-		"\tfor order in orders {\n" +
-		"\t\tif order.amount < 0 {\n" +
-		"\t\t\tbreak\n" +
+		"\ttotal: int = 0;\n" +
+		"\tfor (order in orders) {\n" +
+		"\t\tif (order.amount < 0) {\n" +
+		"\t\t\tbreak;\n" +
 		"\t\t}\n" +
-		"\t\ttotal = total + order.amount\n" +
+		"\t\ttotal = total + order.amount;\n" +
 		"\t}\n" +
-		"\treturn total\n}\n"
+		"\treturn total;\n}\n"
 	v := runLoopProgram(t, src, "sumUntilNegative", map[string]Value{"orders": orderList(1, 2, -1, 5)})
 	if v != Int(3) {
 		t.Fatalf("sumUntilNegative = %v, want 3", v)
@@ -111,14 +111,14 @@ func TestBreakStopsTheLoop(t *testing.T) {
 
 func TestContinueSkipsOneElement(t *testing.T) {
 	src := "rule sumNonNegative(orders: List<Order>) -> int {\n" +
-		"\ttotal: int = 0\n" +
-		"\tfor order in orders {\n" +
-		"\t\tif order.amount < 0 {\n" +
-		"\t\t\tcontinue\n" +
+		"\ttotal: int = 0;\n" +
+		"\tfor (order in orders) {\n" +
+		"\t\tif (order.amount < 0) {\n" +
+		"\t\t\tcontinue;\n" +
 		"\t\t}\n" +
-		"\t\ttotal = total + order.amount\n" +
+		"\t\ttotal = total + order.amount;\n" +
 		"\t}\n" +
-		"\treturn total\n}\n"
+		"\treturn total;\n}\n"
 	v := runLoopProgram(t, src, "sumNonNegative", map[string]Value{"orders": orderList(1, -1, 2)})
 	if v != Int(3) {
 		t.Fatalf("sumNonNegative = %v, want 3", v)
@@ -130,16 +130,16 @@ func TestContinueSkipsOneElement(t *testing.T) {
 // keeps going), while `break outer` stops everything at 3.
 func TestLabeledBreakExitsOuterLoop(t *testing.T) {
 	src := "rule countPairs(xs: List<int>, ys: List<int>) -> int {\n" +
-		"\tcount: int = 0\n" +
-		"\touter: for x in xs {\n" +
-		"\t\tfor y in ys {\n" +
-		"\t\t\tcount = count + 1\n" +
-		"\t\t\tif x == 2 {\n" +
-		"\t\t\t\tbreak outer\n" +
+		"\tcount: int = 0;\n" +
+		"\touter: for (x in xs) {\n" +
+		"\t\tfor (y in ys) {\n" +
+		"\t\t\tcount = count + 1;\n" +
+		"\t\t\tif (x == 2) {\n" +
+		"\t\t\t\tbreak outer;\n" +
 		"\t\t\t}\n" +
 		"\t\t}\n" +
 		"\t}\n" +
-		"\treturn count\n}\n"
+		"\treturn count;\n}\n"
 	v := runLoopProgram(t, src, "countPairs", map[string]Value{
 		"xs": intList(1, 2, 3),
 		"ys": intList(10, 20),
