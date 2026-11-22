@@ -164,6 +164,9 @@ func (c *checker) principalCycle(pr *syntax.PrincipalDecl) bool {
 // `alias.name` in an imported one (ADR 0137 §1). It reports an unknown
 // name under code.
 func (c *checker) resolveRef(r *syntax.QualifiedRef, code string) (syntax.Decl, *types.Package) {
+	if r == nil || len(r.Path) == 0 {
+		return nil, nil // a missing `by` or `else`, which the parser reported
+	}
 	name := r.Path[len(r.Path)-1]
 	switch len(r.Path) {
 	case 1:

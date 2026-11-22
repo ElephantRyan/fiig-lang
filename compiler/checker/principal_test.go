@@ -3,6 +3,9 @@ package checker
 import (
 	"strings"
 	"testing"
+
+	"fiig-lang/compiler/parser"
+	"fiig-lang/compiler/syntax"
 )
 
 const (
@@ -63,6 +66,28 @@ func TestU1TheBinderIsAWorkflowOfTheRightShape(t *testing.T) {
 
 	got = checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by nobody else signInFirst;\n"+route))
 	wantOnly(t, got, "U1", "no declaration named nobody")
+}
+
+// A principal missing its `by` or `else` is a parse error, and checking
+// what parsed goes on without them: `fiig fmt` checks every file of a
+// package, so a panic here stopped it for the whole folder.
+func TestAPrincipalMissingByOrElseIsCheckedWithoutThem(t *testing.T) {
+	for _, wire := range []string{
+		"    wire me: Identity from cookie \"sid\" by signedIn;\n",
+		"    wire me: Identity from cookie \"sid\" else signInFirst;\n",
+		"    wire me: Identity from cookie \"sid\";\n",
+	} {
+		src := principalAdapter(wire + "    GET \"/mine\" -> showMine(me)\n        produces \"application/json\";\n")
+		f, errs := parser.Parse(src)
+		if len(errs) == 0 {
+			t.Fatalf("%q parsed without an error", wire)
+		}
+		files := []*syntax.File{f}
+		for _, other := range []string{prIdentity, prRefusal, prBinder, prSignIn, prFeature} {
+			files = append(files, mustParse(t, other))
+		}
+		Check(files, nil)
+	}
 }
 
 func TestU2TheRefusalIsAConversionToAnHttpResponse(t *testing.T) {
