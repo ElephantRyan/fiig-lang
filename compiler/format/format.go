@@ -184,6 +184,21 @@ func startLine(n syntax.Spanned) int {
 	return start.Line
 }
 
+// endLine is the line n ends on: for a block or a declaration, its "}".
+func endLine(n syntax.Spanned) int {
+	_, end := n.Bounds()
+	return end.Line
+}
+
+// emitInside prints, one level in, the comments left between a body's last
+// item and its "}" on closeLine. Only lines before the brace's are taken,
+// so a comment after the "}" stays with whatever follows it.
+func (p *printer) emitInside(closeLine int) {
+	p.indent++
+	p.emitLeading(closeLine)
+	p.indent--
+}
+
 // ---- file ------------------------------------------------------------
 
 func (p *printer) printFile(f *syntax.File) {
@@ -247,18 +262,18 @@ func (p *printer) printImport(imp *syntax.Import) {
 func (p *printer) printDecl(d syntax.Decl) {
 	switch d := d.(type) {
 	case *syntax.ModelDecl:
-		p.printFieldedDecl("model "+d.Name, fieldsToSpanned(d.Fields), startLine(d), func(i int) string {
+		p.printFieldedDecl("model "+d.Name, fieldsToSpanned(d.Fields), startLine(d), endLine(d), func(i int) string {
 			return printField(d.Fields[i]) + ";"
 		})
 	case *syntax.EnumDecl:
 		if d.Header != nil {
 			rows := enumRows(d.Variants)
-			p.printFieldedDecl("enum "+d.Name+printEnumHeader(d.Header), variantsToSpanned(d.Variants), startLine(d), func(i int) string {
+			p.printFieldedDecl("enum "+d.Name+printEnumHeader(d.Header), variantsToSpanned(d.Variants), startLine(d), endLine(d), func(i int) string {
 				return rows[i] + ","
 			})
 			break
 		}
-		p.printFieldedDecl("enum "+d.Name, variantsToSpanned(d.Variants), startLine(d), func(i int) string {
+		p.printFieldedDecl("enum "+d.Name, variantsToSpanned(d.Variants), startLine(d), endLine(d), func(i int) string {
 			return printEnumVariant(d.Variants[i]) + ","
 		})
 	case *syntax.RuleDecl:
@@ -278,7 +293,7 @@ func (p *printer) printDecl(d syntax.Decl) {
 	case *syntax.PrincipalDecl:
 		p.printPrincipal(d)
 	case *syntax.InterfaceDecl:
-		p.printFieldedDecl("interface "+d.Name, membersToSpanned(d.Members), startLine(d), func(i int) string {
+		p.printFieldedDecl("interface "+d.Name, membersToSpanned(d.Members), startLine(d), endLine(d), func(i int) string {
 			m := d.Members[i]
 			return fmt.Sprintf("%s%s -> %s;", m.Name, printParams(m.Params), printType(m.ReturnType))
 		})
@@ -302,7 +317,7 @@ func (p *printer) printDecl(d syntax.Decl) {
 			}
 			header += " when " + when
 		}
-		p.printFieldedDecl(header, spanned, startLine(d), func(i int) string {
+		p.printFieldedDecl(header, spanned, startLine(d), endLine(d), func(i int) string {
 			f := d.Fields[i]
 			line := fmt.Sprintf("%s: %s from %s", f.Name, printType(f.Type), configSources(f))
 			if f.Startup != "" {
@@ -362,6 +377,7 @@ func (p *printer) printCapabilityDecl(d *syntax.CapabilityDecl) {
 		p.printGatewayDecl(g)
 	}
 	p.indent--
+	p.emitInside(endLine(d))
 	p.writeIndent()
 	p.out.WriteString("}\n")
 }
@@ -436,6 +452,7 @@ func (p *printer) printFormulasDecl(d *syntax.FormulasDecl) {
 		}
 	}
 	p.indent--
+	p.emitInside(endLine(d))
 	p.writeIndent()
 	p.out.WriteString("}\n")
 }
@@ -487,7 +504,7 @@ func variantsToSpanned(variants []syntax.EnumVariant) []syntax.Spanned {
 // printFieldedDecl handles model/enum declarations: a single-line header
 // ending in "{", one item per line, and a closing "}" — the one shape both
 // kinds share, differing only in how each item renders.
-func (p *printer) printFieldedDecl(header string, items []syntax.Spanned, headerLine int, renderItem func(i int) string) {
+func (p *printer) printFieldedDecl(header string, items []syntax.Spanned, headerLine, closeLine int, renderItem func(i int) string) {
 	p.emitLine(header+" {", headerLine, headerLine)
 	p.indent++
 	for i, item := range items {
@@ -496,12 +513,7 @@ func (p *printer) printFieldedDecl(header string, items []syntax.Spanned, header
 		p.emitLine(renderItem(i), line, line)
 	}
 	p.indent--
-	// No drain here: a comment between the last item and "}" isn't attested
-	// anywhere in the corpus, and using an unbounded sentinel as "the closing
-	// brace's line" wrongly sweeps up comments belonging to whatever follows
-	// this declaration in the file instead. Leaving it unclaimed just means
-	// the next emitLeading call up the call stack picks it up as a leading
-	// comment on the next sibling instead; nothing is lost.
+	p.emitInside(closeLine)
 	p.out.WriteString(strings.Repeat("    ", p.indent))
 	p.out.WriteString("}\n")
 }
@@ -751,7 +763,7 @@ func (p *printer) printAdapterDecl(d *syntax.AdapterDecl) {
 		p.printRoute(r)
 	}
 	p.indent--
-	// See printFieldedDecl: no drain before "}" here either.
+	p.emitInside(endLine(d))
 	p.writeIndent()
 	p.out.WriteString("}\n")
 }
@@ -777,10 +789,12 @@ func (p *printer) printApplicationDecl(d *syntax.ApplicationDecl) {
 			p.emitLine(strings.Join(a.Path, ".")+";", al, al)
 		}
 		p.indent--
+		p.emitInside(endLine(b))
 		p.writeIndent()
 		p.out.WriteString("}\n")
 	}
 	p.indent--
+	p.emitInside(endLine(d))
 	p.writeIndent()
 	p.out.WriteString("}\n")
 }
@@ -872,6 +886,7 @@ func (p *printer) printRoute(r *syntax.Route) {
 		p.emitLine(content, al, al)
 	}
 	p.indent--
+	p.emitInside(endLine(r))
 	p.writeIndent()
 	p.out.WriteString("}\n")
 }
@@ -994,7 +1009,7 @@ func (p *printer) printBlockBody(b *syntax.Block) {
 		p.printStmt(s)
 	}
 	p.indent--
-	// See printFieldedDecl: no drain before "}" here either.
+	p.emitInside(endLine(b))
 	p.writeIndent()
 	p.out.WriteString("}" + after + "\n")
 }
@@ -1014,6 +1029,7 @@ func (p *printer) printProducingBody(b *syntax.Block) {
 		}
 	}
 	p.indent--
+	p.emitInside(endLine(b))
 	p.writeIndent()
 	p.out.WriteString("}" + after + "\n")
 }
@@ -1344,7 +1360,7 @@ func (p *printer) printBlockBodyNoClose(b *syntax.Block) {
 		p.printStmt(s)
 	}
 	p.indent--
-	// See printFieldedDecl: no drain before the caller's "}"/"} else ..." here either.
+	p.emitInside(endLine(b))
 }
 
 func (p *printer) printMatchStmt(s *syntax.MatchStmt) {
@@ -1370,7 +1386,7 @@ func (p *printer) printMatchArms(prefix string, s *syntax.MatchStmt, producing b
 		p.printMatchArm(arm, producing)
 	}
 	p.indent--
-	// See printFieldedDecl: no drain before "}" here either.
+	p.emitInside(endLine(s))
 	p.writeIndent()
 	p.out.WriteString("}" + after + "\n")
 }
