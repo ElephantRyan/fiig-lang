@@ -9,5 +9,5 @@ use acme.stripe.Stripe
 use checkout.core
 
 rule chooseClientProvider(merchant: core.PayingMerchant) -> payments.PaymentProvider {
-    return Stripe
+    return Stripe;
 }

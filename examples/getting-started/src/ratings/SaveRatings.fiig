@@ -4,10 +4,11 @@
 // fiig run -caps caps.json -args '{"ratings": [{"item": "dune", "score": 9, "note": "great"}]}' . saveRatings
 activity saveRatings(ratings: List<Rating>) -> Result<int, RatingError> {
     transaction Database {
-        for rating in ratings {
-            checkRating(rating)?
-            saveRating(rating)
+        for (rating in ratings) {
+            checkRating(rating)?;
+            saveRating(rating);
         }
     }
-    return Ok(ratings.length())
+
+    return Ok(ratings.length());
 }

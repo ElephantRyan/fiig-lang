@@ -5,5 +5,5 @@
 // On Postgres, with PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE and
 // PGSSLMODE set: fiig run -workspace .. -caps caps.postgres.json . setupNotes
 workflow setupNotes() -> int {
-    return createNotesSchema()
+    return createNotesSchema();
 }

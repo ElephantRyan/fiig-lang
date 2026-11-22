@@ -1,6 +1,7 @@
 rule checkNote(note: Note) -> Result<Note, string> {
-    if note.text.isBlank() {
-        return Err("note ${note.id} has no text")
+    if (note.text.isBlank()) {
+        return Err("note ${note.id} has no text");
     }
-    return Ok(note)
+
+    return Ok(note);
 }

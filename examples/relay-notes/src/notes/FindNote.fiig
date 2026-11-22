@@ -1,6 +1,3 @@
-gateway findNote(id: string) -> Note | None
-    requires Database
-    idempotent
-{
-    return Database.queryOne("SELECT id, text FROM notes WHERE id = ?", id)
+gateway findNote(id: string) -> Note | None requires Database idempotent {
+    return Database.queryOne("SELECT id, text FROM notes WHERE id = ?", id);
 }

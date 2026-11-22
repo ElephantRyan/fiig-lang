@@ -1,5 +1,5 @@
 // An activity composes rules and gateways. `?` returns early with the error.
 activity recordRating(input: NewRating) -> Result<Rating, RatingError> {
-    rating = createValidRating(input)?
-    return Ok(saveRating(rating))
+    rating = createValidRating(input)?;
+    return Ok(saveRating(rating));
 }

@@ -4,9 +4,12 @@ use acme.payments
 use checkout.core
 use checkout.core.LedgerApi
 
-activity takeClientPayment(merchant: core.PayingMerchant, request: payments.ChargeRequest) -> Result<string, string> {
-    Provider = chooseClientProvider(merchant)
-    reference = Provider.charge(request)?
-    recorded = LedgerApi.record("charged ${request.orderId} as ${reference}")?
-    return Ok(reference)
+activity takeClientPayment(
+    merchant: core.PayingMerchant,
+    request: payments.ChargeRequest,
+) -> Result<string, string> {
+    Provider = chooseClientProvider(merchant);
+    reference = Provider.charge(request)?;
+    recorded = LedgerApi.record("charged ${request.orderId} as ${reference}")?;
+    return Ok(reference);
 }

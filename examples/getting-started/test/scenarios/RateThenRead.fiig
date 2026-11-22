@@ -3,7 +3,7 @@ use getting.started.ratings
 // A test may call the program's workflows (ADR 0103): the same entry points
 // the HTTP adapter calls, with the migrations already applied.
 test rateThenRead {
-    expect ratings.rate(ratings.NewRating(item: "dune", score: 9, note: "great")) is Ok(saved)
-    expect ratings.readRating("dune") is Ok(found)
-    expect found == saved
+    expect ratings.rate(ratings.NewRating(item: "dune", score: 9, note: "great")) is Ok(saved);
+    expect ratings.readRating("dune") is Ok(found);
+    expect found == saved;
 }

@@ -1,7 +1,5 @@
 // Orders' own table, in the process-wide Database (ADR 0079 §6a).
-gateway saveOrder(order: string, charge: Charge) -> OrderPlaced
-    requires Database
-{
-    Database.execute("INSERT INTO orders (id, charge_id) VALUES (?, ?)", order, charge.id)
-    return OrderPlaced(order: order, charge: charge)
+gateway saveOrder(order: string, charge: Charge) -> OrderPlaced requires Database {
+    Database.execute("INSERT INTO orders (id, charge_id) VALUES (?, ?)", order, charge.id);
+    return OrderPlaced(order: order, charge: charge);
 }

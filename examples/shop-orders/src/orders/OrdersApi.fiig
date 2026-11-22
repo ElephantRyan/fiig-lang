@@ -7,9 +7,8 @@ use shop.kernel
 // same in both (ADR 0079 §7).
 adapter http ordersApi {
     POST "/orders/{order}" -> submitOrder(order: string, amount: kernel.Money)
-        consumes "application/json"
-        produces "application/json"
-    {
+            consumes "application/json"
+            produces "application/json" {
         Ok(placed) -> 201 placed
         Err(error) -> chargeErrorResponse(error)
     }

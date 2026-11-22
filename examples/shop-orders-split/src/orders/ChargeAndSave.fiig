@@ -3,6 +3,6 @@ use shop.kernel
 // Charge, then record the order with its charge (ADR 0107: the workflow
 // reaches both gateways through this step).
 activity chargeAndSave(order: string, amount: kernel.Money) -> Result<OrderPlaced, ChargeError> {
-    charge = chargeOrder(order: order, amount: amount)?
-    return Ok(saveOrder(order: order, charge: charge))
+    charge = chargeOrder(order: order, amount: amount)?;
+    return Ok(saveOrder(order: order, charge: charge));
 }

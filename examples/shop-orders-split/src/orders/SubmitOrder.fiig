@@ -1,5 +1,5 @@
 use shop.kernel
 
 workflow submitOrder(order: string, amount: kernel.Money) -> Result<OrderPlaced, ChargeError> {
-    return chargeAndSave(order, amount)
+    return chargeAndSave(order, amount);
 }

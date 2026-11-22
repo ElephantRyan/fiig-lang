@@ -11,25 +11,27 @@ use checkout.core.LedgerApi
 test usMerchantChargesStripe {
     fake LedgerApi {
         gateway record(entry: string) -> Result<None, string> {
-            expect entry == "charged o-1 as stripe:ch_1"
-            return Ok(None)
-        }
-    }
-    fake Stripe {
-        gateway charge(request: payments.ChargeRequest) -> Result<string, string> {
-            return Ok("stripe:ch_1")
-        }
-    }
-    fake Square {
-        gateway charge(request: payments.ChargeRequest) -> Result<string, string> {
-            expect false
-            return Err("a US merchant never reaches Square")
+            expect entry == "charged o-1 as stripe:ch_1";
+            return Ok(None);
         }
     }
 
-    merchant = core.PayingMerchant(id: "m-1", inEurope: false)
-    reference = takePayment(merchant, payments.ChargeRequest(orderId: "o-1", amount: 500))
-    expect reference is Ok(id)
-    expect id == "stripe:ch_1"
-    expect calls(LedgerApi.record) == 1
+    fake Stripe {
+        gateway charge(request: payments.ChargeRequest) -> Result<string, string> {
+            return Ok("stripe:ch_1");
+        }
+    }
+
+    fake Square {
+        gateway charge(request: payments.ChargeRequest) -> Result<string, string> {
+            expect false;
+            return Err("a US merchant never reaches Square");
+        }
+    }
+
+    merchant = core.PayingMerchant(id: "m-1", inEurope: false);
+    reference = takePayment(merchant, payments.ChargeRequest(orderId: "o-1", amount: 500));
+    expect reference is Ok(id);
+    expect id == "stripe:ch_1";
+    expect calls(LedgerApi.record) == 1;
 }

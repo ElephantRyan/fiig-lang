@@ -5,9 +5,8 @@ use shop.payments
 // Splitting Payments out changes this file's requires line and body, and
 // nothing that calls it (examples/shop-orders-split).
 gateway chargeOrder(order: string, amount: kernel.Money) -> Result<Charge, ChargeError>
-    requires payments
-{
-    match payments.capturePayment(reference: order, amount: amount) {
+        requires payments {
+    return match (payments.capturePayment(reference: order, amount: amount)) {
         Ok(receipt) -> Ok(Charge(id: receipt.id, refundable: receipt.refundable))
         Err(failure) -> Err(chargeErrorOf(failure))
     }
@@ -15,7 +14,7 @@ gateway chargeOrder(order: string, amount: kernel.Money) -> Result<Charge, Charg
 
 private {
     chargeErrorOf(failure: payments.PaymentError) -> ChargeError {
-        match failure {
+        return match (failure) {
             payments.PaymentError.Declined(reason) -> ChargeError.Declined(reason: reason)
             payments.PaymentError.InvalidAmount -> ChargeError.InvalidAmount
         }

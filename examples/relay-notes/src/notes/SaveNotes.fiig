@@ -2,10 +2,11 @@
 // the block starts and ROLLBACK when `?` returns the Err (ADR 0084 §5).
 activity saveNotes(notes: List<Note>) -> Result<int, string> {
     transaction Database {
-        for note in notes {
-            checkNote(note)?
-            saveNote(note)
+        for (note in notes) {
+            checkNote(note)?;
+            saveNote(note);
         }
     }
-    return Ok(notes.length())
+
+    return Ok(notes.length());
 }

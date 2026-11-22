@@ -7,8 +7,9 @@ use acme.stripe.Stripe
 use checkout.core
 
 rule choosePaymentProvider(merchant: core.PayingMerchant) -> payments.PaymentProvider {
-    if merchant.inEurope {
-        return Square
+    if (merchant.inEurope) {
+        return Square;
     }
-    return Stripe
+
+    return Stripe;
 }
