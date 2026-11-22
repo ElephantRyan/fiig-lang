@@ -1,23 +1,25 @@
 # ADR 0143: A Wire Is a Value the Runtime Fills From Outside the Program
 
-Status: Proposed (2026-11-21)
+Status: Accepted (2026-11-21; the owner approved it). Written in ADR 0142's
+syntax (§7). Not implemented yet.
 Date: 2026-11-21
 Supersedes: the `principal` keyword of ADR 0137 and ADR 0141, and the
 `config` keyword of ADR 0071. Their rules are kept and restated by source
 in §3.
-Related: ADR 0071 (config), ADR 0122 (`when`), ADR 0127 (`from startup`),
+Related: ADR 0142 (semicolons, symbol operators, parenthesised
+conditions), ADR 0071 (config), ADR 0122 (`when`), ADR 0127 (`from startup`),
 ADR 0137 (principals), ADR 0140 (settings), ADR 0141 (named principals),
-ADR 0054 (one public declaration per file), ADR 0104 (file names), ADR 0105
-(`fiig fmt -layout`).
+ADR 0054 (one public declaration per file), ADR 0104 (file names).
 
 ## Context
 
-fiig has three declarations that look alike and are named apart:
+fiig has three declarations that look alike and are named apart (shown
+with ADR 0142's `??` between sources, §7):
 
 ```fiig
 principal me: accounts.Identity from cookie "sid" by signedIn else refused   // ADR 0137
 config Abs {
-    url: string | None from env "ABS_URL" or setting "abs.url"            // ADR 0071, 0140
+    url: string | None from env "ABS_URL" ?? setting "abs.url"            // ADR 0071, 0140
 }
 config Health {
     storageDown: bool from startup "Preflight.verifyStorage"              // ADR 0127
@@ -79,16 +81,16 @@ is what `config` is today:
 ```fiig
 // src/settings/Abs.fiig
 wire Abs {
-    url: string | None from env "ABS_URL" or setting "abs.url"
-    token: Secret | None from env "ABS_SERVICE_TOKEN" or setting "abs.serviceToken"
-    workers: int from env "INDEX_WORKERS" or setting "abs.indexWorkers" on restart = 4
+    url: string | None from env "ABS_URL" ?? setting "abs.url"
+    token: Secret | None from env "ABS_SERVICE_TOKEN" ?? setting "abs.serviceToken"
+    workers: int from env "INDEX_WORKERS" ?? setting "abs.indexWorkers" on restart = 4
 }
 ```
 
 ```ebnf
 wire-decl     ::= 'wire' identifier ':' type 'from' wire-source [ 'by' qualified-ref 'else' qualified-ref ]
-                | 'wire' identifier [ 'when' expr ] '{' { wire-field } '}'
-wire-field    ::= identifier ':' type 'from' wire-source { 'or' wire-source } [ '=' expr ]
+                | 'wire' identifier [ 'when' '(' expr ')' ] '{' { wire-field } '}'
+wire-field    ::= identifier ':' type 'from' wire-source { '??' wire-source } [ '=' expr ]
 wire-source   ::= ( 'cookie' | 'header' | 'env' ) string-literal
                 | 'setting' string-literal [ 'on' 'restart' ]
                 | 'startup' string-literal
@@ -166,14 +168,15 @@ program to each other and fill no value. They keep their own keywords.
 
 ### 5. Migration
 
-- `fiig fmt -layout` (ADR 0105) rewrites `principal` to `wire` and `config
-  Name {` to `wire Name {`, and renames nothing else. File names don't
+- `fiig fmt -w` rewrites `principal` to `wire` and `config Name {` to
+  `wire Name {`, in ADR 0142's rewrite pass (§7), and renames nothing
+  else. File names don't
   change, since they follow the declaration's name (ADR 0104), not its
   keyword.
-- For one release, `principal` and `config` parse as `wire` and get a
-  message saying to run `fiig fmt -layout`. ADR 0051 has no warnings, so
-  this is an error that names the fix, as ADR 0055's removed `value` is
-  today.
+- In ADR 0142 §5's first step, `principal` and `config` still parse, and
+  `fiig fmt -w` writes `wire`. In its second step they are errors that
+  name the fix. ADR 0051 has no warnings, so it is an error, as ADR 0055's
+  removed `value` is today (§7).
 - The stdlib's 7 `config` declarations and the repo's other 7 move in the
   same commit as the implementation. Hearsay's 7 `config` declarations and
   12 inline `principal` lines move in one formatter pass (Lane A).
@@ -188,6 +191,30 @@ The U and V classes keep their numbers, and their messages say "wire":
   or another wire as a grouped field, an `env`, `setting` or `startup`
   source on a single wire, or a single wire with process sources and a
   `by`.
+
+### 7. With ADR 0142
+
+This ADR is written in ADR 0142's syntax, and lands with it:
+
+- **Sources are joined by `??`.** A field's sources are tried in order and
+  the first one present wins, which is what `??` means in ADR 0142 §3.
+  ADR 0140's `or` between sources is ADR 0099's `or`-as-default, which 0142
+  retires, so `from env "X" or setting "x"` becomes `from env "X" ?? setting
+  "x"`.
+- **A grouped wire's `when` is a parenthesised condition** (ADR 0142 §4),
+  using `!`, `&&` and `||` (§3): `wire Oidc when (SignInConfig.authMode !=
+  AuthMode.Abs) { ... }`. V2's subset is unchanged apart from the
+  spelling.
+- **Wires take no `;`.** They are declarations, not statements (ADR 0142
+  §1). That holds for a single wire, a grouped wire's fields, and a wire an
+  adapter declares or names. ADR 0142 §1 lists these as "principals".
+- **One migration.** ADR 0142 §5 lands in two steps, first both spellings
+  then errors for the old ones, and this ADR's keyword change lands in the
+  same steps. `fiig fmt -w` writes `wire`, `??` between sources and `when
+  (...)` in the same pass that writes 0142's `;`, parentheses and symbol
+  operators. In step 2, `config`, `principal` and `or` between sources
+  become errors that name the fix. ADR 0142 already keeps `or` reserved
+  for that error.
 
 ## Rationale
 
@@ -244,7 +271,7 @@ The U and V classes keep their numbers, and their messages say "wire":
   highlight `wire`, and share one icon.
 - Docs: `docs/terminology.md` gets wire and wiring; `docs/layers.md`,
   `docs/deploying.md` and the tour change their examples.
-- Hearsay: one `fiig fmt -layout` pass, then `openapi.json`/`schema.d.ts`
+- Hearsay: one `fiig fmt -w` pass (with ADR 0142's), then `openapi.json`/`schema.d.ts`
   regenerate (scheme names don't change).
 
 ## Open questions
