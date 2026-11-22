@@ -22,8 +22,7 @@ out.
   use shop.payments;
 
   gateway chargeOrder(order: string, amount: kernel.Money) -> Result<Charge, ChargeError>
-      requires payments
-  {
+          requires payments {
       return match (payments.capturePayment(reference: order, amount: amount)) {
           Ok(receipt) -> Ok(Charge(id: receipt.id, refundable: receipt.refundable)),
           Err(failure) -> Err(chargeErrorOf(failure)),
@@ -51,8 +50,7 @@ split `chargeOrder` keeps its name and signature, and requires
 
 ```fiig
 gateway chargeOrder(order: string, amount: kernel.Money) -> Result<Charge, ChargeError>
-    requires HttpClient
-{
+        requires HttpClient {
     // POST to Payments' route; decode a 200 as Charge and a 422 as ChargeError
 }
 ```

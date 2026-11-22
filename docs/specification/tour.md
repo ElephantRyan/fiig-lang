@@ -97,14 +97,14 @@ enum Region {
 //   Customer(ContactInfo: contact, id: id, name: name)
 // (ADR 0045)                                                      [implemented]
 model ContactInfo {
-    email: string
-    phone: string
+    email: string;
+    phone: string;
 }
 
 model Customer {
-    ContactInfo
-    id: string
-    name: string
+    ContactInfo;
+    id: string;
+    name: string;
 }
 ```
 
@@ -166,6 +166,7 @@ activity validateNewCustomer(input: NewCustomer) -> Result<NewCustomer, Customer
     if (input.name.isBlank()) {
         return Err(CustomerError.Invalid("name", "must not be blank"));
     }
+
     validateEmail(input.email)?;
     return Ok(input);
 }
@@ -178,11 +179,11 @@ activity validateNewCustomer(input: NewCustomer) -> Result<NewCustomer, Customer
 // comes from context, and its columns fill the model by name, ignoring
 // case and underscores, so `created_at` fills `createdAt` (ADR 0094); the
 // SQL text is a literal, values are bound after it (ADR 0082).      [built]
-gateway getCustomer(id: string) -> Result<Customer, CustomerError>
-    requires Database
-    idempotent
-{
-    row: Customer | None = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id);
+gateway getCustomer(id: string) -> Result<Customer, CustomerError> requires Database idempotent {
+    row: Customer | None = Database.queryOne(
+        "SELECT id, name, email FROM customers WHERE id = ?",
+        id,
+    );
     return match (row) {
         found -> Ok(found),
         None -> Err(CustomerError.NotFound(id)),
@@ -293,7 +294,7 @@ conversion describe(code: int) -> string {
         200 -> "ok",
         404 -> "missing",
         -1 -> "unset",
-        _ -> "other",      // required: an int has more values than a match lists
+        _ -> "other", // required: an int has more values than a match lists
     }
 }
 ```
@@ -496,12 +497,13 @@ page = query.toIntOrNone();          // int | None
 // Clock and Random are local effects (ADR 0068): an activity or a gateway
 // reads them directly, and a rule takes the value as a parameter.
 activity newSessionToken() -> string {
-    return Random.bytes(count: 32).toBase64Url();   // 256 bits, cookie-safe
+    return Random.bytes(count: 32).toBase64Url(); // 256 bits, cookie-safe
 }
 
 activity nextRetryDelay(attempt: int) -> int {
     return backoffDelay(attempt: attempt, jitter: Random.int(min: 0, max: 99));
 }
+
 // Random.int includes both ends; Random.float() is in [0, 1);
 // Random.uuid() is a version 4 UUID; Clock.now() is Unix milliseconds.
 ```
@@ -512,9 +514,9 @@ activity nextRetryDelay(attempt: int) -> int {
 // `concurrent` is the ONLY concurrency construct (ADR 0016) and the only
 // thing that walks a List. Modifiers are comma-separated, each at most once,
 // in any order: `limit: N | unbounded`, `preserveOrder`.              [built]
-workflow retrieveCustomers(customerIds: List<string>) -> BatchResult<string, Customer, CustomerError> {
-    return concurrent(customerId in customerIds, limit: 5, preserveOrder):
-        getCustomer(customerId);
+workflow retrieveCustomers(customerIds: List<string>)
+        -> BatchResult<string, Customer, CustomerError> {
+    return concurrent(customerId in customerIds, limit: 5, preserveOrder): getCustomer(customerId);
 }
 ```
 
@@ -549,15 +551,14 @@ rejected by the checker.
 // checker-enforced. Every route says what it sends (`produces`), and a body
 // route what it reads (`consumes`); another Content-Type is a 415.   [built]
 adapter http customerHttpApi {
-    GET "/customers/{id}" -> readCustomer(id: string)
-        produces "application/json";
+    GET "/customers/{id}" -> readCustomer(id: string) produces "application/json";
     POST "/customers" -> createCustomer(input: NewCustomer)
-        consumes "application/json"
-        produces "application/json";
+            consumes "application/json"
+            produces "application/json";
     GET "/me" -> currentAccount(session: string | None from cookie "sid")
-        produces "application/json";
+            produces "application/json";
     GET "/accounts.csv" -> exportAccounts(authorization: string from header "Authorization")
-        produces "text/csv";           // a non-JSON type sends a string or bytes
+            produces "text/csv"; // a non-JSON type sends a string or bytes
 }
 ```
 
@@ -566,11 +567,9 @@ adapter http customerHttpApi {
 // shorthand for HttpResponse(status: 200, body: customer); any other arm
 // produces the prelude HttpResponse<B> (ADR 0069 §3).                [built]
 adapter http customerHttpApiWithMapping {
-    GET "/customers/{id}" -> readCustomer(id: string)
-        produces "application/json"
-    {
-        Ok(customer) -> 200 customer
-        Err(error) -> customerErrorToHttpResponse(error)
+    GET "/customers/{id}" -> readCustomer(id: string) produces "application/json" {
+        Ok(customer) -> 200 customer,
+        Err(error) -> customerErrorToHttpResponse(error),
     }
 }
 
@@ -604,6 +603,7 @@ application AbsRecommendations {
     serve web {
         sessions.sessionsApi;
     }
+
     serve worker {
         sync.syncSchedule;
     }
@@ -828,17 +828,18 @@ header; a `match` on the enum is for per-client logic. Corpus:
 // as many as it needs, sharing one private block (ADR 0102).
 test ratingAboveTenIsRefused {
     result = createValidRating(NewRating(item: "dune", score: 11, note: ""));
-    expect result is Err(problem);        // a shape; binds problem
+    expect result is Err(problem); // a shape; binds problem
     expect problem == RatingError.Invalid("score", "must be from 1 to 10");
 }
 
 test chargeIsRecorded {
-    fake LedgerApi {                      // replaces LedgerApi at any depth
+    fake LedgerApi { // replaces LedgerApi at any depth
         gateway record(entry: string) -> Result<None, string> {
             return Ok(None);
         }
     }
-    fake StripeAccount {                  // a config's values
+
+    fake StripeAccount { // a config's values
         apiKey: "sk_test_1";
     }
 

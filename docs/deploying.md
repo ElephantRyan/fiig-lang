@@ -244,6 +244,7 @@ application AbsRecommendations {
     serve web {
         sessions.sessionsApi;
     }
+
     serve worker {
         sync.syncSchedule;
     }
@@ -465,14 +466,14 @@ so, in place of `proceed`, which says nothing afterwards:
 ```fiig
 adapter startup Preflight {
     run -> verifyStorage() {
-        Ok(_) -> proceed
-        Err(StorageError.NoSuchBucket(_)) -> halt
-        Err(StorageError.Unreachable(_)) -> degrade
+        Ok(_) -> proceed,
+        Err(StorageError.NoSuchBucket(_)) -> halt,
+        Err(StorageError.Unreachable(_)) -> degrade,
     }
 }
 
 wire Health {
-    storageDown: bool from startup "Preflight.verifyStorage"
+    storageDown: bool from startup "Preflight.verifyStorage";
 }
 ```
 

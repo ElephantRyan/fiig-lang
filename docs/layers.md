@@ -18,9 +18,7 @@ Rules and conversions are pure, and any layer may call them.
 **Gateway.** ABS's failures become the app's errors, once, here:
 
 ```fiig
-gateway findBook(id: string) -> Result<Book, AppError>
-    requires AbsApi
-{
+gateway findBook(id: string) -> Result<Book, AppError> requires AbsApi {
     return mapErr(e in AbsApi.item(id)): appErrorOfAbs(e);
 }
 ```
@@ -41,7 +39,8 @@ book that doesn't exist is, for this app, the same answer as rating one you
 can't see:
 
 ```fiig
-workflow rate(session: string | None, itemId: string, input: RatingInput) -> Result<Rating, AppError> {
+workflow rate(session: string | None, itemId: string, input: RatingInput)
+        -> Result<Rating, AppError> {
     return match (loadUserAndBook(session, itemId)) {
         Err(AppError.NotFound) -> Err(AppError.Unauthorized),
         Err(other) -> Err(other),
@@ -54,10 +53,13 @@ workflow rate(session: string | None, itemId: string, input: RatingInput) -> Res
 
 ```fiig
 adapter http api {
-    PUT "/ratings/{itemId}" -> rate(session: string | None from cookie "sid", itemId: string, input: RatingInput)
-        consumes "application/json"
-        produces "application/json"
-    {
+    PUT "/ratings/{itemId}" -> rate(
+        session: string | None from cookie "sid",
+        itemId: string,
+        input: RatingInput,
+    )
+            consumes "application/json"
+            produces "application/json" {
         Ok(rating) -> 200 rating,
         Err(error) -> appErrorResponse(error),
     }
@@ -103,13 +105,15 @@ input alone, called first in the workflow, and the building in the step.
 ```fiig
 // Slow: a score of 12 costs an ABS round trip before it is refused, because
 // the check is inside storeRating.
-workflow putRating(me: Identity, itemId: string, input: RatingInput) -> Result<Rating, RatingError> {
+workflow putRating(me: Identity, itemId: string, input: RatingInput)
+        -> Result<Rating, RatingError> {
     book = mapErr(e in latestBook(itemId)): RatingError.NoSuchBook?;
     return storeRating(me, book, input);
 }
 
 // Fast: the pure check first; the step takes what it returned.
-workflow putRating(me: Identity, itemId: string, input: RatingInput) -> Result<Rating, RatingError> {
+workflow putRating(me: Identity, itemId: string, input: RatingInput)
+        -> Result<Rating, RatingError> {
     valid = validRating(input)?;
     book = mapErr(e in latestBook(itemId)): RatingError.NoSuchBook?;
     return storeRating(me, book, valid);
@@ -140,8 +144,8 @@ error. `mapErr` wraps each one inline, with no conversion file:
 
 ```fiig
 enum ListeningError {
-    Progress(why: AbsFault)
-    Books(why: BookError)
+    Progress(why: AbsFault),
+    Books(why: BookError),
 }
 
 activity loadMyListening(userId: string) -> Result<Listening, ListeningError> {

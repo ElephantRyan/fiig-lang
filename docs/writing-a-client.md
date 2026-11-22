@@ -13,9 +13,7 @@ use fiig.http;
 use fiig.http.HttpClient;
 
 capability ShelfApi {
-    gateway book(token: string, id: string) -> Result<Book, ShelfError>
-        requires HttpClient
-    {
+    gateway book(token: string, id: string) -> Result<Book, ShelfError> requires HttpClient {
         reply = shelfReply(HttpClient.send(shelfGet(Shelf.url, "/api/books/${id}", token)))?;
         return mapErr(e in json.decode(reply.body)): ShelfError.Unreadable(failure: e);
     }
@@ -36,6 +34,7 @@ conversion shelfReply(sent: Result<http.Reply, http.HttpError>) -> Result<http.R
             if (reply.status != 200) {
                 return Err(shelfFailure(reply.status));
             }
+
             return Ok(reply);
         },
     }
@@ -92,12 +91,20 @@ test bookSendsTheToken {
     fake Shelf {
         url: "https://shelf.test";
     }
+
     fake HttpClient {
         gateway send(request: http.Request) -> Result<http.Reply, http.HttpError> {
             expect http.headerValue(request.headers, "authorization") == "Bearer tok-1";
-            return Ok(http.Reply(status: 200, headers: [], body: "{\"id\":\"b-1\",\"title\":\"Dune\"}".utf8()));
+            return Ok(
+                http.Reply(
+                    status: 200,
+                    headers: [],
+                    body: "{\"id\":\"b-1\",\"title\":\"Dune\"}".utf8(),
+                ),
+            );
         }
     }
+
     expect ShelfApi.book("tok-1", "b-1") is Ok(found);
     expect found.title == "Dune";
 }
