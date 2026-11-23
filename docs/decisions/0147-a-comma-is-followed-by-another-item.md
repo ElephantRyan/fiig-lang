@@ -115,7 +115,7 @@ alternative.
 - Migrated on 2026-11-23: about 1,400 commas in this repository, across `.fiig`
   files (the stdlib, examples, and test data), fiig source embedded in Go
   tests, and fiig code in `docs/` outside `docs/decisions`. Earlier ADRs keep
-  their examples as written. Hearsay and abs-recommendations are separate
-  repositories and need `fiig fmt -w`.
+  their examples as written. Hearsay is a separate repository and needs
+  `fiig fmt -w`.
 - JSON and other non-fiig test fixtures that use a trailing comma on
   purpose (to test that JSON refuses one) are unchanged.

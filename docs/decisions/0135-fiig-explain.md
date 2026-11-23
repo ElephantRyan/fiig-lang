@@ -4,7 +4,7 @@ Status: Proposed
 Date: 2026-11-21
 Related: ADR 0051 (diagnostics have no severity), ADR 0107 (B12),
 `docs/specification/bug-classes.md`, ADR 0131 (checking queries against the
-schema), abs-recommendations GAPS G18.
+schema), Hearsay GAPS G18.
 
 ## Context
 
