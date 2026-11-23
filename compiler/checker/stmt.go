@@ -80,12 +80,17 @@ func (c *checker) checkForStmt(s *syntax.ForStmt, declReturn types.Type, env map
 	elemType := types.Type(types.Unknown{})
 	if key, val, ok := mapTypes(iterType); ok {
 		if g, isGeneric := iterType.(types.Generic); isGeneric && g.Name == "Map" {
-			c.checkMapFor(s, key, val, declReturn, env)
+			c.checkPairFor(s, key, val, mapOneName, declReturn, env)
 			return
 		}
 	}
+	if g, ok := iterType.(types.Generic); ok && g.Name == "BatchResult" && len(g.Args) == 3 {
+		outcome := types.Generic{Name: "Result", Args: []types.Type{g.Args[1], g.Args[2]}}
+		c.checkPairFor(s, g.Args[0], outcome, batchOneName, declReturn, env)
+		return
+	}
 	if s.Value != "" {
-		c.report(s.Start, "I1", "for %s, %s in ... binds two names, which is for a Map; a %s binds one", s.Var, s.Value, iterType)
+		c.report(s.Start, "I1", "for %s, %s in ... binds two names, which is for a Map or a BatchResult; a %s binds one", s.Var, s.Value, iterType)
 	}
 	switch it := iterType.(type) {
 	case types.Generic:
@@ -116,12 +121,20 @@ func (c *checker) checkForStmt(s *syntax.ForStmt, declReturn types.Type, env map
 	c.checkLoopBody(s.Label, s.Start, s.Body, declReturn, bodyEnv)
 }
 
-// checkMapFor is ADR 0065 §7: a loop over a map binds a key and a value,
-// in insertion order, and `_` discards either. One name is an error, since
-// languages disagree on what it would mean.
-func (c *checker) checkMapFor(s *syntax.ForStmt, key, val types.Type, declReturn types.Type, env map[string]types.Type) {
+// The I1 message for one name over a pair loop: a Map (ADR 0065 §7), or a
+// BatchResult (ADR 0148 §1).
+const (
+	mapOneName   = "for over a Map binds two names, `for (key, value in m)`; to iterate one, use `for (key in m.keys())` or `for (value in m.values())`"
+	batchOneName = "for over a BatchResult binds two names, `for (key, outcome in batch)`: the element each body ran for, and its Result; `_` discards either (ADR 0148)"
+)
+
+// checkPairFor is a loop that binds two names: a map's key and value, in
+// insertion order (ADR 0065 §7), or a batch's element and outcome, in input
+// order (ADR 0148 §1). `_` discards either. One name is an error, oneName,
+// since languages disagree on what it would mean.
+func (c *checker) checkPairFor(s *syntax.ForStmt, key, val types.Type, oneName string, declReturn types.Type, env map[string]types.Type) {
 	if s.Value == "" {
-		c.report(s.Start, "I1", "for over a Map binds two names, `for (key, value in m)`; to iterate one, use `for (key in m.keys())` or `for (value in m.values())`")
+		c.report(s.Start, "I1", "%s", oneName)
 	}
 	bodyEnv := childEnv(env)
 	for _, b := range []struct {

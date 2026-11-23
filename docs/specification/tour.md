@@ -511,12 +511,24 @@ activity nextRetryDelay(attempt: int) -> int {
 ## 7. Concurrency, retry, transactions
 
 ```fiig
-// `concurrent` is the ONLY concurrency construct (ADR 0016) and the only
-// thing that walks a List. Modifiers are comma-separated, each at most once,
-// in any order: `limit: N | unbounded`, `preserveOrder`.              [built]
-workflow retrieveCustomers(customerIds: List<string>)
-        -> BatchResult<string, Customer, CustomerError> {
-    return concurrent(customerId in customerIds, limit: 5, preserveOrder): getCustomer(customerId);
+// `concurrent` is the ONLY concurrency construct (ADR 0016). It runs the
+// body for each element, at most `limit` at once, and its BatchResult is in
+// input order (ADR 0148). Read one with `for (key, outcome in batch)`. [built]
+activity loadCustomers(customerIds: List<string>) -> List<Customer> {
+    found: List<Customer> = [];
+    fetched = concurrent(customerId in customerIds, limit: 5): getCustomer(customerId);
+    for (_, outcome in fetched) {
+        match (outcome) {
+            Ok(customer) -> {
+                found = append(found, element: customer);
+            },
+
+            Err(_) -> {
+            }
+        }
+    }
+
+    return found;
 }
 ```
 

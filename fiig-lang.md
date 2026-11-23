@@ -141,8 +141,10 @@ workflow retrieveCustomers(customerIds: List<string>) {
 Safe defaults:
 
 - Concurrency is always bounded.
-- Completion order is the default for speed.
-- `preserveOrder` is an explicit modifier.
+- Results are in input order. *(ADR 0148, 2026-11-23: completion order was
+  the default "for speed" with `preserveOrder` to opt out, but a batch is
+  collected whole before anything reads it, so completion order bought no
+  speed and only made a loop over it nondeterministic.)*
 - Per-item failures are preserved in a `BatchResult` by default.
 - Cancellation propagates to every child operation.
 - Nested concurrency shares hierarchical budgets and cannot multiply without bound.
@@ -987,8 +989,8 @@ The first public-quality demonstration should be intentionally narrow:
 1. Define `Customer` and `CustomerError`.
 2. Declare a `getCustomer` gateway backed by a simulated capability.
 3. Declare `retrieveCustomers` using bounded concurrency.
-4. Return keyed successes and failures in completion order.
-5. Support `preserveOrder`.
+4. Return keyed successes and failures in input order (ADR 0148).
+5. ~~Support `preserveOrder`.~~ Retired by ADR 0148.
 6. Enforce application and capability concurrency limits.
 7. Cancel child calls when the workflow is cancelled.
 8. Generate and query the application registry.

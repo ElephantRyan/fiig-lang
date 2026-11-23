@@ -116,6 +116,18 @@ func IsTrailingComma(e Error) bool {
 	return strings.HasPrefix(e.Msg, trailingCommaMsg)
 }
 
+// preserveOrderMsg starts the error for the retired `preserveOrder`
+// modifier (ADR 0148 §3), which the parse leaves out of the tree.
+const preserveOrderMsg = "a concurrent block's results are always in input order"
+
+// FormatFixes reports whether e is an error the formatter fixes rather than
+// refuses: a comma before a closing bracket (ADR 0147), or `preserveOrder`
+// (ADR 0148). The parse leaves each out of the tree, so formatting the tree
+// drops it.
+func FormatFixes(e Error) bool {
+	return IsTrailingComma(e) || strings.HasPrefix(e.Msg, preserveOrderMsg)
+}
+
 func (p *Parser) Errors() []Error { return p.errors }
 
 // ParseWithComments is Parse, plus the source's line comments in source
@@ -2659,12 +2671,12 @@ func (p *Parser) parseConcurrentExpr() *syntax.ConcurrentExpr {
 	p.expect(lexer.KwIn)
 	iterable := p.parseExpression()
 	var limit *syntax.LimitValue
-	var preserveOrder bool
 	for p.at(lexer.Comma) {
 		p.advance()
 		if p.at(lexer.KwPreserveOrder) {
-			p.advance()
-			preserveOrder = true
+			// ADR 0148 §3: a batch is always in input order. The word stays
+			// reserved, so this is the one thing it can mean.
+			p.errorf(p.advance().Start, "%s; remove preserveOrder (ADR 0148)", preserveOrderMsg)
 			continue
 		}
 		limitStart := p.expect(lexer.KwLimit).Start
@@ -2680,7 +2692,7 @@ func (p *Parser) parseConcurrentExpr() *syntax.ConcurrentExpr {
 	p.expect(lexer.RParen)
 	p.expect(lexer.Colon)
 	body := p.parseBody()
-	return &syntax.ConcurrentExpr{Span: syntax.Span{Start: start, End: p.cur().Start}, Var: varTok.Text, Iterable: iterable, Limit: limit, PreserveOrder: preserveOrder, Body: body}
+	return &syntax.ConcurrentExpr{Span: syntax.Span{Start: start, End: p.cur().Start}, Var: varTok.Text, Iterable: iterable, Limit: limit, Body: body}
 }
 
 // atSortedForm reports whether the parser is at ADR 0065 §3's keyed sort.

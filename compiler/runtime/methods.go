@@ -328,6 +328,10 @@ var builtinMethods = map[string]map[string]builtinFunc{
 		},
 	},
 	"Map": mapMethods,
+	// ADR 0148 §2: a batch's one method.
+	"BatchResult": {
+		"length": func(recv Value, _ []Value) (Value, *Fault) { return Int(len(recv.(BatchResult).Items)), nil },
+	},
 }
 
 // mapMethods is Map's table (ADR 0065 §6): every one returns a value, and
@@ -450,6 +454,8 @@ func methodKind(v Value) string {
 		return "List"
 	case Map:
 		return "Map"
+	case BatchResult:
+		return "BatchResult"
 	case Secret:
 		return "Secret"
 	}

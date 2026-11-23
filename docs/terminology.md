@@ -115,9 +115,10 @@ gateways; only applications define workflows and adapters.
   shares its parent's budget rather than multiplying it.
 - **`BatchResult<Key, Success, Failure>`** — The default return shape of a
   `concurrent` block: per-item successes and failures keyed by input identity,
-  rather than the whole batch failing on one item's error.
-- **`preserveOrder`** — An explicit modifier that makes a `concurrent` block
-  return results in input order instead of the default completion order.
+  rather than the whole batch failing on one item's error. In input order,
+  read with `for (key, outcome in batch)` (ADR 0148).
+- **`preserveOrder`** — Retired (ADR 0148). A `concurrent` block's results
+  are always in input order, so the word is reserved and refused.
 - **Structured concurrency** — The runtime-owned guarantee that child tasks
   cannot outlive their parent: cancellation, timeouts, and error propagation
   flow through the task tree automatically, not by SDK convention.

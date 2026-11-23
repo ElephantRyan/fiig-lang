@@ -182,44 +182,20 @@ workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerE
 	}
 }
 
-func TestParseConcurrentWithPreserveOrder(t *testing.T) {
-	f := mustParse(t, `
-workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {
-    return concurrent(id in ids, limit: 5, preserveOrder):
-        getCustomer(id);
-}`)
-	wd := f.Decls[0].(*syntax.WorkflowDecl)
-	stmt := wd.Body.Stmts[0].(*syntax.ReturnStmt)
-	ce := stmt.Value.(*syntax.ConcurrentExpr)
-	if !ce.PreserveOrder {
-		t.Fatalf("PreserveOrder = false, want true")
-	}
-	if ce.Limit == nil || ce.Limit.Unbounded {
-		t.Fatalf("Limit = %+v, want a literal 5", ce.Limit)
-	}
-
-	// Order-independent: `preserveOrder` may come before `limit:` too.
-	f2 := mustParse(t, `
-workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {
-    return concurrent(id in ids, preserveOrder, limit: 5):
-        getCustomer(id);
-}`)
-	wd2 := f2.Decls[0].(*syntax.WorkflowDecl)
-	ce2 := wd2.Body.Stmts[0].(*syntax.ReturnStmt).Value.(*syntax.ConcurrentExpr)
-	if !ce2.PreserveOrder || ce2.Limit == nil {
-		t.Fatalf("ce2 = %+v", ce2)
-	}
-
-	// Bare form: `preserveOrder` with no `limit:` clause at all.
-	f3 := mustParse(t, `
-workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {
-    return concurrent(id in ids, preserveOrder):
-        getCustomer(id);
-}`)
-	wd3 := f3.Decls[0].(*syntax.WorkflowDecl)
-	ce3 := wd3.Body.Stmts[0].(*syntax.ReturnStmt).Value.(*syntax.ConcurrentExpr)
-	if !ce3.PreserveOrder || ce3.Limit != nil {
-		t.Fatalf("ce3 = %+v", ce3)
+// TestParseConcurrentRefusesPreserveOrder is ADR 0148 §3: a batch is always
+// in input order, so `preserveOrder`, before or after `limit:`, is an error
+// the formatter fixes, and the rest of the block parses as written.
+func TestParseConcurrentRefusesPreserveOrder(t *testing.T) {
+	for _, modifiers := range []string{"limit: 5, preserveOrder", "preserveOrder, limit: 5", "preserveOrder"} {
+		f, errs := Parse("workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {\n" +
+			"    return concurrent(id in ids, " + modifiers + "): getCustomer(id);\n}")
+		if len(errs) != 1 || !FormatFixes(errs[0]) || errs[0].Msg != "a concurrent block's results are always in input order; remove preserveOrder (ADR 0148)" {
+			t.Fatalf("%s: errors %v", modifiers, errs)
+		}
+		ce := f.Decls[0].(*syntax.WorkflowDecl).Body.Stmts[0].(*syntax.ReturnStmt).Value.(*syntax.ConcurrentExpr)
+		if wantLimit := modifiers != "preserveOrder"; (ce.Limit != nil) != wantLimit || ce.Var != "id" {
+			t.Fatalf("%s: %+v", modifiers, ce)
+		}
 	}
 }
 

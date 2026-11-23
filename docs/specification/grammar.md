@@ -837,7 +837,7 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
 
 ```ebnf
 concurrent-expr ::= 'concurrent' '(' identifier 'in' expression { ',' concurrent-modifier } ')' ':' ( expression | block )
-concurrent-modifier ::= 'limit' ':' limit-value | 'preserveOrder'
+concurrent-modifier ::= 'limit' ':' limit-value
 limit-value     ::= integer-literal | 'unbounded'
 
 retry-expr ::= 'retry' '(' 'attempts' ':' integer-literal ')' ':' ( expression | block )
@@ -905,13 +905,13 @@ and a valid case in `read_customer_with_retry.fiig`, retrying `getCustomer`
 now that it's marked `idempotent`
 (`docs/decisions/0014-idempotency-and-explicit-retry.md`).
 
-`preserveOrder` (`docs/decisions/0024-preserve-order-modifier.md`) is a second,
-independent modifier — zero or more `concurrent-modifier`s, comma-separated,
-in either order (`limit: 5, preserveOrder` and `preserveOrder, limit: 5` are
-both legal and equivalent), each at most once. It's attested in
-`retrieve_customers_in_order.fiig`. There's no static check for it (Category D
-is entirely about numeric limits); it only changes Milestone 4's runtime
-result ordering, not anything the type/effect checker reasons about.
+A block's `BatchResult<K, S, F>` is in input order, one entry per element,
+whatever order the bodies finished in (ADR 0148 §3). It is read with
+`for (key, outcome in batch)`, binding the element (`K`) and its outcome
+(`Result<S, F>`), as a `Map` is read, and `batch.length()` is its only
+method (ADR 0148 §1-§2). `preserveOrder` (ADR 0024), which asked for input
+order when completion order was the default, is retired: it is a syntax
+error that `fiig fmt` removes, and the word stays reserved.
 
 Per `docs/decisions/0016-unified-concurrency-syntax.md`, `concurrent-expr` is
 the only concurrency construct — there is no separate `parallel` form, for

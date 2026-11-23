@@ -64,11 +64,10 @@ func (c *ManualClock) Sleeps() []time.Duration {
 // NewDeterministic builds an Interp whose Clock never really waits and
 // whose Rand is seeded — the "deterministic test scheduler and
 // controllable clock" deliverable, scoped to what this interpreter
-// actually needs determinism for: retry backoff/jitter. Concurrent-block
-// completion order still depends on real goroutine scheduling and whatever
-// CapabilityProvider a test registers; tests that need a specific
-// completion order should use `preserveOrder` (ADR 0024) or a provider that
-// itself blocks on a controlled signal, not this.
+// actually needs determinism for: retry backoff/jitter. A concurrent
+// block's batch is in input order however its bodies are scheduled (ADR
+// 0148 §3); a test that needs bodies to run in a particular order uses a
+// provider that itself blocks on a controlled signal, not this.
 func NewDeterministic(universe *types.Universe, caps *CapabilityRegistry, seed int64) *Interp {
 	return &Interp{
 		Universe:                universe,

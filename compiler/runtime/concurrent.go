@@ -12,9 +12,9 @@ import (
 // channel (never more than `limit` bodies ever running at once, regardless
 // of how large xs is — the "never create 10,000 simultaneously active
 // operations" scale-test requirement) and feeds results back over a
-// results channel, which is where completion order naturally falls out:
-// collecting in receive order is completion order; collecting by the job's
-// own index instead is `preserveOrder` (ADR 0024). Every child body shares
+// results channel. Each result goes in its job's own index, so the batch is
+// in input order whatever order the bodies finished in (ADR 0148 §3). Every
+// child body shares
 // a single cancellable context (runCtx) derived from the caller's — if any
 // one body produces a genuine Fault, runCtx is cancelled so every other
 // in-flight and not-yet-started body stops too ("cancellation propagates to
@@ -113,8 +113,7 @@ func (in *Interp) evalConcurrentBody(ctx context.Context, e *syntax.ConcurrentEx
 		close(results)
 	}()
 
-	completion := make([]BatchItem, 0, n)
-	byIndex := make([]*BatchItem, n)
+	items := make([]BatchItem, n)
 	var firstFault *Fault
 	for res := range results {
 		if res.fault != nil {
@@ -123,25 +122,12 @@ func (in *Interp) evalConcurrentBody(ctx context.Context, e *syntax.ConcurrentEx
 			}
 			continue
 		}
-		if e.PreserveOrder {
-			item := res.item
-			byIndex[res.index] = &item
-		} else {
-			completion = append(completion, res.item)
-		}
+		items[res.index] = res.item
 	}
 	if firstFault != nil {
 		return nil, false, firstFault
 	}
-	if e.PreserveOrder {
-		completion = completion[:0]
-		for _, item := range byIndex {
-			if item != nil {
-				completion = append(completion, *item)
-			}
-		}
-	}
-	return BatchResult{Items: completion}, false, nil
+	return BatchResult{Items: items}, false, nil
 }
 
 // resolveConcurrencyLimit is D1/D2's runtime counterpart: compiler/checker

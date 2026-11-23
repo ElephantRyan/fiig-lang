@@ -1330,11 +1330,10 @@ type LimitValue struct {
 
 type ConcurrentExpr struct {
 	Span
-	Var           string
-	Iterable      Expr
-	Limit         *LimitValue // nil for the bare form
-	PreserveOrder bool        // `preserveOrder` modifier (fiig-lang.md §3.7, terminology.md) — results in input order instead of completion order
-	Body          Body
+	Var      string
+	Iterable Expr
+	Limit    *LimitValue // nil for the bare form
+	Body     Body
 }
 
 // MapLit is `["a": 1, "b": 2]`, or `[:]` with no entries (ADR 0065 §5).

@@ -259,6 +259,9 @@ func MethodsOf(recv Type) (kind string, table map[string]Method, ok bool) {
 		if t.Name == "Map" && len(t.Args) == 2 {
 			return "Map", mapMethods(t.Args[0], t.Args[1]), true
 		}
+		if t.Name == "BatchResult" && len(t.Args) == 3 {
+			return "BatchResult", batchMethods, true
+		}
 	}
 	return "", nil, false
 }
@@ -266,7 +269,7 @@ func MethodsOf(recv Type) (kind string, table map[string]Method, ok bool) {
 // MethodKinds lists every receiver kind with a table, for the runtime's
 // check that it implements exactly the methods declared here.
 func MethodKinds() []string {
-	kinds := []string{"List", "Map", "Secret"}
+	kinds := []string{"BatchResult", "List", "Map", "Secret"}
 	for k := range primitiveMethods {
 		kinds = append(kinds, k)
 	}
@@ -287,8 +290,17 @@ func MethodsOfKind(kind string) (map[string]Method, bool) {
 	if kind == "Secret" {
 		return secretMethods, true
 	}
+	if kind == "BatchResult" {
+		return batchMethods, true
+	}
 	table, ok := primitiveMethods[kind]
 	return table, ok
+}
+
+// batchMethods is ADR 0148 §2: a batch's one method, the number of entries,
+// which is the input's length. A `for (key, outcome in batch)` reads it.
+var batchMethods = map[string]Method{
+	"length": {nil, intType},
 }
 
 // secretMethods is ADR 0071 §4: reveal, legal only in a gateway (S2), and

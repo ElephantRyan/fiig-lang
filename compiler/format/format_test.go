@@ -26,13 +26,19 @@ func TestFormatSimpleModelIsStable(t *testing.T) {
 	}
 }
 
-func TestFormatConcurrentWithPreserveOrderIsStable(t *testing.T) {
-	src := "workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {\n" +
-		"    return concurrent(id in ids, limit: 5, preserveOrder): getCustomer(id);\n" +
+// ADR 0148 §3: a batch is always in input order, so the formatter drops the
+// retired `preserveOrder` wherever it was written.
+func TestFormatDropsPreserveOrder(t *testing.T) {
+	want := "workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {\n" +
+		"    return concurrent(id in ids, limit: 5): getCustomer(id);\n" +
 		"}\n"
-	out := mustFormat(t, src)
-	if out != src {
-		t.Fatalf("expected already-canonical input to round-trip unchanged:\ngot:\n%s\nwant:\n%s", out, src)
+	for _, modifiers := range []string{"limit: 5, preserveOrder", "preserveOrder, limit: 5"} {
+		src := "workflow w(ids: List<CustomerId>) -> BatchResult<CustomerId, Customer, CustomerError> {\n" +
+			"    return concurrent(id in ids, " + modifiers + "): getCustomer(id);\n" +
+			"}\n"
+		if out := mustFormat(t, src); out != want {
+			t.Errorf("%s:\ngot:\n%s\nwant:\n%s", modifiers, out, want)
+		}
 	}
 }
 

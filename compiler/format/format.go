@@ -39,7 +39,8 @@ const maxLineWidth = 100
 // A second public declaration (G1, ADR 0054) doesn't count: the parser
 // still builds the whole tree for it, so there is nothing to lose by
 // formatting, and the checker is what reports it. Nor does a comma before a
-// closing bracket (ADR 0147), which the parse skips and the output drops.
+// closing bracket (ADR 0147) or `preserveOrder` (ADR 0148), which the parse
+// skips and the output drops.
 func Format(src string) (string, []parser.Error) {
 	out, errs, _ := FormatTyped(src, nil)
 	return out, errs
@@ -52,7 +53,7 @@ func Format(src string) (string, []parser.Error) {
 func FormatTyped(src string, ors map[int]bool) (string, []parser.Error, []lexer.Pos) {
 	file, comments, errs := parser.ParseWithComments(src)
 	for _, e := range errs {
-		if e.Rule != "G1" && !parser.IsTrailingComma(e) {
+		if e.Rule != "G1" && !parser.FormatFixes(e) {
 			return "", errs, nil
 		}
 	}
@@ -1624,9 +1625,6 @@ func printConcurrentExpr(e *syntax.ConcurrentExpr) string {
 		} else {
 			s += ", limit: " + printExpr(e.Limit.Value)
 		}
-	}
-	if e.PreserveOrder {
-		s += ", preserveOrder"
 	}
 	s += "): " + printBodyInline(e.Body)
 	return s

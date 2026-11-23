@@ -1,6 +1,7 @@
 # ADR 0024: `preserveOrder` Concurrency Modifier Syntax
 
-Status: Accepted
+Status: Accepted. Superseded by ADR 0148 (2026-11-23): a batch is always in
+input order, and `preserveOrder` is a syntax error `fiig fmt` removes.
 Date: 2026-10-06
 
 ## Context

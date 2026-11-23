@@ -48,18 +48,17 @@ func TestRetrieveCustomersVerticalSlice(t *testing.T) {
 	}
 }
 
-// TestRetrieveCustomersInOrderPreservesInputOrder is ADR 0024's own
-// `preserveOrder` consumer: with it, BatchResult.Items lines up positionally
-// with the input list, not with whichever getCustomer happened to finish
-// first.
-func TestRetrieveCustomersInOrderPreservesInputOrder(t *testing.T) {
+// TestABatchIsInInputOrder is ADR 0148 §3: BatchResult.Items lines up
+// positionally with the input list, not with whichever getCustomer happened
+// to finish first.
+func TestABatchIsInInputOrder(t *testing.T) {
 	u := loadUniverse(t, "customer-service/models", "customer-service/errors",
 		"customer-service/gateways", "customer-service/activities", "customer-service/workflows")
 	db := newFakeDatabase()
 	// Insert in reverse of the order they'll be queried, and make earlier
 	// IDs resolve slower than later ones (via a tiny artificial stagger),
-	// so completion order would visibly differ from input order if
-	// preserveOrder weren't actually honored.
+	// so completion order would visibly differ from input order if the
+	// batch were collected as results arrived.
 	ids := make([]string, 50)
 	for i := range ids {
 		id := fmt.Sprintf("c%02d", i)
@@ -74,7 +73,7 @@ func TestRetrieveCustomersInOrderPreservesInputOrder(t *testing.T) {
 	for i, id := range ids {
 		elems[i] = customerID(id)
 	}
-	v, fault := in.Call(context.Background(), "retrieveCustomersInOrder", map[string]Value{"customerIds": List{Elems: elems}})
+	v, fault := in.Call(context.Background(), "retrieveCustomers", map[string]Value{"customerIds": List{Elems: elems}})
 	if fault != nil {
 		t.Fatalf("Call: %v", fault)
 	}
@@ -91,7 +90,7 @@ func TestRetrieveCustomersInOrderPreservesInputOrder(t *testing.T) {
 
 // staggeredProvider makes earlier-queried rows resolve slower than later
 // ones, so a completion-order collection would visibly disagree with input
-// order — a control for TestRetrieveCustomersInOrderPreservesInputOrder.
+// order — a control for TestABatchIsInInputOrder.
 func staggeredProvider(db *fakeDatabase, n int) CapabilityProvider {
 	return FuncProvider{
 		"queryOne": func(ctx context.Context, args []Value) (Value, *Fault) {

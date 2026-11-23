@@ -438,7 +438,9 @@ func (in *Interp) evalFor(ctx context.Context, s *syntax.ForStmt, env *Env) (Val
 	var elem func(i int) Value
 	switch it := iterVal.(type) {
 	case Map:
-		return in.evalMapFor(ctx, s, it, env)
+		return in.evalPairFor(ctx, s, mapPairs(it), env)
+	case BatchResult:
+		return in.evalPairFor(ctx, s, batchPairs(it), env)
 	case List:
 		count, elem = len(it.Elems), func(i int) Value { return it.Elems[i] }
 	case Bytes:
@@ -463,12 +465,30 @@ func (in *Interp) evalFor(ctx context.Context, s *syntax.ForStmt, env *Env) (Val
 	return nil, false, nil
 }
 
-// evalMapFor is `for key, value in m` (ADR 0065 §7), in insertion order;
-// `_` binds nothing.
-func (in *Interp) evalMapFor(ctx context.Context, s *syntax.ForStmt, m Map, env *Env) (Value, bool, *Fault) {
-	type entry struct{ k, v Value }
-	var entries []entry
-	m.Each(func(k, v Value) bool { entries = append(entries, entry{k, v}); return true })
+// pair is one step of a two-name loop: a map's key and value, or a batch's
+// element and outcome.
+type pair struct{ k, v Value }
+
+// mapPairs is a map's entries in insertion order (ADR 0065 §7).
+func mapPairs(m Map) []pair {
+	var entries []pair
+	m.Each(func(k, v Value) bool { entries = append(entries, pair{k, v}); return true })
+	return entries
+}
+
+// batchPairs is a batch's elements and outcomes, in input order (ADR 0148).
+func batchPairs(b BatchResult) []pair {
+	entries := make([]pair, len(b.Items))
+	for i, it := range b.Items {
+		entries[i] = pair{it.Key, it.Outcome}
+	}
+	return entries
+}
+
+// evalPairFor is a two-name loop, `for (key, value in m)` over a map (ADR
+// 0065 §7) or `for (key, outcome in batch)` over a batch (ADR 0148), in
+// entries' order; `_` binds nothing.
+func (in *Interp) evalPairFor(ctx context.Context, s *syntax.ForStmt, entries []pair, env *Env) (Value, bool, *Fault) {
 	bodyEnv := env.Child()
 	for _, en := range entries {
 		if f := checkCancelled(ctx); f != nil {

@@ -171,10 +171,8 @@ type BatchItem struct {
 }
 
 // BatchResult is `BatchResult<Key, Success, Failure>` — a `concurrent`
-// block's result, built by concurrent.go. Items is in completion order by
-// default, or input order when the block used `preserveOrder` (ADR 0024) —
-// BatchResult itself doesn't know which; that's a property of how it was
-// built, not of this value.
+// block's result, built by concurrent.go. Items is in input order, one per
+// element the block walked (ADR 0148 §3).
 type BatchResult struct{ Items []BatchItem }
 
 func (BatchResult) isValue() {}

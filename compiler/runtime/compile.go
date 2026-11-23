@@ -299,7 +299,9 @@ func compileFor(s *syntax.ForStmt) cstmt {
 		var data []byte
 		switch it := iterVal.(type) {
 		case Map:
-			return in.evalMapFor(ctx, s, it, env)
+			return in.evalPairFor(ctx, s, mapPairs(it), env)
+		case BatchResult:
+			return in.evalPairFor(ctx, s, batchPairs(it), env)
 		case List:
 			list, count = it.Elems, len(it.Elems)
 		case Bytes:
