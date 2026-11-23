@@ -32,7 +32,7 @@ var scheduleProgram = map[string]string{
 }`,
 	"job_error.fiig": `enum JobError {
     Busy,
-    Broken,
+    Broken
 }`,
 	"count_tick.fiig": `use fiig.redis.Redis;
 
@@ -45,7 +45,7 @@ gateway countTick(firedAt: int) -> Result<None, JobError>
         },
         Err(_) -> {
             return Err(JobError.Broken);
-        },
+        }
     }
 }`,
 	"note_tick.fiig": `activity noteTick(firedAt: int) -> Result<None, JobError> {
@@ -75,7 +75,7 @@ gateway countSeed() -> Result<None, JobError>
         },
         Err(_) -> {
             return Err(JobError.Broken);
-        },
+        }
     }
 }`,
 	"note_seed.fiig": `activity noteSeed() -> Result<None, JobError> {
@@ -88,7 +88,7 @@ gateway countSeed() -> Result<None, JobError>
 	"seeded.fiig": `adapter startup Seeded {
     run once -> seed() {
         Ok(_) -> proceed,
-        Err(_) -> halt,
+        Err(_) -> halt
     }
 }`,
 	"spin.fiig": `workflow spin() -> Result<None, JobError> {
@@ -106,19 +106,19 @@ gateway countSeed() -> Result<None, JobError>
 }`,
 	"faulter.fiig": `adapter schedule Faulter {
     every "15m" -> broken(firedAt: int) {
-        _ -> halt,
+        _ -> halt
     }
 }`,
 	"jobs.fiig": `adapter schedule Jobs {
     every "15m" -> tick(firedAt: int) {
         Ok(_) -> done,
         Err(JobError.Busy) -> done,
-        Err(JobError.Broken) -> halt,
+        Err(JobError.Broken) -> halt
     }
 }`,
 	"spinner.fiig": `adapter schedule Spinner {
     every "1s" -> spin() {
-        _ -> done,
+        _ -> done
     }
 }`,
 }

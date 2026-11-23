@@ -17,10 +17,10 @@ conversion formatHttp(millis: int) -> Result<string, TimeError> {
         "Sep",
         "Oct",
         "Nov",
-        "Dec",
+        "Dec"
     ];
     clock = "${zeroPad(t.hour, 2)}:${zeroPad(t.minute, 2)}:${zeroPad(t.second, 2)}";
     return Ok(
-        "${weekdays.at(weekday(millis))}, ${zeroPad(t.day, 2)} ${months.at(t.month - 1)} ${zeroPad(t.year, 4)} ${clock} GMT",
+        "${weekdays.at(weekday(millis))}, ${zeroPad(t.day, 2)} ${months.at(t.month - 1)} ${zeroPad(t.year, 4)} ${clock} GMT"
     );
 }

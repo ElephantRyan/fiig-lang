@@ -41,7 +41,7 @@ func TestRouteHeadersCookiesAndMediaTypes(t *testing.T) {
     POST "/orders" -> placeOrder(
         input: NewOrder,
         token: string from header "Authorization",
-        requestId: string | None from header "X-Request-Id",
+        requestId: string | None from header "X-Request-Id"
     )
         consumes "application/json"
         produces "application/json";

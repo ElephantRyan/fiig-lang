@@ -13,6 +13,6 @@ activity exportAllowed(authorization: string) -> Result<None, AccountError> {
             }
 
             return Err(AccountError.BadCredentials);
-        },
+        }
     }
 }

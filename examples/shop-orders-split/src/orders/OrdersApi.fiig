@@ -10,6 +10,6 @@ adapter http ordersApi {
             consumes "application/json"
             produces "application/json" {
         Ok(placed) -> 201 placed,
-        Err(error) -> chargeErrorResponse(error),
+        Err(error) -> chargeErrorResponse(error)
     }
 }

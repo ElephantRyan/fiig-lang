@@ -7,6 +7,6 @@ conversion isNoGroup(failure: RedisError) -> bool {
 
         _ -> {
             return false;
-        },
+        }
     }
 }

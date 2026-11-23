@@ -21,7 +21,7 @@ conversion computeScramFinal(
 
                 decoded -> {
                     salt = decoded;
-                },
+                }
             }
         } else if (part.startsWith("i=")) {
             match (part.removePrefix("i=").toIntOrNone()) {
@@ -31,7 +31,7 @@ conversion computeScramFinal(
 
                 count -> {
                     iterations = count;
-                },
+                }
             }
         }
     }
@@ -46,7 +46,7 @@ conversion computeScramFinal(
 
     if (iterations < 1 || iterations > 1000000) {
         return Err(
-            "the server asks for ${iterations} SCRAM iterations; fiig.postgres allows 1 to 1000000",
+            "the server asks for ${iterations} SCRAM iterations; fiig.postgres allows 1 to 1000000"
         );
     }
 
@@ -60,7 +60,7 @@ conversion computeScramFinal(
     return Ok(
         ScramFinal(
             message: "${withoutProof},p=${proof.toBase64()}",
-            serverSignature: crypto.hmacSha256(serverKey, authMessage),
-        ),
+            serverSignature: crypto.hmacSha256(serverKey, authMessage)
+        )
     );
 }

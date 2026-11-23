@@ -3,5 +3,5 @@
 enum Authentication {
     AuthenticationOk,
     CleartextPassword,
-    Md5Password(salt: bytes),
+    Md5Password(salt: bytes)
 }

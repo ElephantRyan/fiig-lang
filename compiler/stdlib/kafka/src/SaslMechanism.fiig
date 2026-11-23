@@ -4,5 +4,5 @@
 enum SaslMechanism {
     Plain from json "PLAIN",
     ScramSha256 from json "SCRAM-SHA-256",
-    ScramSha512 from json "SCRAM-SHA-512",
+    ScramSha512 from json "SCRAM-SHA-512"
 }

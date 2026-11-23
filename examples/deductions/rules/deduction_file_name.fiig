@@ -3,6 +3,6 @@
 rule deductionFileName(source: DeductionSource, batch: int) -> string {
     return match (source.layout) {
         FieldLayout.FixedWidth -> "${source.code}-${batch}.dat",
-        FieldLayout.Csv -> "${source.code}-${batch}.csv",
+        FieldLayout.Csv -> "${source.code}-${batch}.csv"
     }
 }

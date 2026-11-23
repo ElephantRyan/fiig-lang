@@ -21,7 +21,7 @@ const sessionsConfig = `wire Sessions {
 
 const levelEnum = `enum Level {
     Debug,
-    Info,
+    Info
 }`
 
 func TestConfigReadInActivitiesAndGateways(t *testing.T) {
@@ -125,7 +125,7 @@ func TestCrossPackageArgumentsResolveInTheCaller(t *testing.T) {
 	f := mustParse(t, "use acme.http;\n\ngateway send() -> http.WebRequest\n    requires Socket\n{\n    return http.WebRequest(host: Region.Eu.host, authorization: \"Bearer ${Account.key.reveal()}\");\n}")
 	files := []*syntax.File{f,
 		mustParse(t, "wire Account {\n    key: Secret from env \"KEY\";\n}"),
-		mustParse(t, "enum Region(host: string) {\n    Eu(host: \"eu.example.com\"),\n}"),
+		mustParse(t, "enum Region(host: string) {\n    Eu(host: \"eu.example.com\")\n}"),
 	}
 	if diags := Check(files, app); len(diags) != 0 {
 		t.Fatalf("diags = %v", diags)

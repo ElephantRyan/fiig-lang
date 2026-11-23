@@ -8,7 +8,7 @@ activity notifyShipped(customerId: string, orderId: string) -> bool {
             sent = sendEmail(
                 to: found.email,
                 subject: "Your order has shipped",
-                body: "Order ${orderId} has shipped.",
+                body: "Order ${orderId} has shipped."
             );
             return match (sent) {
                 Ok(_) -> {
@@ -17,12 +17,12 @@ activity notifyShipped(customerId: string, orderId: string) -> bool {
 
                 Err(_) -> {
                     return false;
-                },
+                }
             }
         },
 
         Err(_) -> {
             return false;
-        },
+        }
     }
 }

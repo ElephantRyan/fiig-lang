@@ -17,7 +17,7 @@ conversion canonicalRequest(
     headers: List<http.Header> = [
         http.Header(name: "host", value: host),
         http.Header(name: "x-amz-content-sha256", value: payloadHash),
-        http.Header(name: "x-amz-date", value: stamp),
+        http.Header(name: "x-amz-date", value: stamp)
     ];
     if (token != "") {
         headers = append(headers, http.Header(name: "x-amz-security-token", value: token));

@@ -14,23 +14,23 @@ conversion pendingEntries(reply: RespValue) -> List<PendingEntry> {
                                         RespValue.Integer(count) -> {
                                             out = append(
                                                 out,
-                                                PendingEntry(id: id, deliveries: count),
+                                                PendingEntry(id: id, deliveries: count)
                                             );
                                         },
 
-                                        _ -> None,
+                                        _ -> None
                                     }
-                                },
+                                }
                             }
                         }
                     },
 
-                    _ -> None,
+                    _ -> None
                 }
             }
         },
 
-        _ -> None,
+        _ -> None
     }
 
     return out;

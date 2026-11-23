@@ -15,7 +15,7 @@ func TestAPlainValueWorkflowMapsWithAName(t *testing.T) {
     return Health(ok: true);
 }`, `adapter http healthApi {
     GET "/health" -> healthCheck() {
-        status -> 200 status,
+        status -> 200 status
     }
 }`)
 	code, _, body := serve(h, httptest.NewRequest("GET", "/health", nil))

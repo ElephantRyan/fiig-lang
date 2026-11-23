@@ -27,7 +27,7 @@ func TestFormatKeepsACommentBeforeTheClosingBrace(t *testing.T) {
 		{"after a match's last arm", "conversion describe(code: int) -> string {\n" +
 			"    return match (code) {\n" +
 			"        200 -> \"ok\",\n" +
-			"        _ -> \"other\",\n" +
+			"        _ -> \"other\"\n" +
 			"        // the last arm\n" +
 			"    }\n" +
 			"}\n"},
@@ -41,7 +41,7 @@ func TestFormatKeepsACommentBeforeTheClosingBrace(t *testing.T) {
 			"}\n"},
 		{"after a route's last arm", "adapter http api {\n" +
 			"    GET \"/x\" -> x() produces \"application/json\" {\n" +
-			"        Ok(n) -> 200 n,\n" +
+			"        Ok(n) -> 200 n\n" +
 			"        // more arms later\n" +
 			"    }\n" +
 			"}\n"},

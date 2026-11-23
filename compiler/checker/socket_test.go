@@ -50,7 +50,7 @@ func TestSocketOperationsAreTyped(t *testing.T) {
 // enum, with exhaustiveness (A9) applying.
 func TestSocketErrorIsAPreludeEnum(t *testing.T) {
 	describe := "conversion describe(failure: SocketError) -> string {\n\treturn match (failure) {\n" +
-		"\t\tSocketError.Tls(reason) -> reason,\n\t\tSocketError.Closed -> \"closed\",\n\t}\n}"
+		"\t\tSocketError.Tls(reason) -> reason,\n\t\tSocketError.Closed -> \"closed\"\n\t}\n}"
 	if got := rules(checkSources(t, describe))["A9"]; got != 1 {
 		t.Errorf("got %d A9 for a non-exhaustive SocketError match, want 1", got)
 	}

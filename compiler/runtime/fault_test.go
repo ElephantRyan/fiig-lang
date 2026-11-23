@@ -121,11 +121,11 @@ func TestDeadlineExceededFaultsDuringConcurrentWork(t *testing.T) {
 func TestUnexhaustiveMatchAtRuntimeIsAFault(t *testing.T) {
 	u := universeFromSource(t, `enum E {
     A(),
-    B(),
+    B()
 }
 `, `rule r(e: E) -> int {
     return match (e) {
-        E.A(_) -> 1,
+        E.A(_) -> 1
     }
 }
 `)

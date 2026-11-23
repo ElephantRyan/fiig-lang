@@ -75,7 +75,7 @@ declaration: ADR 0055 removed `value`, and named-argument calls
 enum CustomerError {
     NotFound(id: string),
     EmailAlreadyInUse(email: string),
-    Invalid(field: string, reason: string),
+    Invalid(field: string, reason: string)
 }
 ```
 
@@ -85,7 +85,7 @@ enum CustomerError {
 enum Region {
     US,
     EU,
-    APAC,
+    APAC
 }
 ```
 
@@ -120,7 +120,7 @@ rule regionDisplayName(region: Region) -> string {
     return match (region) {
         Region.US -> "United States",
         Region.EU -> "Europe",
-        Region.APAC -> "Asia-Pacific",
+        Region.APAC -> "Asia-Pacific"
     }
 }
 ```
@@ -182,11 +182,11 @@ activity validateNewCustomer(input: NewCustomer) -> Result<NewCustomer, Customer
 gateway getCustomer(id: string) -> Result<Customer, CustomerError> requires Database idempotent {
     row: Customer | None = Database.queryOne(
         "SELECT id, name, email FROM customers WHERE id = ?",
-        id,
+        id
     );
     return match (row) {
         found -> Ok(found),
-        None -> Err(CustomerError.NotFound(id)),
+        None -> Err(CustomerError.NotFound(id))
     }
 }
 ```
@@ -280,7 +280,7 @@ conversion customerErrorToHttpResponse(error: CustomerError) -> HttpResponse {
     return match (error) {
         CustomerError.NotFound(_) -> HttpResponse(status: 404, body: None),
         CustomerError.EmailAlreadyInUse(_) -> HttpResponse(status: 409, body: None),
-        error -> HttpResponse(status: 500, body: None),
+        error -> HttpResponse(status: 500, body: None)
     }
 }
 ```
@@ -294,7 +294,7 @@ conversion describe(code: int) -> string {
         200 -> "ok",
         404 -> "missing",
         -1 -> "unset",
-        _ -> "other", // required: an int has more values than a match lists
+        _ -> "other" // required: an int has more values than a match lists
     }
 }
 ```
@@ -397,7 +397,7 @@ math.roundToInt(price)       // the *ToInt crossings take decimals too
 ```
 
 ```fiig
-// Calls take positional or named arguments; a trailing comma is allowed.
+// Calls take positional or named arguments, with no comma after the last (ADR 0147).
 Customer(id: id, name: input.name, email: input.email)        // named
 CustomerError.NotFound(id)                                     // positional
 s.replaceAll(old: "-", new: "/")      // builtins take names too (ADR 0068 §5)
@@ -569,7 +569,7 @@ adapter http customerHttpApi {
 adapter http customerHttpApiWithMapping {
     GET "/customers/{id}" -> readCustomer(id: string) produces "application/json" {
         Ok(customer) -> 200 customer,
-        Err(error) -> customerErrorToHttpResponse(error),
+        Err(error) -> customerErrorToHttpResponse(error)
     }
 }
 
@@ -580,7 +580,7 @@ conversion loggedIn(session: Session) -> HttpResponse<Account> {
         status: 200,
         body: session.account,
         headers: ["Cache-Control": "no-store"],
-        cookies: [Cookie(name: "sid", value: session.token, maxAge: 86400)],
+        cookies: [Cookie(name: "sid", value: session.token, maxAge: 86400)]
     );
 }
 ```

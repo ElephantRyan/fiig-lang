@@ -56,7 +56,7 @@ private {
     orEmpty(text: string | None) -> string {
         return match (text) {
             None -> "",
-            value -> value,
+            value -> value
         }
     }
 }

@@ -15,7 +15,7 @@ private {
     countSoFar(counts: Map<string, int>, customerId: string) -> int {
         return match (counts.atOrNone(customerId)) {
             None -> 0,
-            count -> count,
+            count -> count
         }
     }
 }

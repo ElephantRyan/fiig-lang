@@ -32,7 +32,7 @@ conversion serverError(body: bytes) -> db.DatabaseError {
                         } else if (field == 99) {
                             column = value;
                         }
-                    },
+                    }
                 }
 
                 rest = after.slice(end + 1, after.length());
@@ -40,7 +40,7 @@ conversion serverError(body: bytes) -> db.DatabaseError {
 
             _ -> {
                 break;
-            },
+            }
         }
     }
 
@@ -49,6 +49,6 @@ conversion serverError(body: bytes) -> db.DatabaseError {
         message: message,
         constraint: constraint,
         table: table,
-        column: column,
+        column: column
     );
 }

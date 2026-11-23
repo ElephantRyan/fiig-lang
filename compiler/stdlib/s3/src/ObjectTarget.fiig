@@ -12,8 +12,8 @@ conversion objectTarget(endpoint: S3Endpoint, bucket: string, key: string, pathS
     if (!validBucket(bucket)) {
         return Err(
             S3Error.InvalidRequest(
-                reason: "a bucket name is 3 to 63 lowercase letters, digits, hyphens and dots, starting and ending with a letter or digit",
-            ),
+                reason: "a bucket name is 3 to 63 lowercase letters, digits, hyphens and dots, starting and ending with a letter or digit"
+            )
         );
     }
 
@@ -39,13 +39,13 @@ conversion objectTarget(endpoint: S3Endpoint, bucket: string, key: string, pathS
             match (http.pathSegment(segment)) {
                 None -> {
                     return Err(
-                        S3Error.InvalidRequest(reason: "a key can't have a . or .. segment"),
+                        S3Error.InvalidRequest(reason: "a key can't have a . or .. segment")
                     );
                 },
 
                 encoded -> {
                     segments = append(segments, encoded);
-                },
+                }
             }
         }
     }

@@ -36,7 +36,7 @@ conversion bootstrapOf(text: string) -> Result<List<BrokerNode>, KafkaError> {
                     }
 
                     out = append(out, BrokerNode(id: 0 - 1, host: host, port: port));
-                },
+                }
             }
         }
     }
@@ -44,8 +44,8 @@ conversion bootstrapOf(text: string) -> Result<List<BrokerNode>, KafkaError> {
     if (out.length() == 0) {
         return Err(
             KafkaError.InvalidConfig(
-                reason: "KAFKA_BOOTSTRAP names no server; write host:port[,host:port...]",
-            ),
+                reason: "KAFKA_BOOTSTRAP names no server; write host:port[,host:port...]"
+            )
         );
     }
 
@@ -55,7 +55,7 @@ conversion bootstrapOf(text: string) -> Result<List<BrokerNode>, KafkaError> {
 private {
     invalid(entry: string, why: string) -> KafkaError {
         return KafkaError.InvalidConfig(
-            reason: "KAFKA_BOOTSTRAP's \"${entry}\" can't be read: ${why}",
+            reason: "KAFKA_BOOTSTRAP's \"${entry}\" can't be read: ${why}"
         );
     }
 }

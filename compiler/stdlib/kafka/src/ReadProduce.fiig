@@ -8,8 +8,8 @@ conversion readProduce(frame: bytes, correlation: int, call: ProduceCall)
     if (got != correlation) {
         return Err(
             KafkaError.MalformedReply(
-                reason: "Produce answered correlation ${got}, not ${correlation}",
-            ),
+                reason: "Produce answered correlation ${got}, not ${correlation}"
+            )
         );
     }
 
@@ -60,13 +60,13 @@ conversion readProduce(frame: bytes, correlation: int, call: ProduceCall)
                                     code: failed,
                                     name: label,
                                     retriable: retriable,
-                                    message: "${text}: ${detail}",
-                                ),
+                                    message: "${text}: ${detail}"
+                                )
                             );
                         }
                     },
 
-                    _ -> None,
+                    _ -> None
                 }
 
                 return Err(failure);
@@ -78,7 +78,7 @@ conversion readProduce(frame: bytes, correlation: int, call: ProduceCall)
                     for (record in batch.indexes) {
                         sent = append(
                             sent,
-                            SentAt(index: record, partition: index, offset: baseOffset + n),
+                            SentAt(index: record, partition: index, offset: baseOffset + n)
                         );
                         n = n + 1;
                     }
@@ -107,7 +107,7 @@ private {
 
             value -> {
                 return Ok(value);
-            },
+            }
         }
     }
 
@@ -119,7 +119,7 @@ private {
 
             value -> {
                 return Ok(value);
-            },
+            }
         }
     }
 
@@ -131,7 +131,7 @@ private {
 
             value -> {
                 return Ok(value);
-            },
+            }
         }
     }
 
@@ -143,7 +143,7 @@ private {
 
             value -> {
                 return Ok(value);
-            },
+            }
         }
     }
 }

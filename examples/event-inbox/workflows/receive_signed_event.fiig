@@ -13,8 +13,8 @@ workflow receiveSignedEvent(body: bytes, signature: string | None) -> Result<Eve
         Ok(envelope) -> {
             return match (readEvent(envelope)) {
                 Ok(event) -> Ok(event),
-                Err(failure) -> Err(InboxError.Undecodable(failure: failure)),
+                Err(failure) -> Err(InboxError.Undecodable(failure: failure))
             }
-        },
+        }
     }
 }

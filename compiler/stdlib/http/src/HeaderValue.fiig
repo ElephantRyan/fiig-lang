@@ -12,6 +12,6 @@ conversion headerValue(headers: List<Header> | None, name: string) -> string | N
             }
 
             return None;
-        },
+        }
     }
 }

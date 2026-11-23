@@ -6,9 +6,9 @@ test aHeadReplyIsTheObjectsInfo {
         headers: [
             http.Header(name: "content-length", value: "1234"),
             http.Header(name: "Content-Type", value: "image/png"),
-            http.Header(name: "ETag", value: "\"abc123\""),
+            http.Header(name: "ETag", value: "\"abc123\"")
         ],
-        body: <<>>,
+        body: <<>>
     );
     expect headResult(reply) is Ok(info);
     expect info == ObjectInfo(size: 1234, contentType: "image/png", etag: "\"abc123\"", metadata: [:]);
@@ -20,9 +20,9 @@ test headerNamesAreReadInAnyCase {
         headers: [
             http.Header(name: "CONTENT-LENGTH", value: "7"),
             http.Header(name: "content-type", value: "text/plain"),
-            http.Header(name: "etag", value: "e"),
+            http.Header(name: "etag", value: "e")
         ],
-        body: <<>>,
+        body: <<>>
     );
     expect headResult(reply) is Ok(info);
     expect info == ObjectInfo(size: 7, contentType: "text/plain", etag: "e", metadata: [:]);
@@ -33,9 +33,9 @@ test theMetadataComesBackKeyedInLowerCase {
         status: 200,
         headers: [
             http.Header(name: "Content-Length", value: "5"),
-            http.Header(name: "X-Amz-Meta-Author", value: "Ada"),
+            http.Header(name: "X-Amz-Meta-Author", value: "Ada")
         ],
-        body: <<>>,
+        body: <<>>
     );
     expect headResult(reply) is Ok(info);
     expect info.metadata == ["author": "Ada"];
@@ -50,7 +50,7 @@ test aLengthThatIsntANumberIsMalformed {
     reply = http.Reply(
         status: 200,
         headers: [http.Header(name: "Content-Length", value: "lots")],
-        body: <<>>,
+        body: <<>>
     );
     expect headResult(reply) is Err(S3Error.Http(failure));
 }

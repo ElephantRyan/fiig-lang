@@ -1,10 +1,10 @@
 gateway findSession(token: string) -> Result<Account, AccountError> requires Database idempotent {
     row: Account | None = Database.queryOne(
         "SELECT accounts.name, accounts.email FROM sessions JOIN accounts ON accounts.name = sessions.name WHERE sessions.token_hash = ?",
-        tokenHash(token),
+        tokenHash(token)
     );
     return match (row) {
         found -> Ok(found),
-        None -> Err(AccountError.NoSession),
+        None -> Err(AccountError.NoSession)
     }
 }

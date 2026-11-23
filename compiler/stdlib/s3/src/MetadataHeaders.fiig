@@ -13,8 +13,8 @@ conversion metadataHeaders(metadata: Map<string, string>) -> Result<List<http.He
         if (!http.isToken(name)) {
             return Err(
                 S3Error.InvalidRequest(
-                    reason: "a metadata key is letters, digits and !#$%&'*+-.^_`|~",
-                ),
+                    reason: "a metadata key is letters, digits and !#$%&'*+-.^_`|~"
+                )
             );
         }
 
@@ -27,8 +27,8 @@ conversion metadataHeaders(metadata: Map<string, string>) -> Result<List<http.He
             if (b < 32 || b > 126) {
                 return Err(
                     S3Error.InvalidRequest(
-                        reason: "a metadata value is printable ASCII, with no control characters",
-                    ),
+                        reason: "a metadata value is printable ASCII, with no control characters"
+                    )
                 );
             }
         }

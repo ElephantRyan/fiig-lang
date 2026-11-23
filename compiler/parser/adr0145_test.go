@@ -24,21 +24,20 @@ func TestItemAndAlternativeSeparators(t *testing.T) {
 	want := []struct {
 		line, col int
 		sep       string
-		last      bool
-	}{{1, 18, ";", false}, {4, 7, ",", false}, {5, 7, ",", true}}
+	}{{1, 18, ";"}, {4, 7, ","}}
 	if len(got) != len(want) {
 		t.Fatalf("missing = %v, want %d", got, len(want))
 	}
 	for i, w := range want {
 		g := got[i]
-		if g.At.Line != w.line || g.At.Column != w.col || g.Sep != w.sep || g.Last != w.last {
+		if g.At.Line != w.line || g.At.Column != w.col || g.Sep != w.sep {
 			t.Errorf("missing[%d] = %+v, want %+v", i, g, w)
 		}
 	}
 
 	// A route with a response mapping, a block arm, and a declaration end
 	// in `}`, and ask for nothing after it.
-	braced := "adapter http api {\n    GET \"/a\" -> a() produces \"application/json\" {\n        Ok(x) -> 200 x,\n    }\n}\n"
+	braced := "adapter http api {\n    GET \"/a\" -> a() produces \"application/json\" {\n        Ok(x) -> 200 x\n    }\n}\n"
 	if m := MissingSeparators(braced); len(m) != 0 {
 		t.Errorf("braced: %v", m)
 	}

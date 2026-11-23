@@ -17,14 +17,14 @@ conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.
             None -> {
                 return Err(
                     db.DatabaseError.Protocol(
-                        reason: "the port setting must be a number, not ${settings.at("port")}",
-                    ),
+                        reason: "the port setting must be a number, not ${settings.at("port")}"
+                    )
                 );
             },
 
             number -> {
                 port = number;
-            },
+            }
         }
     }
 
@@ -41,8 +41,8 @@ conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.
         } else if (mode != "verify-full") {
             return Err(
                 db.DatabaseError.Protocol(
-                    reason: "sslmode must be verify-full or disable, not ${mode} (ADR 0085 §5)",
-                ),
+                    reason: "sslmode must be verify-full or disable, not ${mode} (ADR 0085 §5)"
+                )
             );
         }
     }
@@ -55,8 +55,8 @@ conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.
             None -> {
                 return Err(
                     db.DatabaseError.Protocol(
-                        reason: "the statementCacheSize setting must be a number, not ${settings.at("statementCacheSize")}",
-                    ),
+                        reason: "the statementCacheSize setting must be a number, not ${settings.at("statementCacheSize")}"
+                    )
                 );
             },
 
@@ -64,13 +64,13 @@ conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.
                 if (number < 0) {
                     return Err(
                         db.DatabaseError.Protocol(
-                            reason: "the statementCacheSize setting must be 0 or more, not ${number}",
-                        ),
+                            reason: "the statementCacheSize setting must be 0 or more, not ${number}"
+                        )
                     );
                 }
 
                 cacheSize = number;
-            },
+            }
         }
     }
 
@@ -83,7 +83,7 @@ conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.
             database: database,
             secure: secure,
             applicationName: settings.atOrNone("applicationName"),
-            statementCacheSize: cacheSize,
-        ),
+            statementCacheSize: cacheSize
+        )
     );
 }

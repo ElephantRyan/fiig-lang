@@ -12,7 +12,7 @@ capability Square provides payments.PaymentProvider {
             host: "connect.squareup.com",
             path: "/v2/payments",
             body: "${request.orderId}:${request.amount}",
-            authorization: "Bearer ${SquareAccount.accessToken.reveal()}",
+            authorization: "Bearer ${SquareAccount.accessToken.reveal()}"
         );
         reply = Client.send(outbound);
         return match (reply) {
@@ -24,7 +24,7 @@ capability Square provides payments.PaymentProvider {
                 return Ok("square:${sent.body}");
             },
 
-            Err(failure) -> Err(http.describeSocketError(failure)),
+            Err(failure) -> Err(http.describeSocketError(failure))
         }
     }
 }

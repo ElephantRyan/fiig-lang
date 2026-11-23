@@ -11,9 +11,9 @@ conversion deliveryAt(id: string) -> Result<PartitionOffset, stream.SourceError>
                     None -> None,
                     offset -> {
                         return Ok(PartitionOffset(partition: partition, offset: offset));
-                    },
+                    }
                 }
-            },
+            }
         }
     }
 

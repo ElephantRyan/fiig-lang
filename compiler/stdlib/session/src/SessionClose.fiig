@@ -5,5 +5,5 @@
 enum SessionClose {
     Done(reason: string),
     Failed(reason: string),
-    MoveTo(host: string, port: int),
+    MoveTo(host: string, port: int)
 }

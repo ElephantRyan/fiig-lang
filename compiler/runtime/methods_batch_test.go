@@ -77,7 +77,7 @@ func TestEnumValuesListsTheVariantsInOrder(t *testing.T) {
 	in := newTestInterp(universeFromSource(t, `enum Level {
     Low,
     Mid,
-    High,
+    High
 }`, `conversion levels() -> List<Level> {
     return Level.values();
 }`, `conversion names() -> string {

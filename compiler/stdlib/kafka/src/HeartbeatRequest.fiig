@@ -35,7 +35,7 @@ conversion heartbeatRequest(
         0: u8,
         0: u8,
         partitions: bytes,
-        0: u8,
+        0: u8
     >>;
     return kafkaFlexRequest(68, 1, correlation, clientId, body);
 }

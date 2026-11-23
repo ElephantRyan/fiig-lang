@@ -25,7 +25,7 @@ const keepSource = `gateway exchange(host: string, port: int, message: string, s
         },
         kept -> {
             opened = Ok(kept);
-        },
+        }
     }
     connection = opened?;
     Socket.write(connection, message.utf8())?;

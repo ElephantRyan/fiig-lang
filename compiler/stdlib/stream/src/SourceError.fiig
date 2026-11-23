@@ -5,5 +5,5 @@
 enum SourceError {
     Unavailable(reason: string),
     Protocol(reason: string),
-    Misconfigured(reason: string),
+    Misconfigured(reason: string)
 }

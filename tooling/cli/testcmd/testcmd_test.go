@@ -73,7 +73,7 @@ func runJSONWith(t *testing.T, root, envFile string) (int, map[string]Result) {
 var program = map[string]string{
 	"enums/problem.fiig": `enum Problem {
     TooBig(limit: int),
-    Blank,
+    Blank
 }
 `,
 	"rules/check_size.fiig": `rule checkSize(n: int) -> Result<int, Problem> {
@@ -226,14 +226,14 @@ func TestOptionalConfigInTests(t *testing.T) {
 		"activities/token_set.fiig": `activity tokenSet() -> bool {
     return match (Shop.token) {
         None -> false,
-        given -> true,
+        given -> true
     }
 }
 `,
 		"activities/url_set.fiig": `activity urlSet() -> bool {
     return match (Shop.url) {
         None -> false,
-        given -> true,
+        given -> true
     }
 }
 `,
@@ -282,7 +282,7 @@ func TestAnUnfakedOptionalConfigFailsTheTest(t *testing.T) {
 		"activities/url_set.fiig": `activity urlSet() -> bool {
     return match (Plain.url) {
         None -> false,
-        given -> true,
+        given -> true
     }
 }
 `,
@@ -454,7 +454,7 @@ func TestAFakeIsTheEnvSourceOfASetting(t *testing.T) {
     return match (name) {
         "abs.url" -> Settings.save("abs.url", text, by: "t"),
         "abs.token" -> Settings.save("abs.token", text, by: "t"),
-        _ -> Settings.save("abs.workers", text, by: "t"),
+        _ -> Settings.save("abs.workers", text, by: "t")
     };
 }
 `,
@@ -478,7 +478,7 @@ func TestAFakeIsTheEnvSourceOfASetting(t *testing.T) {
     return match (name) {
         "abs.url" -> Settings.source("abs.url"),
         "abs.token" -> Settings.source("abs.token"),
-        _ -> Settings.source("abs.workers"),
+        _ -> Settings.source("abs.workers")
     };
 }
 `,

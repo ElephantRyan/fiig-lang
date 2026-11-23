@@ -5,5 +5,5 @@ enum SmtpStep {
     Listen,
     Send(data: bytes),
     Upgrade,
-    Finish,
+    Finish
 }

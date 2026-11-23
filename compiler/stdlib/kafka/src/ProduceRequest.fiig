@@ -15,7 +15,7 @@ conversion produceRequest(
             partitions: bytes,
             batch.partition: i32be,
             batch.batch.length(): i32be,
-            batch.batch: bytes,
+            batch.batch: bytes
         >>;
     }
 
@@ -25,7 +25,7 @@ conversion produceRequest(
         timeoutMillis: i32be,
         1: i32be,
         kafkaString(topic): bytes,
-        partitions: bytes,
+        partitions: bytes
     >>;
     return kafkaRequest(0, 8, correlation, clientId, body);
 }

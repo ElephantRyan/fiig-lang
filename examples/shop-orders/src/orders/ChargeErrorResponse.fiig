@@ -1,6 +1,6 @@
 conversion chargeErrorResponse(error: ChargeError) -> HttpResponse<ChargeError> {
     return match (error) {
         ChargeError.Unavailable(_) -> HttpResponse(status: 503, body: error),
-        _ -> HttpResponse(status: 422, body: error),
+        _ -> HttpResponse(status: 422, body: error)
     }
 }

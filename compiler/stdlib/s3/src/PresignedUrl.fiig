@@ -25,8 +25,8 @@ conversion presignedUrl(
     if (expiresSeconds < 1 || expiresSeconds > 604800) {
         return Err(
             S3Error.InvalidRequest(
-                reason: "a presigned URL expires in 1 to 604800 seconds (seven days)",
-            ),
+                reason: "a presigned URL expires in 1 to 604800 seconds (seven days)"
+            )
         );
     }
 
@@ -40,7 +40,7 @@ conversion presignedUrl(
         http.Header(name: "X-Amz-Algorithm", value: "AWS4-HMAC-SHA256"),
         http.Header(name: "X-Amz-Credential", value: "${account.accessKeyId}/${scope}"),
         http.Header(name: "X-Amz-Date", value: stamp),
-        http.Header(name: "X-Amz-Expires", value: "${expiresSeconds}"),
+        http.Header(name: "X-Amz-Expires", value: "${expiresSeconds}")
     ];
     if (account.token != "") {
         fields = append(fields, http.Header(name: "X-Amz-Security-Token", value: account.token));
@@ -56,7 +56,7 @@ conversion presignedUrl(
     canonical = "${method}\n${target.path}\n${query}\nhost:${target.host}\n\nhost\nUNSIGNED-PAYLOAD";
     signature = signatureOf(
         signingKey(account.secret, day, account.region, "s3"),
-        stringToSign(stamp, scope, canonical),
+        stringToSign(stamp, scope, canonical)
     );
     return Ok("${target.url}?${query}&X-Amz-Signature=${signature}");
 }
@@ -74,7 +74,7 @@ private {
 
             encoded -> {
                 return encoded;
-            },
+            }
         }
     }
 }

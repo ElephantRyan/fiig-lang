@@ -21,7 +21,7 @@ var configSources = []string{`wire Settings {
     key: Secret from env "API_KEY";
 }`, `enum Level {
     Debug,
-    Info,
+    Info
 }`, `activity show() -> string {
     return "${Settings.maxAge} ${Settings.ratio} ${Settings.rate} ${Settings.name} ${Settings.verbose} ${Settings.level} ${Settings.region}";
 }`, `activity key() -> Secret {

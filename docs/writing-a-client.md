@@ -36,7 +36,7 @@ conversion shelfReply(sent: Result<http.Reply, http.HttpError>) -> Result<http.R
             }
 
             return Ok(reply);
-        },
+        }
     }
 }
 ```
@@ -99,8 +99,8 @@ test bookSendsTheToken {
                 http.Reply(
                     status: 200,
                     headers: [],
-                    body: "{\"id\":\"b-1\",\"title\":\"Dune\"}".utf8(),
-                ),
+                    body: "{\"id\":\"b-1\",\"title\":\"Dune\"}".utf8()
+                )
             );
         }
     }

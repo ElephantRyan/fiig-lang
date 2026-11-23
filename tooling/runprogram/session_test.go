@@ -60,7 +60,7 @@ capability LineSession provides session.SessionProtocol {
                 None -> None,
                 port -> {
                     return lineStep(<<1: i64be>>, <<>>, None, [], session.SessionClose.MoveTo(host: settings.at("host"), port: port));
-                },
+                }
             }
         }
         return lineStep(<<1: i64be>>, "HELLO ${settings.at("sessionId")} ${settings.at("port")}\n".utf8(), None, [], None);
@@ -87,7 +87,7 @@ capability LineSession provides session.SessionProtocol {
                             None -> None,
                             key -> {
                                 replies = append(replies, session.SessionReply(key: key, message: line.removePrefix("${key} ").utf8(), last: true));
-                            },
+                            }
                         }
                     }
                     i = i + 1;
@@ -96,7 +96,7 @@ capability LineSession provides session.SessionProtocol {
             },
             _ -> {
                 return lineStep(state, <<>>, None, [], session.SessionClose.Failed(reason: "no state"));
-            },
+            }
         }
     }
 
@@ -109,7 +109,7 @@ capability LineSession provides session.SessionProtocol {
             },
             _ -> {
                 return lineStep(state, <<>>, None, [], session.SessionClose.Failed(reason: "no state"));
-            },
+            }
         }
     }
 

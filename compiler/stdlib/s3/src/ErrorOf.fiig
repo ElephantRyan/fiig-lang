@@ -23,7 +23,7 @@ private {
     textOf(body: bytes) -> string {
         return match (body.utf8()) {
             None -> "",
-            text -> text,
+            text -> text
         }
     }
 

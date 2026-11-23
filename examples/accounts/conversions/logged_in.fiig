@@ -7,6 +7,6 @@ conversion loggedIn(session: Session) -> HttpResponse<Account> {
         status: 200,
         body: session.account,
         headers: ["Cache-Control": "no-store"],
-        cookies: [Cookie(name: "sid", value: session.token, maxAge: session.maxAge)],
+        cookies: [Cookie(name: "sid", value: session.token, maxAge: session.maxAge)]
     );
 }

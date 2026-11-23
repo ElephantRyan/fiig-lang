@@ -35,7 +35,7 @@ var streamProgram = map[string]string{
 	"order_error.fiig": `enum OrderError {
     OutOfStock(sku: string),
     Invalid(reason: string),
-    Unrecorded(reason: string),
+    Unrecorded(reason: string)
 }`,
 	"mark_processed.fiig": `use fiig.redis.Redis;
 
@@ -48,7 +48,7 @@ gateway markProcessed(orderId: string) -> Result<None, OrderError>
         },
         Err(_) -> {
             return Err(OrderError.Unrecorded(reason: "Redis refused"));
-        },
+        }
     }
 }`,
 	"record.fiig": `activity record(order: OrderPlaced) -> Result<None, OrderError> {
@@ -68,7 +68,7 @@ gateway markProcessed(orderId: string) -> Result<None, OrderError>
         Ok(_) -> ack,
         Err(OrderError.OutOfStock(_)) -> retry(attempts: 2) else deadLetter "orders.failed",
         Err(OrderError.Invalid(_)) -> deadLetter "orders.invalid",
-        Err(OrderError.Unrecorded(_)) -> retry(attempts: 5),
+        Err(OrderError.Unrecorded(_)) -> retry(attempts: 5)
     }
 }`,
 }
@@ -261,7 +261,7 @@ func TestStreamDeadLettersBinaryPayloads(t *testing.T) {
 	program["raw_intake.fiig"] = `adapter stream RawIntake {
     source "raw" group "raw" from earliest -> takeRaw(payload: bytes) {
         Ok(_) -> ack,
-        Err(_) -> deadLetter "raw.failed",
+        Err(_) -> deadLetter "raw.failed"
     }
 }`
 	runner := streamRunnerWith(t, redis, program, testRetryAfter, "RawIntake")

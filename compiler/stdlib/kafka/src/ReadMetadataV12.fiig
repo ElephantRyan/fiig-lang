@@ -9,8 +9,8 @@ conversion readMetadataV12(frame: bytes, correlation: int, topic: string)
     if (got != correlation) {
         return Err(
             KafkaError.MalformedReply(
-                reason: "Metadata answered correlation ${got}, not ${correlation}",
-            ),
+                reason: "Metadata answered correlation ${got}, not ${correlation}"
+            )
         );
     }
 
@@ -63,7 +63,7 @@ conversion readMetadataV12(frame: bytes, correlation: int, topic: string)
             if (partitionCode != 0) {
                 failure = brokerError(
                     partitionCode,
-                    "Metadata for ${name.text} partition ${index}",
+                    "Metadata for ${name.text} partition ${index}"
                 );
             } else if (leader < 0) {
                 failure = brokerError(5, "Metadata for ${name.text} partition ${index}");
@@ -81,7 +81,7 @@ conversion readMetadataV12(frame: bytes, correlation: int, topic: string)
                     None -> None,
                     found -> {
                         return Err(found);
-                    },
+                    }
                 }
             }
 
@@ -91,8 +91,8 @@ conversion readMetadataV12(frame: bytes, correlation: int, topic: string)
                 if (!byIndex.containsKey(n)) {
                     return Err(
                         KafkaError.MalformedReply(
-                            reason: "Metadata for ${topic} skips partition ${n}",
-                        ),
+                            reason: "Metadata for ${topic} skips partition ${n}"
+                        )
                     );
                 }
 
@@ -110,7 +110,7 @@ conversion readMetadataV12(frame: bytes, correlation: int, topic: string)
 
             if (leaders.length() == 0) {
                 return Err(
-                    KafkaError.MalformedReply(reason: "Metadata lists no partitions for ${topic}"),
+                    KafkaError.MalformedReply(reason: "Metadata lists no partitions for ${topic}")
                 );
             }
 
@@ -136,7 +136,7 @@ private {
 
             value -> {
                 return Ok(value);
-            },
+            }
         }
     }
 
@@ -148,7 +148,7 @@ private {
 
             value -> {
                 return Ok(value);
-            },
+            }
         }
     }
 
@@ -160,7 +160,7 @@ private {
 
             value -> {
                 return Ok(value);
-            },
+            }
         }
     }
 
@@ -172,7 +172,7 @@ private {
 
             value -> {
                 return Ok(value);
-            },
+            }
         }
     }
 
@@ -190,7 +190,7 @@ private {
                 }
 
                 return Ok(IntAt(value: found.value - 1, next: found.next));
-            },
+            }
         }
     }
 }

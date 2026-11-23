@@ -16,10 +16,10 @@ rule resolveDeductionSource(raw: string, tenant: Tenant)
         None -> {
             return match (DeductionSource(aliases: raw)) {
                 None -> Err(DeductionError.UnknownSource(raw)),
-                found -> Ok(found),
+                found -> Ok(found)
             }
         },
 
-        found -> Ok(found),
+        found -> Ok(found)
     }
 }

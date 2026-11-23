@@ -4,8 +4,8 @@ test everyCodecWritesABatchThatUnpacks {
         KafkaRecord(
             key: None,
             value: "hello hello hello hello".utf8(),
-            headers: [KafkaHeader(name: "h", value: "v".utf8())],
-        ),
+            headers: [KafkaHeader(name: "h", value: "v".utf8())]
+        )
     ];
     expect recordBatch(records, 1000, Compression.None) is Ok(plain);
     body = sectionOf(plain);
@@ -19,7 +19,7 @@ test everyCodecWritesABatchThatUnpacks {
 
             _ -> {
                 expect false;
-            },
+            }
         }
 
         expect attributesOf(batch) == bitsOf(codec);
@@ -41,7 +41,7 @@ test snappyIsXerialFramedInChunks {
 
         _ -> {
             expect false;
-        },
+        }
     }
 
     // 80,000 bytes is three 32 KiB chunks.
@@ -77,7 +77,7 @@ test javaBatchesUnpack {
                 expect records.length() == 72;
                 expect records.slice(6, 35) == hello;
                 expect records.slice(42, 71) == hello;
-            },
+            }
         }
     }
 }
@@ -98,7 +98,7 @@ private {
     attributesOf(batch: bytes) -> int {
         return match (batch) {
             <<_: bytes(21), attributes: i16be, _: bytes>> -> attributes,
-            _ -> 0 - 1,
+            _ -> 0 - 1
         }
     }
 
@@ -108,7 +108,7 @@ private {
             Compression.Gzip -> 1,
             Compression.Snappy -> 2,
             Compression.Lz4 -> 3,
-            Compression.Zstd -> 4,
+            Compression.Zstd -> 4
         }
     }
 

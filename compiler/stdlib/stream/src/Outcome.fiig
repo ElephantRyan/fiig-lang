@@ -3,5 +3,5 @@
 enum Outcome {
     Ack,
     Retry,
-    DeadLetter(target: string),
+    DeadLetter(target: string)
 }

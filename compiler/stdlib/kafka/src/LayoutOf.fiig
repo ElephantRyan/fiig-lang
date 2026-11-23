@@ -3,8 +3,8 @@ conversion layoutOf(parts: List<bytes>) -> Result<TopicLayout, KafkaError> {
     if (parts.length() != 1) {
         return Err(
             KafkaError.MalformedReply(
-                reason: "a Layout ask was answered in ${parts.length()} parts",
-            ),
+                reason: "a Layout ask was answered in ${parts.length()} parts"
+            )
         );
     }
 
@@ -12,7 +12,7 @@ conversion layoutOf(parts: List<bytes>) -> Result<TopicLayout, KafkaError> {
     return match (decoded) {
         Err(_) -> {
             return Err(
-                KafkaError.MalformedReply(reason: "a Layout ask's answer isn't a LayoutReply"),
+                KafkaError.MalformedReply(reason: "a Layout ask's answer isn't a LayoutReply")
             );
         },
 
@@ -21,22 +21,22 @@ conversion layoutOf(parts: List<bytes>) -> Result<TopicLayout, KafkaError> {
                 None -> None,
                 failure -> {
                     return Err(failure);
-                },
+                }
             }
 
             return match (reply.layout) {
                 None -> {
                     return Err(
                         KafkaError.MalformedReply(
-                            reason: "a Layout ask's answer has no layout and no error",
-                        ),
+                            reason: "a Layout ask's answer has no layout and no error"
+                        )
                     );
                 },
 
                 layout -> {
                     return Ok(layout);
-                },
+                }
             }
-        },
+        }
     }
 }

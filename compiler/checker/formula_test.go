@@ -73,7 +73,7 @@ func TestFormulaCallsAreTyped(t *testing.T) {
 
 func TestFormulaRestrictionsAreK3K4K5(t *testing.T) {
 	diags := checkGeo(t, `enum GeoError {
-	Bad,
+	Bad
 }`, `formulas checks {
 	formula parse(s: string) -> Result<int, GeoError> {
 		return Ok(1);

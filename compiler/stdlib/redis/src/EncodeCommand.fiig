@@ -12,7 +12,7 @@ conversion encodeCommand(args: List<bytes>) -> bytes {
             10: u8,
             arg: bytes,
             13: u8,
-            10: u8,
+            10: u8
         >>;
     }
 

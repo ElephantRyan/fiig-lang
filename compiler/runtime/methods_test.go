@@ -47,7 +47,7 @@ func TestListMethods(t *testing.T) {
         },
         x -> {
             return "${x} ${head.length()} ${xs.at(2)}";
-        },
+        }
     }
 }
 `

@@ -47,7 +47,7 @@ func TestJsonDecodeRefusals(t *testing.T) {
 		{"no context", `rule r(body: bytes) -> int {
     return match (json.decode(body)) {
         Ok(_) -> { return 1; },
-        Err(_) -> { return 0; },
+        Err(_) -> { return 0; }
     }
 }`, "A12", "json.decode has no type to decode into"},
 		{"no ?", `rule r(body: bytes) -> Event {
@@ -109,7 +109,7 @@ func TestJ1(t *testing.T) {
 	}
 	holder := `enum Holder {
     Has(session: Session),
-    Empty,
+    Empty
 }`
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -163,7 +163,7 @@ func TestJ2AndW3OnJsonNames(t *testing.T) {
     type: string;
 }`), "J2", `Upload.type reads the JSON member "type", which Upload.contentType already reads`)
 	wantDiag(t, checkSrc(t, `enum Change {
-    Moved(from: string from json "at", at: string),
+    Moved(from: string from json "at", at: string)
 }`), "J2", `Change.Moved.at reads the JSON member "at"`)
 	wantDiag(t, checkSrc(t, `model Base {
     id: string;
@@ -172,10 +172,10 @@ func TestJ2AndW3OnJsonNames(t *testing.T) {
     key: string from json "id";
 }`), "J2", `fields id and key of Item all read the JSON member "id"`)
 	wantDiag(t, checkSrc(t, `enum Change {
-    Renamed(name: string from json "variant"),
+    Renamed(name: string from json "variant")
 }`), "W3", "from json \"variant\"")
 	if diags := checkSrc(t, `enum Change {
-    Renamed(variant: string from json "newVariant"),
+    Renamed(variant: string from json "newVariant")
 }`); len(diags) > 0 {
 		t.Errorf("a payload field named variant with another JSON name: %v", diags)
 	}

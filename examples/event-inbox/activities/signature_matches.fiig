@@ -4,6 +4,6 @@
 activity signatureMatches(body: bytes, header: string | None) -> bool {
     return match (header) {
         None -> false,
-        sent -> signatureValid(secret: Inbox.webhookSecret, body: body, header: sent),
+        sent -> signatureValid(secret: Inbox.webhookSecret, body: body, header: sent)
     }
 }

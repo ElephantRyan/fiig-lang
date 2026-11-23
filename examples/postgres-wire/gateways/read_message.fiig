@@ -13,7 +13,7 @@ gateway readMessage(connection: Connection, pending: bytes) -> Result<Frame, Soc
 
             frame -> {
                 return Ok(frame);
-            },
+            }
         }
     }
 }

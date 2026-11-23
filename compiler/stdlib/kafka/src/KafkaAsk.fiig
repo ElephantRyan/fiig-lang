@@ -15,5 +15,5 @@ enum KafkaAsk {
     Ack(partition: int, offset: int),
     Retry(partition: int, offset: int, resumeAt: int),
     Layout(topic: string, maxAgeMillis: int),
-    Forget(topic: string),
+    Forget(topic: string)
 }

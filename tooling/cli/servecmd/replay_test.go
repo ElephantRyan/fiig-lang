@@ -25,8 +25,8 @@ var replayApp = map[string]string{
 	"app/hello.fiig":        "workflow hello() -> string {\n    return \"hi\";\n}\n",
 	"app/api.fiig":          "adapter http api {\n    GET \"/hello\" -> hello()\n        produces \"application/json\";\n}\n",
 	"app/intake.fiig": "adapter stream intake {\n" +
-		"    source \"orders\" group \"intake\" from earliest key orderId -> placeOrder(order: OrderPlaced) {\n        Ok(_) -> ack,\n        Err(_) -> halt,\n    }\n" +
-		"    source \"returns\" group \"intake\" from earliest key orderId -> placeOrder(order: OrderPlaced) {\n        Ok(_) -> ack,\n        Err(_) -> halt,\n    }\n}\n",
+		"    source \"orders\" group \"intake\" from earliest key orderId -> placeOrder(order: OrderPlaced) {\n        Ok(_) -> ack,\n        Err(_) -> halt\n    }\n" +
+		"    source \"returns\" group \"intake\" from earliest key orderId -> placeOrder(order: OrderPlaced) {\n        Ok(_) -> ack,\n        Err(_) -> halt\n    }\n}\n",
 }
 
 func replayWith(t *testing.T, adapterName, source string) error {

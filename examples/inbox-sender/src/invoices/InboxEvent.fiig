@@ -5,5 +5,5 @@ enum InboxEvent {
     LimitChanged(change: JsonValue),
     Attached(document: JsonValue),
     SubscriptionChanged(subscription: JsonValue),
-    Ignored(eventType: string),
+    Ignored(eventType: string)
 }

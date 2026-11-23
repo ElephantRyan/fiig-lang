@@ -22,8 +22,8 @@ rule readEvent(envelope: Envelope) -> Result<Event, JsonError> {
         return Ok(
             Event.SubscriptionChanged(
                 subscription: subscription,
-                needsAttention: needsAttention(subscription.status),
-            ),
+                needsAttention: needsAttention(subscription.status)
+            )
         );
     }
 
@@ -70,7 +70,7 @@ private {
 
             unknown -> {
                 return unknown.length() > 0;
-            },
+            }
         }
     }
 }

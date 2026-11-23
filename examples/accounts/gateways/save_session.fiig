@@ -2,7 +2,7 @@ gateway saveSession(token: string, account: Account, maxAge: int) -> Session req
     Database.execute(
         "INSERT INTO sessions (token_hash, name) VALUES (?, ?)",
         tokenHash(token),
-        account.name,
+        account.name
     );
     return Session(token: token, account: account, maxAge: maxAge);
 }

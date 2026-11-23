@@ -15,7 +15,7 @@ func TestHttpResponseConstruction(t *testing.T) {
         status: 200,
         body: user,
         headers: ["Cache-Control": "no-store"],
-        cookies: [Cookie(name: "sid", value: token, maxAge: 86400, sameSite: SameSite.Strict)],
+        cookies: [Cookie(name: "sid", value: token, maxAge: 86400, sameSite: SameSite.Strict)]
     );
 }`, `conversion noContent() -> HttpResponse<User> {
     response = HttpResponse(status: 204);
@@ -66,7 +66,7 @@ func TestHttpResponseErrors(t *testing.T) {
 func responseRouteSrc(adapter string) []string {
 	return []string{responseModels,
 		`enum UserError {
-    Missing(name: string),
+    Missing(name: string)
 }`,
 		`workflow readUser(name: string) -> Result<User, UserError> {
     return Ok(User(name: name));
@@ -90,13 +90,13 @@ func TestResponseArmsAreChecked(t *testing.T) {
         produces "application/json"
     {
         Ok(user) -> 200 user,
-        Err(error) -> userErrorToHttpResponse(error),
+        Err(error) -> userErrorToHttpResponse(error)
     }
     GET "/users/{name}/csv" -> readUser(name: string)
         produces "text/csv"
     {
         Ok(user) -> userToCsv(user),
-        Err(error) -> 404 describe(error),
+        Err(error) -> 404 describe(error)
     }
 }`)...)
 	if len(diags) != 0 {
@@ -109,7 +109,7 @@ func TestResponseArmsAreChecked(t *testing.T) {
         produces "application/json"
     {
         Ok(user) -> 200 describe(user),
-        Err(error) -> 404,
+        Err(error) -> 404
     }
 }`, "A1", "type mismatch: got User, expected UserError"},
 		{`adapter http users {
@@ -117,7 +117,7 @@ func TestResponseArmsAreChecked(t *testing.T) {
         produces "application/json"
     {
         Ok(user) -> 200 user,
-        Err(error) -> describe(error),
+        Err(error) -> describe(error)
     }
 }`, "A1", "a response arm's expression must produce an HttpResponse, got string"},
 		{`adapter http users {
@@ -125,7 +125,7 @@ func TestResponseArmsAreChecked(t *testing.T) {
         produces "text/csv"
     {
         Ok(user) -> 200 user,
-        Err(error) -> 404,
+        Err(error) -> 404
     }
 }`, "", `route produces "text/csv", which sends a string or bytes body, but this response's body is User`},
 		{`adapter http users {
@@ -133,7 +133,7 @@ func TestResponseArmsAreChecked(t *testing.T) {
         produces "text/csv"
     {
         Ok(user) -> userToCsv(user),
-        Err(error) -> userErrorToHttpResponse(error),
+        Err(error) -> userErrorToHttpResponse(error)
     }
 }`, "", "but this response's body is UserError"},
 	}
@@ -171,7 +171,7 @@ func TestWireConstantsAreChecked(t *testing.T) {
     return HttpResponse(
         status: status,
         headers: ["X-User": user.name],
-        cookies: [Cookie(name: "__Host-sid", value: token, sameSite: SameSite.AnySite)],
+        cookies: [Cookie(name: "__Host-sid", value: token, sameSite: SameSite.AnySite)]
     );
 }`)
 	if len(diags) != 0 {
@@ -182,7 +182,7 @@ func TestWireConstantsAreChecked(t *testing.T) {
         produces "application/json"
     {
         Ok(user) -> 304 user,
-        Err(error) -> 404,
+        Err(error) -> 404
     }
 }`)...), "W1", "a 304 response can't carry a body")
 }

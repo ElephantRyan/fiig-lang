@@ -28,7 +28,7 @@ const shipmentModel = `model Shipment {
 
 const shipStateEnum = `enum ShipState {
     Packed,
-    Sent from json "sent",
+    Sent from json "sent"
 }`
 
 func gatewayWith(body string) string {

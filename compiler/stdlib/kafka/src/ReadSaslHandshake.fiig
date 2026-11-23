@@ -19,7 +19,7 @@ conversion readSaslHandshake(frame: bytes, mechanism: string) -> Result<None, st
                     name -> {
                         offered = append(offered, name.text);
                         pos = name.next;
-                    },
+                    }
                 }
 
                 i = i + 1;
@@ -27,7 +27,7 @@ conversion readSaslHandshake(frame: bytes, mechanism: string) -> Result<None, st
 
             if (code == 33) {
                 return Err(
-                    "the broker doesn't take SASL ${mechanism}; it offers ${offered.join(", ")}",
+                    "the broker doesn't take SASL ${mechanism}; it offers ${offered.join(", ")}"
                 );
             }
 
@@ -36,6 +36,6 @@ conversion readSaslHandshake(frame: bytes, mechanism: string) -> Result<None, st
 
         _ -> {
             return Err("a SaslHandshake response is shorter than its header");
-        },
+        }
     }
 }

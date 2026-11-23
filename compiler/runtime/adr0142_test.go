@@ -46,11 +46,11 @@ func TestMatchAsAValueRuns(t *testing.T) {
     label = match (code) {
         401 -> "unauthorized",
         404 -> "not found",
-        _ -> "rejected",
+        _ -> "rejected"
     };
     size: string | None = match (n) {
         None -> None,
-        given -> "${given}",
+        given -> "${given}"
     };
     return match (n) {
         None -> "${label}/none",
@@ -59,7 +59,7 @@ func TestMatchAsAValueRuns(t *testing.T) {
                 return "big";
             }
             return "${label}/${size ?? ""}";
-        },
+        }
     }
 }`
 	checkClean(t, rule)

@@ -14,12 +14,12 @@ conversion nextFrame(buffer: bytes) -> FrameRead {
 
             return FrameRead.Done(
                 frame: rest.slice(0, size),
-                rest: rest.slice(size, rest.length()),
+                rest: rest.slice(size, rest.length())
             );
         },
 
         _ -> {
             return FrameRead.NeedMore;
-        },
+        }
     }
 }

@@ -5,6 +5,6 @@ rule regionDisplayName(region: Region) -> string {
     return match (region) {
         Region.US -> "United States",
         Region.EU -> "Europe",
-        Region.APAC -> "Asia-Pacific",
+        Region.APAC -> "Asia-Pacific"
     }
 }

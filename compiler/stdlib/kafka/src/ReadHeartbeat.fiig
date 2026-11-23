@@ -23,8 +23,8 @@ conversion readHeartbeat(frame: bytes) -> Result<HeartbeatAnswer, string> {
                 intervalMillis: interval,
                 assigned: false,
                 topicId: <<>>,
-                partitions: [],
-            ),
+                partitions: []
+            )
         );
     }
 
@@ -60,8 +60,8 @@ conversion readHeartbeat(frame: bytes) -> Result<HeartbeatAnswer, string> {
             intervalMillis: interval,
             assigned: true,
             topicId: topicId,
-            partitions: partitions,
-        ),
+            partitions: partitions
+        )
     );
 }
 
@@ -78,7 +78,7 @@ private {
 
             found -> {
                 return Ok(found);
-            },
+            }
         }
     }
 
@@ -90,7 +90,7 @@ private {
 
             found -> {
                 return Ok(found);
-            },
+            }
         }
     }
 
@@ -107,7 +107,7 @@ private {
                 }
 
                 return Ok(IntAt(value: found.value - 1, next: found.next));
-            },
+            }
         }
     }
 }

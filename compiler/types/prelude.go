@@ -46,11 +46,11 @@ var preludeSources = []string{`enum SocketError {
     Reset,
     Closed,
     Tls(reason: string),
-    TimedOut,
+    TimedOut
 }
 `, `enum SessionError {
     Broken(reason: string),
-    TimedOut,
+    TimedOut
 }
 `, `enum Rounding {
     HalfUp,
@@ -58,7 +58,7 @@ var preludeSources = []string{`enum SocketError {
     Up,
     Down,
     Ceiling,
-    Floor,
+    Floor
 }
 `, `model Cookie {
     name: string;
@@ -73,11 +73,11 @@ var preludeSources = []string{`enum SocketError {
 `, `enum SameSite {
     Strict,
     Lax,
-    AnySite,
+    AnySite
 }
 `, `enum DecompressError {
     Corrupt(reason: string),
-    TooLarge(maxSize: int),
+    TooLarge(maxSize: int)
 }
 `, `enum JsonValue {
     Null,
@@ -85,29 +85,29 @@ var preludeSources = []string{`enum SocketError {
     Number(text: string),
     Text(value: string),
     Array(items: List<JsonValue>),
-    Object(members: Map<string, JsonValue>),
+    Object(members: Map<string, JsonValue>)
 }
 `, `enum JsonError {
     Syntax(offset: int, reason: string),
-    Mismatch(path: string, reason: string),
+    Mismatch(path: string, reason: string)
 }
 `, `enum SettingError {
     Invalid(reason: string),
-    SetByDeployment,
+    SetByDeployment
 }
 `, `enum SettingSource {
     Deployment,
     Saved,
     Pending,
     Default,
-    Unset,
+    Unset
 }
 `, `enum DatabaseConflict {
     Unique(constraint: string),
     ForeignKey(constraint: string),
     NotNull(column: string),
     Check(constraint: string),
-    Retryable(reason: string),
+    Retryable(reason: string)
 }
 `}
 

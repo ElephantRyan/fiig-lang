@@ -51,12 +51,12 @@ gateway postForm(url: string, amount: string, note: string) -> Result<http.Reply
         url: url,
         headers: [
             http.Header(name: "Authorization", value: "Bearer sk_test"),
-            http.Header(name: "Content-Type", value: "application/x-www-form-urlencoded"),
+            http.Header(name: "Content-Type", value: "application/x-www-form-urlencoded")
         ],
         body: http.formEncode([
             http.Header(name: "amount", value: amount),
-            http.Header(name: "note", value: note),
-        ]),
+            http.Header(name: "note", value: note)
+        ])
     ));
 }`,
 	"with_header.fiig": `use fiig.http;
@@ -69,7 +69,7 @@ gateway withHeader(url: string, name: string, value: string, timeout: int) -> Re
         method: http.Method.Delete,
         url: url,
         headers: [http.Header(name: name, value: value)],
-        timeoutMillis: timeout,
+        timeoutMillis: timeout
     ));
 }`,
 	"segments.fiig": `use fiig.http;
@@ -384,12 +384,12 @@ func TestCheckingAgainstAnotherPackage(t *testing.T) {
 conversion firstHeader(reply: http.Reply, method: http.Method) -> string {
     match (method) {
         http.Method.Get -> None,
-        _ -> None,
+        _ -> None
     }
     failure = http.HttpError.MalformedReply(reason: "x");
     match (failure) {
         http.HttpError.MalformedReply(reason) -> None,
-        _ -> None,
+        _ -> None
     }
     for (header in reply.headers) {
         return header.name;

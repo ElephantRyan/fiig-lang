@@ -11,7 +11,7 @@ private {
     authorizationLine(value: string | None) -> string {
         return match (value) {
             None -> "",
-            given -> "Authorization: ${given}\r\n",
+            given -> "Authorization: ${given}\r\n"
         }
     }
 }

@@ -11,7 +11,7 @@ import (
 
 const startupErrors = `enum StorageError {
     Missing,
-    Unreachable(reason: string),
+    Unreachable(reason: string)
 }`
 
 const verifyStorage = `workflow verifyStorage() -> Result<None, StorageError> {
@@ -32,7 +32,7 @@ func TestStartupRoutesCheck(t *testing.T) {
     run -> verifyStorage() {
         Ok(_) -> proceed,
         Err(StorageError.Missing) -> halt,
-        Err(StorageError.Unreachable(_)) -> proceed,
+        Err(StorageError.Unreachable(_)) -> proceed
     }
 }`
 	if diags := checkStartup(t, src); len(diags) > 0 {
@@ -44,13 +44,13 @@ func TestStartupRouteOnceAndWithinCheck(t *testing.T) {
 	src := `adapter startup Preflight {
     run once within "2m" -> verifyStorage() {
         Ok(_) -> proceed,
-        Err(_) -> halt,
+        Err(_) -> halt
     }
     run within "500ms" -> verifyStorage() {
-        _ -> proceed,
+        _ -> proceed
     }
     run once -> verifyStorage() {
-        _ -> proceed,
+        _ -> proceed
     }
 }`
 	if diags := checkStartup(t, src); len(diags) > 0 {
@@ -107,7 +107,7 @@ func TestStartupConfigFieldChecks(t *testing.T) {
     run -> verifyStorage() {
         Ok(_) -> proceed,
         Err(StorageError.Missing) -> halt,
-        Err(StorageError.Unreachable(_)) -> degrade,
+        Err(StorageError.Unreachable(_)) -> degrade
     }
 }`
 	config := func(field string) []Diagnostic {

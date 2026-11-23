@@ -13,7 +13,7 @@ conversion readFrames(buffer: bytes) -> Frames {
             frame -> {
                 frames = append(frames, frame);
                 rest = frame.rest;
-            },
+            }
         }
     }
 

@@ -11,6 +11,6 @@ conversion textOf(reply: RespValue) -> string | None {
 
         _ -> {
             return None;
-        },
+        }
     }
 }

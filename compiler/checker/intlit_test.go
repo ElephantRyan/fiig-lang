@@ -44,7 +44,7 @@ func TestIntLiteralOutOfRangeInBinaryPatterns(t *testing.T) {
 	f := mustParse(t, `conversion frame(buffer: bytes) -> int {
     return match (buffer) {
         <<99999999999999999999: u64be, body: bytes(99999999999999999999)>> -> body.length(),
-        _ -> 0,
+        _ -> 0
     }
 }
 `)

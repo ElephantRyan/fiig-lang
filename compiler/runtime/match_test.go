@@ -15,7 +15,7 @@ func TestNameInsideOkKeepsANestedResult(t *testing.T) {
         },
         Err(problem) -> {
             return Err(problem);
-        },
+        }
     }
 }`
 	got, f := runEach(t, src, "unwrapOnce", map[string]Value{"n": Int(5)})

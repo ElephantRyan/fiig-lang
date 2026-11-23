@@ -9,6 +9,6 @@ conversion failedStep(reason: string) -> session.Step {
         accepted: None,
         replies: [],
         nextTickAt: None,
-        close: session.SessionClose.Failed(reason: reason),
+        close: session.SessionClose.Failed(reason: reason)
     );
 }

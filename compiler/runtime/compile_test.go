@@ -91,7 +91,7 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
             }
             return "small";
         },
-        Err(reason) -> reason,
+        Err(reason) -> reason
     }
 }`}, "f", map[string]Value{"r": Result{Ok: true, Value: Int(5)}}},
 		{"try", []string{`rule f(r: Result<int, string>) -> Result<int, string> {
@@ -145,7 +145,7 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
             },
             Err(reason) -> {
                 out = "${out}${reason}:${n},";
-            },
+            }
         }
     }
     return out;
@@ -209,13 +209,13 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
                     },
                     _ -> {
                         out = append(out, body.length());
-                    },
+                    }
                 }
                 rest = more;
             },
             _ -> {
                 return [0 - 1];
-            },
+            }
         }
     }
     return out;
@@ -231,7 +231,7 @@ func TestCompiledBodiesMatchTheTreeWalk(t *testing.T) {
         },
         _ -> {
             return [x];
-        },
+        }
     }
 }`}, "f", map[string]Value{"a": Int(0xF0F0F0F0), "b": Int(0x12345678), "data": Bytes{B: []byte{5, 6, 7, 8}}}},
 		{"many locals", []string{`rule f(n: int) -> int {

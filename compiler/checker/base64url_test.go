@@ -17,7 +17,7 @@ func TestJ4RefusesBase64URLOnAFieldThatIsntBytes(t *testing.T) {
     sizes: List<int> from json base64url;
 }`), "J4", "List<int>")
 	wantDiag(t, checkSrc(t, `enum Upload {
-    Sent(name: string from json base64url),
+    Sent(name: string from json base64url)
 }`), "J4", "Upload.Sent.name")
 }
 
@@ -30,7 +30,7 @@ func TestBase64URLIsLegalOnBytesAllTheWayDown(t *testing.T) {
     keys: Map<string, bytes> from json base64url;
     maybe: List<bytes | None> | None from json base64url;
 }`, `enum Upload {
-    Sent(body: bytes from json base64url),
+    Sent(body: bytes from json base64url)
 }`); len(diags) > 0 {
 		t.Errorf("diags = %v", diags)
 	}

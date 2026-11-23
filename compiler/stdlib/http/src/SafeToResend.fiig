@@ -5,6 +5,6 @@ conversion safeToResend(method: Method) -> bool {
     return match (method) {
         Method.Post -> false,
         Method.Patch -> false,
-        _ -> true,
+        _ -> true
     }
 }

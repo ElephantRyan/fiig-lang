@@ -26,7 +26,7 @@ func TestListMethodsAreTyped(t *testing.T) {
         },
         x -> {
             return x + first + head.length();
-        },
+        }
     }
 }
 `)

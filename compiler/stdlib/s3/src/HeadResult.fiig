@@ -13,15 +13,15 @@ conversion headResult(reply: http.Reply) -> Result<ObjectInfo, S3Error> {
             return Err(
                 S3Error.Http(
                     failure: http.HttpError.MalformedReply(
-                        reason: "a HEAD reply has no readable Content-Length",
-                    ),
-                ),
+                        reason: "a HEAD reply has no readable Content-Length"
+                    )
+                )
             );
         },
 
         size -> {
             return Ok(objectInfoOf(reply, size));
-        },
+        }
     }
 }
 

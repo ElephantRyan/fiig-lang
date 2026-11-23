@@ -48,7 +48,7 @@ conversion toDateTime(millis: int) -> Result<DateTime, TimeError> {
             hour: hour,
             minute: minute,
             second: second,
-            millisecond: millisecond,
-        ),
+            millisecond: millisecond
+        )
     );
 }

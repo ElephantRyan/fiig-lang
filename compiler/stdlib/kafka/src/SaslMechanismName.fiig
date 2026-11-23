@@ -11,6 +11,6 @@ conversion saslMechanismName(mechanism: SaslMechanism) -> string {
 
         SaslMechanism.ScramSha512 -> {
             return "SCRAM-SHA-512";
-        },
+        }
     }
 }

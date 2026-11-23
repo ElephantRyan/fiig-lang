@@ -50,7 +50,7 @@ func TestAPlainValueWorkflowHasItsSchema(t *testing.T) {
     return Health(ok: true);
 }`, `adapter http healthApi {
     GET "/health" -> healthCheck() {
-        status -> 200 status,
+        status -> 200 status
     }
 }`)
 	doc, err := GenerateOpenAPI(findAdapter(t, files, "healthApi"), u)
@@ -69,7 +69,7 @@ func TestAPlainValueWorkflowHasItsSchema(t *testing.T) {
 func TestAResponseBuiltInAnotherPackageKeepsItsStatuses(t *testing.T) {
 	common, _ := universeOf(t, `enum Refusal {
     Missing,
-    Denied,
+    Denied
 }`, `conversion refusalResponse(error: Refusal) -> HttpResponse<string> {
     return match (error) {
         Refusal.Missing -> {
@@ -77,7 +77,7 @@ func TestAResponseBuiltInAnotherPackageKeepsItsStatuses(t *testing.T) {
         },
         Refusal.Denied -> {
             return HttpResponse(status: 403, body: "denied");
-        },
+        }
     }
 }`)
 	app, files := universeOf(t, `use shop.common;
@@ -89,7 +89,7 @@ model Item {
 }`, `adapter http itemApi {
     GET "/item" -> readItem() {
         Ok(item) -> 200 item,
-        Err(error) -> common.refusalResponse(error),
+        Err(error) -> common.refusalResponse(error)
     }
 }`)
 	pkg := &types.Package{Path: "shop.items", Universe: app, Imports: map[string]*types.Universe{"common": common}}
@@ -121,14 +121,14 @@ func keys(m map[string]any) []string {
 // answers with that conversion's statuses too.
 func TestAResponseFromANestedConversionKeepsItsStatus(t *testing.T) {
 	u, files := universeOf(t,
-		"enum IdentityError {\n    NotSignedIn,\n}",
-		"enum RatingError {\n    Session(cause: IdentityError),\n    NoRating,\n}",
+		"enum IdentityError {\n    NotSignedIn\n}",
+		"enum RatingError {\n    Session(cause: IdentityError),\n    NoRating\n}",
 		"workflow deleteMine(token: string) -> Result<string, RatingError> {\n    return Err(RatingError.NoRating);\n}",
 		"conversion identityErrorResponse(error: IdentityError) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"sign in first\");\n}",
 		`conversion ratingErrorResponse(error: RatingError) -> HttpResponse<string> {
     return match (error) {
         RatingError.Session(cause) -> identityErrorResponse(cause),
-        RatingError.NoRating -> HttpResponse(status: 404, body: "no rating"),
+        RatingError.NoRating -> HttpResponse(status: 404, body: "no rating")
     }
 }`,
 		`adapter http api {
@@ -136,7 +136,7 @@ func TestAResponseFromANestedConversionKeepsItsStatus(t *testing.T) {
         produces "application/json"
     {
         Ok(who) -> 200 who,
-        Err(error) -> ratingErrorResponse(error),
+        Err(error) -> ratingErrorResponse(error)
     }
 }`)
 	doc, err := GenerateOpenAPI(findAdapter(t, files, "api"), u)

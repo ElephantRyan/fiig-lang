@@ -10,7 +10,7 @@ import (
 
 func TestListLiteralsAndAppendTypeCheck(t *testing.T) {
 	f := mustParse(t, `rule codes(extra: string) -> List<string> {
-    base = ["ACME", "GLBX",];
+    base = ["ACME", "GLBX"];
     ids: List<string> = [];
     for (code in base) {
         ids = append(ids, code);

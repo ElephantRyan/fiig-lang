@@ -6,5 +6,5 @@ enum SmtpError {
     Refused(code: int, message: string),
     Protocol(reason: string),
     InvalidUrl(reason: string),
-    InvalidMail(reason: string),
+    InvalidMail(reason: string)
 }

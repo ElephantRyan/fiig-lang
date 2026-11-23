@@ -13,7 +13,7 @@ conversion kafkaRequest(
         apiVersion: i16be,
         correlation: i32be,
         kafkaString(clientId): bytes,
-        body: bytes,
+        body: bytes
     >>;
     return <<message.length(): i32be, message: bytes>>;
 }

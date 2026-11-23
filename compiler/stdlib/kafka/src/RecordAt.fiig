@@ -24,8 +24,8 @@ conversion recordAt(parts: List<FetchedPartition>, at: PartitionOffset)
                             id: "${at.partition}/${at.offset}",
                             payload: record.value,
                             attempt: 1,
-                            order: "${at.partition}",
-                        ),
+                            order: "${at.partition}"
+                        )
                     );
                 }
             }

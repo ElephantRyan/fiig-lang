@@ -2,6 +2,6 @@
 conversion textOf(raw: bytes) -> string {
     return match (raw.utf8()) {
         None -> "",
-        text -> text,
+        text -> text
     }
 }

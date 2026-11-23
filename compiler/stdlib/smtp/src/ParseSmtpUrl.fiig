@@ -90,7 +90,7 @@ conversion parseSmtpUrl(url: string) -> Result<SmtpTarget, SmtpError> {
                 }
 
                 port = number;
-            },
+            }
         }
     }
 
@@ -99,7 +99,7 @@ conversion parseSmtpUrl(url: string) -> Result<SmtpTarget, SmtpError> {
     }
 
     return Ok(
-        SmtpTarget(host: host, port: port, security: security, user: user, password: password),
+        SmtpTarget(host: host, port: port, security: security, user: user, password: password)
     );
 }
 
@@ -119,7 +119,7 @@ private {
             if (b == 37) {
                 if (i + 2 >= raw.length()) {
                     return Err(
-                        invalid("a % in its user or password isn't followed by two hex digits"),
+                        invalid("a % in its user or password isn't followed by two hex digits")
                     );
                 }
 
@@ -127,7 +127,7 @@ private {
                 low = hexValue(raw.at(i + 2));
                 if (high < 0 || low < 0) {
                     return Err(
-                        invalid("a % in its user or password isn't followed by two hex digits"),
+                        invalid("a % in its user or password isn't followed by two hex digits")
                     );
                 }
 
@@ -146,7 +146,7 @@ private {
 
             decoded -> {
                 return Ok(decoded);
-            },
+            }
         }
     }
 

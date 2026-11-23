@@ -4,5 +4,5 @@
 enum SmtpSecurity {
     Implicit,
     StartTls,
-    Plain,
+    Plain
 }

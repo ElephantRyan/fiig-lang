@@ -21,12 +21,12 @@ conversion dueWork(turn: SessionTurn, now: int) -> SessionTurn {
             s.epoch,
             s.topic,
             s.topicId,
-            owned,
+            owned
         );
         out = copy(
             out,
             state: copy(tracked(s, "heartbeat"), heartbeatInFlight: true),
-            write: <<out.write: bytes, request: bytes>>,
+            write: <<out.write: bytes, request: bytes>>
         );
     }
 

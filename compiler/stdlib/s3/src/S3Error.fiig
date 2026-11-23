@@ -11,5 +11,5 @@ enum S3Error {
     Refused(status: int, code: string, message: string),
     Http(failure: http.HttpError),
     InvalidRequest(reason: string),
-    InvalidConfig(reason: string),
+    InvalidConfig(reason: string)
 }

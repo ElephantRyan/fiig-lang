@@ -12,7 +12,7 @@ capability Stripe provides payments.PaymentProvider {
             host: "api.stripe.com",
             path: "/v1/charges",
             body: "${request.orderId}:${request.amount}",
-            authorization: "Bearer ${StripeAccount.apiKey.reveal()}",
+            authorization: "Bearer ${StripeAccount.apiKey.reveal()}"
         );
         reply = Client.send(outbound);
         return match (reply) {
@@ -24,7 +24,7 @@ capability Stripe provides payments.PaymentProvider {
                 return Ok("stripe:${sent.body}");
             },
 
-            Err(failure) -> Err(http.describeSocketError(failure)),
+            Err(failure) -> Err(http.describeSocketError(failure))
         }
     }
 }

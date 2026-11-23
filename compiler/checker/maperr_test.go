@@ -6,7 +6,7 @@ import "testing"
 
 const mapErrDecls = `enum ApiError {
     Unreadable(failure: JsonError),
-    Refused(reason: string),
+    Refused(reason: string)
 }`
 
 const mapErrUser = `model User {

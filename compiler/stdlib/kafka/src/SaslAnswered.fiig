@@ -21,7 +21,7 @@ conversion saslAnswered(turn: SessionTurn, kind: string, frame: bytes, login: Sa
                         return refused(turn, reason);
                     },
 
-                    Ok(_) -> None,
+                    Ok(_) -> None
                 }
 
                 if (mechanism == SaslMechanism.Plain) {
@@ -62,10 +62,10 @@ conversion saslAnswered(turn: SessionTurn, kind: string, frame: bytes, login: Sa
                                             proof,
                                             state: copy(
                                                 proof.state,
-                                                scramSignature: final.serverSignature,
-                                            ),
+                                                scramSignature: final.serverSignature
+                                            )
                                         );
-                                    },
+                                    }
                                 }
                             }
 
@@ -80,19 +80,19 @@ conversion saslAnswered(turn: SessionTurn, kind: string, frame: bytes, login: Sa
                                         if (crypto.equal(signature, s.scramSignature)) {
                                             return loggedIn(turn);
                                         }
-                                    },
+                                    }
                                 }
                             }
 
                             return refused(
                                 turn,
-                                "the broker's SCRAM signature is wrong, so it doesn't know the password",
+                                "the broker's SCRAM signature is wrong, so it doesn't know the password"
                             );
-                        },
+                        }
                     }
-                },
+                }
             }
-        },
+        }
     }
 }
 
@@ -119,7 +119,7 @@ private {
         return copy(
             turn,
             state: copy(tracked(s, "coordinator"), phase: "finding"),
-            write: <<turn.write: bytes, coordinator: bytes>>,
+            write: <<turn.write: bytes, coordinator: bytes>>
         );
     }
 }

@@ -28,7 +28,7 @@ capability RedisStreams provides stream.StreamSource {
                             startId = "$";
                         },
 
-                        stream.StartAt.Earliest -> None,
+                        stream.StartAt.Earliest -> None
                     }
 
                     match (Redis.send(["XGROUP", "CREATE", source, group, startId, "MKSTREAM"])) {
@@ -42,7 +42,7 @@ capability RedisStreams provides stream.StreamSource {
                             return Err(sourceErrorOf(other));
                         },
 
-                        Ok(_) -> None,
+                        Ok(_) -> None
                     }
 
                     return Ok([]);
@@ -70,10 +70,10 @@ capability RedisStreams provides stream.StreamSource {
 
                         _ -> {
                             return Ok([]);
-                        },
+                        }
                     }
                 }
-            },
+            }
         }
 
         read = Redis.send(
@@ -88,8 +88,8 @@ capability RedisStreams provides stream.StreamSource {
                 "${subscription.waitMillis}",
                 "STREAMS",
                 source,
-                ">",
-            ],
+                ">"
+            ]
         );
         reply = mapErr(e in read): sourceErrorOf(e)?;
         // [[stream name, [entry, ...]]], or Null when nothing came in time.
@@ -104,12 +104,12 @@ capability RedisStreams provides stream.StreamSource {
                                         return Ok(streamDeliveries(entries, [:]));
                                     },
 
-                                    _ -> None,
+                                    _ -> None
                                 }
                             }
                         },
 
-                        _ -> None,
+                        _ -> None
                     }
                 }
 
@@ -118,7 +118,7 @@ capability RedisStreams provides stream.StreamSource {
 
             _ -> {
                 return Ok([]);
-            },
+            }
         }
     }
 
@@ -131,8 +131,8 @@ capability RedisStreams provides stream.StreamSource {
         asked = Redis.sendAll(
             [
                 ["XRANGE", subscription.source, id, id],
-                ["XPENDING", subscription.source, subscription.group, "IDLE", "0", id, id, "1"],
-            ],
+                ["XPENDING", subscription.source, subscription.group, "IDLE", "0", id, id, "1"]
+            ]
         );
         replies = mapErr(e in asked): sourceErrorOf(e)?;
         return fetchedEntry(id, replies.first(), replies.last());
@@ -162,13 +162,13 @@ capability RedisStreams provides stream.StreamSource {
                         "source".utf8(),
                         subscription.source.utf8(),
                         "id".utf8(),
-                        delivery.id.utf8(),
-                    ],
+                        delivery.id.utf8()
+                    ]
                 );
                 mapErr(e in moved): sourceErrorOf(e)?;
             },
 
-            stream.Outcome.Ack -> None,
+            stream.Outcome.Ack -> None
         }
 
         acked = Redis.send(["XACK", subscription.source, subscription.group, delivery.id]);

@@ -12,7 +12,7 @@ conversion keepsConnection(name: string) -> bool {
         "CLIENT",
         "HELLO",
         "AUTH",
-        "RESET",
+        "RESET"
     ];
     return !changing.contains(name.uppercase());
 }

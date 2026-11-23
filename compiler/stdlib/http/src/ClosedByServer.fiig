@@ -4,6 +4,6 @@ conversion closedByServer(failure: SocketError) -> bool {
     return match (failure) {
         SocketError.Closed -> true,
         SocketError.Reset -> true,
-        _ -> false,
+        _ -> false
     }
 }

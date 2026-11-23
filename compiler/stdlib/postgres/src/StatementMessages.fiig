@@ -37,14 +37,14 @@ conversion statementMessages(name: string, values: List<db.SqlValue>) -> bytes {
             db.SqlValue.Bool(flag) -> {
                 formats = <<formats: bytes, 0: i16be>>;
                 params = withParam(params, "${flag}".utf8());
-            },
+            }
         }
     }
 
     count = values.length();
     bind = pgMessage(
         66,
-        <<cString(""): bytes, cString(name): bytes, count: i16be, formats: bytes, count: i16be, params: bytes, 0: i16be>>,
+        <<cString(""): bytes, cString(name): bytes, count: i16be, formats: bytes, count: i16be, params: bytes, 0: i16be>>
     );
     describe = pgMessage(68, <<80: u8, 0: u8>>);
     execute = pgMessage(69, <<0: u8, 0: i32be>>);

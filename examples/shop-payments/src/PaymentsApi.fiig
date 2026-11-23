@@ -9,6 +9,6 @@ adapter http paymentsApi {
             consumes "application/json"
             produces "application/json" {
         Ok(receipt) -> 200 receipt,
-        Err(error) -> 422 error,
+        Err(error) -> 422 error
     }
 }

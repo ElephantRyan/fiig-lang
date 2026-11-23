@@ -4,8 +4,8 @@ test badBatchStoresNothing {
     saved = saveRatings(
         [
             Rating(item: "dune", score: 9, note: "great"),
-            Rating(item: "emma", score: 0, note: "unrated"),
-        ],
+            Rating(item: "emma", score: 0, note: "unrated")
+        ]
     );
     expect saved is Err(problem);
     expect problem == RatingError.Invalid("score", "must be from 1 to 10");

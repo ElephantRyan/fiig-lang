@@ -42,7 +42,7 @@ conversion sessionOpened(settings: Map<string, string>, now: int, login: SaslLog
         refused: None,
         scramNonce: nonce,
         scramFirstBare: "",
-        scramSignature: <<>>,
+        scramSignature: <<>>
     );
     versions = apiVersionsRequest(s.clientId, 1);
     match (login.mechanism) {
@@ -51,36 +51,36 @@ conversion sessionOpened(settings: Map<string, string>, now: int, login: SaslLog
             if (login.username == "") {
                 refused = saslRefused(
                     s,
-                    "KAFKA_SASL_MECHANISM is set, and KAFKA_SASL_USERNAME isn't",
+                    "KAFKA_SASL_MECHANISM is set, and KAFKA_SASL_USERNAME isn't"
                 );
                 return sessionStep(
                     SessionTurn(state: refused, write: <<>>, replies: [], close: None),
-                    None,
+                    None
                 );
             }
 
             handshake = saslHandshakeRequest(s.clientId, 2, saslMechanismName(mechanism));
             authenticating = copy(
                 tracked(tracked(s, "versions"), "saslHandshake"),
-                phase: "authenticating",
+                phase: "authenticating"
             );
             return sessionStep(
                 SessionTurn(
                     state: authenticating,
                     write: <<versions: bytes, handshake: bytes>>,
                     replies: [],
-                    close: None,
+                    close: None
                 ),
-                None,
+                None
             );
-        },
+        }
     }
 
     if (s.role != "group") {
         opening = copy(tracked(s, "versions"), phase: "opening");
         return sessionStep(
             SessionTurn(state: opening, write: versions, replies: [], close: None),
-            None,
+            None
         );
     }
 
@@ -91,8 +91,8 @@ conversion sessionOpened(settings: Map<string, string>, now: int, login: SaslLog
             state: finding,
             write: <<versions: bytes, coordinator: bytes>>,
             replies: [],
-            close: None,
+            close: None
         ),
-        None,
+        None
     );
 }

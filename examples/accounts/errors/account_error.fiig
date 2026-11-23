@@ -3,5 +3,5 @@
 enum AccountError {
     NoCredentials,
     BadCredentials,
-    NoSession,
+    NoSession
 }

@@ -16,13 +16,13 @@ conversion consumerError(failure: KafkaError) -> stream.SourceError {
         },
 
         KafkaError.UnknownTopic(topic) -> stream.SourceError.Misconfigured(
-            reason: "topic ${topic} doesn't exist",
+            reason: "topic ${topic} doesn't exist"
         ),
         KafkaError.Unsupported(reason) -> stream.SourceError.Misconfigured(reason: reason),
         KafkaError.InvalidConfig(reason) -> stream.SourceError.Misconfigured(reason: reason),
         KafkaError.Authentication(reason) -> stream.SourceError.Misconfigured(reason: reason),
         KafkaError.MalformedReply(reason) -> stream.SourceError.Protocol(reason: reason),
         KafkaError.InvalidRecord(reason) -> stream.SourceError.Protocol(reason: reason),
-        KafkaError.Decompress(cause) -> stream.SourceError.Protocol(reason: "${cause}"),
+        KafkaError.Decompress(cause) -> stream.SourceError.Protocol(reason: "${cause}")
     }
 }

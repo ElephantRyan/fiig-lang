@@ -11,11 +11,11 @@ capability LedgerApi {
                 Socket.close(connection);
                 return match (sent) {
                     Ok(_) -> Ok(None),
-                    Err(_) -> Err("ledger write failed"),
+                    Err(_) -> Err("ledger write failed")
                 }
             },
 
-            Err(_) -> Err("ledger unreachable"),
+            Err(_) -> Err("ledger unreachable")
         }
     }
 }

@@ -11,8 +11,8 @@ capability HttpClient {
         if (maxBytes <= 0) {
             return Err(
                 HttpError.InvalidRequest(
-                    reason: "HTTP_CLIENT_MAX_REPLY_BYTES is ${maxBytes}; it must be more than 0",
-                ),
+                    reason: "HTTP_CLIENT_MAX_REPLY_BYTES is ${maxBytes}; it must be more than 0"
+                )
             );
         }
 
@@ -21,7 +21,7 @@ capability HttpClient {
             outgoing.host,
             outgoing.port,
             tls: outgoing.secure,
-            session: "",
+            session: ""
         );
         // A kept connection the server closed while it sat idle fails
         // before any reply byte. The request is sent again, once, on a new
@@ -42,7 +42,7 @@ capability HttpClient {
                 kept -> {
                     opened = Ok(kept);
                     resend = safeToResend(request.method);
-                },
+                }
             }
 
             reused = None;
@@ -58,7 +58,7 @@ capability HttpClient {
                     stale = true;
                 },
 
-                Ok(_) -> None,
+                Ok(_) -> None
             }
 
             // readReply never asks for more once closed is true, so this
@@ -108,12 +108,12 @@ capability HttpClient {
                                         _ -> {
                                             Socket.close(connection);
                                             return Err(HttpError.Socket(failure: failure));
-                                        },
+                                        }
                                     }
                                 }
-                            },
+                            }
                         }
-                    },
+                    }
                 }
             }
         }

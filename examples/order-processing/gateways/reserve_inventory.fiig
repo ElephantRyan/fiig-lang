@@ -1,7 +1,7 @@
 gateway reserveInventory(orderId: string) -> Result<None, OrderError> requires Database {
     reserved = Database.execute(
         "INSERT INTO inventory_reservations (order_id) VALUES (?)",
-        orderId,
+        orderId
     );
     if (reserved == 0) {
         return Err(OrderError.InventoryUnavailable(orderId));

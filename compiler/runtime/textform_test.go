@@ -15,11 +15,11 @@ var spelledSources = []string{
 	`enum Status {
     Active from json "active",
     PastDue from json "past_due",
-    Legacy,
+    Legacy
 }`,
 	`enum Outcome {
     Paid(receipt: string) from json "paid",
-    Refused(reason: string),
+    Refused(reason: string)
 }`,
 }
 

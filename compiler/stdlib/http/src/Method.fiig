@@ -8,5 +8,5 @@ enum Method {
     Patch,
     Delete,
     Options,
-    Query,
+    Query
 }

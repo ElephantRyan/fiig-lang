@@ -57,7 +57,7 @@ test ccBccAndReplyToAreCheckedToo {
         body: "x",
         cc: ["c@y.org"],
         bcc: ["d@y.org"],
-        replyTo: "e@x.org",
+        replyTo: "e@x.org"
     );
     expect checkMail(good) is Ok(_);
     badCc = Mail(
@@ -65,7 +65,7 @@ test ccBccAndReplyToAreCheckedToo {
         to: ["b@y.org"],
         subject: "s",
         body: "x",
-        cc: ["c@y.org", "c@y.org>\r\nDATA"],
+        cc: ["c@y.org", "c@y.org>\r\nDATA"]
     );
     expect checkMail(badCc) is Err(SmtpError.InvalidMail(reason));
     expect reason.contains("cc recipient 2");
@@ -77,7 +77,7 @@ test ccBccAndReplyToAreCheckedToo {
         to: ["b@y.org"],
         subject: "s",
         body: "x",
-        replyTo: "x@y.org\r\nBcc: z@z.org",
+        replyTo: "x@y.org\r\nBcc: z@z.org"
     );
     expect checkMail(badReplyTo) is Err(SmtpError.InvalidMail(reason3));
     expect reason3.contains("reply-to");
@@ -106,7 +106,7 @@ test aDisplayNameIsForAnAddressTheMailHas {
         body: "x",
         bcc: ["d@y.org"],
         replyTo: "e@x.org",
-        names: names,
+        names: names
     );
     expect checkMail(ok) is Ok(_);
     stray = Mail(
@@ -114,7 +114,7 @@ test aDisplayNameIsForAnAddressTheMailHas {
         to: ["b@y.org"],
         subject: "s",
         body: "x",
-        names: ["z@y.org": "Zed"],
+        names: ["z@y.org": "Zed"]
     );
     expect checkMail(stray) is Err(SmtpError.InvalidMail(reason));
     expect reason.contains("display name");
@@ -127,7 +127,7 @@ test aDisplayNameCantCarryAHeader {
             to: ["b@y.org"],
             subject: "s",
             body: "x",
-            names: ["b@y.org": bad],
+            names: ["b@y.org": bad]
         );
         expect checkMail(mail) is Err(SmtpError.InvalidMail(reason));
         expect !reason.contains("Ann");
@@ -163,7 +163,7 @@ test theRefusedAttachmentIsNamedByPosition {
         to: ["b@y.org"],
         subject: "s",
         body: "x",
-        attachments: [good, bad],
+        attachments: [good, bad]
     );
     expect checkMail(mail) is Err(SmtpError.InvalidMail(reason));
     expect reason.contains("attachment 2");

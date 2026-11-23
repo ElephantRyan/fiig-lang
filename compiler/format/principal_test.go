@@ -12,11 +12,11 @@ func TestFormatPrincipalsAreStable(t *testing.T) {
     PUT "/ratings/{itemId}" -> putRating(me, itemId: string, input: RatingInput)
             consumes "application/json" {
         Ok(rating) -> 200 rating,
-        Err(error) -> ratingErrorResponse(error),
+        Err(error) -> ratingErrorResponse(error)
     }
 
     GET "/covers/{id}" public -> showCover(id: string) {
-        _ -> 200,
+        _ -> 200
     }
 }
 `
@@ -47,7 +47,7 @@ func TestFormatNamedPrincipalsAreStable(t *testing.T) {
     wire partners.me as partner;
 
     GET "/stats" -> stats(me) {
-        _ -> 200,
+        _ -> 200
     }
 }
 `,

@@ -7,5 +7,5 @@ enum SqlValue {
     Float(value: float),
     Text(value: string),
     Bytes(value: bytes),
-    Bool(value: bool),
+    Bool(value: bool)
 }

@@ -23,8 +23,8 @@ conversion compactStringAt(data: bytes, at: int) -> TextAt | None {
 
                 text -> {
                     return TextAt(text: text, next: end);
-                },
+                }
             }
-        },
+        }
     }
 }

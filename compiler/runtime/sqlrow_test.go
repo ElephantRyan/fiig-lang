@@ -24,7 +24,7 @@ func rowUniverse(t *testing.T) (*types.Universe, types.Type) {
     label: bytes;
 }`, `enum ParcelState {
     Packed,
-    Sent from json "sent",
+    Sent from json "sent"
 }`)
 	d, _ := u.Lookup("Parcel")
 	return u, types.Named{Name: "Parcel", Decl: d}

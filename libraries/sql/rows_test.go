@@ -28,7 +28,7 @@ var parcelSources = []string{
 }`,
 	`enum ParcelState {
     Packed,
-    Sent from json "sent",
+    Sent from json "sent"
 }`,
 	`gateway saveParcel(p: Parcel) -> int
     requires Database
@@ -40,7 +40,7 @@ var parcelSources = []string{
         p.note,
         p.state,
         p.fragile,
-        p.label,
+        p.label
     );
 }`,
 	`gateway findParcel(id: string) -> Parcel | None

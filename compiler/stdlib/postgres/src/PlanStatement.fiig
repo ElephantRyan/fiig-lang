@@ -15,7 +15,7 @@ conversion planStatement(on: db.SqlConnection, sql: string, values: List<db.SqlV
             connection: on,
             write: <<parseMessage("", numbered): bytes, statementMessages("", values): bytes>>,
             name: "",
-            parsing: false,
+            parsing: false
         );
     }
 
@@ -43,7 +43,7 @@ conversion planStatement(on: db.SqlConnection, sql: string, values: List<db.SqlV
                 connection: copy(on, statements: added, named: on.named + 1),
                 write: <<closing: bytes, parseMessage(name, numbered): bytes, statementMessages(name, values): bytes>>,
                 name: name,
-                parsing: true,
+                parsing: true
             );
         },
 
@@ -54,7 +54,7 @@ conversion planStatement(on: db.SqlConnection, sql: string, values: List<db.SqlV
                     connection: copy(on, statements: moved),
                     write: statementMessages(cached.name, values),
                     name: cached.name,
-                    parsing: false,
+                    parsing: false
                 );
             }
 
@@ -62,8 +62,8 @@ conversion planStatement(on: db.SqlConnection, sql: string, values: List<db.SqlV
                 connection: copy(on, statements: moved),
                 write: <<closeMessage(cached.name): bytes, parseMessage(cached.name, numbered): bytes, statementMessages(cached.name, values): bytes>>,
                 name: cached.name,
-                parsing: true,
+                parsing: true
             );
-        },
+        }
     }
 }

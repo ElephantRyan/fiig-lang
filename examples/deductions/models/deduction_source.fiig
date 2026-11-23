@@ -4,5 +4,5 @@
 enum DeductionSource(key code: string, key aliases: List<string>, layout: FieldLayout) {
     Acme(   code: "ACME", aliases: ["ACMEINC", "ACME-INC"], layout: FieldLayout.FixedWidth),
     Globex( code: "GLBX", aliases: [],                      layout: FieldLayout.Csv),
-    Initech(code: "INIT", aliases: ["INITECH"],             layout: FieldLayout.Csv),
+    Initech(code: "INIT", aliases: ["INITECH"],             layout: FieldLayout.Csv)
 }

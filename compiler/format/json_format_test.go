@@ -25,7 +25,7 @@ func TestFormatBase64URLFields(t *testing.T) {
 		"    data: bytes from json \"raw_data\" base64url;\n" +
 		"}\n\n" +
 		"enum Upload {\n" +
-		"    Sent(body: bytes from json base64url),\n" +
+		"    Sent(body: bytes from json base64url)\n" +
 		"}\n"
 	got, errs := Format("model Message {\n  raw:bytes   from json  base64url\n    data : bytes from json \"raw_data\"  base64url\n}\nenum Upload {\n Sent(body: bytes from json base64url)\n}")
 	if len(errs) > 0 {

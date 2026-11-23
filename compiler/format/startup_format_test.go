@@ -7,10 +7,10 @@ func TestFormatStartupAdapter(t *testing.T) {
 	want := "adapter startup Preflight {\n" +
 		"    run -> verifyStorage() {\n" +
 		"        Ok(_) -> proceed,\n" +
-		"        Err(StorageError.Missing) -> halt,\n" +
+		"        Err(StorageError.Missing) -> halt\n" +
 		"    }\n" +
 		"}\n"
-	got, errs := Format("adapter   startup  Preflight {\n run->verifyStorage()  {\n Ok(_)->proceed,\n Err(StorageError.Missing)->halt,\n }\n}")
+	got, errs := Format("adapter   startup  Preflight {\n run->verifyStorage()  {\n Ok(_)->proceed,\n Err(StorageError.Missing)->halt\n }\n}")
 	if len(errs) > 0 {
 		t.Fatalf("format errors: %v", errs)
 	}
@@ -29,10 +29,10 @@ func TestFormatDegradeAndStartupConfigField(t *testing.T) {
 	want := "adapter startup Preflight {\n" +
 		"    run -> verifyStorage() {\n" +
 		"        Ok(_) -> proceed,\n" +
-		"        Err(_) -> degrade,\n" +
+		"        Err(_) -> degrade\n" +
 		"    }\n" +
 		"}\n"
-	got, errs := Format("adapter startup Preflight {\n run -> verifyStorage() {\n Ok(_)->proceed,\n Err(_)->degrade,\n }\n}")
+	got, errs := Format("adapter startup Preflight {\n run -> verifyStorage() {\n Ok(_)->proceed,\n Err(_)->degrade\n }\n}")
 	if len(errs) > 0 || got != want {
 		t.Errorf("got:\n%s\nerrs: %v", got, errs)
 	}
@@ -46,14 +46,14 @@ func TestFormatDegradeAndStartupConfigField(t *testing.T) {
 func TestFormatStartupOnceAndWithin(t *testing.T) {
 	want := "adapter startup Preflight {\n" +
 		"    run once within \"2m\" -> migrate() {\n" +
-		"        _ -> halt,\n" +
+		"        _ -> halt\n" +
 		"    }\n" +
 		"\n" +
 		"    run within \"500ms\" -> verifyStorage() {\n" +
-		"        _ -> proceed,\n" +
+		"        _ -> proceed\n" +
 		"    }\n" +
 		"}\n"
-	got, errs := Format("adapter startup Preflight {\n run  once   within \"2m\"->migrate() {\n _->halt,\n }\n run within \"500ms\" -> verifyStorage() {\n _->proceed,\n }\n}")
+	got, errs := Format("adapter startup Preflight {\n run  once   within \"2m\"->migrate() {\n _->halt\n }\n run within \"500ms\" -> verifyStorage() {\n _->proceed\n }\n}")
 	if len(errs) > 0 {
 		t.Fatalf("format errors: %v", errs)
 	}

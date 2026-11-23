@@ -22,6 +22,6 @@ conversion sourceErrorOf(failure: RedisError) -> stream.SourceError {
 
         RedisError.InvalidCommand(reason) -> {
             return stream.SourceError.Protocol(reason: reason);
-        },
+        }
     }
 }

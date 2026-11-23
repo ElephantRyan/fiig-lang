@@ -89,7 +89,7 @@ func TestBuildCardModelAndError(t *testing.T) {
 	file, errs = parser.Parse(`
 enum CustomerError {
     NotFound(id: CustomerId),
-    Invalid,
+    Invalid
 }`)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected parse errors: %v", errs)
@@ -430,7 +430,7 @@ func TestDependenciesExcludeCapabilityCallsAndConstructions(t *testing.T) {
     row = Database.queryOne("...", id);
     return match (row) {
         found -> Ok(copy(Widget(id: id, count: 0), count: 1)),
-        None -> Err(WidgetError.NotFound(id)),
+        None -> Err(WidgetError.NotFound(id))
     }
 }
 `,

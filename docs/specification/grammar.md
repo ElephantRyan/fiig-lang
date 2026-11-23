@@ -143,10 +143,11 @@ alone. An *item* (an import, a statement, a field, a wire, an interface
 member, a route, a `serve` entry, a fake's value) ends with `;`, unless it
 ends with a `}` it opened; the last before a closing `}` takes one too. An
 *alternative* (an enum variant, a `match` arm, a response or disposition
-arm) is followed by `,`, which is optional after the last; `fiig fmt`
-writes it when the alternatives are one per line, and a block arm takes
-it after its `}`. Lists in `( )`, `[ ]`, and `< >`, and an inline record
-type, keep `,` as before. A declaration's head (`requires`, `idempotent`,
+arm) is followed by `,`, except the last, and a block arm takes it after
+its `}`. Lists in `( )`, `[ ]`, and `< >`, and an inline record type,
+keep `,` between items. **A comma is always followed by another item**
+(ADR 0147): one before `)`, `]`, `}`, or `>` is a syntax error, in every
+comma list, and `fiig fmt` removes it. A declaration's head (`requires`, `idempotent`,
 `consumes`, `produces`, `when`) is not an item. Until ADR 0142 §5's second
 step, the parser also accepts an item or alternative without one.
 
@@ -225,7 +226,7 @@ model-field ::= field | type-name          // a bare type name embeds that model
 field      ::= field-name ':' type [ 'from' 'json' ( string-literal [ 'base64url' ] | 'base64url' ) ]   // ADR 0073 §7b, ADR 0078 §6; `from`, `json`, `base64url` contextual
 field-name ::= identifier | keyword                                  // ADR 0073 §7a
 
-enum-decl    ::= 'enum' identifier [ enum-header ] '{' [ enum-variant { ',' enum-variant } [ ',' ] ] '}'
+enum-decl    ::= 'enum' identifier [ enum-header ] '{' [ enum-variant { ',' enum-variant } ] '}'
 enum-header  ::= '(' enum-field { ',' enum-field } ')'      // ADR 0046 §4
 enum-field   ::= [ 'key' ] identifier ':' type               // `key` is contextual
 enum-variant ::= identifier [ '(' [ field { ',' field } ] ')' ] [ spelling ]   // no header: a payload
@@ -277,14 +278,14 @@ never puts `{` on a line of its own, and it leaves a blank line after a
 block's closing `}` unless what follows closes too or is an `else`. A line
 still too long wraps at its outermost opening `(` or `[`: a signature's
 parameters, a call's arguments (followed by `?` or not, or the body of a
-form like `mapErr`), or a list's elements go one per line with a trailing
-comma, one indent in, and the closing `)` or `]` starts the next line;
+form like `mapErr`), or a list's elements go one per line, with a comma
+after each but the last (ADR 0147), one indent in, and the closing `)` or `]` starts the next line;
 anything still too long inside wraps the same way. A string literal never
 wraps. These are the formatter's layout, not rules: the checker accepts
 any layout.
 
 ```ebnf
-params ::= '(' [ param { ',' param } [ ',' ] ] ')'                        -- a trailing comma, as a call's arguments allow
+params ::= '(' [ param { ',' param } ] ')'
 param  ::= identifier ':' type
 
 interface-decl   ::= 'interface' identifier '{' { interface-member ';' } '}'
@@ -461,23 +462,25 @@ cli-route     ::= 'command' string-literal '->' route-call ( response-mapping | 
 stream-route  ::= 'source' string-literal 'group' string-literal 'from' ( 'earliest' | 'latest' ) [ 'key' identifier ] '->' route-call stream-mapping   -- ADR 0111 §3, §3a; I1-I4, I8
 schedule-route ::= ( 'every' | 'cron' ) string-literal '->' route-call schedule-mapping       -- ADR 0112 §1; I5-I7
 startup-route ::= 'run' [ 'once' ] [ 'within' string-literal ] '->' route-call startup-mapping   -- ADR 0124 §1, §6; I7, I9, I10
-route-call    ::= identifier '(' [ route-arg { ',' route-arg } [ ',' ] ] ')'
+route-call    ::= identifier '(' [ route-arg { ',' route-arg } ] ')'
 route-arg     ::= identifier ':' type [ 'from' ( 'header' | 'cookie' ) string-literal ]   -- ADR 0069 §1; read from text, so string, int, float, decimal, bool, or a payload-free enum, optionally | None (W4, ADR 0080)
                 | identifier                                                              -- the adapter's principal of that name (ADR 0137 §1, U4)
 media-clause  ::= ( 'consumes' | 'produces' ) string-literal                              -- ADR 0069 §5
 
-response-mapping ::= '{' response-arm { ',' response-arm } [ ',' ] '}'
+response-mapping ::= '{' response-arm { ',' response-arm } '}'
 response-arm     ::= pattern '->' response-value
 response-value   ::= integer-literal [ expression ]           -- HTTP: status code [ body ]
                     | 'exit' integer-literal [ expression ]    -- CLI: exit code [ body ]
                     | expression                               -- e.g. a call to a shared conversion
 
-stream-mapping ::= '{' { pattern '->' disposition ',' } '}'                  -- required, exhaustive over the workflow's result (I2)
+stream-mapping ::= '{' pattern '->' disposition { ',' pattern '->' disposition } '}'                  -- required, exhaustive over the workflow's result (I2)
 disposition    ::= 'ack' | 'halt' | 'deadLetter' string-literal
                  | 'retry' '(' 'attempts' ':' integer-literal ')' [ 'else' ( 'halt' | 'deadLetter' string-literal ) ]
 
-schedule-mapping ::= '{' { pattern '->' ( 'done' | 'halt' ) ',' } '}'       -- required, exhaustive over the workflow's result (I7)
-startup-mapping ::= '{' { pattern '->' ( 'proceed' | 'degrade' | 'halt' ) ',' } '}'     -- required, exhaustive over the workflow's result (I7); `degrade` starts the process and marks the route (ADR 0127)
+schedule-mapping ::= '{' schedule-arm { ',' schedule-arm } '}'       -- required, exhaustive over the workflow's result (I7)
+startup-mapping ::= '{' startup-arm { ',' startup-arm } '}'     -- required, exhaustive over the workflow's result (I7); `degrade` starts the process and marks the route (ADR 0127)
+schedule-arm ::= pattern '->' ( 'done' | 'halt' )
+startup-arm ::= pattern '->' ( 'proceed' | 'degrade' | 'halt' )
 ```
 
 `stream`, `source`, `group`, `earliest`, `latest`, `key`, `ack`, `halt`, `deadLetter`, `schedule`,
@@ -634,12 +637,12 @@ question, not addressed here.
 ### Match
 
 ```ebnf
-match-statement ::= 'match' expression '{' match-arm { ',' match-arm } [ ',' ] '}'   -- ADR 0145 §2
+match-statement ::= 'match' expression '{' match-arm { ',' match-arm } '}'   -- ADR 0145 §2
 match-arm       ::= pattern '->' ( expression | block )
 pattern         ::= '_' | qualified-name [ '(' [ pattern { ',' pattern } ] ')' ]
                   | literal-pattern | binary-pattern
 literal-pattern ::= [ '-' ] integer-literal | string-literal | 'true' | 'false'   -- ADR 0130; a string with no interpolation; no float or decimal
-binary-pattern  ::= '<<' [ pattern-segment { ',' pattern-segment } [ ',' ] ] '>' '>'
+binary-pattern  ::= '<<' [ pattern-segment { ',' pattern-segment } ] '>' '>'
 pattern-segment ::= ( identifier | '_' | integer-literal | string-literal ) ':' encoding
 encoding        ::= identifier [ '(' expression ')' ]
 ```
@@ -691,13 +694,13 @@ additive        ::= multiplicative { ( '+' | '-' ) multiplicative }
 multiplicative  ::= unary { ( '*' | '/' | '%' ) unary }
 unary           ::= '-' unary | postfix-expression
 postfix-expression ::= primary { '.' field-name | '(' [ arguments ] ')' }
-arguments  ::= argument { ',' argument } [ ',' ]
+arguments  ::= argument { ',' argument }
 argument   ::= [ field-name ':' ] expression
 primary    ::= identifier | literal | list-literal | map-literal | sorted-expr | list-form | '(' expression ')' | ( '!' | 'not' ) primary
 literal    ::= string-literal | integer-literal | float-literal
-list-literal ::= '[' [ expression { ',' expression } [ ',' ] ] ']'
-map-literal  ::= '[' ':' ']' | '[' expression ':' expression { ',' expression ':' expression } [ ',' ] ']'
-binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } [ ',' ] ] '>' '>'
+list-literal ::= '[' [ expression { ',' expression } ] ']'
+map-literal  ::= '[' ':' ']' | '[' expression ':' expression { ',' expression ':' expression } ']'
+binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } ] '>' '>'
 ```
 
 - `binary-pattern` and `binary-expr` (ADR 0058) share segments: `name:
@@ -719,10 +722,9 @@ binary-expr  ::= '<<' [ expression ':' encoding { ',' expression ':' encoding } 
 - Postfix `?` propagates `Err` out of the enclosing declaration — attested
   throughout every multi-gateway workflow (e.g. `create_customer.fiig`:
   `validated = validateNewCustomer(input)?`).
-- A trailing comma before the closing `)` is allowed — attested in
-  `order-processing/gateways/record_order.fiig`'s multi-line `Database.execute`
-  call. `arguments` and `list-literal` allow one; no other comma-separated
-  list (params, fields, type args, pattern args) has needed one yet.
+- No comma before the closing `)` (ADR 0147), even when the arguments
+  are one per line, as in `order-processing/gateways/record_order.fiig`'s
+  multi-line `Database.execute` call. The same holds for every comma list.
 - `arguments` supports both positional (`CustomerError.NotFound(id)`) and
   named (`Customer(id: id, name: input.name, email: input.email)`, `insert_customer.fiig`)
   forms, and may mix them: positional arguments come first, then named

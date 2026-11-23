@@ -13,7 +13,7 @@ conversion cStrings(data: bytes) -> List<string> {
             None -> None,
             text -> {
                 out = append(out, text);
-            },
+            }
         }
 
         rest = rest.slice(end + 1, rest.length());

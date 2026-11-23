@@ -4,7 +4,7 @@ use fiig.stream;
 conversion pollReplyOf(parts: List<bytes>) -> Result<PollReply, stream.SourceError> {
     if (parts.length() != 1) {
         return Err(
-            stream.SourceError.Protocol(reason: "a poll was answered in ${parts.length()} parts"),
+            stream.SourceError.Protocol(reason: "a poll was answered in ${parts.length()} parts")
         );
     }
 
@@ -16,6 +16,6 @@ conversion pollReplyOf(parts: List<bytes>) -> Result<PollReply, stream.SourceErr
 
         Ok(reply) -> {
             return Ok(reply);
-        },
+        }
     }
 }

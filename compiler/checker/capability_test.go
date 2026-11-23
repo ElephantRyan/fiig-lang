@@ -14,8 +14,8 @@ import (
 // and a third group for payroll data that a gateway reaches through
 // `requires`.
 var paymentsSrc = []string{
-	"enum PaymentError {\n\tDeclined,\n}",
-	"enum Region {\n\tEU,\n\tUS,\n}",
+	"enum PaymentError {\n\tDeclined\n}",
+	"enum Region {\n\tEU,\n\tUS\n}",
 	"model Merchant {\n\tregion: Region;\n}",
 	"interface PaymentProvider {\n\tcharge(orderId: string, amount: int) -> Result<string, PaymentError>;\n}",
 	"capability Stripe {\n\tgateway charge(orderId: string, amount: int) -> Result<string, PaymentError>\n\t\trequires Socket\n\t{\n\t\treturn Ok(orderId);\n\t}\n}",
@@ -76,7 +76,7 @@ func TestReturningAGroupThatDoesNotProvideTheInterfaceIsA1(t *testing.T) {
 
 func TestProvidesCompletenessAndSignatureAreP1AndP2(t *testing.T) {
 	files := parseAll(t,
-		"enum PaymentError {\n\tDeclined,\n}",
+		"enum PaymentError {\n\tDeclined\n}",
 		"interface PaymentProvider {\n\tcharge(orderId: string, amount: int) -> Result<string, PaymentError>;\n\trefund(reference: string) -> Result<None, PaymentError>;\n}",
 		"capability Stripe {\n\tgateway charge(orderId: string, amount: string) -> Result<string, PaymentError>\n\t\trequires Socket\n\t{\n\t\treturn Ok(orderId);\n\t}\n}",
 	)
@@ -137,7 +137,7 @@ func TestGatewayUsingACapabilityItDoesNotRequireIsP7(t *testing.T) {
 func TestCaseRulesAreN1N2N3(t *testing.T) {
 	diags := checkShopBoth(t,
 		"capability payroll {\n\tgateway Fetch(id: string) -> string\n\t\trequires Socket\n\t{\n\t\treturn id;\n\t}\n}",
-		"enum Status {\n\tactive,\n}",
+		"enum Status {\n\tactive\n}",
 		"activity mislabeled(merchant: Merchant) -> int {\n\tprovider = choosePaymentProvider(merchant);\n\tTotal = 1;\n\treturn Total;\n}",
 	)
 	got := rules(diags)

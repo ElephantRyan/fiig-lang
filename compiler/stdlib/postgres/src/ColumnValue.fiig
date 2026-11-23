@@ -17,7 +17,7 @@ conversion columnValue(text: bytes, oid: int) -> db.SqlValue {
                     None -> None,
                     n -> {
                         return db.SqlValue.Int(value: n);
-                    },
+                    }
                 }
             }
 
@@ -30,7 +30,7 @@ conversion columnValue(text: bytes, oid: int) -> db.SqlValue {
                     None -> None,
                     x -> {
                         return db.SqlValue.Float(value: x);
-                    },
+                    }
                 }
             }
 
@@ -49,11 +49,11 @@ conversion columnValue(text: bytes, oid: int) -> db.SqlValue {
                     None -> None,
                     data -> {
                         return db.SqlValue.Bytes(value: data);
-                    },
+                    }
                 }
             }
 
             return db.SqlValue.Text(value: value);
-        },
+        }
     }
 }

@@ -7,8 +7,8 @@ conversion checkApiVersions(frame: bytes, correlation: int) -> Result<None, Kafk
             if (got != correlation) {
                 return Err(
                     KafkaError.MalformedReply(
-                        reason: "ApiVersions answered correlation ${got}, not ${correlation}",
-                    ),
+                        reason: "ApiVersions answered correlation ${got}, not ${correlation}"
+                    )
                 );
             }
 
@@ -19,8 +19,8 @@ conversion checkApiVersions(frame: bytes, correlation: int) -> Result<None, Kafk
             if (count < 0 || rest.length() < count * 6) {
                 return Err(
                     KafkaError.MalformedReply(
-                        reason: "ApiVersions lists ${count} APIs in ${rest.length()} bytes",
-                    ),
+                        reason: "ApiVersions lists ${count} APIs in ${rest.length()} bytes"
+                    )
                 );
             }
 
@@ -29,8 +29,8 @@ conversion checkApiVersions(frame: bytes, correlation: int) -> Result<None, Kafk
             if (!metadata || !produce) {
                 return Err(
                     KafkaError.Unsupported(
-                        reason: "the broker doesn't take Metadata v12 and Produce v9, which fiig.kafka sends (ADR 0113 §4)",
-                    ),
+                        reason: "the broker doesn't take Metadata v12 and Produce v9, which fiig.kafka sends (ADR 0113 §4)"
+                    )
                 );
             }
 
@@ -40,9 +40,9 @@ conversion checkApiVersions(frame: bytes, correlation: int) -> Result<None, Kafk
         _ -> {
             return Err(
                 KafkaError.MalformedReply(
-                    reason: "an ApiVersions response is shorter than its header",
-                ),
+                    reason: "an ApiVersions response is shorter than its header"
+                )
             );
-        },
+        }
     }
 }

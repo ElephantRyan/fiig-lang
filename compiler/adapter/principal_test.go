@@ -18,8 +18,8 @@ import (
 var principalProgram = []string{
 	"model Identity {\n    userId: string;\n}",
 	"model Admin {\n    userId: string;\n}",
-	"enum IdentityError {\n    NotSignedIn,\n}",
-	"enum AdminRefusal {\n    NotAnAdmin,\n}",
+	"enum IdentityError {\n    NotSignedIn\n}",
+	"enum AdminRefusal {\n    NotAnAdmin\n}",
 	"model Note {\n    text: string;\n}",
 	`workflow signedIn(token: string | None) -> Result<Identity, IdentityError> {
     return match (token) {
@@ -31,7 +31,7 @@ var principalProgram = []string{
                 return Ok(Identity(userId: given));
             }
             return Err(IdentityError.NotSignedIn);
-        },
+        }
     }
 }`,
 	`workflow signedInAdmin(me: Identity) -> Result<Admin, AdminRefusal> {

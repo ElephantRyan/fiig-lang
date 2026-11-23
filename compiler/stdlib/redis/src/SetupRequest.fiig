@@ -15,9 +15,9 @@ conversion setupRequest(target: RedisTarget) -> RedisRequest {
 
                 user -> {
                     commands = append(commands, ["AUTH", user, password]);
-                },
+                }
             }
-        },
+        }
     }
 
     if (target.database != 0) {

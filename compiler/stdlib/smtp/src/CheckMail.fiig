@@ -8,8 +8,8 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
     if (!validAddress(mail.from)) {
         return Err(
             SmtpError.InvalidMail(
-                reason: "the sender isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII",
-            ),
+                reason: "the sender isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"
+            )
         );
     }
 
@@ -18,15 +18,15 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
     count = mail.to.length() + cc.length() + bcc.length();
     if (count == 0) {
         return Err(
-            SmtpError.InvalidMail(reason: "a mail has at least one recipient, in to, cc, or bcc"),
+            SmtpError.InvalidMail(reason: "a mail has at least one recipient, in to, cc, or bcc")
         );
     }
 
     if (count > 100) {
         return Err(
             SmtpError.InvalidMail(
-                reason: "a mail has at most 100 recipients, to, cc, and bcc together",
-            ),
+                reason: "a mail has at most 100 recipients, to, cc, and bcc together"
+            )
         );
     }
 
@@ -42,13 +42,13 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
             if (!validAddress(address)) {
                 return Err(
                     SmtpError.InvalidMail(
-                        reason: "the reply-to address isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII",
-                    ),
+                        reason: "the reply-to address isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"
+                    )
                 );
             }
 
             known = append(known, address);
-        },
+        }
     }
 
     match (mail.names) {
@@ -58,14 +58,14 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
                 if (!known.contains(address)) {
                     return Err(
                         SmtpError.InvalidMail(
-                            reason: "a display name is given for an address the mail doesn't have",
-                        ),
+                            reason: "a display name is given for an address the mail doesn't have"
+                        )
                     );
                 }
 
                 checkName(names.at(address))?;
             }
-        },
+        }
     }
 
     if (mail.subject.contains("\r") || mail.subject.contains("\n")) {
@@ -84,7 +84,7 @@ conversion checkMail(mail: Mail) -> Result<None, SmtpError> {
                 checkAttachment(attachment, number)?;
                 number = number + 1;
             }
-        },
+        }
     }
 
     return Ok(None);
@@ -100,8 +100,8 @@ private {
         if (raw.length() == 0 || raw.length() > 200) {
             return Err(
                 SmtpError.InvalidMail(
-                    reason: "attachment ${number}'s name is empty or longer than 200 bytes",
-                ),
+                    reason: "attachment ${number}'s name is empty or longer than 200 bytes"
+                )
             );
         }
 
@@ -109,8 +109,8 @@ private {
             if (b < 32 || b == 127) {
                 return Err(
                     SmtpError.InvalidMail(
-                        reason: "attachment ${number}'s name has a line break or another control character",
-                    ),
+                        reason: "attachment ${number}'s name has a line break or another control character"
+                    )
                 );
             }
         }
@@ -119,8 +119,8 @@ private {
         if (halves.length() != 2 || !mimeToken(halves.first()) || !mimeToken(halves.last())) {
             return Err(
                 SmtpError.InvalidMail(
-                    reason: "attachment ${number}'s content type isn't type/subtype, such as application/pdf",
-                ),
+                    reason: "attachment ${number}'s content type isn't type/subtype, such as application/pdf"
+                )
             );
         }
 
@@ -150,7 +150,7 @@ private {
     listOf(addresses: List<string> | None) -> List<string> {
         return match (addresses) {
             None -> [],
-            given -> given,
+            given -> given
         }
     }
 
@@ -161,8 +161,8 @@ private {
             if (!validAddress(address)) {
                 return Err(
                     SmtpError.InvalidMail(
-                        reason: "${kind} ${number} isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII",
-                    ),
+                        reason: "${kind} ${number} isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"
+                    )
                 );
             }
 
@@ -184,8 +184,8 @@ private {
             if (b < 32 || b == 127) {
                 return Err(
                     SmtpError.InvalidMail(
-                        reason: "a display name has a line break or another control character",
-                    ),
+                        reason: "a display name has a line break or another control character"
+                    )
                 );
             }
         }

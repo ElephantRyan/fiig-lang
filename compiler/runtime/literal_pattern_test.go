@@ -15,27 +15,27 @@ func TestLiteralPatternsMatchByEquality(t *testing.T) {
         404 -> "missing",
         -1 -> "unset",
         0x10 -> "sixteen",
-        _ -> "other",
+        _ -> "other"
     }
 }`,
 		`conversion owner(name: string) -> int {
     return match (name) {
         "ACME" -> 1,
         "Globex" -> 2,
-        _ -> 0,
+        _ -> 0
     }
 }`,
 		`conversion flag(on: bool) -> int {
     return match (on) {
         true -> 1,
-        false -> 2,
+        false -> 2
     }
 }`,
 		`conversion optional(name: string | None) -> string {
     return match (name) {
         "a" -> "A",
         None -> "none",
-        other -> other,
+        other -> other
     }
 }`,
 	), nil)
@@ -76,7 +76,7 @@ func TestTrueAndFalseInAPatternAreValuesNotBindings(t *testing.T) {
 	in := newTestInterp(universeFromSource(t, `conversion flag(on: bool) -> int {
     return match (on) {
         true -> 1,
-        false -> 2,
+        false -> 2
     }
 }`), nil)
 	for on, want := range map[bool]int64{true: 1, false: 2} {
@@ -90,13 +90,13 @@ func TestTrueAndFalseInAPatternAreValuesNotBindings(t *testing.T) {
 func TestALiteralInsideAConstructorPattern(t *testing.T) {
 	in := newTestInterp(universeFromSource(t, `enum Failure {
     Rejected(status: int),
-    Unknown,
+    Unknown
 }`, `conversion kind(x: Result<int, Failure>) -> string {
     return match (x) {
         Err(Failure.Rejected(404)) -> "missing",
         Err(Failure.Rejected(_)) -> "rejected",
         Err(Failure.Unknown) -> "unknown",
-        Ok(_) -> "fine",
+        Ok(_) -> "fine"
     }
 }`), nil)
 	rejected := func(n int64) Value {

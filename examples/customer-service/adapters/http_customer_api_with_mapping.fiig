@@ -4,6 +4,6 @@
 adapter http customerHttpApiWithMapping {
     GET "/customers/{id}" -> readCustomer(id: string) produces "application/json" {
         Ok(customer) -> 200 customer,
-        Err(error) -> customerErrorToHttpResponse(error),
+        Err(error) -> customerErrorToHttpResponse(error)
     }
 }

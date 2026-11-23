@@ -11,7 +11,7 @@ conversion sessionStep(turn: SessionTurn, accepted: int | None) -> session.Step 
         accepted: accepted,
         replies: turn.replies,
         nextTickAt: nextTickOf(turn.state),
-        close: turn.close,
+        close: turn.close
     );
 }
 

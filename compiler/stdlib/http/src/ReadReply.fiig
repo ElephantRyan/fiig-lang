@@ -22,7 +22,7 @@ conversion readReply(buffer: bytes, method: Method, closed: bool, maxBytes: int)
 
             if (closed && rest.length() == 0) {
                 return ReplyRead.Malformed(
-                    reason: "the server closed the connection without replying",
+                    reason: "the server closed the connection without replying"
                 );
             }
 
@@ -43,7 +43,7 @@ conversion readReply(buffer: bytes, method: Method, closed: bool, maxBytes: int)
                 }
 
                 rest = body;
-            },
+            }
         }
     }
 }
@@ -96,7 +96,7 @@ private {
     parseHead(head: bytes) -> Result<Head, string> {
         return match (head.utf8()) {
             None -> Err("the reply's headers aren't UTF-8"),
-            text -> parseHeadText(text),
+            text -> parseHeadText(text)
         }
     }
 
@@ -108,7 +108,7 @@ private {
         status = statusOf(lines.first());
         if (status < 0) {
             return Err(
-                "the status line \"${lines.first()}\" isn't HTTP/1.1 and a three-digit status",
+                "the status line \"${lines.first()}\" isn't HTTP/1.1 and a three-digit status"
             );
         }
 
@@ -124,7 +124,7 @@ private {
                 last = headers.last();
                 headers = append(
                     headers.slice(0, headers.length() - 1),
-                    Header(name: last.name, value: "${last.value} ${line.trim()}"),
+                    Header(name: last.name, value: "${last.value} ${line.trim()}")
                 );
             } else {
                 parts = line.split(":");
@@ -139,7 +139,7 @@ private {
 
                 headers = append(
                     headers,
-                    Header(name: name, value: parts.slice(1, parts.length()).join(":").trim()),
+                    Header(name: name, value: parts.slice(1, parts.length()).join(":").trim())
                 );
             }
 
@@ -147,7 +147,7 @@ private {
         }
 
         return Ok(
-            Head(status: status, headers: headers, http11: lines.first().startsWith("HTTP/1.1 ")),
+            Head(status: status, headers: headers, http11: lines.first().startsWith("HTTP/1.1 "))
         );
     }
 
@@ -194,7 +194,7 @@ private {
         length = contentLength(head.headers);
         if (length == -2) {
             return ReplyRead.Malformed(
-                reason: "the reply's Content-Length headers disagree, or one isn't a number",
+                reason: "the reply's Content-Length headers disagree, or one isn't a number"
             );
         }
 
@@ -213,7 +213,7 @@ private {
 
         if (closed) {
             return ReplyRead.Malformed(
-                reason: "the server closed the connection after ${rest.length()} of the ${length} bytes its Content-Length promised",
+                reason: "the server closed the connection after ${rest.length()} of the ${length} bytes its Content-Length promised"
             );
         }
 
@@ -233,7 +233,7 @@ private {
     done(head: Head, body: bytes, framed: bool) -> ReplyRead {
         return ReplyRead.Done(
             reply: Reply(status: head.status, headers: head.headers, body: body),
-            keep: framed && head.http11 && !asksToClose(head.headers),
+            keep: framed && head.http11 && !asksToClose(head.headers)
         );
     }
 

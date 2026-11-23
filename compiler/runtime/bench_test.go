@@ -175,14 +175,14 @@ func BenchmarkParse(b *testing.B) {
                         },
                         _ -> {
                             return 0 - 1;
-                        },
+                        }
                     }
                 }
                 rest = more;
             },
             _ -> {
                 return 0 - 1;
-            },
+            }
         }
     }
     return width;

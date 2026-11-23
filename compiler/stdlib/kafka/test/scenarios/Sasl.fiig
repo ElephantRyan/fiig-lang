@@ -39,7 +39,7 @@ test aBrokerSessionLogsInWithScramFirst {
     login = SaslLogin(
         mechanism: SaslMechanism.ScramSha256,
         username: "user",
-        password: "pencil".utf8(),
+        password: "pencil".utf8()
     );
     opened = sessionOpened(brokerAt(), 1000, login, rfcNonce());
     expect opened.write == <<apiVersionsRequest("fiig", 1): bytes, saslHandshakeRequest("fiig", 2, "SCRAM-SHA-256"): bytes>>;
@@ -50,7 +50,7 @@ test aBrokerSessionLogsInWithScramFirst {
         opened.state,
         <<versionsOf(1): bytes, handshakeOk(2): bytes>>,
         1001,
-        login,
+        login
     );
     expect first.write == saslAuthenticateRequest("fiig", 3, "n,,n=user,r=${rfcNonce()}".utf8());
     expect sessionAsked(first.state, layoutAsk(), 1001).accepted == None;
@@ -62,7 +62,7 @@ test aBrokerSessionLogsInWithScramFirst {
         proof.state,
         authOf(4, 0, "v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=".utf8()),
         1003,
-        login,
+        login
     );
     asked = sessionAsked(done.state, layoutAsk(), 1004);
     expect asked.accepted == 5;
@@ -73,21 +73,21 @@ test aBrokerThatDoesntKnowThePasswordIsRefused {
     login = SaslLogin(
         mechanism: SaslMechanism.ScramSha256,
         username: "user",
-        password: "pencil".utf8(),
+        password: "pencil".utf8()
     );
     opened = sessionOpened(brokerAt(), 1000, login, rfcNonce());
     first = sessionReceived(
         opened.state,
         <<versionsOf(1): bytes, handshakeOk(2): bytes>>,
         1001,
-        login,
+        login
     );
     proof = sessionReceived(first.state, authOf(3, 0, rfcServerFirst().utf8()), 1002, login);
     forged = sessionReceived(
         proof.state,
         authOf(4, 0, "v=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".utf8()),
         1003,
-        login,
+        login
     );
     asked = sessionAsked(forged.state, layoutAsk(), 1004);
     expect asked.write == <<>>;
@@ -99,7 +99,7 @@ test aWrongPasswordIsTheBrokersRefusal {
     login = SaslLogin(
         mechanism: SaslMechanism.ScramSha512,
         username: "user",
-        password: "wrong".utf8(),
+        password: "wrong".utf8()
     );
     opened = sessionOpened(brokerAt(), 1000, login, rfcNonce());
     expect opened.write == <<apiVersionsRequest("fiig", 1): bytes, saslHandshakeRequest("fiig", 2, "SCRAM-SHA-512"): bytes>>;
@@ -107,7 +107,7 @@ test aWrongPasswordIsTheBrokersRefusal {
         opened.state,
         <<versionsOf(1): bytes, handshakeOk(2): bytes>>,
         1001,
-        login,
+        login
     );
     proof = sessionReceived(first.state, authOf(3, 0, rfcServerFirst().utf8()), 1002, login);
     refused = sessionReceived(
@@ -115,10 +115,10 @@ test aWrongPasswordIsTheBrokersRefusal {
         authErrorOf(
             4,
             58,
-            "Authentication failed during authentication due to invalid credentials with SASL mechanism SCRAM-SHA-512",
+            "Authentication failed during authentication due to invalid credentials with SASL mechanism SCRAM-SHA-512"
         ),
         1003,
-        login,
+        login
     );
     asked = sessionAsked(refused.state, layoutAsk(), 1004);
     expect layoutOf([asked.replies.first().message]) is Err(KafkaError.Authentication(reason));
@@ -136,7 +136,7 @@ test aGroupSessionLogsInWithPlainThenFindsItsCoordinator {
         opened.state,
         <<versionsOf(1): bytes, handshakeOk(2): bytes>>,
         1001,
-        login,
+        login
     );
     expect plain.write == saslAuthenticateRequest("fiig", 3, <<0: u8, "alice".utf8(): bytes, 0: u8, "s3cret".utf8(): bytes>>);
     loggedIn = sessionReceived(plain.state, authOf(3, 0, <<>>), 1002, login);
@@ -149,11 +149,11 @@ test aMechanismTheBrokerDoesntOfferHaltsTheRoute {
     login = SaslLogin(
         mechanism: SaslMechanism.ScramSha512,
         username: "alice",
-        password: "s3cret".utf8(),
+        password: "s3cret".utf8()
     );
     opened = sessionOpened(groupAt(), 1000, login, "n1");
     offered = framed(
-        <<2: i32be, 33: i16be, 2: i32be, kafkaString("PLAIN"): bytes, kafkaString("GSSAPI"): bytes>>,
+        <<2: i32be, 33: i16be, 2: i32be, kafkaString("PLAIN"): bytes, kafkaString("GSSAPI"): bytes>>
     );
     refused = sessionReceived(opened.state, <<versionsOf(1): bytes, offered: bytes>>, 1001, login);
     polled = sessionAsked(refused.state, json.encode(KafkaAsk.Poll(waitMillis: 500)), 1002);
@@ -228,14 +228,14 @@ private {
             6: i16be,
             0: i16be,
             3: i16be,
-            12: i16be,
+            12: i16be
         >>;
         return framed(<<correlation: i32be, 0: i16be, 8: i32be, entries: bytes>>);
     }
 
     handshakeOk(correlation: int) -> bytes {
         return framed(
-            <<correlation: i32be, 0: i16be, 1: i32be, kafkaString("SCRAM-SHA-256"): bytes>>,
+            <<correlation: i32be, 0: i16be, 1: i32be, kafkaString("SCRAM-SHA-256"): bytes>>
         );
     }
 
@@ -243,13 +243,13 @@ private {
     // mechanism's bytes, and the session's lifetime.
     authOf(correlation: int, code: int, data: bytes) -> bytes {
         return framed(
-            <<correlation: i32be, 0: u8, code: i16be, 0: u8, uvarint(data.length() + 1): bytes, data: bytes, 0: i64be, 0: u8>>,
+            <<correlation: i32be, 0: u8, code: i16be, 0: u8, uvarint(data.length() + 1): bytes, data: bytes, 0: i64be, 0: u8>>
         );
     }
 
     authErrorOf(correlation: int, code: int, message: string) -> bytes {
         return framed(
-            <<correlation: i32be, 0: u8, code: i16be, compactString(message): bytes, 1: u8, 0: i64be, 0: u8>>,
+            <<correlation: i32be, 0: u8, code: i16be, compactString(message): bytes, 1: u8, 0: i64be, 0: u8>>
         );
     }
 
@@ -262,7 +262,7 @@ private {
 
             Err(_) -> {
                 return "not a PollReply";
-            },
+            }
         }
     }
 }

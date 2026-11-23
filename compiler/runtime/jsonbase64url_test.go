@@ -18,7 +18,7 @@ var base64URLProgram = []string{
     plain: bytes;
 }`,
 	`enum Upload {
-    Sent(body: bytes from json "data" base64url),
+    Sent(body: bytes from json "data" base64url)
 }`,
 	`rule sample(b: bytes, small: bytes, thumb: bytes | None) -> Message {
     return Message(id: "m1", raw: b, chunks: [b, small], thumb: thumb, plain: b);

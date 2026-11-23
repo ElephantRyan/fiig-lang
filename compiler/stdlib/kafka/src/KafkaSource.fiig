@@ -14,7 +14,7 @@ capability KafkaSource provides stream.StreamSource {
             KafkaServer.bootstrap,
             KafkaServer.tls,
             KafkaServer.clientId,
-            KafkaConsumer.commitIntervalMillis,
+            KafkaConsumer.commitIntervalMillis
         )?;
         clientId = KafkaServer.clientId;
         topic = subscription.source;
@@ -44,7 +44,7 @@ capability KafkaSource provides stream.StreamSource {
                 timestamp = 0 - 1;
             },
 
-            stream.StartAt.Earliest -> None,
+            stream.StartAt.Earliest -> None
         }
 
         deliveries: List<stream.Delivery> = [];
@@ -59,7 +59,7 @@ capability KafkaSource provides stream.StreamSource {
                 } else {
                     positions = append(
                         positions,
-                        PartitionOffset(partition: p.partition, offset: p.position),
+                        PartitionOffset(partition: p.partition, offset: p.position)
                     );
                 }
             }
@@ -97,7 +97,7 @@ capability KafkaSource provides stream.StreamSource {
                                             part,
                                             o.offset,
                                             p,
-                                            batchSize - deliveries.length(),
+                                            batchSize - deliveries.length()
                                         );
                                         for (d in taken.deliveries) {
                                             deliveries = append(deliveries, d);
@@ -106,7 +106,7 @@ capability KafkaSource provides stream.StreamSource {
                                         if (taken.next >= 0) {
                                             advance = KafkaAsk.Advance(
                                                 partition: part.partition,
-                                                next: taken.next,
+                                                next: taken.next
                                             );
                                             mapErr(e in Session.call(group, json.encode(advance), deadline: until)):
                                                     unavailable(e)?;
@@ -138,7 +138,7 @@ capability KafkaSource provides stream.StreamSource {
             KafkaServer.bootstrap,
             KafkaServer.tls,
             KafkaServer.clientId,
-            KafkaConsumer.commitIntervalMillis,
+            KafkaConsumer.commitIntervalMillis
         )?;
         at = deliveryAt(delivery.id)?;
         clientId = KafkaServer.clientId;
@@ -150,7 +150,7 @@ capability KafkaSource provides stream.StreamSource {
                 seekBack = KafkaAsk.Retry(
                     partition: at.partition,
                     offset: at.offset,
-                    resumeAt: Clock.now() + KafkaConsumer.retryAfterMillis,
+                    resumeAt: Clock.now() + KafkaConsumer.retryAfterMillis
                 );
                 mapErr(e in Session.call(group, json.encode(seekBack), deadline: until)):
                         unavailable(e)?;
@@ -164,7 +164,7 @@ capability KafkaSource provides stream.StreamSource {
                 record = KafkaRecord(
                     key: "${subscription.source}/${delivery.id}".utf8(),
                     value: delivery.payload,
-                    headers: None,
+                    headers: None
                 );
                 calls = mapErr(e in producePlan(layout, [record], Clock.now(), Compression.None)):
                         consumerError(e)?;
@@ -174,7 +174,7 @@ capability KafkaSource provides stream.StreamSource {
                         1,
                         target,
                         KafkaServer.timeoutMillis,
-                        call.batches,
+                        call.batches
                     );
                     sent = mapErr(e in Session.call(brokerSettings(call.broker, KafkaServer.tls, clientId), requestAsk(produce), deadline: until)):
                             unavailable(e)?;
@@ -182,7 +182,7 @@ capability KafkaSource provides stream.StreamSource {
                 }
             },
 
-            stream.Outcome.Ack -> None,
+            stream.Outcome.Ack -> None
         }
 
         ack = KafkaAsk.Ack(partition: at.partition, offset: at.offset);
@@ -222,7 +222,7 @@ capability KafkaSource provides stream.StreamSource {
                         unavailable(e)?;
                 parts = mapErr(e in readFetch(fetched.first(), maxBytes)): consumerError(e)?;
                 return mapErr(e in recordAt(parts, at)): consumerError(e);
-            },
+            }
         }
     }
 }

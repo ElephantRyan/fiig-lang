@@ -18,7 +18,7 @@ conversion offsetCommitRequest(
             o.offset: i64be,
             0 - 1: i32be,
             0: u8,
-            0: u8,
+            0: u8
         >>;
     }
 
@@ -31,7 +31,7 @@ conversion offsetCommitRequest(
         compactString(topic): bytes,
         partitions: bytes,
         0: u8,
-        0: u8,
+        0: u8
     >>;
     return kafkaFlexRequest(8, 9, correlation, clientId, body);
 }

@@ -30,7 +30,7 @@ conversion outgoingRequest(request: Request) -> Result<Outgoing, HttpError> {
     timeout = timeoutOf(request);
     if (timeout <= 0) {
         return Err(
-            HttpError.InvalidRequest(reason: "timeoutMillis is ${timeout}; it must be more than 0"),
+            HttpError.InvalidRequest(reason: "timeoutMillis is ${timeout}; it must be more than 0")
         );
     }
 
@@ -40,8 +40,8 @@ conversion outgoingRequest(request: Request) -> Result<Outgoing, HttpError> {
             port: url.port,
             secure: url.secure,
             data: <<head: utf8, body: bytes>>,
-            timeoutMillis: timeout,
-        ),
+            timeoutMillis: timeout
+        )
     );
 }
 
@@ -60,8 +60,8 @@ private {
         if (!plainAscii(url.utf8())) {
             return Err(
                 HttpError.InvalidRequest(
-                    reason: "the URL \"${url}\" has a space, a control character, or a character outside ASCII",
-                ),
+                    reason: "the URL \"${url}\" has a space, a control character, or a character outside ASCII"
+                )
             );
         }
 
@@ -76,8 +76,8 @@ private {
         } else {
             return Err(
                 HttpError.InvalidRequest(
-                    reason: "the URL \"${url}\" must start with http:// or https://",
-                ),
+                    reason: "the URL \"${url}\" must start with http:// or https://"
+                )
             );
         }
 
@@ -92,8 +92,8 @@ private {
         if (authority.contains("@")) {
             return Err(
                 HttpError.InvalidRequest(
-                    reason: "the URL \"${url}\" has user information; send an Authorization header instead",
-                ),
+                    reason: "the URL \"${url}\" has user information; send an Authorization header instead"
+                )
             );
         }
 
@@ -104,8 +104,8 @@ private {
             if (close == authority.length()) {
                 return Err(
                     HttpError.InvalidRequest(
-                        reason: "the URL \"${url}\" opens an IPv6 address with [ and never closes it",
-                    ),
+                        reason: "the URL \"${url}\" opens an IPv6 address with [ and never closes it"
+                    )
                 );
             }
 
@@ -114,8 +114,8 @@ private {
             if (after != "" && !after.startsWith(":")) {
                 return Err(
                     HttpError.InvalidRequest(
-                        reason: "the URL \"${url}\" has \"${after}\" after its IPv6 address",
-                    ),
+                        reason: "the URL \"${url}\" has \"${after}\" after its IPv6 address"
+                    )
                 );
             }
 
@@ -140,14 +140,14 @@ private {
             if (port < 1 || port > 65535) {
                 return Err(
                     HttpError.InvalidRequest(
-                        reason: "the URL \"${url}\" has port \"${portText}\"; a port is 1 to 65535",
-                    ),
+                        reason: "the URL \"${url}\" has port \"${portText}\"; a port is 1 to 65535"
+                    )
                 );
             }
         }
 
         return Ok(
-            Url(host: host, port: port, secure: secure, authority: authority, target: target),
+            Url(host: host, port: port, secure: secure, authority: authority, target: target)
         );
     }
 
@@ -190,8 +190,8 @@ private {
         if (!isToken(header.name)) {
             return Err(
                 HttpError.InvalidRequest(
-                    reason: "the header name \"${header.name}\" isn't an HTTP token",
-                ),
+                    reason: "the header name \"${header.name}\" isn't an HTTP token"
+                )
             );
         }
 
@@ -199,8 +199,8 @@ private {
             if (header.name.equalsIgnoringCase(owned)) {
                 return Err(
                     HttpError.InvalidRequest(
-                        reason: "send writes the ${owned} header itself, so a request may not set it",
-                    ),
+                        reason: "send writes the ${owned} header itself, so a request may not set it"
+                    )
                 );
             }
         }
@@ -209,8 +209,8 @@ private {
             if (b == 13 || b == 10 || b == 0) {
                 return Err(
                     HttpError.InvalidRequest(
-                        reason: "the value of header ${header.name} has a CR, LF, or NUL, which would end the header early",
-                    ),
+                        reason: "the value of header ${header.name} has a CR, LF, or NUL, which would end the header early"
+                    )
                 );
             }
         }
@@ -221,21 +221,21 @@ private {
     headersOf(request: Request) -> List<Header> {
         return match (request.headers) {
             None -> [],
-            given -> given,
+            given -> given
         }
     }
 
     bodyOf(request: Request) -> bytes {
         return match (request.body) {
             None -> <<>>,
-            given -> given,
+            given -> given
         }
     }
 
     timeoutOf(request: Request) -> int {
         return match (request.timeoutMillis) {
             None -> 30000,
-            given -> given,
+            given -> given
         }
     }
 
@@ -250,7 +250,7 @@ private {
             Method.Head -> false,
             Method.Delete -> false,
             Method.Options -> false,
-            Method.Query -> false,
+            Method.Query -> false
         }
     }
 
@@ -263,7 +263,7 @@ private {
             Method.Patch -> "PATCH",
             Method.Delete -> "DELETE",
             Method.Options -> "OPTIONS",
-            Method.Query -> "QUERY",
+            Method.Query -> "QUERY"
         }
     }
 }

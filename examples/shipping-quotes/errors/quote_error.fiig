@@ -4,5 +4,5 @@
 enum QuoteError {
     NonPositiveWeight(weightGrams: int),
     TooHeavy(weightGrams: int, limitGrams: int),
-    NoExpressAbroad,
+    NoExpressAbroad
 }

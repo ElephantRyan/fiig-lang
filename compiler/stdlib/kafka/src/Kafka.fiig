@@ -20,7 +20,7 @@ capability Kafka {
             None -> None,
             chosen -> {
                 compression = chosen;
-            },
+            }
         }
 
         now = Clock.now();
@@ -49,9 +49,9 @@ capability Kafka {
                             for (s in placed) {
                                 sent = append(sent, s);
                             }
-                        },
+                        }
                     }
-                },
+                }
             }
 
             match (failure) {
@@ -63,12 +63,12 @@ capability Kafka {
                         forget = KafkaAsk.Forget(topic: topic);
                         match (Session.call(bootstrap, json.encode(forget), deadline: until)) {
                             Ok(_) -> None,
-                            Err(_) -> None,
+                            Err(_) -> None
                         }
                     }
 
                     return Err(found);
-                },
+                }
             }
         }
 

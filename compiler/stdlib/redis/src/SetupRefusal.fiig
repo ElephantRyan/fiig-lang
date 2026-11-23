@@ -8,7 +8,7 @@ conversion setupRefusal(replies: List<RespValue>) -> RedisError | None {
                 return RedisError.Server(message: text);
             },
 
-            _ -> None,
+            _ -> None
         }
     }
 

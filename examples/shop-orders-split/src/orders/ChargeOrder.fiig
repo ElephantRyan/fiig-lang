@@ -15,8 +15,8 @@ gateway chargeOrder(order: string, amount: kernel.Money) -> Result<Charge, Charg
             url: "${PaymentsService.url}/payments/${order}",
             headers: [http.Header(name: "Content-Type", value: "application/json")],
             body: json.encode(amount),
-            timeoutMillis: 5000,
-        ),
+            timeoutMillis: 5000
+        )
     );
     match (sent) {
         Err(_) -> Err(ChargeError.Unavailable(detail: "Payments is unreachable")),
@@ -26,20 +26,20 @@ gateway chargeOrder(order: string, amount: kernel.Money) -> Result<Charge, Charg
                 match (receipt) {
                     Ok(charge) -> Ok(charge),
                     Err(_) -> Err(
-                        ChargeError.Unavailable(detail: "Payments' receipt didn't decode"),
-                    ),
+                        ChargeError.Unavailable(detail: "Payments' receipt didn't decode")
+                    )
                 }
             } else if (reply.status == 422) {
                 refusal: Result<ChargeError, JsonError> = json.decode(reply.body);
                 match (refusal) {
                     Ok(error) -> Err(error),
                     Err(_) -> Err(
-                        ChargeError.Unavailable(detail: "Payments' refusal didn't decode"),
-                    ),
+                        ChargeError.Unavailable(detail: "Payments' refusal didn't decode")
+                    )
                 }
             } else {
                 Err(ChargeError.Unavailable(detail: "Payments answered ${reply.status}"));
             }
-        },
+        }
     }
 }

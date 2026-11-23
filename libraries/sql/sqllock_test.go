@@ -31,7 +31,7 @@ var sqlLockProgram = map[string]string{
     "nativeCapabilities": ["Database"]
 }`,
 	"job_error.fiig": `enum JobError {
-    Broken,
+    Broken
 }`,
 	"count_seed.fiig": `gateway countSeed() -> Result<None, JobError>
     requires Database
@@ -50,7 +50,7 @@ var sqlLockProgram = map[string]string{
 	"seeded.fiig": `adapter startup Seeded {
     run once -> seed() {
         Ok(_) -> proceed,
-        Err(_) -> halt,
+        Err(_) -> halt
     }
 }`,
 }

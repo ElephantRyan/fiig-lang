@@ -16,9 +16,9 @@ conversion embedCookie(token: string) -> HttpResponse<None> {
                 name: "embed",
                 value: token,
                 sameSite: SameSite.AnySite,
-                sentOverPlainHttp: true,
-            ),
-        ],
+                sentOverPlainHttp: true
+            )
+        ]
     );
 }
 
@@ -26,7 +26,7 @@ conversion embedCookie(token: string) -> HttpResponse<None> {
 // (ADR 0072 §2), so a payload field with that name would be sent twice.
 enum Delivery {
     Shipped(variant: string),
-    Pending,
+    Pending
 }
 
 // W4 (ADR 0080 §6): a path segment is one piece of text, and a Delivery

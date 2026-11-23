@@ -22,16 +22,16 @@ import (
 var enumProgram = []string{
 	`enum Region {
     US,
-    EU,
+    EU
 }`,
 	`enum Problem {
     NotFound(id: string),
     Late(id: string, days: int | None),
-    Unknown,
+    Unknown
 }`,
 	`enum Source(key code: string) {
     Acme(code: "ACME"),
-    Globex(code: "GLBX"),
+    Globex(code: "GLBX")
 }`,
 	`model Shipment {
     region: Region;

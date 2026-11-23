@@ -40,7 +40,7 @@ func consumerProgram(topic string) map[string]string {
 		"order_error.fiig": `enum OrderError {
     OutOfStock(sku: string),
     Invalid(reason: string),
-    Unrecorded(reason: string),
+    Unrecorded(reason: string)
 }`,
 		"mark_handled.fiig": `use fiig.redis.Redis;
 
@@ -53,7 +53,7 @@ gateway markHandled(orderId: string) -> Result<None, OrderError>
         },
         Err(_) -> {
             return Err(OrderError.Unrecorded(reason: "Redis refused"));
-        },
+        }
     }
 }`,
 		"record.fiig": `activity record(order: OrderPlaced) -> Result<None, OrderError> {

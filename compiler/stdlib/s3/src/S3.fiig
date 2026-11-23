@@ -21,7 +21,7 @@ capability S3 {
             None -> None,
             given -> {
                 token = given.reveal();
-            },
+            }
         }
 
         account = S3Account(
@@ -31,7 +31,7 @@ capability S3 {
             secret: S3Settings.secretAccessKey.reveal(),
             token: token,
             pathStyle: S3Settings.pathStyle,
-            timeoutMillis: S3Settings.timeoutMillis,
+            timeoutMillis: S3Settings.timeoutMillis
         );
         call = S3Call(
             method: "PUT",
@@ -39,7 +39,7 @@ capability S3 {
             key: key,
             body: body,
             contentType: contentType,
-            headers: [checksumHeader(body)],
+            headers: [checksumHeader(body)]
         );
         request = signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
@@ -52,7 +52,7 @@ capability S3 {
             None -> None,
             given -> {
                 token = given.reveal();
-            },
+            }
         }
 
         account = S3Account(
@@ -62,7 +62,7 @@ capability S3 {
             secret: S3Settings.secretAccessKey.reveal(),
             token: token,
             pathStyle: S3Settings.pathStyle,
-            timeoutMillis: S3Settings.timeoutMillis,
+            timeoutMillis: S3Settings.timeoutMillis
         );
         call = S3Call(
             method: "GET",
@@ -70,7 +70,7 @@ capability S3 {
             key: key,
             body: <<>>,
             contentType: "",
-            headers: [],
+            headers: []
         );
         request = signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
@@ -83,7 +83,7 @@ capability S3 {
             None -> None,
             given -> {
                 token = given.reveal();
-            },
+            }
         }
 
         account = S3Account(
@@ -93,7 +93,7 @@ capability S3 {
             secret: S3Settings.secretAccessKey.reveal(),
             token: token,
             pathStyle: S3Settings.pathStyle,
-            timeoutMillis: S3Settings.timeoutMillis,
+            timeoutMillis: S3Settings.timeoutMillis
         );
         call = S3Call(
             method: "HEAD",
@@ -101,7 +101,7 @@ capability S3 {
             key: key,
             body: <<>>,
             contentType: "",
-            headers: [],
+            headers: []
         );
         request = signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
@@ -114,7 +114,7 @@ capability S3 {
             None -> None,
             given -> {
                 token = given.reveal();
-            },
+            }
         }
 
         account = S3Account(
@@ -124,7 +124,7 @@ capability S3 {
             secret: S3Settings.secretAccessKey.reveal(),
             token: token,
             pathStyle: S3Settings.pathStyle,
-            timeoutMillis: S3Settings.timeoutMillis,
+            timeoutMillis: S3Settings.timeoutMillis
         );
         call = S3Call(
             method: "DELETE",
@@ -132,7 +132,7 @@ capability S3 {
             key: key,
             body: <<>>,
             contentType: "",
-            headers: [],
+            headers: []
         );
         request = signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
@@ -152,7 +152,7 @@ capability S3 {
             None -> None,
             given -> {
                 token = given.reveal();
-            },
+            }
         }
 
         account = S3Account(
@@ -162,7 +162,7 @@ capability S3 {
             secret: S3Settings.secretAccessKey.reveal(),
             token: token,
             pathStyle: S3Settings.pathStyle,
-            timeoutMillis: S3Settings.timeoutMillis,
+            timeoutMillis: S3Settings.timeoutMillis
         );
         metadataSent = metadataHeaders(metadata)?;
         call = S3Call(
@@ -171,7 +171,7 @@ capability S3 {
             key: key,
             body: body,
             contentType: contentType,
-            headers: append(metadataSent, checksumHeader(body)),
+            headers: append(metadataSent, checksumHeader(body))
         );
         request = signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
@@ -185,7 +185,7 @@ capability S3 {
             None -> None,
             given -> {
                 token = given.reveal();
-            },
+            }
         }
 
         account = S3Account(
@@ -195,7 +195,7 @@ capability S3 {
             secret: S3Settings.secretAccessKey.reveal(),
             token: token,
             pathStyle: S3Settings.pathStyle,
-            timeoutMillis: S3Settings.timeoutMillis,
+            timeoutMillis: S3Settings.timeoutMillis
         );
         call = S3Call(
             method: "GET",
@@ -203,7 +203,7 @@ capability S3 {
             key: key,
             body: <<>>,
             contentType: "",
-            headers: [],
+            headers: []
         );
         request = signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
@@ -218,7 +218,7 @@ capability S3 {
             None -> None,
             given -> {
                 token = given.reveal();
-            },
+            }
         }
 
         account = S3Account(
@@ -228,7 +228,7 @@ capability S3 {
             secret: S3Settings.secretAccessKey.reveal(),
             token: token,
             pathStyle: S3Settings.pathStyle,
-            timeoutMillis: S3Settings.timeoutMillis,
+            timeoutMillis: S3Settings.timeoutMillis
         );
         part = rangeHeader(first, last)?;
         call = S3Call(
@@ -237,7 +237,7 @@ capability S3 {
             key: key,
             body: <<>>,
             contentType: "",
-            headers: [part],
+            headers: [part]
         );
         request = signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
@@ -252,7 +252,7 @@ capability S3 {
             None -> None,
             given -> {
                 token = given.reveal();
-            },
+            }
         }
 
         account = S3Account(
@@ -262,7 +262,7 @@ capability S3 {
             secret: S3Settings.secretAccessKey.reveal(),
             token: token,
             pathStyle: S3Settings.pathStyle,
-            timeoutMillis: S3Settings.timeoutMillis,
+            timeoutMillis: S3Settings.timeoutMillis
         );
         source = copySource(fromBucket, fromKey)?;
         call = S3Call(
@@ -271,7 +271,7 @@ capability S3 {
             key: toKey,
             body: <<>>,
             contentType: "",
-            headers: [source],
+            headers: [source]
         );
         request = signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
@@ -292,7 +292,7 @@ capability S3 {
             None -> None,
             given -> {
                 token = given.reveal();
-            },
+            }
         }
 
         account = S3Account(
@@ -302,7 +302,7 @@ capability S3 {
             secret: S3Settings.secretAccessKey.reveal(),
             token: token,
             pathStyle: S3Settings.pathStyle,
-            timeoutMillis: S3Settings.timeoutMillis,
+            timeoutMillis: S3Settings.timeoutMillis
         );
         return presignedUrl(method, bucket, key, expiresSeconds, account, Clock.now());
     }

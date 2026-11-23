@@ -6,5 +6,5 @@ enum Compression {
     Gzip from json "gzip",
     Snappy from json "snappy",
     Lz4 from json "lz4",
-    Zstd from json "zstd",
+    Zstd from json "zstd"
 }

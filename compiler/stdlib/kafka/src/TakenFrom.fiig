@@ -21,8 +21,8 @@ conversion takenFrom(part: FetchedPartition, position: int, assigned: AssignedPa
                     id: "${part.partition}/${record.offset}",
                     payload: record.value,
                     attempt: attempt,
-                    order: "${part.partition}",
-                ),
+                    order: "${part.partition}"
+                )
             );
             next = record.offset + 1;
         }

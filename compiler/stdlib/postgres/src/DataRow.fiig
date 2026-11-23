@@ -25,7 +25,7 @@ conversion dataRow(body: bytes, types: List<int>) -> List<db.SqlValue> | None {
 
                             values = append(
                                 values,
-                                columnValue(after.slice(0, length), types.at(i)),
+                                columnValue(after.slice(0, length), types.at(i))
                             );
                             rest = after.slice(length, after.length());
                         }
@@ -33,7 +33,7 @@ conversion dataRow(body: bytes, types: List<int>) -> List<db.SqlValue> | None {
 
                     _ -> {
                         return None;
-                    },
+                    }
                 }
 
                 i = i + 1;
@@ -42,6 +42,6 @@ conversion dataRow(body: bytes, types: List<int>) -> List<db.SqlValue> | None {
             return values;
         },
 
-        _ -> None,
+        _ -> None
     }
 }

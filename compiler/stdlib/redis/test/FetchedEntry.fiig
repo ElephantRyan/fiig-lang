@@ -9,10 +9,10 @@ test aPendingEntryIsOnTheAttemptItWasLastDeliveredOn {
                     RespValue.Bulk(data: "7-0".utf8()),
                     RespValue.Bulk(data: "c1".utf8()),
                     RespValue.Integer(value: 50),
-                    RespValue.Integer(value: 3),
-                ],
-            ),
-        ],
+                    RespValue.Integer(value: 3)
+                ]
+            )
+        ]
     );
     expect fetchedEntry("7-0", found, pending) is Ok(delivery);
     expect delivery == stream.Delivery(id: "7-0", payload: "{}".utf8(), attempt: 3, order: "");
@@ -49,10 +49,10 @@ private {
                 RespValue.Array(
                     items: [
                         RespValue.Bulk(data: "payload".utf8()),
-                        RespValue.Bulk(data: payload.utf8()),
-                    ],
-                ),
-            ],
+                        RespValue.Bulk(data: payload.utf8())
+                    ]
+                )
+            ]
         );
     }
 }

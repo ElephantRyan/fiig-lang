@@ -25,7 +25,7 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
 
             Err(failure) -> {
                 return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"));
-            },
+            }
         }
     }
 
@@ -44,7 +44,7 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
 
             Err(failure) -> {
                 return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"));
-            },
+            }
         }
     }
 
@@ -62,7 +62,7 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
 
             Err(failure) -> {
                 return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"));
-            },
+            }
         }
     }
 }

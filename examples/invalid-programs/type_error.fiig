@@ -56,7 +56,7 @@ adapter http customerEmailApiBroken {
 rule describeCustomerError(error: CustomerError) -> string {
     return match (error) {
         CustomerError.NotFound(_) -> "not found",
-        CustomerError.EmailAlreadyInUse(_) -> "email already in use",
+        CustomerError.EmailAlreadyInUse(_) -> "email already in use"
     }
 }
 
@@ -67,7 +67,7 @@ rule describeCustomerError(error: CustomerError) -> string {
 rule describeRegion(region: Region) -> string {
     return match (region) {
         Region.US -> "United States",
-        Region.EU -> "Europe",
+        Region.EU -> "Europe"
     }
 }
 

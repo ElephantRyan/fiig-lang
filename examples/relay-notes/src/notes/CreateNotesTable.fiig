@@ -1,5 +1,5 @@
 gateway createNotesTable() -> int requires Database {
     return Database.execute(
-        "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, text TEXT NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, text TEXT NOT NULL)"
     );
 }

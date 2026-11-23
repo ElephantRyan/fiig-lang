@@ -244,16 +244,16 @@ func mustParse(t *testing.T, src string) *syntax.File {
 // match over a Result either names both or uses a catch-all), so this is
 // built directly rather than found in examples/.
 func TestExhaustiveMatchResult(t *testing.T) {
-	enumDecl := mustParse(t, "enum MyError {\n\tBad,\n}")
+	enumDecl := mustParse(t, "enum MyError {\n\tBad\n}")
 	risky := mustParse(t, "rule risky(x: int) -> Result<int, MyError> {\n\treturn Ok(x);\n}")
 
-	missingErr := mustParse(t, "activity useRisky(x: int) -> int {\n\treturn match (risky(x)) {\n\t\tOk(value) -> value,\n\t}\n}")
+	missingErr := mustParse(t, "activity useRisky(x: int) -> int {\n\treturn match (risky(x)) {\n\t\tOk(value) -> value\n\t}\n}")
 	diags := Check([]*syntax.File{enumDecl, risky, missingErr}, nil)
 	if got := rules(diags)["A9"]; got != 1 {
 		t.Errorf("got %d A9 diagnostics, want 1 (all: %+v)", got, diags)
 	}
 
-	full := mustParse(t, "activity useRisky(x: int) -> int {\n\treturn match (risky(x)) {\n\t\tOk(value) -> value,\n\t\tErr(_) -> 0,\n\t}\n}")
+	full := mustParse(t, "activity useRisky(x: int) -> int {\n\treturn match (risky(x)) {\n\t\tOk(value) -> value,\n\t\tErr(_) -> 0\n\t}\n}")
 	diags = Check([]*syntax.File{enumDecl, risky, full}, nil)
 	if len(diags) != 0 {
 		t.Errorf("unexpected diagnostics for fully-covered Result match: %+v", diags)
@@ -270,13 +270,13 @@ func TestExhaustiveMatchResult(t *testing.T) {
 func TestExhaustiveMatchNoneUnion(t *testing.T) {
 	box := mustParse(t, "model Box {\n\tvalue: int | None;\n}")
 
-	missingNone := mustParse(t, "rule useBox(b: Box) -> int {\n\treturn match (b.value) {\n\t\tfound -> 1,\n\t}\n}")
+	missingNone := mustParse(t, "rule useBox(b: Box) -> int {\n\treturn match (b.value) {\n\t\tfound -> 1\n\t}\n}")
 	diags := Check([]*syntax.File{box, missingNone}, nil)
 	if got := rules(diags)["A9"]; got != 1 {
 		t.Errorf("got %d A9 diagnostics, want 1 (all: %+v)", got, diags)
 	}
 
-	full := mustParse(t, "rule useBox(b: Box) -> int {\n\treturn match (b.value) {\n\t\tfound -> 1,\n\t\tNone -> 0,\n\t}\n}")
+	full := mustParse(t, "rule useBox(b: Box) -> int {\n\treturn match (b.value) {\n\t\tfound -> 1,\n\t\tNone -> 0\n\t}\n}")
 	diags = Check([]*syntax.File{box, full}, nil)
 	if len(diags) != 0 {
 		t.Errorf("unexpected diagnostics for fully-covered None-union match: %+v", diags)
@@ -341,9 +341,9 @@ func TestCopyOverrideTypeMismatchIsA1(t *testing.T) {
 // statement was already correctly rejected — not a real distinction, both
 // are "this value's result is silently dropped."
 func TestUnhandledResultInNonProducingMatchArmIsF1(t *testing.T) {
-	enumDecl := mustParse(t, "enum MyError {\n\tBad,\n}")
+	enumDecl := mustParse(t, "enum MyError {\n\tBad\n}")
 	risky := mustParse(t, "rule risky(x: int) -> Result<int, MyError> {\n\treturn Ok(x);\n}")
-	activity := mustParse(t, "activity useRisky(x: int) -> int {\n\tmatch (x) {\n\t\t_ -> risky(x),\n\t}\n\treturn 0;\n}")
+	activity := mustParse(t, "activity useRisky(x: int) -> int {\n\tmatch (x) {\n\t\t_ -> risky(x)\n\t}\n\treturn 0;\n}")
 	diags := Check([]*syntax.File{enumDecl, risky, activity}, nil)
 	if got := rules(diags)["F1"]; got != 1 {
 		t.Errorf("got %d F1 diagnostics, want 1 (all: %+v)", got, diags)

@@ -3,7 +3,7 @@ test aPlainMailGoesAs7bit {
         from: "a@x.org",
         to: ["b@y.org", "c@y.org"],
         subject: "Hello",
-        body: "Hi\r\n.a dot line\r\nbye",
+        body: "Hi\r\n.a dot line\r\nbye"
     );
     head = "From: a@x.org\r\nTo: b@y.org, c@y.org\r\nSubject: Hello\r\nDate: D\r\nMessage-ID: <t@x.org>\r\n";
     head2 = "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n";
@@ -13,7 +13,7 @@ test aPlainMailGoesAs7bit {
 test lineEndingsAreAllCrlf {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "one\ntwo\rthree\r\nfour\n");
     expect textOf(mailData(mail, "D", "t@x.org")).endsWith(
-        "\r\none\r\ntwo\r\nthree\r\nfour\r\n.\r\n",
+        "\r\none\r\ntwo\r\nthree\r\nfour\r\n.\r\n"
     );
 }
 
@@ -75,11 +75,11 @@ test ccAndReplyToAreWrittenAndBccIsNot {
         body: "x",
         cc: ["c@y.org", "d@y.org"],
         bcc: ["secret@z.org"],
-        replyTo: "help@x.org",
+        replyTo: "help@x.org"
     );
     text = textOf(mailData(mail, "D", "t@x.org"));
     expect text.startsWith(
-        "From: a@x.org\r\nTo: b@y.org\r\nCc: c@y.org, d@y.org\r\nReply-To: help@x.org\r\nSubject: s\r\n",
+        "From: a@x.org\r\nTo: b@y.org\r\nCc: c@y.org, d@y.org\r\nReply-To: help@x.org\r\nSubject: s\r\n"
     );
     expect !text.contains("secret");
     expect !text.contains("Bcc");
@@ -99,7 +99,7 @@ test displayNamesArePlainQuotedOrEncoded {
         subject: "s",
         body: "x",
         cc: ["c@y.org", "d@y.org", "e@y.org", "f@y.org"],
-        names: names,
+        names: names
     );
     text = textOf(mailData(mail, "D", "t@x.org"));
     expect text.startsWith("From: Shop Team <a@x.org>\r\nTo: \"Smith, Ann\" <b@y.org>\r\n");
@@ -132,7 +132,7 @@ test htmlMakesTheMailMultipartAlternative {
         to: ["b@y.org"],
         subject: "s",
         body: "Hi",
-        html: "<p>Hi</p>\n.end",
+        html: "<p>Hi</p>\n.end"
     );
     head = "From: a@x.org\r\nTo: b@y.org\r\nSubject: s\r\nDate: D\r\nMessage-ID: <t@x.org>\r\nMIME-Version: 1.0\r\n";
     top = "Content-Type: multipart/alternative;\r\n boundary=\"=_a.t\"\r\n\r\n";
@@ -150,8 +150,8 @@ test attachmentsWrapTheBodyInMultipartMixed {
         body: "Hi",
         html: "<p>Hi</p>",
         attachments: [
-            Attachment(name: "a \"1\".txt", contentType: "text/plain", data: "abc".utf8()),
-        ],
+            Attachment(name: "a \"1\".txt", contentType: "text/plain", data: "abc".utf8())
+        ]
     );
     head = "From: a@x.org\r\nTo: b@y.org\r\nSubject: s\r\nDate: D\r\nMessage-ID: <t@x.org>\r\nMIME-Version: 1.0\r\n";
     top = "Content-Type: multipart/mixed;\r\n boundary=\"=_m.t\"\r\n\r\n";
@@ -167,7 +167,7 @@ test attachmentsWithoutHtmlHoldTheTextPartAlone {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "Hi", attachments: [file]);
     text = textOf(mailData(mail, "D", "t@x.org"));
     expect text.contains(
-        "MIME-Version: 1.0\r\nContent-Type: multipart/mixed;\r\n boundary=\"=_m.t\"\r\n\r\n--=_m.t\r\nContent-Type: text/plain; charset=utf-8\r\n",
+        "MIME-Version: 1.0\r\nContent-Type: multipart/mixed;\r\n boundary=\"=_m.t\"\r\n\r\n--=_m.t\r\nContent-Type: text/plain; charset=utf-8\r\n"
     );
     expect !text.contains("alternative");
     // An empty file is an empty line of base64.
@@ -178,7 +178,7 @@ test noAttachmentsAndNoHtmlIsPlainText {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "Hi", attachments: []);
     text = textOf(mailData(mail, "D", "t@x.org"));
     expect text.endsWith(
-        "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\nHi\r\n.\r\n",
+        "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\nHi\r\n.\r\n"
     );
 }
 
@@ -188,12 +188,12 @@ test aTextPartHoldingABoundaryGoesAsBase64 {
         to: ["b@y.org"],
         subject: "s",
         body: "Hi\n--=_a.t",
-        html: "<p>Hi</p>",
+        html: "<p>Hi</p>"
     );
     text = textOf(mailData(mail, "D", "t@x.org"));
     // "Hi", CRLF, "--=_a.t", CRLF, in base64.
     expect text.contains(
-        "Content-Transfer-Encoding: base64\r\n\r\nSGkNCi0tPV9hLnQNCg==\r\n--=_a.t\r\n",
+        "Content-Transfer-Encoding: base64\r\n\r\nSGkNCi0tPV9hLnQNCg==\r\n--=_a.t\r\n"
     );
     expect text.contains("text/html; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n");
 }
@@ -204,10 +204,10 @@ test aNonAsciiFileNameIsEncodedBothWays {
     text = textOf(mailData(mail, "D", "t@x.org"));
     // RFC 2047 for readers that look at name, RFC 2231 for the rest.
     expect text.contains(
-        "Content-Type: application/pdf;\r\n name=\"=?UTF-8?B?R3LDvMOfZS5wZGY=?=\"\r\n",
+        "Content-Type: application/pdf;\r\n name=\"=?UTF-8?B?R3LDvMOfZS5wZGY=?=\"\r\n"
     );
     expect text.contains(
-        "Content-Disposition: attachment;\r\n filename*=utf-8''Gr%C3%BC%C3%9Fe.pdf\r\n",
+        "Content-Disposition: attachment;\r\n filename*=utf-8''Gr%C3%BC%C3%9Fe.pdf\r\n"
     );
 }
 
@@ -232,7 +232,7 @@ private {
     textOf(data: bytes) -> string {
         return match (data.utf8()) {
             None -> "",
-            text -> text,
+            text -> text
         }
     }
 

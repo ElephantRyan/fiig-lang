@@ -8,6 +8,6 @@ conversion commandReply(reply: RespValue) -> Result<RespValue, RedisError> {
 
         _ -> {
             return Ok(reply);
-        },
+        }
     }
 }

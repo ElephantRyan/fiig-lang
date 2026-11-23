@@ -1,10 +1,10 @@
 gateway findRating(item: string) -> Result<Rating, RatingError> requires Database idempotent {
     row: Rating | None = Database.queryOne(
         "SELECT item, score, note FROM ratings WHERE item = ?",
-        item,
+        item
     );
     return match (row) {
         found -> Ok(found),
-        None -> Err(RatingError.NotFound(item)),
+        None -> Err(RatingError.NotFound(item))
     }
 }

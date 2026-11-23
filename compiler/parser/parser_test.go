@@ -84,7 +84,7 @@ func TestParseEnumDeclWithZeroFieldVariant(t *testing.T) {
 enum CheckoutError {
     Customer(error: CustomerError),
     Order(error: OrderError),
-    OutOfStock,
+    OutOfStock
 }`)
 	ed := f.Decls[0].(*syntax.EnumDecl)
 	if len(ed.Variants) != 3 {
@@ -129,7 +129,7 @@ gateway getCustomer(id: CustomerId) -> Result<Customer, CustomerError>
     row = Database.queryOne("x", id);
     return match (row) {
         found -> Ok(Customer(id: found.id, name: found.name, email: found.email)),
-        None -> Err(CustomerError.NotFound(id)),
+        None -> Err(CustomerError.NotFound(id))
     }
 }`)
 	sd := f.Decls[0].(*syntax.GatewayDecl)
@@ -358,7 +358,7 @@ func TestParseAdapterHttpWithResponseMapping(t *testing.T) {
 adapter http customerHttpApiWithMapping {
     GET "/customers/{id}" -> readCustomer(id: CustomerId) {
         Ok(customer) -> 200 customer,
-        Err(error) -> customerErrorToHttpResponse(error),
+        Err(error) -> customerErrorToHttpResponse(error)
     }
 }`)
 	ad := f.Decls[0].(*syntax.AdapterDecl)
@@ -406,7 +406,7 @@ adapter http api {
     GET "/x" -> f(id: CustomerId) {
         Ok(customer) -> 200 customer,
         Err(CustomerError.NotFound(_)) -> 404,
-        Err(error) -> 500 error,
+        Err(error) -> 500 error
     }
 }`)
 	ad := f.Decls[0].(*syntax.AdapterDecl)
@@ -444,12 +444,12 @@ adapter http accountApi {
         authorization: string from header "Authorization",
         requestId: string | None from header "X-Request-Id",
         session: string from cookie "sid",
-        input: NewOrder,
+        input: NewOrder
     )
         consumes "application/json"
         produces "application/json"
     {
-        Ok(order) -> 200 order,
+        Ok(order) -> 200 order
     }
     GET "/export" -> exportOrders() produces "text/csv";
 }`)
@@ -843,15 +843,15 @@ func withoutTaggedParseErrors(errs []Error) []Error {
 	return out
 }
 
-// TestListLiteral is ADR 0057 §1: `[a, b]`, `[]`, and a trailing comma
-// across lines.
+// TestListLiteral is ADR 0057 §1: `[a, b]`, `[]`, and a literal across
+// lines, with no comma after the last element (ADR 0147).
 func TestListLiteral(t *testing.T) {
 	f := mustParse(t, `rule r(x: int) -> List<int> {
     a = [];
     b = [x, x + 1];
     return [
         x,
-        2,
+        2
     ];
 }`)
 	stmts := f.Decls[0].(*syntax.RuleDecl).Body.Stmts
@@ -877,7 +877,7 @@ func TestBinaryPatternAndExpression(t *testing.T) {
 	f := mustParse(t, `conversion c(buf: bytes) -> bytes {
     return match (buf) {
         <<0x52: u8, n: i32be, body: bytes(n - 4), _: u4, "ok": utf8, rest: bytes>> -> <<n + 1: u16le, body: bytes>>,
-        _ -> <<>>,
+        _ -> <<>>
     }
 }`)
 	m := f.Decls[0].(*syntax.ConversionDecl).Body.Stmts[0].(*syntax.ReturnStmt).Value.(*syntax.MatchExpr).Match
@@ -958,7 +958,7 @@ func TestKeywordsAsFieldNames(t *testing.T) {
 		t.Fatalf("fields = %+v", m.Fields)
 	}
 	e := mustParse(t, `enum Window {
-    Range(for: int, while: int),
+    Range(for: int, while: int)
 }`)
 	if v := e.Decls[0].(*syntax.EnumDecl).Variants[0]; v.Fields[0].Name != "for" || v.Fields[1].Name != "while" {
 		t.Fatalf("payload = %+v", v.Fields)
@@ -992,7 +992,7 @@ func TestFromJsonName(t *testing.T) {
 		t.Fatalf("fields = %+v", m.Fields)
 	}
 	e := mustParse(t, `enum Event {
-    Created(at: string from json "@timestamp"),
+    Created(at: string from json "@timestamp")
 }`)
 	if v := e.Decls[0].(*syntax.EnumDecl).Variants[0]; v.Fields[0].JSON != "@timestamp" {
 		t.Fatalf("payload = %+v", v.Fields)

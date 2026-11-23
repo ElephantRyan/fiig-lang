@@ -19,15 +19,15 @@ conversion sessionAsked(state: bytes, message: bytes, now: int) -> session.Step 
             return match (decodedAsk) {
                 Err(_) -> {
                     return failedStep(
-                        "a fiig.kafka session was asked something that isn't a KafkaAsk",
+                        "a fiig.kafka session was asked something that isn't a KafkaAsk"
                     );
                 },
 
                 Ok(ask) -> {
                     return askedOf(s, ask, now);
-                },
+                }
             }
-        },
+        }
     }
 }
 
@@ -50,37 +50,37 @@ private {
                             key: key,
                             callerCorrelation: caller,
                             kind: "request",
-                            topic: "",
+                            topic: ""
                         );
                         sent = <<
                             size: i32be,
                             apiKey: i16be,
                             version: i16be,
                             key: i32be,
-                            rest: bytes,
+                            rest: bytes
                         >>;
                         return sessionStep(
                             copy(
                                 turn,
                                 state: copy(taken, inflight: append(taken.inflight, entry)),
-                                write: sent,
+                                write: sent
                             ),
-                            key,
+                            key
                         );
                     },
 
                     _ -> {
                         return failedStep(
-                            "a fiig.kafka session was asked to send a request shorter than its header",
+                            "a fiig.kafka session was asked to send a request shorter than its header"
                         );
-                    },
+                    }
                 }
             },
 
             KafkaAsk.Poll(waitMillis) -> {
                 held = copy(
                     taken,
-                    polls: append(taken.polls, WaitingPoll(key: key, until: now + waitMillis)),
+                    polls: append(taken.polls, WaitingPoll(key: key, until: now + waitMillis))
                 );
                 return sessionStep(answerPolls(copy(turn, state: held), now), key);
             },
@@ -112,8 +112,8 @@ private {
                                     acked: offset + 1,
                                     retryOffset: 0 - 1,
                                     retries: 0,
-                                    resumeAt: 0,
-                                ),
+                                    resumeAt: 0
+                                )
                             );
                         } else {
                             acked = append(acked, copy(p, acked: offset + 1));
@@ -130,7 +130,7 @@ private {
 
                 return done(
                     copy(turn, state: copy(taken, partitions: acked, commitAt: commitAt)),
-                    key,
+                    key
                 );
             },
 
@@ -152,8 +152,8 @@ private {
                                 position: offset,
                                 retryOffset: offset,
                                 retries: retries,
-                                resumeAt: resumeAt,
-                            ),
+                                resumeAt: resumeAt
+                            )
                         );
                     } else {
                         retried = append(retried, p);
@@ -168,7 +168,7 @@ private {
                     None -> None,
                     refusal -> {
                         return replied(turn, key, LayoutReply(layout: None, error: refusal));
-                    },
+                    }
                 }
 
                 for (cached in taken.layouts) {
@@ -182,22 +182,22 @@ private {
                     key: key,
                     callerCorrelation: 0,
                     kind: "metadata",
-                    topic: topic,
+                    topic: topic
                 );
                 return sessionStep(
                     copy(
                         turn,
                         state: copy(taken, inflight: append(taken.inflight, entry)),
-                        write: metadataV12Request(taken.clientId, key, topic),
+                        write: metadataV12Request(taken.clientId, key, topic)
                     ),
-                    key,
+                    key
                 );
             },
 
             KafkaAsk.Forget(topic) -> {
                 kept = filter(c in taken.layouts): c.topic != topic;
                 return done(copy(turn, state: copy(taken, layouts: kept)), key);
-            },
+            }
         }
     }
 

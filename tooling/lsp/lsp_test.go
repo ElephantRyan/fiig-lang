@@ -49,7 +49,7 @@ private {
 	// Another package's enum in a pattern, and a config read.
 	"kernel/src/Level.fiig": `enum Level {
     Low,
-    High,
+    High
 }
 `,
 	"app/src/Describe.fiig": `use t.kernel;
@@ -57,7 +57,7 @@ private {
 conversion describe(level: kernel.Level) -> string {
     return match (level) {
         kernel.Level.Low -> "low",
-        kernel.Level.High -> "high",
+        kernel.Level.High -> "high"
     }
 }
 `,
@@ -115,7 +115,7 @@ application Runs {
 }
 `,
 	"app/src/ratings/CallerError.fiig": `enum CallerError {
-    Unknown,
+    Unknown
 }
 `,
 	"app/src/ratings/SignedIn.fiig": `workflow signedIn(key: string | None) -> Result<Caller, CallerError> {
@@ -125,7 +125,7 @@ application Runs {
         },
         given -> {
             return Ok(Caller(id: given));
-        },
+        }
     }
 }
 `,

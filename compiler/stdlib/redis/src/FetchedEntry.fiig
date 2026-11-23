@@ -11,7 +11,7 @@ conversion fetchedEntry(id: string, found: RespValue, pending: RespValue)
             return Err(stream.SourceError.Protocol(reason: message));
         },
 
-        _ -> None,
+        _ -> None
     }
 
     counts: Map<string, int> = [:];
@@ -26,7 +26,7 @@ conversion fetchedEntry(id: string, found: RespValue, pending: RespValue)
             for (entry in pendingEntries(pending)) {
                 counts = counts.put(entry.id, entry.deliveries);
             }
-        },
+        }
     }
 
     match (found) {
@@ -38,7 +38,7 @@ conversion fetchedEntry(id: string, found: RespValue, pending: RespValue)
             }
         },
 
-        _ -> None,
+        _ -> None
     }
 
     return Ok(None);

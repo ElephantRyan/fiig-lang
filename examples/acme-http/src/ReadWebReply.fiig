@@ -8,6 +8,6 @@ conversion readWebReply(response: bytes) -> WebReply {
             return WebReply(status: status, body: textOf(bodyAfterHeaders(rest)));
         },
 
-        _ -> WebReply(status: 0, body: textOf(response)),
+        _ -> WebReply(status: 0, body: textOf(response))
     }
 }

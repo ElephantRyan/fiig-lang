@@ -6,5 +6,5 @@
 enum DatabaseError {
     Server(code: string, message: string, constraint: string | None, table: string | None, column: string | None),
     Broken(failure: SocketError),
-    Protocol(reason: string),
+    Protocol(reason: string)
 }

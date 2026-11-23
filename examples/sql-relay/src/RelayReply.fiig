@@ -6,6 +6,6 @@ conversion relayReply(body: bytes) -> Result<db.SqlResult, db.DatabaseError> {
     decoded: Result<Result<db.SqlResult, db.DatabaseError>, JsonError> = json.decode(body);
     return match (decoded) {
         Ok(reply) -> reply,
-        Err(problem) -> Err(db.DatabaseError.Protocol(reason: "the relay's reply isn't a result")),
+        Err(problem) -> Err(db.DatabaseError.Protocol(reason: "the relay's reply isn't a result"))
     }
 }

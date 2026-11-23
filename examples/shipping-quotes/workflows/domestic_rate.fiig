@@ -6,7 +6,7 @@ workflow domesticRate(speed: Speed, weightGrams: int) -> Result<int, QuoteError>
         QuoteRequest(
             weightGrams: weightGrams,
             speed: speed,
-            destination: Destination.Domestic(postcode: ""),
-        ),
+            destination: Destination.Domestic(postcode: "")
+        )
     );
 }

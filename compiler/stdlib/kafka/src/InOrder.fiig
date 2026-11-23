@@ -12,8 +12,8 @@ conversion inOrder(sent: List<SentAt>, count: int) -> Result<List<Sent>, KafkaEr
         if (!byIndex.containsKey(i)) {
             return Err(
                 KafkaError.MalformedReply(
-                    reason: "no Produce response says where record ${i} went",
-                ),
+                    reason: "no Produce response says where record ${i} went"
+                )
             );
         }
 

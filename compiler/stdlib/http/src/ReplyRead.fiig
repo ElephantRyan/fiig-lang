@@ -7,5 +7,5 @@ enum ReplyRead {
     NeedMore,
     Done(reply: Reply, keep: bool),
     Malformed(reason: string),
-    TooLarge,
+    TooLarge
 }

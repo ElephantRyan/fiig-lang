@@ -9,8 +9,8 @@ conversion advance(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError>
         SmtpPhase.StartTls -> expecting(d, reply, 220, SmtpPhase.Upgrading),
         SmtpPhase.Upgrading -> Err(
             SmtpError.Protocol(
-                reason: "the server spoke while the connection was upgrading to TLS",
-            ),
+                reason: "the server spoke while the connection was upgrading to TLS"
+            )
         ),
         SmtpPhase.Auth -> expecting(d, reply, 235, SmtpPhase.MailFrom),
         SmtpPhase.AuthLogin -> expecting(d, reply, 334, SmtpPhase.LoginUser),
@@ -23,7 +23,7 @@ conversion advance(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError>
         SmtpPhase.Rcpt -> afterRecipient(d, reply),
         SmtpPhase.Data -> expecting(d, reply, 354, SmtpPhase.Body),
         SmtpPhase.Body -> expecting(d, reply, 250, SmtpPhase.Sent),
-        SmtpPhase.Sent -> Ok(d),
+        SmtpPhase.Sent -> Ok(d)
     }
 }
 
@@ -99,11 +99,11 @@ private {
 
                             status -> {
                                 return " (status ${status})";
-                            },
+                            }
                         }
-                    },
+                    }
                 }
-            },
+            }
         }
     }
 
@@ -124,8 +124,8 @@ private {
         if (size > 0 && d.data.length() > size) {
             return Err(
                 SmtpError.InvalidMail(
-                    reason: "the message is ${d.data.length()} bytes, over the server's limit of ${size}",
-                ),
+                    reason: "the message is ${d.data.length()} bytes, over the server's limit of ${size}"
+                )
             );
         }
 
@@ -135,7 +135,7 @@ private {
             authPlain: offersAuth(offers, "PLAIN"),
             authLogin: offersAuth(offers, "LOGIN"),
             authXOAuth2: offersAuth(offers, "XOAUTH2"),
-            sizeLimit: size,
+            sizeLimit: size
         );
         if (!d.secure && d.target.security == SmtpSecurity.StartTls) {
             if (learned.startTls) {
@@ -144,8 +144,8 @@ private {
 
             return Err(
                 SmtpError.Protocol(
-                    reason: "the server doesn't offer STARTTLS, and smtp:// sends neither mail nor a password without TLS; use smtps://, or smtp+plain:// to send without it",
-                ),
+                    reason: "the server doesn't offer STARTTLS, and smtp:// sends neither mail nor a password without TLS; use smtps://, or smtp+plain:// to send without it"
+                )
             );
         }
 
@@ -156,7 +156,7 @@ private {
 
             _ -> {
                 return loginPhase(learned);
-            },
+            }
         }
     }
 
@@ -170,7 +170,7 @@ private {
             None -> None,
             given -> {
                 chosen = given;
-            },
+            }
         }
 
         match (chosen) {
@@ -180,7 +180,7 @@ private {
                 }
 
                 return Err(
-                    notOffered("SMTP_AUTH is xoauth2, and the server doesn't offer AUTH XOAUTH2"),
+                    notOffered("SMTP_AUTH is xoauth2, and the server doesn't offer AUTH XOAUTH2")
                 );
             },
 
@@ -190,7 +190,7 @@ private {
                 }
 
                 return Err(
-                    notOffered("SMTP_AUTH is plain, and the server doesn't offer AUTH PLAIN"),
+                    notOffered("SMTP_AUTH is plain, and the server doesn't offer AUTH PLAIN")
                 );
             },
 
@@ -200,11 +200,11 @@ private {
                 }
 
                 return Err(
-                    notOffered("SMTP_AUTH is login, and the server doesn't offer AUTH LOGIN"),
+                    notOffered("SMTP_AUTH is login, and the server doesn't offer AUTH LOGIN")
                 );
             },
 
-            SmtpAuth.Auto -> None,
+            SmtpAuth.Auto -> None
         }
 
         if (d.target.token != None) {
@@ -215,8 +215,8 @@ private {
             if (d.target.password == None) {
                 return Err(
                     notOffered(
-                        "the server doesn't offer AUTH XOAUTH2, and SMTP_URL has no password to log in with instead",
-                    ),
+                        "the server doesn't offer AUTH XOAUTH2, and SMTP_URL has no password to log in with instead"
+                    )
                 );
             }
         }
@@ -231,8 +231,8 @@ private {
 
         return Err(
             notOffered(
-                "the server offers neither AUTH PLAIN nor AUTH LOGIN, which are what fiig.smtp logs in with",
-            ),
+                "the server offers neither AUTH PLAIN nor AUTH LOGIN, which are what fiig.smtp logs in with"
+            )
         );
     }
 
@@ -248,7 +248,7 @@ private {
                     None -> None,
                     size -> {
                         return size;
-                    },
+                    }
                 }
             }
         }

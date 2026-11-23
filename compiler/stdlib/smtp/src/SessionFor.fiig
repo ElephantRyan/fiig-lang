@@ -4,6 +4,6 @@
 conversion sessionFor(target: SmtpTarget) -> string {
     return match (target.user) {
         None -> "no login",
-        name -> "user=${name}",
+        name -> "user=${name}"
     }
 }

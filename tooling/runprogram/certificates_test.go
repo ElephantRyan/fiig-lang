@@ -166,14 +166,14 @@ const fetchSource = `gateway fetch(host: string, port: int) -> string
                         },
                         text -> {
                             return text;
-                        },
+                        }
                     }
                 },
                 Err(failure) -> {
                     return "failed: ${failure}";
-                },
+                }
             }
-        },
+        }
     }
 }`
 

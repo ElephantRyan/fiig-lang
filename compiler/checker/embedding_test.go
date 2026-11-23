@@ -117,7 +117,7 @@ func TestEmbeddingCycleIsA11AtEveryMember(t *testing.T) {
 
 func TestEmbeddingMustNameAModel(t *testing.T) {
 	files := parseAll(t,
-		"enum CustomerKind {\n    Retail,\n}",
+		"enum CustomerKind {\n    Retail\n}",
 		"model Customer {\n    CustomerKind;\n    Missing;\n}",
 	)
 	diags := Check(files, nil)

@@ -12,7 +12,7 @@ import (
 func paymentsDomain(t *testing.T) types.Packages {
 	t.Helper()
 	pkg := buildDep(t, "shop.payments", nil, nil,
-		"enum PaymentError {\n\tDeclined,\n}",
+		"enum PaymentError {\n\tDeclined\n}",
 		"model Receipt {\n\tid: string;\n}",
 		"workflow takePayment(reference: string) -> Result<Receipt, PaymentError> {\n\treturn Ok(Receipt(id: reference));\n}",
 	)
@@ -25,7 +25,7 @@ func TestGatewayCallsAnotherPackagesWorkflow(t *testing.T) {
 	app := paymentsDomain(t)
 	gw := mustParse(t, "use shop.payments;\n\n"+
 		"gateway charge(order: string) -> Result<string, string>\n\trequires payments\n{\n"+
-		"\treturn match (payments.takePayment(reference: order)) {\n\t\tOk(receipt) -> Ok(receipt.id),\n\t\tErr(failure) -> Err(\"declined\"),\n\t}\n}")
+		"\treturn match (payments.takePayment(reference: order)) {\n\t\tOk(receipt) -> Ok(receipt.id),\n\t\tErr(failure) -> Err(\"declined\")\n\t}\n}")
 	if diags := Check([]*syntax.File{gw}, app); len(diags) != 0 {
 		t.Fatalf("unexpected diagnostics: %+v", diags)
 	}

@@ -1,5 +1,5 @@
 enum CustomerError {
     NotFound(id: string),
     EmailAlreadyInUse(email: string),
-    Invalid(field: string, reason: string),
+    Invalid(field: string, reason: string)
 }

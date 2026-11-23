@@ -7,11 +7,11 @@ import "testing"
 var textFormSources = []string{
 	`enum Speed {
     Standard from json "standard",
-    Express from json "express",
+    Express from json "express"
 }`,
 	`enum Destination {
     Domestic(postcode: string),
-    International(country: string, postcode: string),
+    International(country: string, postcode: string)
 }`,
 	`model Parcel {
     grams: int;
@@ -75,12 +75,12 @@ func TestW4ReadFromText(t *testing.T) {
 // spelling that is another variant's own name.
 func TestJ2OnVariantSpellings(t *testing.T) {
 	for _, src := range []string{
-		"enum State {\n    Sent from json \"sent\",\n    Delivered from json \"sent\",\n}",
-		"enum State {\n    Sent from json \"Delivered\",\n    Delivered,\n}",
+		"enum State {\n    Sent from json \"sent\",\n    Delivered from json \"sent\"\n}",
+		"enum State {\n    Sent from json \"Delivered\",\n    Delivered\n}",
 	} {
 		wantDiag(t, checkSrc(t, src), "J2", "already is (ADR 0080 §1)")
 	}
-	if diags := checkSrc(t, "enum State {\n    Sent from json \"sent\",\n    Delivered from json \"delivered\",\n}"); len(diags) != 0 {
+	if diags := checkSrc(t, "enum State {\n    Sent from json \"sent\",\n    Delivered from json \"delivered\"\n}"); len(diags) != 0 {
 		t.Errorf("distinct spellings: unexpected diagnostics %+v", diags)
 	}
 }

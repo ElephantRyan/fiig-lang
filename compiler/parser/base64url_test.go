@@ -26,7 +26,7 @@ func TestFromJsonBase64URL(t *testing.T) {
 		}
 	}
 	e := mustParse(t, `enum Upload {
-    Sent(body: bytes from json base64url),
+    Sent(body: bytes from json base64url)
 }`)
 	if v := e.Decls[0].(*syntax.EnumDecl).Variants[0]; !v.Fields[0].Base64URL {
 		t.Fatalf("payload = %+v", v.Fields)

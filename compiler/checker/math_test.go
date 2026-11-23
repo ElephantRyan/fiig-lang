@@ -22,7 +22,7 @@ func TestMathFormulasCheck(t *testing.T) {
 		"rule r(n: int, m: int) -> int {\n    return math.max(n, m) + math.abs(-3) + math.floorMod(n, 7);\n}",
 		"rule r(x: float) -> float {\n    return math.max(x, 0) + math.abs(-2.5) + math.min(1, 2.5);\n}",
 		"rule r(a: float, b: float) -> bool {\n    return math.closeTo(a, b, relative: 1e-9, absolute: 0.005) || math.isZero(a - b);\n}",
-		"rule r(n: int, m: int) -> int {\n    return match (math.addOrNone(n, m)) {\n        None -> 0,\n        total -> total,\n    }\n}",
+		"rule r(n: int, m: int) -> int {\n    return match (math.addOrNone(n, m)) {\n        None -> 0,\n        total -> total\n    }\n}",
 		"rule r(x: float) -> float | None {\n    return math.divOrNone(1.0, x);\n}",
 	}
 	for _, src := range ok {
@@ -130,8 +130,8 @@ func TestDeclarationNamedAfterPrelude(t *testing.T) {
 	cases := map[string]string{
 		"formulas math {\n    formula twice(n: int) -> int {\n        return n * 2;\n    }\n}":                "the prelude math group",
 		"model Result {\n    code: int;\n}":                                                                   "a prelude type",
-		"enum SocketError {\n    Lost,\n}":                                                                    "a prelude type",
-		"enum Rounding {\n    Nearest,\n}":                                                                    "a prelude type",
+		"enum SocketError {\n    Lost\n}":                                                                     "a prelude type",
+		"enum Rounding {\n    Nearest\n}":                                                                     "a prelude type",
 		"model Connection {\n    host: string;\n}":                                                            "a prelude type",
 		"rule Ok(n: int) -> int {\n    return n;\n}":                                                          "Result's constructor",
 		"rule r(n: int) -> int {\n    return n;\n}\n\nprivate {\n    model List {\n        n: int;\n    }\n}": "a prelude type",

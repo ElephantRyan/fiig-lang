@@ -12,6 +12,6 @@ conversion staleStatement(failed: db.DatabaseError | None) -> bool {
 
         _ -> {
             return false;
-        },
+        }
     }
 }

@@ -16,6 +16,6 @@ activity placeAndShipOrder(orderId: string, customerId: string, total: int)
             refunded = refundPayment(order.paymentReference);
             released = releaseInventory(order.id);
             return Err(OrderError.ShippingUnavailable(order.id));
-        },
+        }
     }
 }

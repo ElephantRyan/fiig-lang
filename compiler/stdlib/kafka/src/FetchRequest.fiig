@@ -18,7 +18,7 @@ conversion fetchRequest(
             0 - 1: i32be,
             p.offset: i64be,
             0 - 1: i64be,
-            maxBytes: i32be,
+            maxBytes: i32be
         >>;
     }
 
@@ -34,7 +34,7 @@ conversion fetchRequest(
         kafkaString(topic): bytes,
         partitions: bytes,
         0: i32be,
-        kafkaString(""): bytes,
+        kafkaString(""): bytes
     >>;
     return kafkaRequest(1, 11, correlation, clientId, body);
 }

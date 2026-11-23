@@ -10,5 +10,5 @@ enum SubscriptionStatus {
     PastDue from json "past_due",
     Canceled from json "canceled",
     Unpaid from json "unpaid",
-    Paused from json "paused",
+    Paused from json "paused"
 }

@@ -19,8 +19,8 @@ capability Postgres provides db.SqlConnectionDriver {
             if (answer.length() != 1 || answer.at(0) != 83) {
                 return Err(
                     db.DatabaseError.Protocol(
-                        reason: "the server at ${pg.host} doesn't offer TLS; set sslmode to disable to connect without it",
-                    ),
+                        reason: "the server at ${pg.host} doesn't offer TLS; set sslmode to disable to connect without it"
+                    )
                 );
             }
 
@@ -38,7 +38,7 @@ capability Postgres provides db.SqlConnectionDriver {
             send: <<>>,
             failed: None,
             ready: false,
-            cancelKey: <<>>,
+            cancelKey: <<>>
         );
         buffer: bytes = <<>>;
         while (true) {
@@ -55,7 +55,7 @@ capability Postgres provides db.SqlConnectionDriver {
                         None -> None,
                         failure -> {
                             return Err(failure);
-                        },
+                        }
                     }
 
                     if (state.ready) {
@@ -65,15 +65,15 @@ capability Postgres provides db.SqlConnectionDriver {
                                 cancelKey: state.cancelKey,
                                 statements: [],
                                 named: 0,
-                                cacheSize: pg.statementCacheSize,
-                            ),
+                                cacheSize: pg.statementCacheSize
+                            )
                         );
                     }
 
                     if (state.send.length() > 0) {
                         writtenOr(Socket.write(connection, state.send))?;
                     }
-                },
+                }
             }
         }
     }
@@ -95,9 +95,9 @@ capability Postgres provides db.SqlConnectionDriver {
                 Err(failure) -> {
                     return db.SqlRun(
                         connection: current,
-                        result: Err(db.DatabaseError.Broken(failure: failure)),
+                        result: Err(db.DatabaseError.Broken(failure: failure))
                     );
-                },
+                }
             }
 
             state: Reply = Reply(
@@ -108,7 +108,7 @@ capability Postgres provides db.SqlConnectionDriver {
                 failed: None,
                 ready: false,
                 parsed: false,
-                status: 0,
+                status: 0
             );
             rows: List<List<db.SqlValue>> = [];
             buffer: bytes = <<>>;
@@ -123,9 +123,9 @@ capability Postgres provides db.SqlConnectionDriver {
                             Err(failure) -> {
                                 return db.SqlRun(
                                     connection: current,
-                                    result: Err(db.DatabaseError.Broken(failure: failure)),
+                                    result: Err(db.DatabaseError.Broken(failure: failure))
                                 );
-                            },
+                            }
                         }
                     },
 
@@ -136,9 +136,9 @@ capability Postgres provides db.SqlConnectionDriver {
                             None -> None,
                             row -> {
                                 rows = append(rows, row);
-                            },
+                            }
                         }
-                    },
+                    }
                 }
             }
 
@@ -158,15 +158,15 @@ capability Postgres provides db.SqlConnectionDriver {
                             db.SqlResult(
                                 columns: state.columns,
                                 rows: rows,
-                                affected: state.affected,
-                            ),
-                        ),
+                                affected: state.affected
+                            )
+                        )
                     );
                 },
 
                 failure -> {
                     return db.SqlRun(connection: current, result: Err(failure));
-                },
+                }
             }
         }
     }
@@ -204,12 +204,12 @@ capability Postgres provides db.SqlConnectionDriver {
                                                     Ok(upgraded) -> {
                                                         connection = upgraded;
                                                         ready = true;
-                                                    },
+                                                    }
                                                 }
                                             }
-                                        },
+                                        }
                                     }
-                                },
+                                }
                             }
                         }
 
@@ -220,16 +220,16 @@ capability Postgres provides db.SqlConnectionDriver {
                                 Ok(_) -> {
                                     match (Socket.read(connection)) {
                                         Ok(_) -> None,
-                                        Err(_) -> None,
+                                        Err(_) -> None
                                     }
-                                },
+                                }
                             }
                         }
 
                         Socket.close(connection);
-                    },
+                    }
                 }
-            },
+            }
         }
 
         return None;
@@ -240,7 +240,7 @@ capability Postgres provides db.SqlConnectionDriver {
     gateway close(connection: Connection) -> None requires Socket {
         match (Socket.write(connection, <<88: u8, 4: i32be>>)) {
             Ok(_) -> None,
-            Err(_) -> None,
+            Err(_) -> None
         }
 
         Socket.close(connection);

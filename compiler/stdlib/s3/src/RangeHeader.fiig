@@ -20,6 +20,6 @@ conversion rangeHeader(first: int, last: int | None) -> Result<http.Header, S3Er
             }
 
             return Ok(http.Header(name: "Range", value: "bytes=${first}-${given}"));
-        },
+        }
     }
 }

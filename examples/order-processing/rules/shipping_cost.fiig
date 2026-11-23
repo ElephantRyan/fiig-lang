@@ -16,7 +16,7 @@ private {
         return match (region) {
             Region.US -> ShippingRate(flat: 500, freeAbove: 10000),
             Region.EU -> ShippingRate(flat: 700, freeAbove: 10000),
-            Region.APAC -> ShippingRate(flat: 1200, freeAbove: 20000),
+            Region.APAC -> ShippingRate(flat: 1200, freeAbove: 20000)
         }
     }
 

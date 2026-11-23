@@ -13,7 +13,7 @@ import (
 var textFormProgram = []string{
 	`enum Speed {
     Standard from json "standard",
-    Express from json "express",
+    Express from json "express"
 }`,
 	`workflow describe(speed: Speed | None) -> string {
     return match (speed) {
@@ -25,7 +25,7 @@ var textFormProgram = []string{
         },
         Speed.Express -> {
             return "express";
-        },
+        }
     }
 }`,
 	`adapter http speeds {

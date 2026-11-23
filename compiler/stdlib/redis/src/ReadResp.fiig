@@ -99,7 +99,7 @@ private {
                     }
 
                     return RespRead.Done(value: RespValue.Error(text: text), rest: after);
-                },
+                }
             }
         }
 
@@ -107,13 +107,13 @@ private {
             match (numberOf(line)) {
                 None -> {
                     return RespRead.Malformed(
-                        reason: "an integer reply isn't a number of up to 18 digits",
+                        reason: "an integer reply isn't a number of up to 18 digits"
                     );
                 },
 
                 number -> {
                     return RespRead.Done(value: RespValue.Integer(value: number), rest: after);
-                },
+                }
             }
         }
 
@@ -126,7 +126,7 @@ private {
         }
 
         return RespRead.Malformed(
-            reason: "a reply starts with byte ${kind}, which RESP2 doesn't use",
+            reason: "a reply starts with byte ${kind}, which RESP2 doesn't use"
         );
     }
 
@@ -144,7 +144,7 @@ private {
 
                 if (size < 0 || size > 536870912) {
                     return RespRead.Malformed(
-                        reason: "a bulk string's length is ${size}, outside 0 to 512 MiB",
+                        reason: "a bulk string's length is ${size}, outside 0 to 512 MiB"
                     );
                 }
 
@@ -158,9 +158,9 @@ private {
 
                 return RespRead.Done(
                     value: RespValue.Bulk(data: after.slice(0, size)),
-                    rest: after.slice(size + 2, after.length()),
+                    rest: after.slice(size + 2, after.length())
                 );
-            },
+            }
         }
     }
 
@@ -178,13 +178,13 @@ private {
 
                 if (count < 0 || count > 4194304) {
                     return RespRead.Malformed(
-                        reason: "an array's count is ${count}, outside 0 to 4194304",
+                        reason: "an array's count is ${count}, outside 0 to 4194304"
                     );
                 }
 
                 if (depth >= maxDepth()) {
                     return RespRead.Malformed(
-                        reason: "arrays are nested more than ${maxDepth()} deep",
+                        reason: "arrays are nested more than ${maxDepth()} deep"
                     );
                 }
 
@@ -203,12 +203,12 @@ private {
                         RespRead.Done(value, remaining) -> {
                             items = append(items, value);
                             rest = remaining;
-                        },
+                        }
                     }
                 }
 
                 return RespRead.Done(value: RespValue.Array(items: items), rest: rest);
-            },
+            }
         }
     }
 }

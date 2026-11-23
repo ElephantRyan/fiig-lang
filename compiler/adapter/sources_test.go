@@ -73,7 +73,7 @@ var sourcesProgram = []string{
         token: string from header "Authorization",
         requestId: string | None from header "X-Request-Id",
         session: string | None from cookie "sid",
-        page: int | None from header "X-Page",
+        page: int | None from header "X-Page"
     )
         produces "application/json";
     POST "/csv" -> echoCsv(csv: string)

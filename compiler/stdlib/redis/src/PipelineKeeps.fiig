@@ -12,7 +12,7 @@ conversion pipelineKeeps(commands: List<List<bytes>>) -> bool {
                 if (!keepsConnection(name)) {
                     return false;
                 }
-            },
+            }
         }
     }
 

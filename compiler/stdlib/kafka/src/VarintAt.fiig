@@ -12,6 +12,6 @@ conversion varintAt(data: bytes, at: int) -> IntAt | None {
             }
 
             return IntAt(value: 0 - (read.value - 1) / 2 - 1, next: read.next);
-        },
+        }
     }
 }

@@ -9,13 +9,13 @@ gateway insertCustomer(input: NewCustomer) -> Result<Customer, CustomerError> re
         "INSERT INTO customers (id, name, email) VALUES (?, ?, ?)",
         id,
         input.name,
-        input.email,
+        input.email
     );
     return match (inserted) {
         Ok(_) -> Ok(Customer(id: id, name: input.name, email: input.email)),
         Err(DatabaseConflict.Unique(constraint)) -> Err(
-            CustomerError.EmailAlreadyInUse(input.email),
+            CustomerError.EmailAlreadyInUse(input.email)
         ),
-        Err(other) -> Err(CustomerError.Invalid("customer", "${other}")),
+        Err(other) -> Err(CustomerError.Invalid("customer", "${other}"))
     }
 }

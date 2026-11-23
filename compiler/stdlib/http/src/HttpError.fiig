@@ -6,5 +6,5 @@ enum HttpError {
     MalformedReply(reason: string),
     // §7a: the reply ran past HTTP_CLIENT_MAX_REPLY_BYTES, or its
     // Content-Length or a chunk's size said it would.
-    ReplyTooLarge(limit: int),
+    ReplyTooLarge(limit: int)
 }

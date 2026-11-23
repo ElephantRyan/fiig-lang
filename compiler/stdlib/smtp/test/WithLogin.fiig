@@ -28,7 +28,7 @@ test aLoginSettingNeedsAUser {
         port: 587,
         security: SmtpSecurity.StartTls,
         user: None,
-        password: None,
+        password: None
     );
     expect withLogin(noUser, None, "tok") is Err(SmtpError.Protocol(reason));
     expect withLogin(noUser, SmtpAuth.Plain, None) is Err(SmtpError.Protocol(why));
@@ -42,7 +42,7 @@ private {
             port: 587,
             security: SmtpSecurity.StartTls,
             user: user,
-            password: None,
+            password: None
         );
     }
 }

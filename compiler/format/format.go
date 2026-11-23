@@ -27,9 +27,9 @@ import (
 
 // maxLineWidth is the only layout threshold the formatter has: a statement
 // whose single-line rendering would exceed it, and whose value is directly
-// a call expression, gets that call's arguments split one-per-line with a
-// trailing comma instead (grammar.md's `arguments` trailing-comma note,
-// attested by order-processing/gateways/record_order.fiig). A list literal
+// a call expression, gets that call's arguments split one-per-line instead
+// (attested by order-processing/gateways/record_order.fiig), with no comma
+// after the last (ADR 0147). A list literal
 // (ADR 0057) and a binary expression (ADR 0058) wrap the same way, one
 // element or segment per line. Nothing else wraps.
 const maxLineWidth = 100
@@ -38,7 +38,8 @@ const maxLineWidth = 100
 // Returns the parse errors instead of formatted text if src doesn't parse.
 // A second public declaration (G1, ADR 0054) doesn't count: the parser
 // still builds the whole tree for it, so there is nothing to lose by
-// formatting, and the checker is what reports it.
+// formatting, and the checker is what reports it. Nor does a comma before a
+// closing bracket (ADR 0147), which the parse skips and the output drops.
 func Format(src string) (string, []parser.Error) {
 	out, errs, _ := FormatTyped(src, nil)
 	return out, errs
@@ -51,7 +52,7 @@ func Format(src string) (string, []parser.Error) {
 func FormatTyped(src string, ors map[int]bool) (string, []parser.Error, []lexer.Pos) {
 	file, comments, errs := parser.ParseWithComments(src)
 	for _, e := range errs {
-		if e.Rule != "G1" {
+		if e.Rule != "G1" && !parser.IsTrailingComma(e) {
 			return "", errs, nil
 		}
 	}
@@ -69,11 +70,34 @@ func FormatTyped(src string, ors map[int]bool) (string, []parser.Error, []lexer.
 	})
 	p := &printer{comments: comments}
 	p.printFile(file)
-	return blankAfterBlocks(p.out.String()), nil, unknown
+	return blankAfterBlocks(dropTrailingCommas(p.out.String())), nil, unknown
+}
+
+// dropTrailingCommas removes each `,` whose next token is `)`, `]`, `}`, or
+// `>` (ADR 0147). The printer ends every line of a list it splits with `,`,
+// so this is where the last one goes; it reads src with the lexer, so a
+// comma in a string literal or a comment is never touched.
+func dropTrailingCommas(src string) string {
+	toks := lexer.New(src).AllTokens()
+	var b strings.Builder
+	from := 0
+	for i := 0; i+1 < len(toks); i++ {
+		if toks[i].Kind != lexer.Comma {
+			continue
+		}
+		switch toks[i+1].Kind {
+		case lexer.RParen, lexer.RBracket, lexer.RBrace, lexer.RAngle:
+			at := toks[i].Start.Offset
+			b.WriteString(src[from:at])
+			from = at + 1
+		}
+	}
+	b.WriteString(src[from:])
+	return b.String()
 }
 
 // blankAfterBlocks puts a blank line after a line that only closes a block
-// (`}`, or a block arm's `},`),
+// (`}`, or a block arm's `},` before another arm),
 // so a block stands apart from what follows it. It doesn't when what
 // follows closes something too (`}`, `)`, `]`), continues the block
 // (`else`), or is already a blank line. It reads src with the lexer, so a

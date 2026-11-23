@@ -3,6 +3,6 @@ gateway chargePayment(orderId: string, amount: int) -> Result<string, OrderError
     result = PaymentGateway.charge(orderId, amount);
     return match (result) {
         Ok(reference) -> Ok(reference),
-        Err(reason) -> Err(OrderError.PaymentDeclined(reason)),
+        Err(reason) -> Err(OrderError.PaymentDeclined(reason))
     }
 }

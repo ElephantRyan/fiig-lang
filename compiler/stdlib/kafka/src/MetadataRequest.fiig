@@ -6,6 +6,6 @@ conversion metadataRequest(clientId: string, correlation: int, topic: string) ->
         4,
         correlation,
         clientId,
-        <<1: i32be, kafkaString(topic): bytes, 0: u8>>,
+        <<1: i32be, kafkaString(topic): bytes, 0: u8>>
     );
 }

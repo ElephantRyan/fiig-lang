@@ -11,6 +11,6 @@ gateway openSecure(host: string, port: int) -> Result<Connection, SocketError> r
         _ -> {
             Socket.close(connection);
             return Err(SocketError.Refused);
-        },
+        }
     }
 }

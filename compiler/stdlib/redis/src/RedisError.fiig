@@ -6,5 +6,5 @@ enum RedisError {
     Server(message: string),
     MalformedReply(reason: string),
     InvalidUrl(reason: string),
-    InvalidCommand(reason: string),
+    InvalidCommand(reason: string)
 }

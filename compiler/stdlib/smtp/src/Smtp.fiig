@@ -16,7 +16,7 @@ capability Smtp {
             None -> None,
             given -> {
                 token = given.reveal();
-            },
+            }
         }
 
         target = withLogin(parseSmtpUrl(SmtpServer.url.reveal())?, SmtpServer.auth, token)?;
@@ -31,7 +31,7 @@ capability Smtp {
             target.host,
             target.port,
             tls: target.security != SmtpSecurity.Plain,
-            session: session,
+            session: session
         );
         // A kept connection the server closed while it sat idle fails
         // before the message is written; the mail then goes again, once,
@@ -49,14 +49,14 @@ capability Smtp {
 
                         _ -> {
                             opened = Socket.connect(target.host, target.port, deadline: until);
-                        },
+                        }
                     }
                 },
 
                 earlier -> {
                     opened = Ok(earlier);
                     kept = true;
-                },
+                }
             }
 
             reused = None;
@@ -81,7 +81,7 @@ capability Smtp {
                                 continue;
                             },
 
-                            Ok(_) -> None,
+                            Ok(_) -> None
                         }
                     },
 
@@ -97,7 +97,7 @@ capability Smtp {
                         if (buffer.length() > 0) {
                             failed = true;
                             failure = SmtpError.Protocol(
-                                reason: "the server sent bytes after agreeing to STARTTLS and before the TLS handshake",
+                                reason: "the server sent bytes after agreeing to STARTTLS and before the TLS handshake"
                             );
                             continue;
                         }
@@ -111,12 +111,12 @@ capability Smtp {
 
                             Ok(secured) -> {
                                 connection = secured;
-                            },
+                            }
                         }
 
                         dialogue = afterUpgrade(dialogue);
                         continue;
-                    },
+                    }
                 }
 
                 reply: SmtpReply = SmtpReply(code: 0, lines: []);
@@ -145,9 +145,9 @@ capability Smtp {
                                     failed = true;
                                     failure = SmtpError.Socket(failure: e);
                                     reading = false;
-                                },
+                                }
                             }
-                        },
+                        }
                     }
                 }
 
@@ -163,7 +163,7 @@ capability Smtp {
                     Err(e) -> {
                         failed = true;
                         failure = e;
-                    },
+                    }
                 }
             }
 

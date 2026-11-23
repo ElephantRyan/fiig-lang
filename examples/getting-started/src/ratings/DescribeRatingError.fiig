@@ -2,6 +2,6 @@
 conversion describeRatingError(error: RatingError) -> string {
     return match (error) {
         RatingError.NotFound(item) -> "no rating for ${item}",
-        RatingError.Invalid(field, reason) -> "${field} ${reason}",
+        RatingError.Invalid(field, reason) -> "${field} ${reason}"
     }
 }

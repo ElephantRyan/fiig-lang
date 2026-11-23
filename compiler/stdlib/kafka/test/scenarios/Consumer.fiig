@@ -55,7 +55,7 @@ test aGroupSessionMovesToItsCoordinator {
         opened.state,
         <<versionsOf(1): bytes, coordinatorOf(2, "b", 9093): bytes>>,
         1001,
-        noLogin(),
+        noLogin()
     );
     expect moved.close == session.SessionClose.MoveTo(host: "b", port: 9093);
 }
@@ -67,7 +67,7 @@ test anOldBrokerIsRefusedByName {
         opened.state,
         <<old: bytes, coordinatorOf(2, "a", 9092): bytes>>,
         1001,
-        noLogin(),
+        noLogin()
     );
     polled = sessionAsked(refused.state, json.encode(KafkaAsk.Poll(waitMillis: 500)), 1002);
     expect polled.replies.length() == 1;
@@ -81,7 +81,7 @@ test aMemberIsAssignedRetriesAndCommits {
         opened.state,
         <<versionsOf(1): bytes, coordinatorOf(2, "a", 9092): bytes>>,
         1001,
-        noLogin(),
+        noLogin()
     );
     // On the coordinator, the member joins at once with epoch 0.
     expect joined.close == None;
@@ -96,7 +96,7 @@ test aMemberIsAssignedRetriesAndCommits {
         waiting.state,
         heartbeatAnswerOf(3, 1, topicId, [0, 1]),
         1003,
-        noLogin(),
+        noLogin()
     );
     expect assigned.write == <<offsetFetchRequest("fiig", 5, "g", "t", [0, 1]): bytes, heartbeatRequest("fiig", 6, "g", "m1", 1, "t", topicId, [0, 1]): bytes>>;
     // Partition 0 committed 42; 1 has nothing, so it starts where `from`
@@ -109,7 +109,7 @@ test aMemberIsAssignedRetriesAndCommits {
     retried = sessionAsked(
         placed.state,
         json.encode(KafkaAsk.Retry(partition: 0, offset: 42, resumeAt: 3000)),
-        1005,
+        1005
     );
     early = sessionAsked(retried.state, json.encode(KafkaAsk.Poll(waitMillis: 500)), 1006);
     expect pollOf(early.replies.first().message).partitions == [AssignedPartition(partition: 1, position: 0 - 1, retryOffset: 0 - 1, attempt: 1)];
@@ -138,8 +138,8 @@ test fetchedBatchesReadBack {
         KafkaRecord(
             key: None,
             value: "two".utf8(),
-            headers: [KafkaHeader(name: "h", value: "v".utf8())],
-        ),
+            headers: [KafkaHeader(name: "h", value: "v".utf8())]
+        )
     ];
     for (codec in [Compression.None, Compression.Gzip, Compression.Snappy, Compression.Lz4, Compression.Zstd]) {
         expect recordBatch(records, 1000, codec) is Ok(batch);
@@ -162,8 +162,8 @@ test deliveriesStartAtThePosition {
         records: [
             FetchedRecord(offset: 8, value: "a".utf8()),
             FetchedRecord(offset: 9, value: "b".utf8()),
-            FetchedRecord(offset: 10, value: "c".utf8()),
-        ],
+            FetchedRecord(offset: 10, value: "c".utf8())
+        ]
     );
     assigned = AssignedPartition(partition: 2, position: 9, retryOffset: 9, attempt: 3);
     taken = takenFrom(part, 9, assigned, 5);
@@ -184,7 +184,7 @@ test aGroupSessionFailsOverAcrossTheBootstrapServers {
         consumer: "c1",
         waitMillis: 2000,
         start: stream.StartAt.Earliest,
-        handleMillis: 40000,
+        handleMillis: 40000
     );
     expect groupSettings(subscription, "a:9092, [::1]:9093,c:9094", false, "fiig", 1000) is Ok(settings);
     expect settings.at("host") == "a";
@@ -236,14 +236,14 @@ private {
             6: i16be,
             0: i16be,
             0: i16be,
-            12: i16be,
+            12: i16be
         >>;
         return framed(<<correlation: i32be, 0: i16be, 8: i32be, entries: bytes>>);
     }
 
     coordinatorOf(correlation: int, host: string, port: int) -> bytes {
         return framed(
-            <<correlation: i32be, 0: i32be, 0: i16be, 0 - 1: i16be, 1: i32be, kafkaString(host): bytes, port: i32be>>,
+            <<correlation: i32be, 0: i32be, 0: i16be, 0 - 1: i16be, 1: i32be, kafkaString(host): bytes, port: i32be>>
         );
     }
 
@@ -255,13 +255,13 @@ private {
         }
 
         return framed(
-            <<correlation: i32be, 0: u8, 0: i32be, 0: i16be, 0: u8, compactString("m1"): bytes, epoch: i32be, 3000: i32be, 1: u8, uvarint(2): bytes, topicId: bytes, ids: bytes, 0: u8, 0: u8, 0: u8>>,
+            <<correlation: i32be, 0: u8, 0: i32be, 0: i16be, 0: u8, compactString("m1"): bytes, epoch: i32be, 3000: i32be, 1: u8, uvarint(2): bytes, topicId: bytes, ids: bytes, 0: u8, 0: u8, 0: u8>>
         );
     }
 
     heartbeatErrorOf(correlation: int, code: int) -> bytes {
         return framed(
-            <<correlation: i32be, 0: u8, 0: i32be, code: i16be, 0: u8, 0: u8, 0 - 1: i32be, 0: i32be, 255: u8, 0: u8>>,
+            <<correlation: i32be, 0: u8, 0: i32be, code: i16be, 0: u8, 0: u8, 0 - 1: i32be, 0: i32be, 255: u8, 0: u8>>
         );
     }
 
@@ -294,7 +294,7 @@ private {
             0 - 1: i32be,
             0 - 1: i32be,
             records.length(): i32be,
-            records: bytes,
+            records: bytes
         >>;
     }
 
@@ -307,7 +307,7 @@ private {
 
             Err(_) -> {
                 return PollReply(failure: "not a PollReply", partitions: []);
-            },
+            }
         }
     }
 

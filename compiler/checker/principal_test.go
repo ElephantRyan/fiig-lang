@@ -10,7 +10,7 @@ import (
 
 const (
 	prIdentity  = "model Identity {\n    userId: string;\n}"
-	prRefusal   = "enum IdentityError {\n    NotSignedIn,\n}"
+	prRefusal   = "enum IdentityError {\n    NotSignedIn\n}"
 	prBinder    = "workflow signedIn(token: string | None) -> Result<Identity, IdentityError> {\n    return Err(IdentityError.NotSignedIn);\n}"
 	prSignIn    = "conversion signInFirst(error: IdentityError) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"sign in first\");\n}"
 	prFeature   = "workflow showMine(me: Identity) -> string {\n    return me.userId;\n}"
@@ -93,7 +93,7 @@ func TestAPrincipalMissingByOrElseIsCheckedWithoutThem(t *testing.T) {
 func TestU2TheRefusalIsAConversionToAnHttpResponse(t *testing.T) {
 	route := "    GET \"/mine\" -> showMine(me)\n        produces \"application/json\"\n"
 	got := checkPrincipals(t, principalAdapter("    wire me: Identity from cookie \"sid\" by signedIn else wrongError;\n"+route),
-		"enum Other {\n    X,\n}",
+		"enum Other {\n    X\n}",
 		"conversion wrongError(error: Other) -> HttpResponse<string> {\n    return HttpResponse(status: 401, body: \"no\");\n}")
 	wantOnly(t, got, "U2", "takes Other, but signedIn's workflow refuses with IdentityError")
 
@@ -123,7 +123,7 @@ func TestU4ARouteNamesADeclaredPrincipalOfTheParametersType(t *testing.T) {
 func TestU5APrincipalIsSettledFromAnEarlierOne(t *testing.T) {
 	admin := []string{
 		"model Admin {\n    userId: string;\n}",
-		"enum AdminRefusal {\n    NotAnAdmin,\n}",
+		"enum AdminRefusal {\n    NotAnAdmin\n}",
 		"workflow signedInAdmin(me: Identity) -> Result<Admin, AdminRefusal> {\n    return Err(AdminRefusal.NotAnAdmin);\n}",
 		"conversion notAnAdmin(error: AdminRefusal) -> HttpResponse<string> {\n    return HttpResponse(status: 403, body: \"admins only\");\n}",
 		"workflow showSettings(admin: Admin) -> string {\n    return admin.userId;\n}",

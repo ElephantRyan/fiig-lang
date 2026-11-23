@@ -50,8 +50,8 @@ gateway sendReport() -> Result<None, smtp.SmtpError>
             cc: ["bob@y.org"],
             bcc: ["audit@shop.example"],
             replyTo: "help@shop.example",
-            names: ["reports@shop.example": "Shop Reports", "ann@y.org": "Ann Smith", "bob@y.org": "Bob Ünal"],
-        ),
+            names: ["reports@shop.example": "Shop Reports", "ann@y.org": "Ann Smith", "bob@y.org": "Bob Ünal"]
+        )
     );
 }`,
 	"send_invoice.fiig": `use fiig.smtp;
@@ -67,8 +67,8 @@ gateway sendInvoice(pdf: bytes) -> Result<None, smtp.SmtpError>
             subject: "Invoice",
             body: "Your invoice is attached.",
             html: "<p>Your invoice is <b>attached</b>.</p>",
-            attachments: [smtp.Attachment(name: "Rechnung März.pdf", contentType: "application/pdf", data: pdf)],
-        ),
+            attachments: [smtp.Attachment(name: "Rechnung März.pdf", contentType: "application/pdf", data: pdf)]
+        )
     );
 }`,
 }

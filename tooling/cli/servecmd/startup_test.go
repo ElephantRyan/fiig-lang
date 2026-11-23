@@ -18,14 +18,14 @@ import (
 
 var startupApp = map[string]string{
 	"app/fiig.pkg.json":      `{"path": "t.preflight", "kind": "application", "version": "1.0.0"}`,
-	"app/check_error.fiig":   "enum CheckError {\n    Missing,\n}\n",
+	"app/check_error.fiig":   "enum CheckError {\n    Missing\n}\n",
 	"app/storage.fiig":       "wire Storage {\n    ready: bool from env \"STORAGE_READY\" = true;\n}\n",
 	"app/storage_ready.fiig": "activity storageReady() -> bool {\n    return Storage.ready;\n}\n",
 	"app/verify_storage.fiig": "workflow verifyStorage() -> Result<None, CheckError> {\n" +
 		"    if (storageReady()) {\n        return Ok(None);\n    }\n    return Err(CheckError.Missing);\n}\n",
 	"app/hello.fiig":     "workflow hello() -> string {\n    return \"hi\";\n}\n",
 	"app/api.fiig":       "adapter http api {\n    GET \"/hello\" -> hello()\n        produces \"application/json\";\n}\n",
-	"app/preflight.fiig": "adapter startup preflight {\n    run -> verifyStorage() {\n        Ok(_) -> proceed,\n        Err(_) -> halt,\n    }\n}\n",
+	"app/preflight.fiig": "adapter startup preflight {\n    run -> verifyStorage() {\n        Ok(_) -> proceed,\n        Err(_) -> halt\n    }\n}\n",
 }
 
 func startupLoops(t *testing.T) []loop {
@@ -86,14 +86,14 @@ func TestAFailingStartupCheckRefusesToServe(t *testing.T) {
 // config field that reads the route is true from then on, here through a route.
 var degradedApp = map[string]string{
 	"app/fiig.pkg.json":    `{"path": "t.degraded", "kind": "application", "version": "1.0.0"}`,
-	"app/check_error.fiig": "enum CheckError {\n    Missing,\n    Slow,\n}\n",
+	"app/check_error.fiig": "enum CheckError {\n    Missing,\n    Slow\n}\n",
 	"app/cache_state.fiig": "wire CacheState {\n    degraded: bool from startup \"preflight.verifyCache\";\n}\n",
 	"app/verify_cache.fiig": "workflow verifyCache() -> Result<None, CheckError> {\n" +
 		"    return Err(CheckError.Slow);\n}\n",
 	"app/cache_is_degraded.fiig": "activity cacheIsDegraded() -> bool {\n    return CacheState.degraded;\n}\n",
 	"app/status.fiig":            "workflow status() -> string {\n    if (cacheIsDegraded()) {\n        return \"degraded\";\n    }\n    return \"ok\";\n}\n",
 	"app/api.fiig":               "adapter http api {\n    GET \"/status\" -> status()\n        produces \"application/json\";\n}\n",
-	"app/preflight.fiig":         "adapter startup preflight {\n    run -> verifyCache() {\n        Ok(_) -> proceed,\n        Err(CheckError.Slow) -> degrade,\n        Err(CheckError.Missing) -> halt,\n    }\n}\n",
+	"app/preflight.fiig":         "adapter startup preflight {\n    run -> verifyCache() {\n        Ok(_) -> proceed,\n        Err(CheckError.Slow) -> degrade,\n        Err(CheckError.Missing) -> halt\n    }\n}\n",
 }
 
 func TestADegradedStartupIsReadThroughConfig(t *testing.T) {

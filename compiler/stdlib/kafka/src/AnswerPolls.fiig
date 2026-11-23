@@ -20,8 +20,8 @@ conversion answerPolls(turn: SessionTurn, now: int) -> SessionTurn {
                         partition: p.partition,
                         position: p.position,
                         retryOffset: p.retryOffset,
-                        attempt: p.retries + 1,
-                    ),
+                        attempt: p.retries + 1
+                    )
                 );
             }
         }
@@ -34,7 +34,7 @@ conversion answerPolls(turn: SessionTurn, now: int) -> SessionTurn {
             answer = json.encode(PollReply(failure: s.fatal, partitions: ready));
             replies = append(
                 replies,
-                session.SessionReply(key: poll.key, message: answer, last: true),
+                session.SessionReply(key: poll.key, message: answer, last: true)
             );
         } else {
             waiting = append(waiting, poll);

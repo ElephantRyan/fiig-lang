@@ -25,7 +25,7 @@ conversion commitAll(turn: SessionTurn) -> SessionTurn {
         s.memberId,
         s.epoch,
         s.topic,
-        offsets,
+        offsets
     );
     committed = copy(tracked(s, "commit"), partitions: partitions, commitAt: 0);
     return copy(turn, state: committed, write: <<turn.write: bytes, request: bytes>>);

@@ -8,6 +8,6 @@ activity sessionAccount(token: string | None) -> Result<Account, AccountError> {
 
         found -> {
             return findSession(found);
-        },
+        }
     }
 }

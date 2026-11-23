@@ -17,7 +17,7 @@ conversion readCoordinator(frame: bytes) -> Result<BrokerNode, string> {
 
         _ -> {
             return Err(short());
-        },
+        }
     }
 }
 
@@ -34,7 +34,7 @@ private {
 
             found -> {
                 return Ok(found);
-            },
+            }
         }
     }
 
@@ -46,7 +46,7 @@ private {
 
             found -> {
                 return Ok(found);
-            },
+            }
         }
     }
 }

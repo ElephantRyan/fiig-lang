@@ -11,7 +11,7 @@ func TestCompressChecksClean(t *testing.T) {
     return match (compress.unzstd(data, maxSize: 1048576)) {
         Ok(out) -> out,
         Err(DecompressError.TooLarge(_)) -> None,
-        Err(DecompressError.Corrupt(_)) -> None,
+        Err(DecompressError.Corrupt(_)) -> None
     }
 }`, `conversion roundTrip(data: bytes) -> Result<bytes, DecompressError> {
     return compress.unsnappy(compress.snappy(data), 65536);
@@ -53,6 +53,6 @@ func TestCompressRefusals(t *testing.T) {
     return a;
 }`), "K2", "the prelude compress group")
 	wantDiag(t, checkSrc(t, `enum DecompressError {
-    Other,
+    Other
 }`), "K2", "a prelude type")
 }

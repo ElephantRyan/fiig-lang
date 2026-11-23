@@ -13,13 +13,13 @@ conversion replyStep(state: Reply, kind: int, body: bytes) -> Reply {
                     state,
                     row: None,
                     failed: db.DatabaseError.Protocol(reason: "a RowDescription is malformed"),
-                    ready: true,
+                    ready: true
                 );
             },
 
             shape -> {
                 return copy(state, row: None, columns: shape.names, types: shape.types);
-            },
+            }
         }
     }
 
@@ -30,15 +30,15 @@ conversion replyStep(state: Reply, kind: int, body: bytes) -> Reply {
                     state,
                     row: None,
                     failed: db.DatabaseError.Protocol(
-                        reason: "a DataRow doesn't match its RowDescription",
+                        reason: "a DataRow doesn't match its RowDescription"
                     ),
-                    ready: true,
+                    ready: true
                 );
             },
 
             row -> {
                 return copy(state, row: row);
-            },
+            }
         }
     }
 
@@ -49,7 +49,7 @@ conversion replyStep(state: Reply, kind: int, body: bytes) -> Reply {
                 None -> None,
                 tag -> {
                     return copy(state, row: None, affected: commandCount(tag));
-                },
+                }
             }
         }
 

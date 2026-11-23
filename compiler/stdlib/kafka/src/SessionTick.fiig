@@ -12,6 +12,6 @@ conversion sessionTick(state: bytes, now: int) -> session.Step {
         Ok(s) -> {
             turn = SessionTurn(state: s, write: <<>>, replies: [], close: None);
             return sessionStep(answerPolls(dueWork(turn, now), now), None);
-        },
+        }
     }
 }

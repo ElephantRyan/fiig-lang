@@ -19,8 +19,8 @@ conversion handshakeStep(state: Handshake, kind: int, body: bytes) -> Handshake 
                 state,
                 send: <<>>,
                 failed: db.DatabaseError.Protocol(
-                    reason: "the server finished without proving it knows the password",
-                ),
+                    reason: "the server finished without proving it knows the password"
+                )
             );
         }
 
@@ -40,8 +40,8 @@ conversion handshakeStep(state: Handshake, kind: int, body: bytes) -> Handshake 
             return copy(
                 state,
                 send: <<>>,
-                failed: db.DatabaseError.Protocol(reason: "an authentication message is too short"),
+                failed: db.DatabaseError.Protocol(reason: "an authentication message is too short")
             );
-        },
+        }
     }
 }

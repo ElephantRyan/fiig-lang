@@ -18,7 +18,7 @@ conversion sessionReceived(state: bytes, data: bytes, now: int, login: SaslLogin
                 state: copy(s, buffer: <<>>),
                 write: <<>>,
                 replies: [],
-                close: None,
+                close: None
             );
             rest: bytes = <<s.buffer: bytes, data: bytes>>;
             reading: bool = true;
@@ -37,7 +37,7 @@ conversion sessionReceived(state: bytes, data: bytes, now: int, login: SaslLogin
                     FrameRead.Malformed(reason) -> {
                         turn = copy(turn, close: session.SessionClose.Failed(reason: reason));
                         reading = false;
-                    },
+                    }
                 }
             }
 
@@ -47,7 +47,7 @@ conversion sessionReceived(state: bytes, data: bytes, now: int, login: SaslLogin
             }
 
             return sessionStep(turn, None);
-        },
+        }
     }
 }
 
@@ -64,19 +64,19 @@ private {
                 if (correlation != head.correlation) {
                     return failed(
                         turn,
-                        "the broker answered correlation ${correlation}, not ${head.correlation}",
+                        "the broker answered correlation ${correlation}, not ${head.correlation}"
                     );
                 }
 
                 next = copy(
                     turn,
-                    state: copy(s, inflight: s.inflight.slice(1, s.inflight.length())),
+                    state: copy(s, inflight: s.inflight.slice(1, s.inflight.length()))
                 );
                 if (head.kind == "request") {
                     reply = session.SessionReply(
                         key: head.key,
                         message: <<head.callerCorrelation: i32be, body: bytes>>,
-                        last: true,
+                        last: true
                     );
                     return copy(next, replies: append(next.replies, reply));
                 }
@@ -115,7 +115,7 @@ private {
 
             _ -> {
                 return failed(turn, "a response is shorter than its correlation id");
-            },
+            }
         }
     }
 
@@ -138,7 +138,7 @@ private {
                 }
 
                 return copy(turn, state: copy(s, refused: refusal));
-            },
+            }
         }
     }
 
@@ -157,7 +157,7 @@ private {
             Ok(layout) -> {
                 reply = LayoutReply(layout: layout, error: None);
                 layouts = append(kept, CachedLayout(topic: head.topic, layout: layout, at: now));
-            },
+            }
         }
 
         answer = session.SessionReply(key: head.key, message: json.encode(reply), last: true);
@@ -180,12 +180,12 @@ private {
                 if (node.host != s.host || node.port != s.port) {
                     return copy(
                         turn,
-                        close: session.SessionClose.MoveTo(host: node.host, port: node.port),
+                        close: session.SessionClose.MoveTo(host: node.host, port: node.port)
                     );
                 }
 
                 return copy(turn, state: copy(s, phase: "member", nextHeartbeatAt: now));
-            },
+            }
         }
     }
 
@@ -208,8 +208,8 @@ private {
                             topicId: <<>>,
                             partitions: [],
                             commitAt: 0,
-                            nextHeartbeatAt: now,
-                        ),
+                            nextHeartbeatAt: now
+                        )
                     );
                 }
 
@@ -226,8 +226,8 @@ private {
                         turn,
                         state: copy(
                             s,
-                            fatal: "ConsumerGroupHeartbeat: ${errorName(answer.code)}: ${answer.message}",
-                        ),
+                            fatal: "ConsumerGroupHeartbeat: ${errorName(answer.code)}: ${answer.message}"
+                        )
                     );
                 }
 
@@ -236,15 +236,15 @@ private {
                     state: copy(
                         s,
                         heartbeatMillis: answer.intervalMillis,
-                        nextHeartbeatAt: now + answer.intervalMillis,
-                    ),
+                        nextHeartbeatAt: now + answer.intervalMillis
+                    )
                 );
                 if (!answer.assigned) {
                     return copy(beat, state: copy(beat.state, epoch: answer.epoch));
                 }
 
                 return reconciled(beat, answer, now);
-            },
+            }
         }
     }
 
@@ -282,8 +282,8 @@ private {
                         committed: 0 - 1,
                         retryOffset: 0 - 1,
                         retries: 0,
-                        resumeAt: 0,
-                    ),
+                        resumeAt: 0
+                    )
                 );
             }
         }
@@ -297,13 +297,13 @@ private {
             out.state,
             epoch: answer.epoch,
             topicId: answer.topicId,
-            partitions: kept,
+            partitions: kept
         );
         write: bytes = out.write;
         if (added.length() > 0) {
             write = <<
                 write: bytes,
-                offsetFetchRequest(s.clientId, s.nextCorrelation, s.group, s.topic, added): bytes,
+                offsetFetchRequest(s.clientId, s.nextCorrelation, s.group, s.topic, added): bytes
             >>;
             s = tracked(s, "offsets");
             changed = true;
@@ -337,7 +337,7 @@ private {
 
                         placed = append(
                             placed,
-                            copy(p, position: position, committed: position, acked: position),
+                            copy(p, position: position, committed: position, acked: position)
                         );
                     } else {
                         placed = append(placed, p);
@@ -345,7 +345,7 @@ private {
                 }
 
                 return copy(turn, state: copy(turn.state, partitions: placed));
-            },
+            }
         }
     }
 }

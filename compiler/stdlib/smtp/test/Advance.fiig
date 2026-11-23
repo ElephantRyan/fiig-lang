@@ -33,7 +33,7 @@ test aKeptConnectionStartsWithRset {
         startTls("user", "pass"),
         mail(["b@y.org"]),
         "client.test",
-        "the message".utf8(),
+        "the message".utf8()
     );
     expect d0.secure;
     expect sent(d0) == "RSET\r\n";
@@ -59,7 +59,7 @@ test aDeadKeptConnectionIsTriedAgainOnlyBeforeTheBody {
         plain(None, None),
         mail(["b@y.org"]),
         "client.test",
-        "the message".utf8(),
+        "the message".utf8()
     );
     closed = SmtpError.Socket(failure: SocketError.Closed);
     expect resendOnNewConnection(kept, closed);
@@ -86,7 +86,7 @@ test smtpsIsSecureFromTheStartAndNeverAsksForStartTls {
     d = go(
         go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]),
         250,
-        ["mail.example Hello", "STARTTLS", "AUTH PLAIN"],
+        ["mail.example Hello", "STARTTLS", "AUTH PLAIN"]
     );
     expect d.secure;
     expect sent(d) == "AUTH PLAIN AHVzZXIAcGFzcw==\r\n";
@@ -110,7 +110,7 @@ test authLoginIsUsedWhenItIsAllTheServerOffers {
     d0 = go(
         go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]),
         250,
-        ["mail.example Hello", "AUTH LOGIN XOAUTH2"],
+        ["mail.example Hello", "AUTH LOGIN XOAUTH2"]
     );
     expect sent(d0) == "AUTH LOGIN\r\n";
     // The server's prompts are Username: and Password: in base64.
@@ -128,13 +128,13 @@ test aRefusedAuthLoginPasswordEndsTheSend {
             go(
                 go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]),
                 250,
-                ["Hello", "AUTH=LOGIN"],
+                ["Hello", "AUTH=LOGIN"]
             ),
             334,
-            ["VXNlcm5hbWU6"],
+            ["VXNlcm5hbWU6"]
         ),
         334,
-        ["UGFzc3dvcmQ6"],
+        ["UGFzc3dvcmQ6"]
     );
     expect sent(d) == "cGFzcw==\r\n";
     expect advance(d, reply(535, ["5.7.8 Authentication credentials invalid"])) is Err(SmtpError.Refused(code, message));
@@ -145,7 +145,7 @@ test authPlainIsPreferredWhenBothAreOffered {
     d = go(
         go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]),
         250,
-        ["mail.example Hello", "AUTH LOGIN PLAIN"],
+        ["mail.example Hello", "AUTH LOGIN PLAIN"]
     );
     expect sent(d) == "AUTH PLAIN AHVzZXIAcGFzcw==\r\n";
 }
@@ -154,7 +154,7 @@ test theOlderAuthEqualsFormIsRead {
     d = go(
         go(begin(implicit("user", "pass"), ["b@y.org"]), 220, ["hi"]),
         250,
-        ["mail.example Hello", "AUTH=PLAIN LOGIN"],
+        ["mail.example Hello", "AUTH=PLAIN LOGIN"]
     );
     expect sent(d) == "AUTH PLAIN AHVzZXIAcGFzcw==\r\n";
 }
@@ -163,7 +163,7 @@ test xoauth2IsPreferredWhenATokenIsConfiguredAndOffered {
     d = go(
         go(begin(oauth(SmtpAuth.Auto, "pass"), ["b@y.org"]), 220, ["hi"]),
         250,
-        ["smtp.gmail.com", "AUTH LOGIN PLAIN XOAUTH2 OAUTHBEARER"],
+        ["smtp.gmail.com", "AUTH LOGIN PLAIN XOAUTH2 OAUTHBEARER"]
     );
     // user=ann@gmail.com, 0x01, auth=Bearer ya29.tok, 0x01 0x01.
     expect sent(d) == "AUTH XOAUTH2 dXNlcj1hbm5AZ21haWwuY29tAWF1dGg9QmVhcmVyIHlhMjkudG9rAQE=\r\n";
@@ -174,15 +174,15 @@ test aRefusedTokenIsAnsweredAndItsStatusReported {
     d = go(
         go(begin(oauth(SmtpAuth.Auto, ""), ["b@y.org"]), 220, ["hi"]),
         250,
-        ["Hello", "AUTH XOAUTH2"],
+        ["Hello", "AUTH XOAUTH2"]
     );
     // {"status":"401","schemes":"Bearer","scope":"https://mail.google.com/"}
     challenge = go(
         d,
         334,
         [
-            "eyJzdGF0dXMiOiI0MDEiLCJzY2hlbWVzIjoiQmVhcmVyIiwic2NvcGUiOiJodHRwczovL21haWwuZ29vZ2xlLmNvbS8ifQ==",
-        ],
+            "eyJzdGF0dXMiOiI0MDEiLCJzY2hlbWVzIjoiQmVhcmVyIiwic2NvcGUiOiJodHRwczovL21haWwuZ29vZ2xlLmNvbS8ifQ=="
+        ]
     );
     // The challenge is answered with an empty line; the server then refuses.
     expect sent(challenge) == "\r\n";
@@ -195,7 +195,7 @@ test aChallengeThatIsntJsonStillEndsInTheRefusal {
     d = go(
         go(begin(oauth(SmtpAuth.XOAuth2, ""), ["b@y.org"]), 220, ["hi"]),
         250,
-        ["Hello", "AUTH XOAUTH2"],
+        ["Hello", "AUTH XOAUTH2"]
     );
     challenge = go(d, 334, ["not base64!"]);
     expect sent(challenge) == "\r\n";
@@ -207,7 +207,7 @@ test aTokenWithoutXOAuth2FallsBackToThePassword {
     d = go(
         go(begin(oauth(SmtpAuth.Auto, "pass"), ["b@y.org"]), 220, ["hi"]),
         250,
-        ["Hello", "AUTH PLAIN"],
+        ["Hello", "AUTH PLAIN"]
     );
     expect sent(d) == "AUTH PLAIN AGFubkBnbWFpbC5jb20AcGFzcw==\r\n";
     // With no password, there is nothing else to log in with.
@@ -231,10 +231,10 @@ test aRefusedRecipientEndsTheSend {
         go(
             go(go(begin(plain(None, None), ["b@y.org", "c@y.org"]), 220, ["hi"]), 250, ["Hello"]),
             250,
-            ["OK"],
+            ["OK"]
         ),
         250,
-        ["OK"],
+        ["OK"]
     );
     expect sent(d) == "RCPT TO:<c@y.org>\r\n";
     expect advance(d, reply(550, ["No such user here"])) is Err(SmtpError.Refused(code, message));
@@ -250,7 +250,7 @@ test everyRecipientInToCcAndBccIsSentToOnce {
         subject: "s",
         body: "x",
         cc: ["c@y.org", "b@y.org"],
-        bcc: ["d@y.org"],
+        bcc: ["d@y.org"]
     );
     expect recipientsOf(m) == ["b@y.org", "c@y.org", "d@y.org"];
     d = go(
@@ -258,13 +258,13 @@ test everyRecipientInToCcAndBccIsSentToOnce {
             go(
                 startDialogue(plain(None, None), m, "client.test", "the message".utf8()),
                 220,
-                ["hi"],
+                ["hi"]
             ),
             250,
-            ["Hello"],
+            ["Hello"]
         ),
         250,
-        ["OK"],
+        ["OK"]
     );
     expect sent(d) == "RCPT TO:<b@y.org>\r\n";
     expect sent(go(d, 250, ["OK"])) == "RCPT TO:<c@y.org>\r\n";
@@ -302,13 +302,13 @@ test aServerThatSaysNoToTheBodyRefuses {
             go(
                 go(go(begin(plain(None, None), ["b@y.org"]), 220, ["hi"]), 250, ["Hello"]),
                 250,
-                ["OK"],
+                ["OK"]
             ),
             250,
-            ["OK"],
+            ["OK"]
         ),
         354,
-        ["go ahead"],
+        ["go ahead"]
     );
     expect sent(d) == "the message";
     expect advance(d, reply(552, ["Message size exceeds limit"])) is Err(SmtpError.Refused(code, message));
@@ -326,7 +326,7 @@ private {
             port: 587,
             security: SmtpSecurity.StartTls,
             user: user,
-            password: password,
+            password: password
         );
     }
 
@@ -336,7 +336,7 @@ private {
             port: 465,
             security: SmtpSecurity.Implicit,
             user: user,
-            password: password,
+            password: password
         );
     }
 
@@ -350,7 +350,7 @@ private {
             user: "ann@gmail.com",
             password: None,
             auth: auth,
-            token: "ya29.tok",
+            token: "ya29.tok"
         );
         if (password == "") {
             return target;
@@ -365,7 +365,7 @@ private {
             port: 1025,
             security: SmtpSecurity.Plain,
             user: user,
-            password: password,
+            password: password
         );
     }
 
@@ -386,7 +386,7 @@ private {
     go(d: Dialogue, code: int, lines: List<string>) -> Dialogue {
         return match (advance(d, reply(code, lines))) {
             Ok(next) -> next,
-            Err(_) -> d,
+            Err(_) -> d
         }
     }
 
@@ -396,14 +396,14 @@ private {
             SmtpStep.Listen -> "listen",
             SmtpStep.Upgrade -> "upgrade",
             SmtpStep.Send(data) -> textOf(data),
-            SmtpStep.Finish -> "finish",
+            SmtpStep.Finish -> "finish"
         }
     }
 
     textOf(data: bytes) -> string {
         return match (data.utf8()) {
             None -> "",
-            text -> text,
+            text -> text
         }
     }
 }

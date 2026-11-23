@@ -13,7 +13,7 @@ const (
 }`
 	flavourEnum = `enum Flavour {
     Plain,
-    Spicy,
+    Spicy
 }`
 )
 

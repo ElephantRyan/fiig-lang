@@ -4,7 +4,7 @@ gateway saveRating(rating: Rating) -> Rating requires Database {
         "INSERT INTO ratings (item, score, note) VALUES (?, ?, ?) ON CONFLICT (item) DO UPDATE SET score = excluded.score, note = excluded.note",
         rating.item,
         rating.score,
-        rating.note,
+        rating.note
     );
     return rating;
 }

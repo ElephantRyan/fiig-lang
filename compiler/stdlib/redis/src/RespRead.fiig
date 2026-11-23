@@ -3,5 +3,5 @@
 enum RespRead {
     NeedMore,
     Done(value: RespValue, rest: bytes),
-    Malformed(reason: string),
+    Malformed(reason: string)
 }

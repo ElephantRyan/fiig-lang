@@ -2,5 +2,5 @@
 // body, once trusted, wasn't the JSON an envelope is.
 enum InboxError {
     BadSignature,
-    Undecodable(failure: JsonError),
+    Undecodable(failure: JsonError)
 }

@@ -30,7 +30,7 @@ test refusalsNeverShowTheUrl {
         "redis://h/1/2",
         "redis://h?tls=1",
         "redis://u:%4@h",
-        "redis://a:b:c",
+        "redis://a:b:c"
     ];
     for (url in cases) {
         expect parseRedisUrl(url) is Err(RedisError.InvalidUrl(reason));
@@ -45,7 +45,7 @@ test newConnectionAuthenticatesAndSelects {
         secure: false,
         user: "app",
         password: "pw",
-        database: 3,
+        database: 3
     );
     setup = setupRequest(target);
     expect setup.replies == 2;
@@ -59,7 +59,7 @@ test noSetupWithoutPasswordOrDatabase {
         secure: false,
         user: None,
         password: None,
-        database: 0,
+        database: 0
     );
     expect setupRequest(target).replies == 0;
 }

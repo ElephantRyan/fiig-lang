@@ -5,8 +5,8 @@ conversion nextFrame(buffer: bytes) -> PgFrame | None {
         <<kind: u8, length: i32be, body: bytes(length - 4), rest: bytes>> -> PgFrame(
             kind: kind,
             body: body,
-            rest: rest,
+            rest: rest
         ),
-        _ -> None,
+        _ -> None
     }
 }

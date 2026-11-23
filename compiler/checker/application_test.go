@@ -18,7 +18,7 @@ func checkApplication(t *testing.T, src string) []Diagnostic {
 	)
 	sync := buildDep(t, "t.app.sync", nil, nil,
 		"workflow tick() -> string {\n    return \"tick\";\n}",
-		"adapter startup syncStartup {\n    run -> tick() {\n        _ -> proceed,\n    }\n}",
+		"adapter startup syncStartup {\n    run -> tick() {\n        _ -> proceed\n    }\n}",
 	)
 	packages := types.Packages{"t.app.ratings": ratings, "t.app.sync": sync}
 	diags, _ := CheckSourcesWithSiblings(map[string]string{"src/MyApp.fiig": src}, packages, packages, "t.app", nil)

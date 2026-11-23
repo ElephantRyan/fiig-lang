@@ -50,13 +50,11 @@ type Parser struct {
 }
 
 // Missing is a separator ADR 0145 asks for that the source leaves out: Sep
-// (";" or ",") belongs at At, the end of the token before it. Last marks
-// an alternative's `,` before its closing `}` on a later line, which the
-// formatter writes and the grammar leaves optional.
+// (";" or ",") belongs at At, the end of the token before it. The last
+// alternative before its `}` takes none (ADR 0147), so it is never missing.
 type Missing struct {
-	At   lexer.Pos
-	Sep  string
-	Last bool
+	At  lexer.Pos
+	Sep string
 }
 
 // MissingSeparators parses src and returns the separators ADR 0145 asks
@@ -82,7 +80,40 @@ func Parse(src string) (*syntax.File, []Error) {
 		errs = append(errs, Error{Msg: e.Msg, At: e.At})
 	}
 	errs = append(errs, p.errors...)
+	errs = append(errs, trailingCommas(toks)...)
 	return f, withHint(toks, errs)
+}
+
+// trailingCommaMsg starts the error for a comma with nothing after it
+// (ADR 0147). IsTrailingComma reads it, so the formatter can still format
+// a file whose only errors are these, and drop them.
+const trailingCommaMsg = "a comma is followed by another item"
+
+// trailingCommas is an error for each `,` whose next token closes the list
+// it is in: `)`, `]`, `}`, or `>` (ADR 0147). It works on the tokens, not
+// the tree, so every comma list follows the one rule, and the parse itself
+// carries on as if the comma weren't there.
+func trailingCommas(toks []lexer.Token) []Error {
+	var errs []Error
+	for i := 0; i+1 < len(toks); i++ {
+		if toks[i].Kind != lexer.Comma {
+			continue
+		}
+		switch next := toks[i+1]; next.Kind {
+		case lexer.RParen, lexer.RBracket, lexer.RBrace, lexer.RAngle:
+			errs = append(errs, Error{
+				Msg: fmt.Sprintf("%s, and nothing follows this one before `%s`; remove it (ADR 0147)", trailingCommaMsg, next.Text),
+				At:  toks[i].Start,
+			})
+		}
+	}
+	return errs
+}
+
+// IsTrailingComma reports whether e is trailingCommas' error, which the
+// formatter fixes rather than refuses.
+func IsTrailingComma(e Error) bool {
+	return strings.HasPrefix(e.Msg, trailingCommaMsg)
 }
 
 func (p *Parser) Errors() []Error { return p.errors }
@@ -102,6 +133,7 @@ func ParseWithComments(src string) (*syntax.File, []lexer.Comment, []Error) {
 		errs = append(errs, Error{Msg: e.Msg, At: e.At})
 	}
 	errs = append(errs, p.errors...)
+	errs = append(errs, trailingCommas(toks)...)
 	return f, comments, withHint(toks, errs)
 }
 
@@ -259,22 +291,17 @@ func (p *Parser) endItem() {
 }
 
 // endAlternative takes the `,` after an alternative (ADR 0145 §2): an enum
-// variant or an arm. It is optional after the last, as in every comma
-// list, and until ADR 0142 §5's second step, anywhere.
+// variant or an arm. The last has none (ADR 0147; trailingCommas reports
+// one), and until ADR 0142 §5's second step, any may leave it out.
 func (p *Parser) endAlternative() {
 	if p.at(lexer.Comma) {
 		p.advance()
 		return
 	}
-	if p.pos == 0 {
+	if p.pos == 0 || p.at(lexer.RBrace) {
 		return
 	}
-	prev := p.peek(-1)
-	last := p.at(lexer.RBrace)
-	if last && p.cur().Start.Line == prev.End.Line {
-		return // `{ A, B }` on one line ends without one
-	}
-	p.missing = append(p.missing, Missing{At: prev.End, Sep: ",", Last: last})
+	p.missing = append(p.missing, Missing{At: p.peek(-1).End, Sep: ","})
 }
 
 func (p *Parser) parseFile() *syntax.File {

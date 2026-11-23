@@ -21,7 +21,7 @@ capability Redis {
             target.host,
             target.port,
             tls: target.secure,
-            session: session,
+            session: session
         );
         phases: List<RedisRequest> = [];
         opened: Result<Connection, SocketError> = Err(SocketError.Closed);
@@ -41,7 +41,7 @@ capability Redis {
 
             kept -> {
                 opened = Ok(kept);
-            },
+            }
         }
 
         phases = append(phases, commandRequest(words));
@@ -57,7 +57,7 @@ capability Redis {
                     return Err(RedisError.Socket(failure: failure));
                 },
 
-                Ok(_) -> None,
+                Ok(_) -> None
             }
 
             replies = [];
@@ -82,9 +82,9 @@ capability Redis {
                             Err(failure) -> {
                                 Socket.close(connection);
                                 return Err(RedisError.Socket(failure: failure));
-                            },
+                            }
                         }
-                    },
+                    }
                 }
             }
 
@@ -94,7 +94,7 @@ capability Redis {
                     refused -> {
                         Socket.close(connection);
                         return Err(refused);
-                    },
+                    }
                 }
             }
 
@@ -124,7 +124,7 @@ capability Redis {
             None -> None,
             text -> {
                 name = text;
-            },
+            }
         }
 
         target = parseRedisUrl(RedisServer.url.reveal())?;
@@ -134,7 +134,7 @@ capability Redis {
             target.host,
             target.port,
             tls: target.secure,
-            session: session,
+            session: session
         );
         phases: List<RedisRequest> = [];
         opened: Result<Connection, SocketError> = Err(SocketError.Closed);
@@ -154,7 +154,7 @@ capability Redis {
 
             kept -> {
                 opened = Ok(kept);
-            },
+            }
         }
 
         phases = append(phases, commandRequest(args));
@@ -170,7 +170,7 @@ capability Redis {
                     return Err(RedisError.Socket(failure: failure));
                 },
 
-                Ok(_) -> None,
+                Ok(_) -> None
             }
 
             replies = [];
@@ -195,9 +195,9 @@ capability Redis {
                             Err(failure) -> {
                                 Socket.close(connection);
                                 return Err(RedisError.Socket(failure: failure));
-                            },
+                            }
                         }
-                    },
+                    }
                 }
             }
 
@@ -207,7 +207,7 @@ capability Redis {
                     refused -> {
                         Socket.close(connection);
                         return Err(refused);
-                    },
+                    }
                 }
             }
 
@@ -245,8 +245,8 @@ capability Redis {
             if (args.length() == 0) {
                 return Err(
                     RedisError.InvalidCommand(
-                        reason: "command ${position} of the pipeline has no name",
-                    ),
+                        reason: "command ${position} of the pipeline has no name"
+                    )
                 );
             }
 
@@ -265,7 +265,7 @@ capability Redis {
             target.host,
             target.port,
             tls: target.secure,
-            session: session,
+            session: session
         );
         phases: List<RedisRequest> = [];
         opened: Result<Connection, SocketError> = Err(SocketError.Closed);
@@ -285,7 +285,7 @@ capability Redis {
 
             kept -> {
                 opened = Ok(kept);
-            },
+            }
         }
 
         phases = append(phases, pipelineRequest(lists));
@@ -301,7 +301,7 @@ capability Redis {
                     return Err(RedisError.Socket(failure: failure));
                 },
 
-                Ok(_) -> None,
+                Ok(_) -> None
             }
 
             replies = [];
@@ -326,9 +326,9 @@ capability Redis {
                             Err(failure) -> {
                                 Socket.close(connection);
                                 return Err(RedisError.Socket(failure: failure));
-                            },
+                            }
                         }
-                    },
+                    }
                 }
             }
 
@@ -338,7 +338,7 @@ capability Redis {
                     refused -> {
                         Socket.close(connection);
                         return Err(refused);
-                    },
+                    }
                 }
             }
 
@@ -368,8 +368,8 @@ capability Redis {
             if (args.length() == 0) {
                 return Err(
                     RedisError.InvalidCommand(
-                        reason: "command ${position} of the pipeline has no name",
-                    ),
+                        reason: "command ${position} of the pipeline has no name"
+                    )
                 );
             }
         }
@@ -381,7 +381,7 @@ capability Redis {
             target.host,
             target.port,
             tls: target.secure,
-            session: session,
+            session: session
         );
         phases: List<RedisRequest> = [];
         opened: Result<Connection, SocketError> = Err(SocketError.Closed);
@@ -401,7 +401,7 @@ capability Redis {
 
             kept -> {
                 opened = Ok(kept);
-            },
+            }
         }
 
         phases = append(phases, pipelineRequest(commands));
@@ -417,7 +417,7 @@ capability Redis {
                     return Err(RedisError.Socket(failure: failure));
                 },
 
-                Ok(_) -> None,
+                Ok(_) -> None
             }
 
             replies = [];
@@ -442,9 +442,9 @@ capability Redis {
                             Err(failure) -> {
                                 Socket.close(connection);
                                 return Err(RedisError.Socket(failure: failure));
-                            },
+                            }
                         }
-                    },
+                    }
                 }
             }
 
@@ -454,7 +454,7 @@ capability Redis {
                     refused -> {
                         Socket.close(connection);
                         return Err(refused);
-                    },
+                    }
                 }
             }
 

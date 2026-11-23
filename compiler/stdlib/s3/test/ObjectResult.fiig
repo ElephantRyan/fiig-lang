@@ -6,9 +6,9 @@ test a200IsTheObjectWithItsInfo {
         headers: [
             http.Header(name: "Content-Type", value: "text/plain"),
             http.Header(name: "ETag", value: "\"e\""),
-            http.Header(name: "x-amz-meta-run", value: "7"),
+            http.Header(name: "x-amz-meta-run", value: "7")
         ],
-        body: "hello".utf8(),
+        body: "hello".utf8()
     );
     expect objectResult(reply) is Ok(object);
     expect object.body == "hello".utf8();

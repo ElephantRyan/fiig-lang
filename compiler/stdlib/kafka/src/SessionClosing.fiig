@@ -26,14 +26,14 @@ conversion sessionClosing(state: bytes, now: int) -> session.Step {
                 0 - 1,
                 c.topic,
                 c.topicId,
-                [],
+                []
             );
             left = copy(
                 committed,
                 state: copy(tracked(c, "leave"), phase: "leaving"),
-                write: <<committed.write: bytes, leave: bytes>>,
+                write: <<committed.write: bytes, leave: bytes>>
             );
             return sessionStep(left, None);
-        },
+        }
     }
 }

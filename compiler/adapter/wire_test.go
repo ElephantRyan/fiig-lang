@@ -24,7 +24,7 @@ func wireProgram(conversion string) []string {
     POST "/login/{name}" -> logIn(name: string)
         produces "application/json"
     {
-        user -> respond(user),
+        user -> respond(user)
     }
 }`,
 	}
@@ -45,10 +45,10 @@ func TestCookiesAndHeadersAreWritten(t *testing.T) {
                 path: "/app",
                 domain: "example.com",
                 sameSite: SameSite.Strict,
-                readableByScripts: true,
+                readableByScripts: true
             ),
-            Cookie(name: "embed", value: "x", sameSite: SameSite.AnySite),
-        ],
+            Cookie(name: "embed", value: "x", sameSite: SameSite.AnySite)
+        ]
     );
 }`)...)
 	code, hdr, body := serve(h, httptest.NewRequest(http.MethodPost, "/login/ada", nil))

@@ -11,7 +11,7 @@ import (
 
 const scheduleErrors = `enum RefreshError {
     Unreachable(reason: string),
-    Stale,
+    Stale
 }`
 
 const refreshRates = `workflow refreshRates() -> Result<None, RefreshError> {
@@ -36,10 +36,10 @@ func TestScheduleRoutesCheck(t *testing.T) {
     every "15m" -> refreshRates() {
         Ok(_) -> done,
         Err(RefreshError.Unreachable(_)) -> done,
-        Err(RefreshError.Stale) -> halt,
+        Err(RefreshError.Stale) -> halt
     }
     cron "0 3 * * *" -> purgeSessions(firedAt: int) {
-        _ -> done,
+        _ -> done
     }
 }`
 	if diags := checkSchedule(t, src); len(diags) > 0 {

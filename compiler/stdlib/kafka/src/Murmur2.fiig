@@ -17,7 +17,7 @@ conversion murmur2(data: bytes) -> int {
                 k = word;
             },
 
-            _ -> None,
+            _ -> None
         }
 
         k = mul32(k, m);
@@ -66,7 +66,7 @@ private {
 
             _ -> {
                 return 0;
-            },
+            }
         }
     }
 }

@@ -40,7 +40,7 @@ adapter http adminApi {
     GET "/admin/stats" -> stats(admin)
         produces "application/json"
     {
-        s -> 200 s,
+        s -> 200 s
     }
 }
 `,
@@ -58,7 +58,7 @@ adapter http booksApi {
     GET "/books" -> myBooks(me)
         produces "application/json"
     {
-        books -> 200 books,
+        books -> 200 books
     }
 }
 `,
@@ -88,7 +88,7 @@ workflow myBooks(me: sessions.Identity) -> string {
 `,
 	"app/src/sessions/IdentityError.fiig": `enum IdentityError {
     NotSignedIn,
-    NotAnAdmin,
+    NotAnAdmin
 }
 `,
 	"app/src/sessions/LookUp.fiig": `activity lookUp(token: string | None) -> Result<Identity, IdentityError> {
@@ -98,7 +98,7 @@ workflow myBooks(me: sessions.Identity) -> string {
         },
         given -> {
             return Ok(Identity(userId: given, admin: given == "boss"));
-        },
+        }
     }
 }
 `,
@@ -108,7 +108,7 @@ workflow myBooks(me: sessions.Identity) -> string {
     GET "/me" -> whoAmI(me)
         produces "application/json"
     {
-        who -> 200 who,
+        who -> 200 who
     }
 }
 `,
@@ -125,7 +125,7 @@ workflow myBooks(me: sessions.Identity) -> string {
         },
         IdentityError.NotAnAdmin -> {
             return HttpResponse(status: 403, body: "admins only");
-        },
+        }
     }
 }
 `,

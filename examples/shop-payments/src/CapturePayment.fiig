@@ -14,6 +14,6 @@ workflow capturePayment(reference: string, amount: kernel.Money) -> Result<Recei
     id = "pay-${reference}";
     storeCharge(id, reference, amount);
     return Ok(
-        Receipt(id: id, reference: reference, charged: amount, refundable: isRefundable(amount)),
+        Receipt(id: id, reference: reference, charged: amount, refundable: isRefundable(amount))
     );
 }

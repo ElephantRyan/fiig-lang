@@ -16,8 +16,8 @@ func TestANestedLongCallWraps(t *testing.T) {
 		"        SettingsChange(\n" +
 		"            absUrl: checkUrl(\"absUrl\", change.absUrl)?,\n" +
 		"            serviceToken: checkText(\"serviceToken\", change.serviceToken)?,\n" +
-		"            mirrorEnabled: change.mirrorEnabled,\n" +
-		"        ),\n" +
+		"            mirrorEnabled: change.mirrorEnabled\n" +
+		"        )\n" +
 		"    );\n" +
 		"}\n"
 	out := mustFormat(t, src)
@@ -38,7 +38,7 @@ func TestANestedLongCallWraps(t *testing.T) {
 func TestALongCallInAWrappedListWraps(t *testing.T) {
 	src := "rule books() -> List<Book> {\n    return [Book(itemId: \"dune-here\", libraryId: \"lib-1\", title: \"Dune\", authors: \"Frank Herbert\", asin: \"B0DUNE\"), Book(itemId: \"b\", libraryId: \"l\", title: \"t\", authors: \"a\", asin: \"x\")];\n}\n"
 	out := mustFormat(t, src)
-	if !strings.Contains(out, "        Book(\n            itemId: \"dune-here\",\n") || !strings.Contains(out, "        Book(itemId: \"b\", libraryId: \"l\", title: \"t\", authors: \"a\", asin: \"x\"),\n") {
+	if !strings.Contains(out, "        Book(\n            itemId: \"dune-here\",\n") || !strings.Contains(out, "        Book(itemId: \"b\", libraryId: \"l\", title: \"t\", authors: \"a\", asin: \"x\")\n") {
 		t.Fatalf("got:\n%s", out)
 	}
 	if again := mustFormat(t, out); again != out {
@@ -59,8 +59,8 @@ func TestAStatementWrapsAtItsOpeningParen(t *testing.T) {
 			"rule r(abs: Target, itemIdSegment: string) -> Result<Reply, AbsError> {\n" +
 				"    reply = absclient.absReply(\n" +
 				"        HttpClient.send(\n" +
-				"            absclient.absGet(abs.url, \"/api/items/${itemIdSegment}\", abs.token.reveal()),\n" +
-				"        ),\n" +
+				"            absclient.absGet(abs.url, \"/api/items/${itemIdSegment}\", abs.token.reveal())\n" +
+				"        )\n" +
 				"    )?;\n" +
 				"    return Ok(reply);\n" +
 				"}\n",

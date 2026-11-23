@@ -25,7 +25,7 @@ var jsonProgram = []string{
 }`,
 	`enum Region {
     US,
-    EU,
+    EU
 }`,
 	`model Order {
     items: List<Item>;

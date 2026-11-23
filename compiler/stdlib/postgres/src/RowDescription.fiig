@@ -19,7 +19,7 @@ conversion rowDescription(body: bytes) -> RowShape | None {
 
                     name -> {
                         names = append(names, name);
-                    },
+                    }
                 }
 
                 match (rest.slice(end + 1, rest.length())) {
@@ -30,7 +30,7 @@ conversion rowDescription(body: bytes) -> RowShape | None {
 
                     _ -> {
                         return None;
-                    },
+                    }
                 }
 
                 i = i + 1;
@@ -39,6 +39,6 @@ conversion rowDescription(body: bytes) -> RowShape | None {
             return RowShape(names: names, types: types);
         },
 
-        _ -> None,
+        _ -> None
     }
 }

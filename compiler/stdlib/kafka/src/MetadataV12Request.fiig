@@ -11,7 +11,7 @@ conversion metadataV12Request(clientId: string, correlation: int, topic: string)
         0: u8,
         0: u8,
         0: u8,
-        0: u8,
+        0: u8
     >>;
     return kafkaFlexRequest(3, 12, correlation, clientId, body);
 }

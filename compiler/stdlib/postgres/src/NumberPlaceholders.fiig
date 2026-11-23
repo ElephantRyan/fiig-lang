@@ -38,6 +38,6 @@ conversion numberPlaceholders(sql: string) -> string {
     out = <<out: bytes, data.slice(start, n): bytes>>;
     return match (out.utf8()) {
         None -> sql,
-        text -> text,
+        text -> text
     }
 }

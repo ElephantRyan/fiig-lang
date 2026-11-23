@@ -104,7 +104,7 @@ func TestConstantsAreEvaluatedExactly(t *testing.T) {
 func TestFloatEqualityIsM1(t *testing.T) {
 	money := "model Money {\n    amount: float;\n}"
 	order := "model Order {\n    id: string;\n    total: Money;\n}"
-	shape := "enum Shape {\n    Circle(radius: float),\n    Dot,\n}"
+	shape := "enum Shape {\n    Circle(radius: float),\n    Dot\n}"
 	cases := []struct {
 		params, expr, fragment string
 	}{

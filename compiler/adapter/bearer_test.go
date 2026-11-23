@@ -16,7 +16,7 @@ import (
 
 var bearerProgram = []string{
 	"model Peer {\n    name: string;\n}",
-	"enum PeerRefusal {\n    NoKey,\n}",
+	"enum PeerRefusal {\n    NoKey\n}",
 	`workflow callingPeer(key: string | None) -> Result<Peer, PeerRefusal> {
     return match (key) {
         None -> {
@@ -24,7 +24,7 @@ var bearerProgram = []string{
         },
         given -> {
             return Ok(Peer(name: "[${given}]"));
-        },
+        }
     }
 }`,
 	`conversion peerRefused(error: PeerRefusal) -> HttpResponse<string> {

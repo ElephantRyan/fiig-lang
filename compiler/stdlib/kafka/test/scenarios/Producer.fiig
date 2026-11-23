@@ -127,13 +127,13 @@ private {
                 uvarint(2): bytes,
                 1: i32be,
                 uvarint(1): bytes,
-                0: u8,
+                0: u8
             >>;
             p = p + 1;
         }
 
         return framed(
-            <<correlation: i32be, 0: u8, 0: i32be, uvarint(2): bytes, 1: i32be, compactString("a"): bytes, 9092: i32be, 0: u8, 0: u8, compactString("c"): bytes, 1: i32be, uvarint(2): bytes, code: i16be, compactString(topic): bytes, 0: i64be, 0: i64be, 0: u8, listed: bytes, 0: i32be, 0: u8, 0: u8>>,
+            <<correlation: i32be, 0: u8, 0: i32be, uvarint(2): bytes, 1: i32be, compactString("a"): bytes, 9092: i32be, 0: u8, 0: u8, compactString("c"): bytes, 1: i32be, uvarint(2): bytes, code: i16be, compactString(topic): bytes, 0: i64be, 0: i64be, 0: u8, listed: bytes, 0: i32be, 0: u8, 0: u8>>
         );
     }
 

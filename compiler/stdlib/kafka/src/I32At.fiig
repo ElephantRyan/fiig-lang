@@ -11,6 +11,6 @@ conversion i32At(data: bytes, at: int) -> int | None {
 
         _ -> {
             return None;
-        },
+        }
     }
 }

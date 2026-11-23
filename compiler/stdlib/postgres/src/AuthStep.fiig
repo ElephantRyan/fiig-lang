@@ -12,8 +12,8 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
             state,
             send: <<>>,
             failed: db.DatabaseError.Protocol(
-                reason: "the server asks for MD5 password authentication, which fiig.postgres doesn't support (ADR 0085 §6); set the role's password with SCRAM-SHA-256",
-            ),
+                reason: "the server asks for MD5 password authentication, which fiig.postgres doesn't support (ADR 0085 §6); set the role's password with SCRAM-SHA-256"
+            )
         );
     }
 
@@ -23,8 +23,8 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                 state,
                 send: <<>>,
                 failed: db.DatabaseError.Protocol(
-                    reason: "the server asks for the password in clear text, which fiig.postgres sends only over TLS (ADR 0085 §6)",
-                ),
+                    reason: "the server asks for the password in clear text, which fiig.postgres sends only over TLS (ADR 0085 §6)"
+                )
             );
         }
 
@@ -34,14 +34,14 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                     state,
                     send: <<>>,
                     failed: db.DatabaseError.Protocol(
-                        reason: "the server asks for a password, and the settings have none",
-                    ),
+                        reason: "the server asks for a password, and the settings have none"
+                    )
                 );
             },
 
             password -> {
                 return copy(state, send: pgMessage(112, cString(password)));
-            },
+            }
         }
     }
 
@@ -51,8 +51,8 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                 state,
                 send: <<>>,
                 failed: db.DatabaseError.Protocol(
-                    reason: "the server offers no SASL mechanism fiig.postgres supports; it needs SCRAM-SHA-256",
-                ),
+                    reason: "the server offers no SASL mechanism fiig.postgres supports; it needs SCRAM-SHA-256"
+                )
             );
         }
 
@@ -61,8 +61,8 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                 state,
                 send: <<>>,
                 failed: db.DatabaseError.Protocol(
-                    reason: "the server asks for a password, and the settings have none",
-                ),
+                    reason: "the server asks for a password, and the settings have none"
+                )
             );
         }
 
@@ -70,7 +70,7 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
         length = first.length();
         return copy(
             state,
-            send: pgMessage(112, <<cString("SCRAM-SHA-256"): bytes, length: i32be, first: bytes>>),
+            send: pgMessage(112, <<cString("SCRAM-SHA-256"): bytes, length: i32be, first: bytes>>)
         );
     }
 
@@ -81,8 +81,8 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                     state,
                     send: <<>>,
                     failed: db.DatabaseError.Protocol(
-                        reason: "the server asks for a password, and the settings have none",
-                    ),
+                        reason: "the server asks for a password, and the settings have none"
+                    )
                 );
             },
 
@@ -93,8 +93,8 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                             state,
                             send: <<>>,
                             failed: db.DatabaseError.Protocol(
-                                reason: "the server's SCRAM message isn't text",
-                            ),
+                                reason: "the server's SCRAM message isn't text"
+                            )
                         );
                     },
 
@@ -104,7 +104,7 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                                 return copy(
                                     state,
                                     send: <<>>,
-                                    failed: db.DatabaseError.Protocol(reason: reason),
+                                    failed: db.DatabaseError.Protocol(reason: reason)
                                 );
                             },
 
@@ -112,13 +112,13 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                                 return copy(
                                     state,
                                     send: pgMessage(112, final.message.utf8()),
-                                    expectSignature: final.serverSignature,
+                                    expectSignature: final.serverSignature
                                 );
-                            },
+                            }
                         }
-                    },
+                    }
                 }
-            },
+            }
         }
     }
 
@@ -128,8 +128,8 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                 state,
                 send: <<>>,
                 failed: db.DatabaseError.Protocol(
-                    reason: "the server ended SCRAM before the client's proof",
-                ),
+                    reason: "the server ended SCRAM before the client's proof"
+                )
             );
         }
 
@@ -143,18 +143,18 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                             if (crypto.equal(signature, state.expectSignature)) {
                                 return copy(state, send: <<>>, verified: true);
                             }
-                        },
+                        }
                     }
                 }
-            },
+            }
         }
 
         return copy(
             state,
             send: <<>>,
             failed: db.DatabaseError.Protocol(
-                reason: "the server's SCRAM signature is wrong, so it doesn't know the password",
-            ),
+                reason: "the server's SCRAM signature is wrong, so it doesn't know the password"
+            )
         );
     }
 
@@ -162,7 +162,7 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
         state,
         send: <<>>,
         failed: db.DatabaseError.Protocol(
-            reason: "the server asks for authentication method ${code}, which fiig.postgres doesn't support",
-        ),
+            reason: "the server asks for authentication method ${code}, which fiig.postgres doesn't support"
+        )
     );
 }

@@ -37,7 +37,7 @@ func TestRuleCallingAConversionNamesTheFix(t *testing.T) {
 // abs-recommendations GAPS G22: an Ok arm on a route whose workflow
 // returns a plain value is a check-time error, not a fault per request.
 func TestRouteArmThatCantMatchTheWorkflowIsAnError(t *testing.T) {
-	diags := checkSrc(t, "workflow endSession(sid: string) -> int {\n    return 1;\n}", "adapter http api {\n    DELETE \"/session/{sid}\" -> endSession(sid: string)\n        produces \"application/json\"\n    {\n        Ok(n) -> 204,\n    }\n}")
+	diags := checkSrc(t, "workflow endSession(sid: string) -> int {\n    return 1;\n}", "adapter http api {\n    DELETE \"/session/{sid}\" -> endSession(sid: string)\n        produces \"application/json\"\n    {\n        Ok(n) -> 204\n    }\n}")
 	wantDiag(t, diags, "A1", "workflow endSession returns int, which this arm's pattern can never match; bind the value with a name instead")
 }
 
@@ -69,7 +69,7 @@ func TestQueryKeyMustMatchItsPlaceholder(t *testing.T) {
 // abs-recommendations GAPS G35: a bare arm after Err(..) on a Result is
 // told to be Ok(..), once.
 func TestBareArmAfterErrOnAResult(t *testing.T) {
-	diags := checkSrc(t, "rule r(x: Result<string, int>) -> string {\n    return match (x) {\n        Err(e) -> \"\",\n        id -> id,\n    }\n}")
+	diags := checkSrc(t, "rule r(x: Result<string, int>) -> string {\n    return match (x) {\n        Err(e) -> \"\",\n        id -> id\n    }\n}")
 	if len(diags) != 1 || !strings.Contains(diags[0].Msg, "write `Ok(id)` to bind the value") {
 		t.Fatalf("diags = %v, want one naming Ok(id)", diags)
 	}

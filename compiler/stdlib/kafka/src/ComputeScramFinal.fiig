@@ -25,7 +25,7 @@ conversion computeScramFinal(
 
                 decoded -> {
                     salt = decoded;
-                },
+                }
             }
         } else if (part.startsWith("i=")) {
             match (part.removePrefix("i=").toIntOrNone()) {
@@ -35,7 +35,7 @@ conversion computeScramFinal(
 
                 count -> {
                     iterations = count;
-                },
+                }
             }
         } else if (part.startsWith("m=")) {
             return Err("the broker asks for a SCRAM extension fiig.kafka doesn't know");
@@ -52,7 +52,7 @@ conversion computeScramFinal(
 
     if (iterations < 4096 || iterations > 1000000) {
         return Err(
-            "the broker asks for ${iterations} SCRAM iterations; fiig.kafka allows 4096 to 1000000",
+            "the broker asks for ${iterations} SCRAM iterations; fiig.kafka allows 4096 to 1000000"
         );
     }
 
@@ -67,8 +67,8 @@ conversion computeScramFinal(
             return Ok(
                 ScramFinal(
                     message: "${withoutProof},p=${clientKey.xor(clientSignature).toBase64()}",
-                    serverSignature: crypto.hmacSha512(serverKey, authMessage),
-                ),
+                    serverSignature: crypto.hmacSha512(serverKey, authMessage)
+                )
             );
         },
 
@@ -80,9 +80,9 @@ conversion computeScramFinal(
             return Ok(
                 ScramFinal(
                     message: "${withoutProof},p=${clientKey.xor(clientSignature).toBase64()}",
-                    serverSignature: crypto.hmacSha256(serverKey, authMessage),
-                ),
+                    serverSignature: crypto.hmacSha256(serverKey, authMessage)
+                )
             );
-        },
+        }
     }
 }

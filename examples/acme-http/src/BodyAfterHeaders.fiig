@@ -9,7 +9,7 @@ conversion bodyAfterHeaders(response: bytes) -> bytes {
 
             _ -> {
                 rest = rest.slice(1, rest.length());
-            },
+            }
         }
     }
 

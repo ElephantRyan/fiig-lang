@@ -7,8 +7,8 @@ conversion readFrame(buffer: bytes) -> Frame | None {
         <<kind: u8, length: i32be, body: bytes(length - 4), rest: bytes>> -> Frame(
             kind: kind,
             body: body,
-            rest: rest,
+            rest: rest
         ),
-        _ -> None,
+        _ -> None
     }
 }

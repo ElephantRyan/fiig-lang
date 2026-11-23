@@ -16,7 +16,7 @@ import (
 // string is written in the union, the text arm takes only text whatever
 // the arms' order, and OpenAPI says anyOf.
 var shadeProgram = []string{
-	"enum Shade {\n    Light from json \"light\",\n    Dark from json \"dark\",\n}",
+	"enum Shade {\n    Light from json \"light\",\n    Dark from json \"dark\"\n}",
 	`model Paint {
     shade: string | Shade;
 }`,
@@ -30,7 +30,7 @@ var shadeProgram = []string{
         },
         Shade.Dark -> {
             return "the dark shade";
-        },
+        }
     }
 }`,
 	`adapter http shades {

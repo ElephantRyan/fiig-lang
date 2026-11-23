@@ -45,7 +45,7 @@ var conflictSources = []string{
                 Ok(_) -> {
                     added = added + 1;
                 },
-                Err(_) -> None,
+                Err(_) -> None
             }
         }
     }

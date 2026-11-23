@@ -25,7 +25,7 @@ conversion signedRequest(call: S3Call, account: S3Account, millis: int)
     headers: List<http.Header> = [
         http.Header(name: "x-amz-content-sha256", value: payload),
         http.Header(name: "x-amz-date", value: stamp),
-        http.Header(name: "Authorization", value: authorization),
+        http.Header(name: "Authorization", value: authorization)
     ];
     if (account.token != "") {
         headers = append(headers, http.Header(name: "x-amz-security-token", value: account.token));
@@ -45,8 +45,8 @@ conversion signedRequest(call: S3Call, account: S3Account, millis: int)
             url: target.url,
             headers: headers,
             body: call.body,
-            timeoutMillis: account.timeoutMillis,
-        ),
+            timeoutMillis: account.timeoutMillis
+        )
     );
 }
 

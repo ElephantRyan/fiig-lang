@@ -10,7 +10,7 @@ conversion withLogin(target: SmtpTarget, auth: SmtpAuth | None, token: string | 
         None -> None,
         given -> {
             chosen = given;
-        },
+        }
     }
 
     match (token) {
@@ -18,8 +18,8 @@ conversion withLogin(target: SmtpTarget, auth: SmtpAuth | None, token: string | 
             if (chosen == SmtpAuth.XOAuth2) {
                 return Err(
                     SmtpError.Protocol(
-                        reason: "SMTP_AUTH is xoauth2, and SMTP_OAUTH_TOKEN, the token it logs in with, isn't set",
-                    ),
+                        reason: "SMTP_AUTH is xoauth2, and SMTP_OAUTH_TOKEN, the token it logs in with, isn't set"
+                    )
                 );
             }
         },
@@ -33,19 +33,19 @@ conversion withLogin(target: SmtpTarget, auth: SmtpAuth | None, token: string | 
                 if (b <= 32 || b >= 127) {
                     return Err(
                         SmtpError.Protocol(
-                            reason: "SMTP_OAUTH_TOKEN isn't a bearer token: it has a space, a control character, or non-ASCII",
-                        ),
+                            reason: "SMTP_OAUTH_TOKEN isn't a bearer token: it has a space, a control character, or non-ASCII"
+                        )
                     );
                 }
             }
-        },
+        }
     }
 
     if (target.user == None && (token != None || chosen != SmtpAuth.Auto)) {
         return Err(
             SmtpError.Protocol(
-                reason: "SMTP_URL has no user, which SMTP_AUTH and SMTP_OAUTH_TOKEN log in as",
-            ),
+                reason: "SMTP_URL has no user, which SMTP_AUTH and SMTP_OAUTH_TOKEN log in as"
+            )
         );
     }
 

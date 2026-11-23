@@ -2,5 +2,5 @@
 enum SmtpReplyRead {
     NeedMore,
     Done(reply: SmtpReply, rest: bytes),
-    Malformed(reason: string),
+    Malformed(reason: string)
 }

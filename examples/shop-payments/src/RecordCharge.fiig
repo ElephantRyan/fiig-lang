@@ -9,7 +9,7 @@ gateway recordCharge(id: string, reference: string, charged: kernel.Money) -> No
         id,
         reference,
         charged.amount,
-        charged.currency,
+        charged.currency
     );
     return None;
 }

@@ -30,7 +30,7 @@ conversion rangeResult(reply: http.Reply, first: int, last: int | None) -> Resul
             if (given < size - 1) {
                 end = given + 1;
             }
-        },
+        }
     }
 
     return Ok(reply.body.slice(first, end));

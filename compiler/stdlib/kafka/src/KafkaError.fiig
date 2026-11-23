@@ -15,5 +15,5 @@ enum KafkaError {
     InvalidConfig(reason: string),
     InvalidRecord(reason: string),
     Authentication(reason: string),
-    Decompress(failure: DecompressError),
+    Decompress(failure: DecompressError)
 }

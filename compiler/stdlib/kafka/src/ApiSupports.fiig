@@ -10,7 +10,7 @@ conversion apiSupports(entries: bytes, count: int, key: int, version: int) -> bo
                 }
             },
 
-            _ -> None,
+            _ -> None
         }
 
         i = i + 1;

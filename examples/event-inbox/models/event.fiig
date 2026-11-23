@@ -5,5 +5,5 @@ enum Event {
     LimitChanged(change: CreditLimitChanged),
     Attached(document: DocumentAttached),
     SubscriptionChanged(subscription: SubscriptionUpdated, needsAttention: bool),
-    Ignored(eventType: string),
+    Ignored(eventType: string)
 }

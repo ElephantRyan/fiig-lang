@@ -15,7 +15,7 @@ conversion leaderAt(layout: TopicLayout, partition: int) -> Result<BrokerNode | 
 
     return Err(
         KafkaError.MalformedReply(
-            reason: "Metadata names leader ${leader}, which isn't among its brokers",
-        ),
+            reason: "Metadata names leader ${leader}, which isn't among its brokers"
+        )
     );
 }

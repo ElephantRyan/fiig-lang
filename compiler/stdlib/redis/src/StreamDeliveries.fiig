@@ -20,15 +20,15 @@ conversion streamDeliveries(entries: List<RespValue>, counts: Map<string, int>)
                                     id: id,
                                     payload: payloadOf(parts.last()),
                                     attempt: counts.atOr(id, 1),
-                                    order: "",
-                                ),
+                                    order: ""
+                                )
                             );
-                        },
+                        }
                     }
                 }
             },
 
-            _ -> None,
+            _ -> None
         }
     }
 
@@ -47,7 +47,7 @@ private {
                                 return data;
                             },
 
-                            _ -> None,
+                            _ -> None
                         }
                     }
 
@@ -55,7 +55,7 @@ private {
                 }
             },
 
-            _ -> None,
+            _ -> None
         }
 
         return <<>>;

@@ -471,7 +471,7 @@ adapter startup Preflight {
     run -> verifyStorage() {
         Ok(_) -> proceed,
         Err(StorageError.NoSuchBucket(_)) -> halt,
-        Err(StorageError.Unreachable(_)) -> degrade,
+        Err(StorageError.Unreachable(_)) -> degrade
     }
 }
 

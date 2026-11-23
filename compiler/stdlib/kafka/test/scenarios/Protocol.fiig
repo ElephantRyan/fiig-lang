@@ -12,7 +12,7 @@ test aBatchCarriesItsCrcAndLength {
 
         _ -> {
             expect false;
-        },
+        }
     }
 
     expect recordBatch([], 1000, Compression.None) is Err(KafkaError.InvalidRecord(empty));
@@ -30,7 +30,7 @@ test apiVersionsChecksTheVersionsSent {
         12: i16be,
         3: i16be,
         0: i16be,
-        13: i16be,
+        13: i16be
     >>;
     expect checkApiVersions(good, 1) is Ok(_);
     old = <<
@@ -42,7 +42,7 @@ test apiVersionsChecksTheVersionsSent {
         7: i16be,
         3: i16be,
         0: i16be,
-        13: i16be,
+        13: i16be
     >>;
     expect checkApiVersions(old, 1) is Err(KafkaError.Unsupported(reason));
     expect reason.contains("Produce v9");
@@ -57,7 +57,7 @@ test apiVersionsChecksTheVersionsSent {
         12: i16be,
         3: i16be,
         0: i16be,
-        11: i16be,
+        11: i16be
     >>;
     expect checkApiVersions(noFlexible, 1) is Err(KafkaError.Unsupported(_));
     expect checkApiVersions(good, 9) is Err(KafkaError.MalformedReply(mismatch));
@@ -91,7 +91,7 @@ test flexibleProduceRepliesGiveEachRecordItsOffset {
     expect readMetadataV12(ordersMetadataV12(), 2, "orders") is Ok(layout);
     records = [
         KafkaRecord(key: "order-1".utf8(), value: "a".utf8(), headers: None),
-        KafkaRecord(key: "order-2".utf8(), value: "b".utf8(), headers: None),
+        KafkaRecord(key: "order-2".utf8(), value: "b".utf8(), headers: None)
     ];
     // order-1 is partition 1, led by broker 2; order-2 partition 0, by 1.
     expect producePlan(layout, records, 1000, Compression.None) is Ok(calls);
@@ -120,7 +120,7 @@ test flexibleProduceRepliesGiveEachRecordItsOffset {
         0: u8,
         0: u8,
         0: i32be,
-        0: u8,
+        0: u8
     >>;
     expect readProduceV9(reply, 4, call) is Ok(sent);
     expect sent == [SentAt(index: 0, partition: 1, offset: 7)];
@@ -140,7 +140,7 @@ test flexibleProduceRepliesGiveEachRecordItsOffset {
         0: u8,
         0: u8,
         0: i32be,
-        0: u8,
+        0: u8
     >>;
     expect readProduceV9(refused, 4, call) is Err(KafkaError.Broker(code, name, retriable, message));
     expect code == 6;
@@ -166,7 +166,7 @@ test keysGoWhereJavaPutsThem {
     records = [
         KafkaRecord(key: "order-1".utf8(), value: "a".utf8(), headers: None),
         KafkaRecord(key: "order-2".utf8(), value: "b".utf8(), headers: None),
-        KafkaRecord(key: None, value: "c".utf8(), headers: None),
+        KafkaRecord(key: None, value: "c".utf8(), headers: None)
     ];
     // order-1 is partition 1 and order-2 partition 0 of 3, as the Java
     // client computes; the keyless record goes to 1000 % 3, partition 1.
@@ -185,7 +185,7 @@ test produceRepliesGiveEachRecordItsOffset {
     records = [
         KafkaRecord(key: "order-1".utf8(), value: "a".utf8(), headers: None),
         KafkaRecord(key: "order-2".utf8(), value: "b".utf8(), headers: None),
-        KafkaRecord(key: None, value: "c".utf8(), headers: None),
+        KafkaRecord(key: None, value: "c".utf8(), headers: None)
     ];
     expect producePlan(layout, records, 1000, Compression.None) is Ok(calls);
     call = calls.first();
@@ -208,7 +208,7 @@ test produceRepliesGiveEachRecordItsOffset {
         0: i64be,
         0: i32be,
         0 - 1: i16be,
-        0: i32be,
+        0: i32be
     >>;
     expect readProduce(reply, 2, call) is Ok(sent);
     expect inOrder(sent, 3) is Ok(placed);
@@ -225,7 +225,7 @@ test produceRepliesGiveEachRecordItsOffset {
         0: i64be,
         0: i32be,
         kafkaString("leader moved"): bytes,
-        0: i32be,
+        0: i32be
     >>;
     expect readProduce(refused, 2, call) is Err(KafkaError.Broker(code, name, retriable, message));
     expect code == 6;
@@ -260,7 +260,7 @@ private {
                 uvarint(2): bytes,
                 leader: i32be,
                 uvarint(1): bytes,
-                tags: bytes,
+                tags: bytes
             >>;
         }
 
@@ -292,7 +292,7 @@ private {
             partitions: bytes,
             0 - 2147483648: i32be,
             0: u8,
-            0: u8,
+            0: u8
         >>;
     }
 
@@ -309,7 +309,7 @@ private {
                 1: i32be,
                 1: i32be,
                 1: i32be,
-                1: i32be,
+                1: i32be
             >>;
         }
 
@@ -327,7 +327,7 @@ private {
             0: i16be,
             kafkaString("orders"): bytes,
             0: u8,
-            partitions: bytes,
+            partitions: bytes
         >>;
     }
 }

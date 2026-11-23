@@ -6,6 +6,6 @@ conversion resumeDialogue(target: SmtpTarget, mail: Mail, hello: string, data: b
     return copy(
         startDialogue(target, mail, hello, data),
         phase: SmtpPhase.Reset,
-        secure: target.security != SmtpSecurity.Plain,
+        secure: target.security != SmtpSecurity.Plain
     );
 }

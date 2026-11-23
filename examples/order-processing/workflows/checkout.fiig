@@ -22,8 +22,8 @@ workflow checkout(orderId: string, input: NewCustomer, total: int) -> Result<Ord
 
                 Err(error) -> {
                     return Err(CheckoutError.Order(error)); // wrapped unchanged
-                },
+                }
             }
-        },
+        }
     }
 }

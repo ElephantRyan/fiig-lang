@@ -9,7 +9,7 @@ conversion resendOnNewConnection(d: Dialogue, failure: SmtpError) -> bool {
         SmtpPhase.MailFrom -> deadConnection(failure),
         SmtpPhase.Rcpt -> deadConnection(failure),
         SmtpPhase.Data -> deadConnection(failure),
-        _ -> false,
+        _ -> false
     }
 }
 
@@ -18,7 +18,7 @@ private {
         return match (failure) {
             SmtpError.Socket(_) -> true,
             SmtpError.Refused(code, _) -> code == 421,
-            _ -> false,
+            _ -> false
         }
     }
 }

@@ -15,6 +15,6 @@ conversion layoutMoved(failure: KafkaError) -> bool {
 
         _ -> {
             return false;
-        },
+        }
     }
 }

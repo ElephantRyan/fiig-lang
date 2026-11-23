@@ -17,10 +17,10 @@ conversion formatRfc5322(millis: int) -> Result<string, TimeError> {
         "Sep",
         "Oct",
         "Nov",
-        "Dec",
+        "Dec"
     ];
     clock = "${zeroPad(t.hour, 2)}:${zeroPad(t.minute, 2)}:${zeroPad(t.second, 2)}";
     return Ok(
-        "${weekdays.at(weekday(millis))}, ${t.day} ${months.at(t.month - 1)} ${zeroPad(t.year, 4)} ${clock} +0000",
+        "${weekdays.at(weekday(millis))}, ${t.day} ${months.at(t.month - 1)} ${zeroPad(t.year, 4)} ${clock} +0000"
     );
 }

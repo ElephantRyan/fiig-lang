@@ -8,7 +8,7 @@ func TestCryptoChecksClean(t *testing.T) {
 	diags := checkSrc(t, `rule valid(secret: Secret, body: bytes, header: string) -> bool {
     return match (header.removePrefix("sha256=").fromHex()) {
         None -> false,
-        sent -> crypto.equal(crypto.hmacSha256(key: secret, data: body), sent),
+        sent -> crypto.equal(crypto.hmacSha256(key: secret, data: body), sent)
     }
 }`, `conversion keyDigest(key: string) -> string {
     return crypto.sha256(key.utf8()).toHex();

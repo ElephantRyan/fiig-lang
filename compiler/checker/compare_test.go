@@ -6,7 +6,7 @@ import "testing"
 // operands of one type, and ordering needs int or string on both sides.
 func TestComparisonOperandsAreM2AndM3(t *testing.T) {
 	point := "model Point {\n\tx: int;\n\ty: int;\n}"
-	region := "enum Region {\n\tUS,\n\tEU,\n}"
+	region := "enum Region {\n\tUS,\n\tEU\n}"
 	cases := []struct {
 		name, src, rule string
 	}{

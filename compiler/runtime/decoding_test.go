@@ -20,7 +20,7 @@ func TestTextDecodings(t *testing.T) {
         },
         b -> {
             return b.toHex();
-        },
+        }
     }
 }`
 	cases := []struct{ s, how, want string }{
@@ -70,9 +70,9 @@ func TestBasicAuthIsARule(t *testing.T) {
                 },
                 text -> {
                     return text.split(separator: ":").first();
-                },
+                }
             }
-        },
+        }
     }
 }`
 	got, fault := runEach(t, src, "basicUser", map[string]Value{"header": Str("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==")})

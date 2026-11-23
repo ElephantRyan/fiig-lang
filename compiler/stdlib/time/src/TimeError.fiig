@@ -2,5 +2,5 @@
 // and never repeats the text it was given.
 enum TimeError {
     OutOfRange(reason: string),
-    Invalid(reason: string),
+    Invalid(reason: string)
 }

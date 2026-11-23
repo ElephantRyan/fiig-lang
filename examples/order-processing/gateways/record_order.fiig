@@ -6,14 +6,14 @@ gateway recordOrder(orderId: string, customerId: string, total: int, paymentRefe
         orderId,
         customerId,
         total,
-        paymentReference,
+        paymentReference
     );
     return Ok(
         Order(
             id: orderId,
             customerId: customerId,
             total: total,
-            paymentReference: paymentReference,
-        ),
+            paymentReference: paymentReference
+        )
     );
 }

@@ -20,14 +20,14 @@ conversion readSmtpReply(buffer: bytes) -> SmtpReplyRead {
         rest = rest.slice(end + 2, rest.length());
         if (line.length() < 3) {
             return SmtpReplyRead.Malformed(
-                reason: "a reply line is shorter than its three-digit code",
+                reason: "a reply line is shorter than its three-digit code"
             );
         }
 
         number = codeOf(line);
         if (number < 0) {
             return SmtpReplyRead.Malformed(
-                reason: "a reply line doesn't start with a three-digit code",
+                reason: "a reply line doesn't start with a three-digit code"
             );
         }
 
@@ -38,7 +38,7 @@ conversion readSmtpReply(buffer: bytes) -> SmtpReplyRead {
                 last = false;
             } else if (mark != 32) {
                 return SmtpReplyRead.Malformed(
-                    reason: "a reply's code is followed by neither a space nor a hyphen",
+                    reason: "a reply's code is followed by neither a space nor a hyphen"
                 );
             }
         }
@@ -52,7 +52,7 @@ conversion readSmtpReply(buffer: bytes) -> SmtpReplyRead {
 
                 decoded -> {
                     text = decoded;
-                },
+                }
             }
         }
 

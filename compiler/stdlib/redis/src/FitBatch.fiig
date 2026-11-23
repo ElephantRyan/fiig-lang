@@ -14,8 +14,8 @@ conversion fitBatch(batchSize: int, retryAfter: int, handleMillis: int)
     if (fits < 1) {
         return Err(
             stream.SourceError.Misconfigured(
-                reason: "REDIS_STREAM_RETRY_AFTER_MS is ${retryAfter}, but one element may take ${handleMillis} ms (its workflow's timeout and its settle), so another consumer would take it while it is still being handled; raise REDIS_STREAM_RETRY_AFTER_MS above ${handleMillis}",
-            ),
+                reason: "REDIS_STREAM_RETRY_AFTER_MS is ${retryAfter}, but one element may take ${handleMillis} ms (its workflow's timeout and its settle), so another consumer would take it while it is still being handled; raise REDIS_STREAM_RETRY_AFTER_MS above ${handleMillis}"
+            )
         );
     }
 

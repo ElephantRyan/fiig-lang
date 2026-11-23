@@ -9,6 +9,6 @@ conversion afterUpgrade(d: Dialogue) -> Dialogue {
         authPlain: false,
         authLogin: false,
         authXOAuth2: false,
-        sizeLimit: 0,
+        sizeLimit: 0
     );
 }

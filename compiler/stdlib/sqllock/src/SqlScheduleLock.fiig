@@ -24,7 +24,7 @@ capability SqlScheduleLock provides schedule.ScheduleLock {
             -> Result<bool, schedule.LockError>
             requires Database {
         Database.execute(
-            "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)"
         );
         now: int = Clock.now();
         // Expired rows go first (ADR 0125, amended 2026-11-21). Every gateway already
@@ -37,7 +37,7 @@ capability SqlScheduleLock provides schedule.ScheduleLock {
             "fiig:schedule:${job}:${firedAt}",
             holder,
             now + holdMillis,
-            now,
+            now
         );
         return Ok(changed > 0);
     }
@@ -46,13 +46,13 @@ capability SqlScheduleLock provides schedule.ScheduleLock {
             -> Result<bool, schedule.LockError>
             requires Database {
         Database.execute(
-            "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)"
         );
         changed: int = Database.execute(
             "INSERT INTO fiig_locks (lock_key, holder, expires_at) VALUES (?, ?, ?) ON CONFLICT (lock_key) DO UPDATE SET holder = excluded.holder, expires_at = excluded.expires_at",
             "fiig:schedule:${job}:${firedAt}:done",
             holder,
-            Clock.now() + retainMillis,
+            Clock.now() + retainMillis
         );
         return Ok(changed > 0);
     }
@@ -60,12 +60,12 @@ capability SqlScheduleLock provides schedule.ScheduleLock {
     gateway completed(job: string, firedAt: int) -> Result<bool, schedule.LockError>
             requires Database {
         Database.execute(
-            "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS fiig_locks (lock_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at BIGINT NOT NULL)"
         );
         row: LockRow | None = Database.queryOne(
             "SELECT holder FROM fiig_locks WHERE lock_key = ? AND expires_at > ?",
             "fiig:schedule:${job}:${firedAt}:done",
-            Clock.now(),
+            Clock.now()
         );
         return match (row) {
             None -> {
@@ -74,7 +74,7 @@ capability SqlScheduleLock provides schedule.ScheduleLock {
 
             _ -> {
                 return Ok(true);
-            },
+            }
         }
     }
 }

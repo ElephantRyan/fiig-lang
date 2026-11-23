@@ -46,13 +46,13 @@ var corsProgram = []string{
         consumes "application/json"
         produces "application/json"
     {
-        item -> created(item),
+        item -> created(item)
     }
     DELETE "/items/{key}" -> deleteItem(key: string)
         produces "application/json"
     {
         Ok(_) -> 204,
-        Err(reason) -> refused(reason),
+        Err(reason) -> refused(reason)
     }
     GET "/boom/{n}" -> boom(n: int)
         produces "application/json";

@@ -195,7 +195,7 @@ func TestFormatWrapsLongCallArguments(t *testing.T) {
 		t.Fatalf("expected the long call to wrap, got:\n%s", out)
 	}
 	if !strings.Contains(out, "        a,\n") {
-		t.Fatalf("expected one-argument-per-line with trailing comma, got:\n%s", out)
+		t.Fatalf("expected one argument per line, got:\n%s", out)
 	}
 	// Must still parse and preserve argument count.
 	formatted, errs := parser.Parse(out)
@@ -221,13 +221,13 @@ func TestFormatHeaderClauses(t *testing.T) {
 		},
 		{
 			"a route that fits is one line",
-			"adapter http api {\n    GET \"/books\" -> listBooks()\n        produces \"application/json\"\n    {\n        Ok(books) -> 200 books,\n    }\n}\n",
-			"adapter http api {\n    GET \"/books\" -> listBooks() produces \"application/json\" {\n        Ok(books) -> 200 books,\n    }\n}\n",
+			"adapter http api {\n    GET \"/books\" -> listBooks()\n        produces \"application/json\"\n    {\n        Ok(books) -> 200 books\n    }\n}\n",
+			"adapter http api {\n    GET \"/books\" -> listBooks() produces \"application/json\" {\n        Ok(books) -> 200 books\n    }\n}\n",
 		},
 		{
 			"a route that doesn't fit wraps its clauses",
-			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput) consumes \"application/json\" produces \"application/json\" {\n        Ok(rating) -> 200 rating,\n    }\n}\n",
-			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput)\n            consumes \"application/json\"\n            produces \"application/json\" {\n        Ok(rating) -> 200 rating,\n    }\n}\n",
+			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput) consumes \"application/json\" produces \"application/json\" {\n        Ok(rating) -> 200 rating\n    }\n}\n",
+			"adapter http api {\n    PUT \"/ratings/{itemId}\" -> putRating(itemId: string, input: RatingInput)\n            consumes \"application/json\"\n            produces \"application/json\" {\n        Ok(rating) -> 200 rating\n    }\n}\n",
 		},
 		{
 			"a route with clauses and no mapping has no brace",
@@ -340,7 +340,7 @@ func TestFormatPrivateBlock(t *testing.T) {
 }
 
 // TestFormatListLiteral is ADR 0057: one line when it fits, one element
-// per line with a trailing comma when it doesn't.
+// per line when it doesn't, with no comma after the last (ADR 0147).
 func TestFormatListLiteral(t *testing.T) {
 	long := `"aaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccc", "dddddddddddddddddddd"`
 	src := "rule r() -> List<string> {\n" +
@@ -353,7 +353,7 @@ func TestFormatListLiteral(t *testing.T) {
 		"        \"aaaaaaaaaaaaaaaaaaaa\",\n" +
 		"        \"bbbbbbbbbbbbbbbbbbbb\",\n" +
 		"        \"cccccccccccccccccccc\",\n" +
-		"        \"dddddddddddddddddddd\",\n" +
+		"        \"dddddddddddddddddddd\"\n" +
 		"    ];\n" +
 		"}\n"
 	got, errs := Format(src)
@@ -375,7 +375,7 @@ func TestFormatBinarySegments(t *testing.T) {
 	src := "conversion c(b: bytes) -> bytes {\n" +
 		"  return match (b) {\n" +
 		"    <<0x52:u8,n:i32be,body:bytes(n-4)>> -> <<n:u16le, body:bytes>>,\n" +
-		"    _ -> <<\"user\": utf8, 0: u8, \"database\": utf8, 0: u8, \"application_name\": utf8, 0: u8, 0: u8>>,\n" +
+		"    _ -> <<\"user\": utf8, 0: u8, \"database\": utf8, 0: u8, \"application_name\": utf8, 0: u8, 0: u8>>\n" +
 		"  }\n" +
 		"}\n"
 	want := "conversion c(b: bytes) -> bytes {\n" +
@@ -388,8 +388,8 @@ func TestFormatBinarySegments(t *testing.T) {
 		"            0: u8,\n" +
 		"            \"application_name\": utf8,\n" +
 		"            0: u8,\n" +
-		"            0: u8,\n" +
-		"        >>,\n" +
+		"            0: u8\n" +
+		"        >>\n" +
 		"    }\n" +
 		"}\n"
 	got, errs := Format(src)
@@ -427,7 +427,7 @@ func TestFormatBlankLineAfterABlock(t *testing.T) {
 
         _ -> {
             return "${total}";
-        },
+        }
     }
 }
 `

@@ -7,5 +7,5 @@ enum RespValue {
     Integer(value: int),
     Bulk(data: bytes),
     Null,
-    Array(items: List<RespValue>),
+    Array(items: List<RespValue>)
 }

@@ -19,7 +19,7 @@ conversion producePlan(
             None -> None,
             key -> {
                 partition = murmur2(key) % 2147483648 % count;
-            },
+            }
         }
 
         byPartition = byPartition.put(partition, append(byPartition.atOr(partition, []), i));
@@ -39,7 +39,7 @@ conversion producePlan(
             batch = PartitionBatch(
                 partition: p,
                 indexes: indexes,
-                batch: recordBatch(chosen, now, compression)?,
+                batch: recordBatch(chosen, now, compression)?
             );
             broker = brokerOf(layout, layout.leaders.at(p))?;
             calls = addTo(calls, broker, batch);
@@ -61,8 +61,8 @@ private {
 
         return Err(
             KafkaError.MalformedReply(
-                reason: "Metadata names leader ${id}, which isn't among its brokers",
-            ),
+                reason: "Metadata names leader ${id}, which isn't among its brokers"
+            )
         );
     }
 
@@ -75,7 +75,7 @@ private {
             if (call.broker.id == broker.id) {
                 out = append(
                     out,
-                    ProduceCall(broker: call.broker, batches: append(call.batches, batch)),
+                    ProduceCall(broker: call.broker, batches: append(call.batches, batch))
                 );
                 added = true;
             } else {

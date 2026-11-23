@@ -20,7 +20,7 @@ rule quoteCents(request: QuoteRequest) -> Result<int, QuoteError> {
 
                 Speed.Express -> {
                     return Ok(base * 2);
-                },
+                }
             }
         },
 
@@ -32,8 +32,8 @@ rule quoteCents(request: QuoteRequest) -> Result<int, QuoteError> {
 
                 Speed.Express -> {
                     return Err(QuoteError.NoExpressAbroad);
-                },
+                }
             }
-        },
+        }
     }
 }

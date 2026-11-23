@@ -16,7 +16,7 @@ import "testing"
 // snippet instead of the stale corpus spelling — see
 // TestFormatIsIdempotent's corpus-wide pass for why those files differ. A
 // couple of forms grammar.md flags as syntactically legal but unattested
-// anywhere (a `None`-unioned field, mixed/trailing-comma call arguments)
+// anywhere (a `None`-unioned field, multi-line call arguments)
 // get a minimal, self-contained snapshot here rather than a guess left
 // unverified, since Format itself is the ground truth being pinned.
 func TestSyntaxFormSnapshots(t *testing.T) {
@@ -38,7 +38,7 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 			src: `enum CustomerError {
     NotFound(id: CustomerId),
     EmailAlreadyInUse(email: EmailAddress),
-    Invalid(field: string, reason: string),
+    Invalid(field: string, reason: string)
 }
 `,
 		},
@@ -72,7 +72,7 @@ func TestSyntaxFormSnapshots(t *testing.T) {
     row = Database.queryOne("SELECT id, name, email FROM customers WHERE id = ?", id);
     return match (row) {
         found -> Ok(Customer(id: found.id, name: found.name, email: found.email)),
-        None -> Err(CustomerError.NotFound(id)),
+        None -> Err(CustomerError.NotFound(id))
     }
 }
 `,
@@ -83,7 +83,7 @@ func TestSyntaxFormSnapshots(t *testing.T) {
     existing = Database.queryOne("SELECT id FROM customers WHERE email = ?", email);
     return match (existing) {
         found -> Err(CustomerError.EmailAlreadyInUse(email)),
-        None -> Ok(None),
+        None -> Ok(None)
     }
 }
 `,
@@ -167,9 +167,9 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 
                 Err(error) -> {
                     return Err(CheckoutError.Order(error)); // wrapped unchanged
-                },
+                }
             }
-        },
+        }
     }
 }
 `,
@@ -199,7 +199,7 @@ adapter http customerHttpApi {
 adapter http customerEmailApi {
     PATCH "/customers/{id}?newEmail={newEmail}" -> changeCustomerEmail(
         id: CustomerId,
-        newEmail: EmailAddress,
+        newEmail: EmailAddress
     )
             produces "application/json";
 }
@@ -237,7 +237,7 @@ adapter http importApi {
     POST "/imports" -> importOrders(
         csv: string,
         token: string from header "Authorization",
-        session: string | None from cookie "sid",
+        session: string | None from cookie "sid"
     )
             consumes "text/csv"
             produces "application/json";
@@ -262,7 +262,7 @@ adapter cli customerCli {
 adapter http customerHttpApiWithMapping {
     GET "/customers/{id}" -> readCustomer(id: CustomerId) produces "application/json" {
         Ok(customer) -> 200 customer,
-        Err(error) -> customerErrorToHttpResponse(error),
+        Err(error) -> customerErrorToHttpResponse(error)
     }
 }
 `,
@@ -308,14 +308,14 @@ rule summarizeOrderShape(input: { id: OrderId, total: Money }) -> string {
 `,
 		},
 		{
-			name: "trailing comma in a multi-line call's arguments",
+			name: "a multi-line call's arguments",
 			src: `gateway insertCustomer(input: NewCustomer) -> Result<Customer, CustomerError> requires Database {
     id = CustomerId(Database.nextId());
     Database.execute(
         "INSERT INTO customers (id, name, email) VALUES (?, ?, ?)",
         id,
         input.name,
-        input.email,
+        input.email
     );
     return Ok(Customer(id: id, name: input.name, email: input.email));
 }

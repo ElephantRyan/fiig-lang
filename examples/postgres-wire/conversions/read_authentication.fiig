@@ -5,6 +5,6 @@ conversion readAuthentication(body: bytes) -> Authentication | None {
         <<0: i32be>> -> Authentication.AuthenticationOk,
         <<3: i32be>> -> Authentication.CleartextPassword,
         <<5: i32be, salt: bytes(4)>> -> Authentication.Md5Password(salt: salt),
-        _ -> None,
+        _ -> None
     }
 }

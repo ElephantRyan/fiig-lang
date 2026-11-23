@@ -3,8 +3,8 @@ package checker
 import "testing"
 
 const (
-	tryIdentity = "enum IdentityError {\n    NotSignedIn,\n}"
-	tryRating   = "enum RatingError {\n    NotSignedIn,\n    NoRating,\n}"
+	tryIdentity = "enum IdentityError {\n    NotSignedIn\n}"
+	tryRating   = "enum RatingError {\n    NotSignedIn,\n    NoRating\n}"
 	tryStep     = "rule currentUser(token: string) -> Result<string, IdentityError> {\n    return Err(IdentityError.NotSignedIn);\n}"
 )
 

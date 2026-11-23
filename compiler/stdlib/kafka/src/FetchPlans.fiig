@@ -7,8 +7,8 @@ conversion fetchPlans(layout: TopicLayout, partitions: List<AssignedPartition>)
         if (p.partition < 0 || p.partition >= layout.leaders.length()) {
             return Err(
                 KafkaError.MalformedReply(
-                    reason: "Metadata has no partition ${p.partition}, which the group assigned",
-                ),
+                    reason: "Metadata has no partition ${p.partition}, which the group assigned"
+                )
             );
         }
 
@@ -45,8 +45,8 @@ private {
 
         return Err(
             KafkaError.MalformedReply(
-                reason: "Metadata names leader ${id}, which isn't among its brokers",
-            ),
+                reason: "Metadata names leader ${id}, which isn't among its brokers"
+            )
         );
     }
 }

@@ -20,7 +20,7 @@ func TestBinaryPatternsAndExpressionsTypeCheck(t *testing.T) {
         },
         _ -> {
             return 0;
-        },
+        }
     }
 }
 `)
@@ -44,7 +44,7 @@ func TestBytesMethodsAreTyped(t *testing.T) {
         },
         text -> {
             return text.contains("@");
-        },
+        }
     }
 }
 `)
@@ -66,7 +66,7 @@ func TestBytesMethodsAreTyped(t *testing.T) {
 func TestBinaryPatternWithoutCatchAllIsA9(t *testing.T) {
 	f := mustParse(t, `conversion code(body: bytes) -> int {
     return match (body) {
-        <<n: i32be>> -> n,
+        <<n: i32be>> -> n
     }
 }
 `)
@@ -122,7 +122,7 @@ func TestBinaryPatternNeedsBytes(t *testing.T) {
 	f := mustParse(t, `conversion c(n: int) -> int {
     return match (n) {
         <<x: u8>> -> x,
-        _ -> 0,
+        _ -> 0
     }
 }
 `)

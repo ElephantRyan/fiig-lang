@@ -15,6 +15,6 @@ conversion startDialogue(target: SmtpTarget, mail: Mail, hello: string, data: by
         authLogin: false,
         authXOAuth2: false,
         oauthFailure: "",
-        sizeLimit: 0,
+        sizeLimit: 0
     );
 }

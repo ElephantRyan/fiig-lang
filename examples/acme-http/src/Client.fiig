@@ -19,7 +19,7 @@ capability Client {
 
                 Err(failure) -> {
                     return Err(failure);
-                },
+                }
             }
         }
 

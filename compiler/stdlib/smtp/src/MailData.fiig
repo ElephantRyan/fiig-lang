@@ -12,7 +12,7 @@ conversion mailData(mail: Mail, date: string, messageId: string) -> bytes {
         None -> None,
         given -> {
             names = given;
-        },
+        }
     }
 
     headers: List<string> = [addressHeader("From", [mail.from], names)];
@@ -26,14 +26,14 @@ conversion mailData(mail: Mail, date: string, messageId: string) -> bytes {
             if (cc.length() > 0) {
                 headers = append(headers, addressHeader("Cc", cc, names));
             }
-        },
+        }
     }
 
     match (mail.replyTo) {
         None -> None,
         address -> {
             headers = append(headers, addressHeader("Reply-To", [address], names));
-        },
+        }
     }
 
     headers = append(headers, "Subject: ${subjectHeader(mail.subject)}");
@@ -62,7 +62,7 @@ private {
             given -> {
                 html = given;
                 hasHtml = true;
-            },
+            }
         }
 
         attachments: List<Attachment> = [];
@@ -70,7 +70,7 @@ private {
             None -> None,
             given -> {
                 attachments = given;
-            },
+            }
         }
 
         if (!hasHtml && attachments.length() == 0) {
@@ -180,7 +180,7 @@ private {
                     None -> None,
                     c -> {
                         out = "${out}${c}";
-                    },
+                    }
                 }
             } else {
                 one: bytes = <<b: u8>>;
@@ -248,7 +248,7 @@ private {
                 None -> None,
                 line -> {
                     lines = append(lines, line);
-                },
+                }
             }
 
             start = stop;

@@ -44,13 +44,13 @@ conversion readSaslAuthenticate(frame: bytes) -> Result<bytes, string> {
                                     }
 
                                     return Ok(frame.slice(size.next, end));
-                                },
+                                }
                             }
-                        },
+                        }
                     }
-                },
+                }
             }
-        },
+        }
     }
 }
 

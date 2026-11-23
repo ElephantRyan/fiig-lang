@@ -12,7 +12,7 @@ gateway sendInvoicePaid(inboxUrl: string, id: string, invoice: string, amount: d
     event = PaidEnvelope(
         id: id,
         eventType: "invoice.paid",
-        data: PaidInvoice(invoice: invoice, amount: amount, paidAt: "2026-11-10"),
+        data: PaidInvoice(invoice: invoice, amount: amount, paidAt: "2026-11-10")
     );
     body = json.encode(event);
     signature = crypto.hmacSha256(key: Outbox.webhookSecret, data: body).toHex();
@@ -22,11 +22,11 @@ gateway sendInvoicePaid(inboxUrl: string, id: string, invoice: string, amount: d
             url: "${inboxUrl}/events/signed",
             headers: [
                 http.Header(name: "Content-Type", value: "application/json"),
-                http.Header(name: "X-Hub-Signature-256", value: "sha256=${signature}"),
+                http.Header(name: "X-Hub-Signature-256", value: "sha256=${signature}")
             ],
             body: body,
-            timeoutMillis: 5000,
-        ),
+            timeoutMillis: 5000
+        )
     );
     return match (sent) {
         Err(failure) -> Err(SendError.Unreachable(failure: failure)),
@@ -38,9 +38,9 @@ gateway sendInvoicePaid(inboxUrl: string, id: string, invoice: string, amount: d
             answer: Result<InboxEvent, JsonError> = json.decode(reply.body);
             return match (answer) {
                 Ok(received) -> Ok(received),
-                Err(failure) -> Err(SendError.Unreadable(failure: failure)),
+                Err(failure) -> Err(SendError.Unreadable(failure: failure))
             }
-        },
+        }
     }
 }
 
@@ -48,7 +48,7 @@ private {
     replyText(raw: bytes) -> string {
         return match (raw.utf8()) {
             None -> "(not UTF-8)",
-            text -> text,
+            text -> text
         }
     }
 }

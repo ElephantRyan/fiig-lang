@@ -13,13 +13,13 @@ capability KafkaSession provides session.SessionProtocol {
             None -> None,
             given -> {
                 password = given.reveal().utf8();
-            },
+            }
         }
 
         login = SaslLogin(
             mechanism: KafkaServer.saslMechanism,
             username: KafkaServer.saslUsername,
-            password: password,
+            password: password
         );
         return sessionOpened(settings, now, login, Random.bytes(24).toBase64());
     }
@@ -30,13 +30,13 @@ capability KafkaSession provides session.SessionProtocol {
             None -> None,
             given -> {
                 password = given.reveal().utf8();
-            },
+            }
         }
 
         login = SaslLogin(
             mechanism: KafkaServer.saslMechanism,
             username: KafkaServer.saslUsername,
-            password: password,
+            password: password
         );
         return sessionReceived(state, data, now, login);
     }

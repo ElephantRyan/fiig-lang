@@ -32,9 +32,9 @@ conversion groupSettings(
             }
 
             return Ok(
-                ["host": first.host, "port": "${first.port}", "alternates": alternates, "tls": "${tls}", "role": "group", "clientId": clientId, "group": subscription.group, "topic": subscription.source, "commitMillis": "${commitMillis}"],
+                ["host": first.host, "port": "${first.port}", "alternates": alternates, "tls": "${tls}", "role": "group", "clientId": clientId, "group": subscription.group, "topic": subscription.source, "commitMillis": "${commitMillis}"]
             );
-        },
+        }
     }
 }
 

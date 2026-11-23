@@ -27,7 +27,7 @@ var cryptoProgram = []string{
 	`rule signatureValid(secret: Secret, body: bytes, header: string) -> bool {
     return match (header.removePrefix("sha256=").fromHex()) {
         None -> false,
-        sent -> crypto.equal(crypto.hmacSha256(key: secret, data: body), sent),
+        sent -> crypto.equal(crypto.hmacSha256(key: secret, data: body), sent)
     }
 }`,
 	`activity hash(password: string) -> string {

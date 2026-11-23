@@ -4,11 +4,11 @@ import "testing"
 
 // ADR 0129: Level.values() for an enum whose variants carry no data.
 func TestEnumValuesIsForAnEnumWithoutPayloads(t *testing.T) {
-	plain := "enum Level {\n    Low,\n    High,\n}"
+	plain := "enum Level {\n    Low,\n    High\n}"
 	if diags := checkSrc(t, plain, "rule all() -> List<Level> {\n    return Level.values();\n}"); len(diags) != 0 {
 		t.Fatalf("diags = %v", diags)
 	}
-	payload := "enum Failure {\n    Missing,\n    Late(days: int),\n}"
+	payload := "enum Failure {\n    Missing,\n    Late(days: int)\n}"
 	wantDiag(t, checkSrc(t, payload, "rule all() -> List<Failure> {\n    return Failure.values();\n}"), "", "lists variants that carry no data")
 	wantDiag(t, checkSrc(t, plain, "rule all() -> int {\n    return Level.names();\n}"), "", `Level has no variant "names"`)
 }

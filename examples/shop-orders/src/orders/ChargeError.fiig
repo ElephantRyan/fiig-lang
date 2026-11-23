@@ -6,5 +6,5 @@
 enum ChargeError {
     Declined(reason: string),
     InvalidAmount,
-    Unavailable(detail: string),
+    Unavailable(detail: string)
 }

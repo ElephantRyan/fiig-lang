@@ -74,8 +74,8 @@ conversion parseIso(text: string) -> Result<int, TimeError> {
             hour: hour,
             minute: minute,
             second: second,
-            millisecond: millisecond,
-        ),
+            millisecond: millisecond
+        )
     )?;
     moment = local - offsetMillis;
     if (moment < -62167219200000 || moment > 253402300799999) {

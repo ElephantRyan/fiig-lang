@@ -8,6 +8,6 @@ conversion brokerError(code: int, during: string) -> KafkaError {
         code: code,
         name: name,
         retriable: retriable,
-        message: "${during}: ${name}",
+        message: "${during}: ${name}"
     );
 }

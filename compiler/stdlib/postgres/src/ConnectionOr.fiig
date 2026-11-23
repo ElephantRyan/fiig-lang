@@ -5,6 +5,6 @@ conversion connectionOr(result: Result<Connection, SocketError>)
         -> Result<Connection, db.DatabaseError> {
     return match (result) {
         Ok(connection) -> Ok(connection),
-        Err(failure) -> Err(db.DatabaseError.Broken(failure: failure)),
+        Err(failure) -> Err(db.DatabaseError.Broken(failure: failure))
     }
 }

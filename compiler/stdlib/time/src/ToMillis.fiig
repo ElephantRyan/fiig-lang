@@ -5,7 +5,7 @@
 conversion toMillis(dateTime: DateTime) -> Result<int, TimeError> {
     if (dateTime.year < 0 || dateTime.year > 9999) {
         return Err(
-            TimeError.OutOfRange(reason: "the year ${dateTime.year} is outside 0000 to 9999"),
+            TimeError.OutOfRange(reason: "the year ${dateTime.year} is outside 0000 to 9999")
         );
     }
 
@@ -16,8 +16,8 @@ conversion toMillis(dateTime: DateTime) -> Result<int, TimeError> {
     if (dateTime.day < 1 || dateTime.day > daysInMonth(dateTime.year, dateTime.month)) {
         return Err(
             TimeError.Invalid(
-                reason: "day ${dateTime.day} does not exist in ${dateTime.year}-${dateTime.month}",
-            ),
+                reason: "day ${dateTime.day} does not exist in ${dateTime.year}-${dateTime.month}"
+            )
         );
     }
 
@@ -35,7 +35,7 @@ conversion toMillis(dateTime: DateTime) -> Result<int, TimeError> {
 
     if (dateTime.millisecond < 0 || dateTime.millisecond > 999) {
         return Err(
-            TimeError.Invalid(reason: "the millisecond ${dateTime.millisecond} is not 0 to 999"),
+            TimeError.Invalid(reason: "the millisecond ${dateTime.millisecond} is not 0 to 999")
         );
     }
 

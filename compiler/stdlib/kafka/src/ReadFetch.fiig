@@ -46,7 +46,7 @@ conversion readFetch(frame: bytes, maxSize: int) -> Result<List<FetchedPartition
 
             out = append(
                 out,
-                FetchedPartition(partition: partition, code: partitionCode, records: records),
+                FetchedPartition(partition: partition, code: partitionCode, records: records)
             );
             i = i + 1;
         }
@@ -70,7 +70,7 @@ private {
 
             found -> {
                 return Ok(found);
-            },
+            }
         }
     }
 
@@ -82,7 +82,7 @@ private {
 
             found -> {
                 return Ok(found);
-            },
+            }
         }
     }
 
@@ -94,7 +94,7 @@ private {
 
             found -> {
                 return Ok(found);
-            },
+            }
         }
     }
 
@@ -115,7 +115,7 @@ private {
 
                 _ -> {
                     reading = false;
-                },
+                }
             }
         }
 
@@ -130,16 +130,16 @@ private {
                 if (magic != 2) {
                     return Err(
                         KafkaError.MalformedReply(
-                            reason: "a fetched batch has magic ${magic}, not 2",
-                        ),
+                            reason: "a fetched batch has magic ${magic}, not 2"
+                        )
                     );
                 }
 
                 if (crypto.crc32c(checked) != crc) {
                     return Err(
                         KafkaError.MalformedReply(
-                            reason: "a fetched batch at offset ${base} fails its CRC",
-                        ),
+                            reason: "a fetched batch at offset ${base} fails its CRC"
+                        )
                     );
                 }
 
@@ -168,16 +168,16 @@ private {
                     _ -> {
                         return Err(
                             KafkaError.MalformedReply(
-                                reason: "a fetched batch's header ends early",
-                            ),
+                                reason: "a fetched batch's header ends early"
+                            )
                         );
-                    },
+                    }
                 }
             },
 
             _ -> {
                 return Err(KafkaError.MalformedReply(reason: "a fetched batch ends early"));
-            },
+            }
         }
     }
 
@@ -202,7 +202,7 @@ private {
             if (valueLength.value > 0) {
                 if (valueLength.next + valueLength.value > body.length()) {
                     return Err(
-                        KafkaError.MalformedReply(reason: "a fetched record's value ends early"),
+                        KafkaError.MalformedReply(reason: "a fetched record's value ends early")
                     );
                 }
 

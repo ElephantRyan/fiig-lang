@@ -25,7 +25,7 @@ out.
           requires payments {
       return match (payments.capturePayment(reference: order, amount: amount)) {
           Ok(receipt) -> Ok(Charge(id: receipt.id, refundable: receipt.refundable)),
-          Err(failure) -> Err(chargeErrorOf(failure)),
+          Err(failure) -> Err(chargeErrorOf(failure))
       }
   }
   ```

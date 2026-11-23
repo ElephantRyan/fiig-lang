@@ -24,9 +24,9 @@ conversion afterTags(data: bytes, at: int) -> int | None {
 
                             size -> {
                                 pos = size.next + size.value;
-                            },
+                            }
                         }
-                    },
+                    }
                 }
 
                 i = i + 1;
@@ -37,6 +37,6 @@ conversion afterTags(data: bytes, at: int) -> int | None {
             }
 
             return pos;
-        },
+        }
     }
 }

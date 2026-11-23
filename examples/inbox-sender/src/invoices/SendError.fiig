@@ -5,5 +5,5 @@ use fiig.http;
 enum SendError {
     Unreachable(failure: http.HttpError),
     Rejected(status: int, body: string),
-    Unreadable(failure: JsonError),
+    Unreadable(failure: JsonError)
 }

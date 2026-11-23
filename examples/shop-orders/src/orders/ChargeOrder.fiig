@@ -8,7 +8,7 @@ gateway chargeOrder(order: string, amount: kernel.Money) -> Result<Charge, Charg
         requires payments {
     return match (payments.capturePayment(reference: order, amount: amount)) {
         Ok(receipt) -> Ok(Charge(id: receipt.id, refundable: receipt.refundable)),
-        Err(failure) -> Err(chargeErrorOf(failure)),
+        Err(failure) -> Err(chargeErrorOf(failure))
     }
 }
 
@@ -16,7 +16,7 @@ private {
     chargeErrorOf(failure: payments.PaymentError) -> ChargeError {
         return match (failure) {
             payments.PaymentError.Declined(reason) -> ChargeError.Declined(reason: reason),
-            payments.PaymentError.InvalidAmount -> ChargeError.InvalidAmount,
+            payments.PaymentError.InvalidAmount -> ChargeError.InvalidAmount
         }
     }
 }

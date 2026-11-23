@@ -10,11 +10,11 @@ import (
 func TestHeadedEnumLookupAndFieldAccessRun(t *testing.T) {
 	u := universeFromSource(t, `enum DeductionSource(key code: string, key aliases: List<string>, layout: FieldLayout) {
     Acme(code: "ACME", aliases: ["ACMEINC", "ACME-INC"], layout: FieldLayout.FixedWidth),
-    Globex(code: "GLBX", aliases: [], layout: FieldLayout.Csv),
+    Globex(code: "GLBX", aliases: [], layout: FieldLayout.Csv)
 }
 `, `enum FieldLayout {
     FixedWidth,
-    Csv,
+    Csv
 }
 `, `rule resolve(raw: string) -> DeductionSource | None {
     return DeductionSource(code: raw);
@@ -25,13 +25,13 @@ func TestHeadedEnumLookupAndFieldAccessRun(t *testing.T) {
 `, `rule layoutFor(raw: string) -> string {
     return match (DeductionSource(code: raw)) {
         None -> "unknown",
-        found -> describe(found),
+        found -> describe(found)
     }
 }
 `, `rule describe(source: DeductionSource) -> string {
     return match (source.layout) {
         FieldLayout.FixedWidth -> "fixed width ${source.code}",
-        FieldLayout.Csv -> "csv ${source.code}",
+        FieldLayout.Csv -> "csv ${source.code}"
     }
 }
 `)

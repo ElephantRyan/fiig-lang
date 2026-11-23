@@ -27,7 +27,7 @@ private {
     listOf(addresses: List<string> | None) -> List<string> {
         return match (addresses) {
             None -> [],
-            given -> given,
+            given -> given
         }
     }
 }

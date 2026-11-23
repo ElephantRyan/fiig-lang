@@ -44,7 +44,7 @@ workflow rate(session: string | None, itemId: string, input: RatingInput)
     return match (loadUserAndBook(session, itemId)) {
         Err(AppError.NotFound) -> Err(AppError.Unauthorized),
         Err(other) -> Err(other),
-        Ok(found) -> saveRating(found, input),
+        Ok(found) -> saveRating(found, input)
     }
 }
 ```
@@ -56,12 +56,12 @@ adapter http api {
     PUT "/ratings/{itemId}" -> rate(
         session: string | None from cookie "sid",
         itemId: string,
-        input: RatingInput,
+        input: RatingInput
     )
             consumes "application/json"
             produces "application/json" {
         Ok(rating) -> 200 rating,
-        Err(error) -> appErrorResponse(error),
+        Err(error) -> appErrorResponse(error)
     }
 }
 ```
@@ -145,7 +145,7 @@ error. `mapErr` wraps each one inline, with no conversion file:
 ```fiig
 enum ListeningError {
     Progress(why: AbsFault),
-    Books(why: BookError),
+    Books(why: BookError)
 }
 
 activity loadMyListening(userId: string) -> Result<Listening, ListeningError> {

@@ -30,6 +30,6 @@ conversion consumerVersions(frame: bytes) -> string {
 
         _ -> {
             return "an ApiVersions response is shorter than its header";
-        },
+        }
     }
 }

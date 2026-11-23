@@ -27,13 +27,13 @@ conversion recordBatch(records: List<KafkaRecord>, timestamp: int, compression: 
         0 - 1: i16be,
         0 - 1: i32be,
         records.length(): i32be,
-        packed(compression, body): bytes,
+        packed(compression, body): bytes
     >>;
     crc = crypto.crc32c(afterCrc);
     // batchLength counts from the leader epoch on: 4 + 1 + 4 bytes, then
     // what the CRC covers.
     return Ok(
-        <<0: i64be, afterCrc.length() + 9: i32be, 0 - 1: i32be, 2: u8, crc: u32be, afterCrc: bytes>>,
+        <<0: i64be, afterCrc.length() + 9: i32be, 0 - 1: i32be, 2: u8, crc: u32be, afterCrc: bytes>>
     );
 }
 
@@ -45,7 +45,7 @@ private {
             Compression.Gzip -> 1,
             Compression.Snappy -> 2,
             Compression.Lz4 -> 3,
-            Compression.Zstd -> 4,
+            Compression.Zstd -> 4
         }
     }
 
@@ -56,7 +56,7 @@ private {
             Compression.Gzip -> compress.gzip(body),
             Compression.Snappy -> xerialFramed(body),
             Compression.Lz4 -> compress.lz4(body),
-            Compression.Zstd -> compress.zstd(body),
+            Compression.Zstd -> compress.zstd(body)
         }
     }
 
@@ -69,7 +69,7 @@ private {
             None -> None,
             given -> {
                 key = <<varint(given.length()): bytes, given: bytes>>;
-            },
+            }
         }
 
         headers: bytes = varint(0);
@@ -84,10 +84,10 @@ private {
                         varint(name.length()): bytes,
                         name: bytes,
                         varint(header.value.length()): bytes,
-                        header.value: bytes,
+                        header.value: bytes
                     >>;
                 }
-            },
+            }
         }
 
         inner = <<
@@ -97,7 +97,7 @@ private {
             key: bytes,
             varint(record.value.length()): bytes,
             record.value: bytes,
-            headers: bytes,
+            headers: bytes
         >>;
         return <<varint(inner.length()): bytes, inner: bytes>>;
     }

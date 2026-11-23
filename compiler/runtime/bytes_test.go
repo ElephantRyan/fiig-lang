@@ -113,7 +113,7 @@ func TestSubByteFields(t *testing.T) {
 	src := `conversion stream(frame: bytes) -> int {
     return match (frame) {
         <<length: u24be, kind: u8, flags: u8, _: u1, stream: u31, payload: bytes(length)>> -> stream * 1000 + length,
-        _ -> -1,
+        _ -> -1
     }
 }
 `
@@ -128,7 +128,7 @@ func TestWebSocketHeaderAndLittleEndian(t *testing.T) {
 	src := `conversion opcode(frame: bytes) -> int {
     return match (frame) {
         <<1: u1, _: u3, op: u4, 0: u1, length: u7, word: u16le>> -> op * 100000 + length * 1000 + word,
-        _ -> -1,
+        _ -> -1
     }
 }
 `
@@ -148,7 +148,7 @@ func TestSignedFieldsAndRoundTrip(t *testing.T) {
     encoded = <<n: i16be, n: i32le, 0xFF: u8>>;
     return match (encoded) {
         <<a: i16be, b: i32le, 255: u8>> -> a + b,
-        _ -> 0,
+        _ -> 0
     }
 }
 `

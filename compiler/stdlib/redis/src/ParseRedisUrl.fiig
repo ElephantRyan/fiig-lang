@@ -34,7 +34,7 @@ conversion parseRedisUrl(url: string) -> Result<RedisTarget, RedisError> {
                 }
 
                 database = number;
-            },
+            }
         }
     }
 
@@ -100,7 +100,7 @@ conversion parseRedisUrl(url: string) -> Result<RedisTarget, RedisError> {
                 }
 
                 port = number;
-            },
+            }
         }
     }
 
@@ -111,8 +111,8 @@ conversion parseRedisUrl(url: string) -> Result<RedisTarget, RedisError> {
             secure: secure,
             user: user,
             password: password,
-            database: database,
-        ),
+            database: database
+        )
     );
 }
 
@@ -132,7 +132,7 @@ private {
             if (b == 37) {
                 if (i + 2 >= raw.length()) {
                     return Err(
-                        invalid("a % in its user or password isn't followed by two hex digits"),
+                        invalid("a % in its user or password isn't followed by two hex digits")
                     );
                 }
 
@@ -140,7 +140,7 @@ private {
                 low = hexValue(raw.at(i + 2));
                 if (high < 0 || low < 0) {
                     return Err(
-                        invalid("a % in its user or password isn't followed by two hex digits"),
+                        invalid("a % in its user or password isn't followed by two hex digits")
                     );
                 }
 
@@ -159,7 +159,7 @@ private {
 
             decoded -> {
                 return Ok(decoded);
-            },
+            }
         }
     }
 
