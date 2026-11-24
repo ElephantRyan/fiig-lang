@@ -1,4 +1,4 @@
 enum ${DECL_NAME} {
     First,
-    Second,
+    Second
 }
