@@ -37,7 +37,11 @@ type builtModule struct {
 // import order. skipRoot leaves out the top-level package, which the
 // commands check for the root module, with its tests. where names the
 // module in errors: "" for the root module, whose paths are relative to it.
-func buildModule(fsys fs.FS, modulePath, where string, deps types.Packages, provides map[string]string, skipRoot, lenient bool) (*builtModule, []error) {
+//
+// maximum is the application maximum (ADR 0149), checked as D3 over the
+// root module's own files; 0 for a dependency's module, whose blocks are
+// clamped at run time instead.
+func buildModule(fsys fs.FS, modulePath, where string, deps types.Packages, provides map[string]string, maximum int, skipRoot, lenient bool) (*builtModule, []error) {
 	prefix := func(e error) error {
 		if where == "" {
 			return e
@@ -143,6 +147,14 @@ func buildModule(fsys fs.FS, modulePath, where string, deps types.Packages, prov
 			if len(f.Decls) > 0 {
 				if problem := layout.FileNameProblem(rel, syntax.DeclName(f.Decls[0])); problem != "" {
 					errs = append(errs, prefix(fmt.Errorf("%s", problem)))
+				}
+			}
+		}
+		if maximum > 0 {
+			for _, rel := range rels {
+				for _, d := range checker.ApplicationMaximum(checked[rel].File, maximum) {
+					d.File = rel
+					diags = append(diags, d)
 				}
 			}
 		}

@@ -206,3 +206,32 @@ func TestAnApplicationHasNoTopLevelDeclarations(t *testing.T) {
 		t.Errorf("an application's top level = %v, want one H6 on src/Greeting.fiig", diags)
 	}
 }
+
+// ADR 0149 §3: a literal limit above the application maximum is D3 in the
+// application's own code, and is left to the runtime's clamp in a
+// dependency's.
+func TestALimitAboveTheApplicationMaximum(t *testing.T) {
+	fanOut := func(limit string) string {
+		return "workflow fanOut(ids: List<string>) -> BatchResult<string, string, string> {\n    return concurrent(id in ids, limit: " + limit + "): echo(id);\n}\n"
+	}
+	echo := "rule echo(id: string) -> Result<string, string> {\n    return Ok(id);\n}\n"
+	load := func(appLimit, depLimit string) []error {
+		ws := writeTree(t, map[string]string{
+			"dep/fiig.pkg.json":       `{"path": "t.dep", "kind": "library", "version": "1.0.0"}`,
+			"dep/src/fan/FanOut.fiig": strings.Replace(fanOut(depLimit), "workflow", "activity", 1),
+			"dep/src/fan/Echo.fiig":   echo,
+			"app/fiig.pkg.json":       `{"path": "t.app", "kind": "application", "version": "1.0.0", "dependencies": {"t.dep": "1.0.0"}, "concurrency": {"maximum": 8}}`,
+			"app/src/fan/FanOut.fiig": fanOut(appLimit),
+			"app/src/fan/Echo.fiig":   echo,
+		})
+		_, errs := Load(filepath.Join(ws, "app"), []string{ws})
+		return errs
+	}
+	if errs := load("8", "64"); len(errs) != 0 {
+		t.Fatalf("at the maximum, with a dependency over it: %v", errs)
+	}
+	errs := load("32", "64")
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "src/fan/FanOut.fiig:2:12: [D3] concurrent limit 32 exceeds the application maximum of 8") {
+		t.Fatalf("over the maximum = %v, want one D3 on the app's block", errs)
+	}
+}

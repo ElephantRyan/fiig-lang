@@ -64,6 +64,7 @@ func Replay(ctx context.Context, o ReplayOptions) (*Replayed, error) {
 	problems = append(problems, runprogram.UnknownPackages(caps.Packages(), p.packages)...)
 	runprogram.RegisterDefaults(caps)
 	in := runtime.New(p.universe, caps)
+	runprogram.UseConcurrency(in, o.Root)
 	in.Imports = runprogram.BuildImports(p.files, p.packages)
 	in.Groups = runprogram.BuildGroups(p.files, p.packages)
 	in.Packages = p.packages

@@ -482,6 +482,25 @@ func Renames(root string) map[string]map[string]string {
 	return m.Environment
 }
 
+// UseConcurrency gives in the root manifest's concurrency default and
+// maximum (ADR 0149), leaving the runtime's own for one it doesn't set. A
+// root with no manifest, or one that doesn't validate (which the loader has
+// already reported), changes nothing.
+func UseConcurrency(in *runtime.Interp, root string) {
+	if _, err := os.Stat(filepath.Join(root, manifest.Filename)); err != nil {
+		return
+	}
+	m, errs := manifest.Load(root)
+	if len(errs) > 0 {
+		return
+	}
+	def, maximum := m.ConcurrencyLimits()
+	if def > 0 {
+		in.DefaultConcurrencyLimit = def
+	}
+	in.MaxConcurrencyLimit = maximum
+}
+
 // ConfigReport is §3's one startup report: every configuration problem,
 // from config, the caps file, and fiig serve's own settings, at once.
 func ConfigReport(problems []string) error {

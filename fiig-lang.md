@@ -152,8 +152,11 @@ Safe defaults:
 
 Effective concurrency is limited by the lowest applicable value among:
 
-- Application default
-- Application maximum
+- Application default *(ADR 0149: `concurrency.default` in the application's
+  `fiig.pkg.json`, 16 when omitted)*
+- Application maximum *(ADR 0149: `concurrency.maximum`, per block; a literal
+  limit above it is D3 in the application's own code, clamped in a
+  dependency's)*
 - Capability maximum
 - Locally requested limit
 - Parent workflow budget

@@ -188,6 +188,12 @@ doesn't have to discover them.
   element again by its id but settles nothing, and a Kafka record replays
   as attempt 1, since only a group member counts its retries. The batch and the wait are set for the whole process
   (`STREAM_BATCH_SIZE`, `STREAM_WAIT_MS`), not per route.
+- **The concurrency maximum is per block** (ADR 0149 §4). An application's
+  `concurrency.maximum` caps each `concurrent` block, not the process: two
+  blocks running at once, or one nested in another, can have more bodies in
+  flight between them. Nothing bounds calls to one capability across blocks
+  (open question 3), and an operator can't lower the values without a
+  rebuild (open question 1).
 - **Schedules are UTC only** (ADR 0112 open question 1), with no catching
   up on firings missed while nothing ran; cron has no names (`MON`), `L`,
   `W`, `#`, or seconds. Jitter (`SCHEDULE_JITTER_MS`) is set for the whole

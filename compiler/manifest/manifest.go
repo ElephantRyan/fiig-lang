@@ -117,6 +117,34 @@ type Manifest struct {
 	// since only it knows the deployment; compiler/loader checks that each
 	// renamed variable is one the package reads.
 	Environment map[string]map[string]string `json:"environment,omitempty"`
+
+	// Concurrency is the application's bounds on a `concurrent` block
+	// (ADR 0149): one process runs one application, so only an application
+	// may set them. Nil leaves the runtime's own default and no maximum.
+	Concurrency *Concurrency `json:"concurrency,omitempty"`
+}
+
+// Concurrency is ADR 0149 §1. Default is the limit of a block with no
+// `limit:`, Maximum the most any one block may run at once; nil leaves
+// either as the runtime has it (16, and none).
+type Concurrency struct {
+	Default *int `json:"default,omitempty"`
+	Maximum *int `json:"maximum,omitempty"`
+}
+
+// ConcurrencyLimits is the manifest's default and maximum, 0 for one it
+// doesn't set.
+func (m *Manifest) ConcurrencyLimits() (def, maximum int) {
+	if m.Concurrency == nil {
+		return 0, 0
+	}
+	if m.Concurrency.Default != nil {
+		def = *m.Concurrency.Default
+	}
+	if m.Concurrency.Maximum != nil {
+		maximum = *m.Concurrency.Maximum
+	}
+	return def, maximum
 }
 
 // Deprecation is one declaration's deprecation notice: Since is the
@@ -230,6 +258,22 @@ func (m *Manifest) Validate() []error {
 			if !envNamePattern.MatchString(from) || !envNamePattern.MatchString(to) {
 				errs = append(errs, fmt.Errorf("environment %q: %q -> %q must both be environment variable names", pkg, from, to))
 			}
+		}
+	}
+	if c := m.Concurrency; c != nil {
+		if m.Kind != Application {
+			errs = append(errs, fmt.Errorf("concurrency is an application's to set, since one process runs one application; a %s writes limit: on its own blocks (ADR 0149)", m.Kind))
+		}
+		for _, f := range []struct {
+			name  string
+			value *int
+		}{{"default", c.Default}, {"maximum", c.Maximum}} {
+			if f.value != nil && *f.value <= 0 {
+				errs = append(errs, fmt.Errorf("concurrency.%s %d must be at least 1; concurrency is always bounded (ADR 0149)", f.name, *f.value))
+			}
+		}
+		if c.Default != nil && c.Maximum != nil && *c.Default > *c.Maximum {
+			errs = append(errs, fmt.Errorf("concurrency.default %d is above concurrency.maximum %d (ADR 0149)", *c.Default, *c.Maximum))
 		}
 	}
 	for iface, group := range m.Provides {

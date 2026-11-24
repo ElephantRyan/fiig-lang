@@ -384,3 +384,21 @@ func TestLoadReadsTheManifestsWorkspaces(t *testing.T) {
 		t.Fatalf("a workspace named twice: %v", errs)
 	}
 }
+
+// A manifest that doesn't validate is loaded, so the command reports its
+// problems; before, fiig check went on as if it weren't there.
+func TestAnInvalidManifestIsWanted(t *testing.T) {
+	root := t.TempDir()
+	if Wanted(root, nil) {
+		t.Error("Wanted = true with no manifest")
+	}
+	if err := os.WriteFile(filepath.Join(root, manifest.Filename), []byte(`{"path": "a.lib", "kind": "library", "version": "1.0.0", "concurrency": {"default": 4}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !Wanted(root, nil) {
+		t.Fatal("Wanted = false for a manifest that doesn't validate")
+	}
+	if _, errs := Load(root, nil); len(errs) == 0 || !strings.Contains(errs[0].Error(), "concurrency is an application's to set") {
+		t.Errorf("Load = %v, want the manifest's problem", errs)
+	}
+}

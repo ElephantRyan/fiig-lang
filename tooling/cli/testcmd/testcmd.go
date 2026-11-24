@@ -262,6 +262,7 @@ func run(root, pattern, capsPath, envFile string, timeout time.Duration, verbose
 			}
 		}
 		in := runtime.New(t.u.universe, caps)
+		runprogram.UseConcurrency(in, root) // ADR 0149 §2: a test fans out as production does
 		in.Imports, in.Groups, in.Packages, in.Config = t.u.imports, t.u.groups, t.u.packages, config
 		// ADR 0140: each test saves settings to its own store.
 		in.UseSettings(runtime.NewMemorySettings())

@@ -513,7 +513,9 @@ activity nextRetryDelay(attempt: int) -> int {
 ```fiig
 // `concurrent` is the ONLY concurrency construct (ADR 0016). It runs the
 // body for each element, at most `limit` at once, and its BatchResult is in
-// input order (ADR 0148). Read one with `for (key, outcome in batch)`. [built]
+// input order (ADR 0148). Read one with `for (key, outcome in batch)`. With
+// no `limit:`, the application's default applies, and its maximum caps
+// every block (fiig.pkg.json "concurrency", ADR 0149).              [built]
 activity loadCustomers(customerIds: List<string>) -> List<Customer> {
     found: List<Customer> = [];
     fetched = concurrent(customerId in customerIds, limit: 5): getCustomer(customerId);

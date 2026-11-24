@@ -228,6 +228,7 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	runprogram.RegisterDefaults(caps)
 
 	in := runtime.New(universe, caps)
+	runprogram.UseConcurrency(in, root)
 	in.Imports = imports
 	in.Groups = runprogram.BuildGroups(files, packages)
 	// A driver package the root never imports still runs (ADR 0084 §2).

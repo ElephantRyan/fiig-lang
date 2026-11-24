@@ -136,6 +136,20 @@ func (in *Interp) evalConcurrentBody(ctx context.Context, e *syntax.ConcurrentEx
 // checked (any test building syntax directly, for instance), so both are
 // re-checked here rather than assumed.
 func (in *Interp) resolveConcurrencyLimit(ctx context.Context, e *syntax.ConcurrentExpr, env *Env) (int, *Fault) {
+	n, fault := in.requestedConcurrencyLimit(ctx, e, env)
+	if fault != nil {
+		return 0, fault
+	}
+	// ADR 0149 §2: the application maximum caps what a block asks for, its
+	// own limit or the default alike.
+	if in.MaxConcurrencyLimit > 0 && n > in.MaxConcurrencyLimit {
+		n = in.MaxConcurrencyLimit
+	}
+	return n, nil
+}
+
+// requestedConcurrencyLimit is the block's own `limit:`, or the default.
+func (in *Interp) requestedConcurrencyLimit(ctx context.Context, e *syntax.ConcurrentExpr, env *Env) (int, *Fault) {
 	if e.Limit == nil {
 		return in.DefaultConcurrencyLimit, nil
 	}

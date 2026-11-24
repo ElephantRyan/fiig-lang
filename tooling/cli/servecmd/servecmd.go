@@ -267,6 +267,7 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	}
 	runprogram.RegisterDefaults(caps)
 	in := runtime.New(universe, caps)
+	runprogram.UseConcurrency(in, root)
 	in.Imports = runprogram.BuildImports(files, packages)
 	in.Groups = runprogram.BuildGroups(files, packages)
 	in.Packages = packages

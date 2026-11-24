@@ -77,6 +77,15 @@
         "type": "object",
         "additionalProperties": { "type": "string" }
       }
+    },
+    "concurrency": {
+      "description": "In an application: the bounds on a concurrent block (ADR 0149). default is the limit of a block with no limit: (16 when omitted); maximum is the most any one block runs at once, whatever its limit: says.",
+      "type": "object",
+      "properties": {
+        "default": { "type": "integer", "minimum": 1 },
+        "maximum": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
     }
   }
 }

@@ -220,3 +220,34 @@ func TestValidateFormerly(t *testing.T) {
 		t.Fatalf("got %d errors, want 3: %v", len(errs), errs)
 	}
 }
+
+// ADR 0149 §1: an application may set its concurrency default and maximum,
+// each at least 1, the default no greater than the maximum.
+func TestConcurrency(t *testing.T) {
+	m, errs := Parse([]byte(`{"path": "hearsay", "kind": "application", "version": "0.1.0", "concurrency": {"default": 4, "maximum": 8}}`))
+	if len(errs) != 0 {
+		t.Fatalf("good: %v", errs)
+	}
+	if def, maximum := m.ConcurrencyLimits(); def != 4 || maximum != 8 {
+		t.Errorf("limits = %d, %d; want 4, 8", def, maximum)
+	}
+	m, _ = Parse([]byte(`{"path": "hearsay", "kind": "application", "version": "0.1.0", "concurrency": {"maximum": 8}}`))
+	if def, maximum := m.ConcurrencyLimits(); def != 0 || maximum != 8 {
+		t.Errorf("maximum only: limits = %d, %d; want 0, 8", def, maximum)
+	}
+	for src, want := range map[string]string{
+		`{"path": "acme.lib", "kind": "library", "version": "1.0.0", "concurrency": {"default": 4}}`:                "concurrency is an application's to set",
+		`{"path": "a.app", "kind": "application", "version": "1.0.0", "concurrency": {"default": 0}}`:               "concurrency.default 0 must be at least 1",
+		`{"path": "a.app", "kind": "application", "version": "1.0.0", "concurrency": {"maximum": -2}}`:              "concurrency.maximum -2 must be at least 1",
+		`{"path": "a.app", "kind": "application", "version": "1.0.0", "concurrency": {"default": 9, "maximum": 8}}`: "concurrency.default 9 is above concurrency.maximum 8",
+	} {
+		_, errs := Parse([]byte(src))
+		found := false
+		for _, e := range errs {
+			found = found || strings.Contains(e.Error(), want)
+		}
+		if !found {
+			t.Errorf("%s: errs = %v, want %q", src, errs, want)
+		}
+	}
+}

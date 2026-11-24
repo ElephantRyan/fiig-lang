@@ -86,6 +86,11 @@ type Interp struct {
 	// hardcoded, since nothing in the spec fixes it.
 	DefaultConcurrencyLimit int
 
+	// MaxConcurrencyLimit is the application maximum (ADR 0149 §2): no
+	// block runs more bodies at once, whatever its `limit:` asks for. 0
+	// means none.
+	MaxConcurrencyLimit int
+
 	// MaxCallDepth bounds how deep a chain of declaration calls may go
 	// (ADR 0054 §6): recursion is allowed, and this is its backstop. A call
 	// that would exceed it produces an ordinary Fault instead of running.

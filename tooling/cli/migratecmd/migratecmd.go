@@ -90,6 +90,7 @@ func Run(name string, argv []string, factories runtime.FactoryRegistry) int {
 	runprogram.RegisterDefaults(caps)
 	universe, _ := types.BuildUniverse(files)
 	in := runtime.New(universe, caps)
+	runprogram.UseConcurrency(in, root)
 	in.Imports = runprogram.BuildImports(files, packages)
 	in.Groups = runprogram.BuildGroups(files, packages)
 	in.Packages = packages // a driver written in fiig runs on this interpreter (ADR 0084)

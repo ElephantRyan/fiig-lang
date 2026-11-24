@@ -84,6 +84,7 @@ outright, not deferred. See "Explicitly out of scope" below for why.
 |---|---|---|
 | D1 | A `concurrent` block requests `limit: unbounded` (or otherwise opts out of bounding) | Attested — `concurrency_error.fiig` (`retrieveAllCustomers`) |
 | D2 | A nested `concurrent` block requests a limit that could multiply past its parent's budget | §3.7 "nested concurrency shares hierarchical budgets and cannot multiply without bound" — Attested — `concurrency_error.fiig` (`retrieveCustomersNested`) |
+| D3 | A `concurrent` block in the application's own code requests a literal limit above the application maximum (ADR 0149 §3) | Attested — `compiler/loader`'s `TestALimitAboveTheApplicationMaximum`; a dependency's block is clamped instead |
 
 ## E. Retry errors
 

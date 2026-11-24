@@ -160,7 +160,8 @@ func load(root string, workspaceRoots []string, lenient bool) (*Loaded, []error)
 	if rootLayout {
 		// ADR 0105: the root module's folders are packages the loader builds;
 		// its top-level package is the commands' to check, with its tests.
-		b, errs := buildModule(os.DirFS(root), rootManifest.Path, "", packages, rootManifest.Provides, true, lenient)
+		_, maximum := rootManifest.ConcurrencyLimits()
+		b, errs := buildModule(os.DirFS(root), rootManifest.Path, "", packages, rootManifest.Provides, maximum, true, lenient)
 		if len(errs) > 0 {
 			return nil, errs
 		}
@@ -360,13 +361,18 @@ func scanWorkspace(root string) (map[string][]discovered, []error) {
 // Wanted reports whether root should be loaded as a package even with no
 // workspace roots: it has a manifest that names dependencies, which may be
 // built into the toolchain (ADR 0074 §1), and which, when they aren't,
-// deserve the loader's "not found" rather than an unresolved import.
+// deserve the loader's "not found" rather than an unresolved import. A
+// manifest that doesn't validate is wanted too, so the loader reports its
+// problems instead of the command checking as if it weren't there.
 func Wanted(root string, workspaceRoots []string) bool {
 	if len(workspaceRoots) > 0 {
 		return true
 	}
+	if _, err := os.Stat(filepath.Join(root, manifest.Filename)); err != nil {
+		return false
+	}
 	m, errs := manifest.Load(root)
-	return len(errs) == 0 && (len(m.Dependencies) > 0 || len(m.Workspaces) > 0 || layout.IsModule(os.DirFS(root)))
+	return len(errs) > 0 || len(m.Dependencies) > 0 || len(m.Workspaces) > 0 || layout.IsModule(os.DirFS(root))
 }
 
 // withManifestWorkspaces adds the root manifest's workspaces (ADR 0097),
@@ -691,7 +697,7 @@ func boolKeys[V any](m map[string]V) map[string]bool {
 // under its src/, its migrations, and its lockfile entry.
 func (l *loaderState) buildLayoutModule(key reqKey, inst discovered, deps types.Packages) (*types.Package, []error) {
 	where := filepath.ToSlash(inst.dir)
-	b, errs := buildModule(inst.fsys, key.path, where, deps, inst.manifest.Provides, false, false)
+	b, errs := buildModule(inst.fsys, key.path, where, deps, inst.manifest.Provides, 0, false, false)
 	if len(errs) > 0 {
 		return nil, errs
 	}
