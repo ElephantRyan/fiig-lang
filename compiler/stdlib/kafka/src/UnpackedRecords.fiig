@@ -5,28 +5,16 @@
 conversion unpackedRecords(compression: Compression, data: bytes, maxSize: int)
         -> Result<bytes, KafkaError> {
     return match (compression) {
-        Compression.None -> {
-            return Ok(data);
-        },
-
-        Compression.Gzip -> {
-            return Ok(
-                mapErr(e in compress.gunzip(data, maxSize)): KafkaError.Decompress(failure: e)?
-            );
-        },
-
-        Compression.Lz4 -> {
-            return Ok(
-                mapErr(e in compress.unlz4(data, maxSize)): KafkaError.Decompress(failure: e)?
-            );
-        },
-
-        Compression.Zstd -> {
-            return Ok(
-                mapErr(e in compress.unzstd(data, maxSize)): KafkaError.Decompress(failure: e)?
-            );
-        },
-
+        Compression.None -> Ok(data),
+        Compression.Gzip -> Ok(
+            mapErr(e in compress.gunzip(data, maxSize)): KafkaError.Decompress(failure: e)?
+        ),
+        Compression.Lz4 -> Ok(
+            mapErr(e in compress.unlz4(data, maxSize)): KafkaError.Decompress(failure: e)?
+        ),
+        Compression.Zstd -> Ok(
+            mapErr(e in compress.unzstd(data, maxSize)): KafkaError.Decompress(failure: e)?
+        ),
         Compression.Snappy -> {
             if (data.length() < 16 || data.slice(0, 8) != xerialMagic()) {
                 return Ok(

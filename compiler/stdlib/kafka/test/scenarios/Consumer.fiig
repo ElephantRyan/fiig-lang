@@ -301,13 +301,8 @@ private {
     pollOf(message: bytes) -> PollReply {
         decoded: Result<PollReply, JsonError> = json.decode(message);
         return match (decoded) {
-            Ok(reply) -> {
-                return reply;
-            },
-
-            Err(_) -> {
-                return PollReply(failure: "not a PollReply", partitions: []);
-            }
+            Ok(reply) -> reply,
+            Err(_) -> PollReply(failure: "not a PollReply", partitions: [])
         }
     }
 

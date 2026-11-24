@@ -11,18 +11,11 @@ activity notifyShipped(customerId: string, orderId: string) -> bool {
                 body: "Order ${orderId} has shipped."
             );
             return match (sent) {
-                Ok(_) -> {
-                    return true;
-                },
-
-                Err(_) -> {
-                    return false;
-                }
+                Ok(_) -> true,
+                Err(_) -> false
             }
         },
 
-        Err(_) -> {
-            return false;
-        }
+        Err(_) -> false
     }
 }

@@ -3,10 +3,7 @@
 // constant time, so the check doesn't leak the token (ADR 0071 §4).
 activity exportAllowed(authorization: string) -> Result<None, AccountError> {
     return match (bearerToken(authorization)) {
-        None -> {
-            return Err(AccountError.NoCredentials);
-        },
-
+        None -> Err(AccountError.NoCredentials),
         token -> {
             if (Sessions.exportToken.matches(token)) {
                 return Ok(None);

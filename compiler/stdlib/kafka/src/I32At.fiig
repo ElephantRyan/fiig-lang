@@ -5,12 +5,7 @@ conversion i32At(data: bytes, at: int) -> int | None {
     }
 
     return match (data.slice(at, at + 4)) {
-        <<value: i32be>> -> {
-            return value;
-        },
-
-        _ -> {
-            return None;
-        }
+        <<value: i32be>> -> value,
+        _ -> None
     }
 }

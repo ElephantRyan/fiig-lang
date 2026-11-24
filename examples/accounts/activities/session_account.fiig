@@ -2,12 +2,7 @@
 // the workflows know only that it is a string or absent (ADR 0069 §1).
 activity sessionAccount(token: string | None) -> Result<Account, AccountError> {
     return match (token) {
-        None -> {
-            return Err(AccountError.NoSession);
-        },
-
-        found -> {
-            return findSession(found);
-        }
+        None -> Err(AccountError.NoSession),
+        found -> findSession(found)
     }
 }

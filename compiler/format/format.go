@@ -1414,12 +1414,61 @@ func (p *printer) printMatchArms(prefix string, s *syntax.MatchStmt, producing b
 	for _, arm := range s.Arms {
 		al := startLine(arm)
 		p.emitLeading(al)
+		if prefix == "return " {
+			arm = p.shortArm(arm, producing)
+		}
 		p.printMatchArm(arm, producing)
 	}
 	p.indent--
 	p.emitInside(endLine(s))
 	p.writeIndent()
 	p.out.WriteString("}" + after + "\n")
+}
+
+// shortArm writes an arm of a `return match` whose block only returns a
+// value as that value: `None -> { return Err(e); }` is `None -> Err(e)`,
+// since a `return` there leaves the function with the value the arm would
+// have given (ADR 0142 §2). In a binding's match the `return` leaves the
+// function instead, so only `return match` arms are shortened. A comment
+// after the `return` follows the shorter arm; an arm with any other comment
+// keeps its block, and so does a `match` value, which an arm can't be, and
+// a value too wide for one line that has no `(` to wrap at.
+func (p *printer) shortArm(arm syntax.MatchArm, producing bool) syntax.MatchArm {
+	b, ok := arm.Body.(*syntax.Block)
+	if !ok || len(b.Stmts) != 1 {
+		return arm
+	}
+	var value syntax.Expr
+	kept := 0
+	switch s := b.Stmts[0].(type) {
+	case *syntax.ReturnStmt:
+		value, kept = s.Value, startLine(s)
+	case *syntax.ExprStmt:
+		if producing {
+			value, kept = s.Value, startLine(s)
+		}
+	}
+	if value == nil {
+		return arm
+	}
+	if _, isMatch := value.(*syntax.MatchExpr); isMatch {
+		return arm
+	}
+	short := printPattern(arm.Pattern) + " -> " + printExpr(value) + ","
+	if 4*p.indent+len(short) > maxLineWidth && !canWrap(value) {
+		return arm
+	}
+	from, to := startLine(arm), endLine(b)
+	for _, c := range p.comments[p.ci:] {
+		if c.Start.Line > to {
+			break
+		}
+		if c.Start.Line >= from && c.Start.Line != kept {
+			return arm
+		}
+	}
+	arm.Body = syntax.ExprBody{Expr: value}
+	return arm
 }
 
 func (p *printer) printMatchArm(arm syntax.MatchArm, producing bool) {

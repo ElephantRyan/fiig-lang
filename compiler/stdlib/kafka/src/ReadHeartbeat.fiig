@@ -72,35 +72,22 @@ private {
 
     need(read: int | None) -> Result<int, string> {
         return match (read) {
-            None -> {
-                return Err(short());
-            },
-
-            found -> {
-                return Ok(found);
-            }
+            None -> Err(short()),
+            found -> Ok(found)
         }
     }
 
     textOf(read: TextAt | None) -> Result<TextAt, string> {
         return match (read) {
-            None -> {
-                return Err(short());
-            },
-
-            found -> {
-                return Ok(found);
-            }
+            None -> Err(short()),
+            found -> Ok(found)
         }
     }
 
     // A compact array's length, from its length plus one.
     countOf(read: IntAt | None) -> Result<IntAt, string> {
         return match (read) {
-            None -> {
-                return Err(short());
-            },
-
+            None -> Err(short()),
             found -> {
                 if (found.value == 0) {
                     return Ok(IntAt(value: 0, next: found.next));

@@ -64,37 +64,22 @@ private {
 
     need(read: int | None) -> Result<int, KafkaError> {
         return match (read) {
-            None -> {
-                return Err(short());
-            },
-
-            found -> {
-                return Ok(found);
-            }
+            None -> Err(short()),
+            found -> Ok(found)
         }
     }
 
     textOf(read: TextAt | None) -> Result<TextAt, KafkaError> {
         return match (read) {
-            None -> {
-                return Err(short());
-            },
-
-            found -> {
-                return Ok(found);
-            }
+            None -> Err(short()),
+            found -> Ok(found)
         }
     }
 
     varOf(read: IntAt | None) -> Result<IntAt, KafkaError> {
         return match (read) {
-            None -> {
-                return Err(KafkaError.MalformedReply(reason: "a fetched record ends early"));
-            },
-
-            found -> {
-                return Ok(found);
-            }
+            None -> Err(KafkaError.MalformedReply(reason: "a fetched record ends early")),
+            found -> Ok(found)
         }
     }
 
@@ -165,19 +150,13 @@ private {
                         return recordsOf(base, body, count);
                     },
 
-                    _ -> {
-                        return Err(
-                            KafkaError.MalformedReply(
-                                reason: "a fetched batch's header ends early"
-                            )
-                        );
-                    }
+                    _ -> Err(
+                        KafkaError.MalformedReply(reason: "a fetched batch's header ends early")
+                    )
                 }
             },
 
-            _ -> {
-                return Err(KafkaError.MalformedReply(reason: "a fetched batch ends early"));
-            }
+            _ -> Err(KafkaError.MalformedReply(reason: "a fetched batch ends early"))
         }
     }
 

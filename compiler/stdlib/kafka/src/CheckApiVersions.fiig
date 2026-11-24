@@ -37,12 +37,8 @@ conversion checkApiVersions(frame: bytes, correlation: int) -> Result<None, Kafk
             return Ok(None);
         },
 
-        _ -> {
-            return Err(
-                KafkaError.MalformedReply(
-                    reason: "an ApiVersions response is shorter than its header"
-                )
-            );
-        }
+        _ -> Err(
+            KafkaError.MalformedReply(reason: "an ApiVersions response is shorter than its header")
+        )
     }
 }

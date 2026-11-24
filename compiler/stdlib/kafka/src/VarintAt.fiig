@@ -2,10 +2,7 @@
 // encodes it, or None when the data ends first.
 conversion varintAt(data: bytes, at: int) -> IntAt | None {
     return match (uvarintAt(data, at)) {
-        None -> {
-            return None;
-        },
-
+        None -> None,
         read -> {
             if (read.value % 2 == 0) {
                 return IntAt(value: read.value / 2, next: read.next);

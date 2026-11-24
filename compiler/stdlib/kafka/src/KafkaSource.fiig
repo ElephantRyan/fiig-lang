@@ -211,10 +211,7 @@ capability KafkaSource provides stream.StreamSource {
         layout = mapErr(e in readMetadata(described.first(), 1, topic)): consumerError(e)?;
         leader = mapErr(e in leaderAt(layout, at.partition)): consumerError(e)?;
         return match (leader) {
-            None -> {
-                return Ok(None);
-            },
-
+            None -> Ok(None),
             broker -> {
                 maxBytes = KafkaConsumer.fetchMaxBytes;
                 request = fetchRequest(clientId, 1, topic, 0, maxBytes, [at]);

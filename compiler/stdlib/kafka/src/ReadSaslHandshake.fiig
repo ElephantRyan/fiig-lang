@@ -34,8 +34,6 @@ conversion readSaslHandshake(frame: bytes, mechanism: string) -> Result<None, st
             return Err("SaslHandshake: ${errorName(code)}");
         },
 
-        _ -> {
-            return Err("a SaslHandshake response is shorter than its header");
-        }
+        _ -> Err("a SaslHandshake response is shorter than its header")
     }
 }

@@ -7,10 +7,7 @@ use fiig.sql as db;
 // (1700) included, is Text.
 conversion columnValue(text: bytes, oid: int) -> db.SqlValue {
     return match (text.utf8()) {
-        None -> {
-            return db.SqlValue.Bytes(value: text);
-        },
-
+        None -> db.SqlValue.Bytes(value: text),
         value -> {
             if (oid == 20 || oid == 21 || oid == 23) {
                 match (value.toIntOrNone()) {

@@ -256,13 +256,8 @@ private {
     pollFailureOf(message: bytes) -> string {
         decoded: Result<PollReply, JsonError> = json.decode(message);
         return match (decoded) {
-            Ok(reply) -> {
-                return reply.failure;
-            },
-
-            Err(_) -> {
-                return "not a PollReply";
-            }
+            Ok(reply) -> reply.failure,
+            Err(_) -> "not a PollReply"
         }
     }
 }

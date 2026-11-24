@@ -68,13 +68,8 @@ capability SqlScheduleLock provides schedule.ScheduleLock {
             Clock.now()
         );
         return match (row) {
-            None -> {
-                return Ok(false);
-            },
-
-            _ -> {
-                return Ok(true);
-            }
+            None -> Ok(false),
+            _ -> Ok(true)
         }
     }
 }

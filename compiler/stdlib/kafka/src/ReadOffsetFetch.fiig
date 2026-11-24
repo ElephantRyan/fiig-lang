@@ -37,25 +37,15 @@ private {
 
     need(read: int | None) -> Result<int, string> {
         return match (read) {
-            None -> {
-                return Err(short());
-            },
-
-            found -> {
-                return Ok(found);
-            }
+            None -> Err(short()),
+            found -> Ok(found)
         }
     }
 
     textOf(read: TextAt | None) -> Result<TextAt, string> {
         return match (read) {
-            None -> {
-                return Err(short());
-            },
-
-            found -> {
-                return Ok(found);
-            }
+            None -> Err(short()),
+            found -> Ok(found)
         }
     }
 }

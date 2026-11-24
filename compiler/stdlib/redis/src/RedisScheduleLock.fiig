@@ -15,17 +15,11 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
             requires Redis {
         key = "fiig:schedule:${job}:${firedAt}";
         return match (Redis.send(["SET", key, holder, "NX", "PX", "${holdMillis}"])) {
-            Ok(RespValue.Simple(_)) -> {
-                return Ok(true);
-            },
-
-            Ok(_) -> {
-                return Ok(false);
-            },
-
-            Err(failure) -> {
-                return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"));
-            }
+            Ok(RespValue.Simple(_)) -> Ok(true),
+            Ok(_) -> Ok(false),
+            Err(failure) -> Err(
+                schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}")
+            )
         }
     }
 
@@ -34,17 +28,11 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
             requires Redis {
         key = "fiig:schedule:${job}:${firedAt}:done";
         return match (Redis.send(["SET", key, holder, "PX", "${retainMillis}"])) {
-            Ok(RespValue.Simple(_)) -> {
-                return Ok(true);
-            },
-
-            Ok(_) -> {
-                return Ok(false);
-            },
-
-            Err(failure) -> {
-                return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"));
-            }
+            Ok(RespValue.Simple(_)) -> Ok(true),
+            Ok(_) -> Ok(false),
+            Err(failure) -> Err(
+                schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}")
+            )
         }
     }
 
@@ -52,17 +40,11 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
             requires Redis {
         key = "fiig:schedule:${job}:${firedAt}:done";
         return match (Redis.send(["EXISTS", key])) {
-            Ok(RespValue.Integer(count)) -> {
-                return Ok(count > 0);
-            },
-
-            Ok(_) -> {
-                return Ok(false);
-            },
-
-            Err(failure) -> {
-                return Err(schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}"));
-            }
+            Ok(RespValue.Integer(count)) -> Ok(count > 0),
+            Ok(_) -> Ok(false),
+            Err(failure) -> Err(
+                schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}")
+            )
         }
     }
 }

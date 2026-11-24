@@ -4,24 +4,12 @@ use fiig.stream;
 // server out of reach is Unavailable, an answer it can't use is Protocol.
 conversion sourceErrorOf(failure: RedisError) -> stream.SourceError {
     return match (failure) {
-        RedisError.Socket(failure) -> {
-            return stream.SourceError.Unavailable(reason: "Redis can't be reached: ${failure}");
-        },
-
-        RedisError.InvalidUrl(reason) -> {
-            return stream.SourceError.Unavailable(reason: reason);
-        },
-
-        RedisError.Server(message) -> {
-            return stream.SourceError.Protocol(reason: message);
-        },
-
-        RedisError.MalformedReply(reason) -> {
-            return stream.SourceError.Protocol(reason: reason);
-        },
-
-        RedisError.InvalidCommand(reason) -> {
-            return stream.SourceError.Protocol(reason: reason);
-        }
+        RedisError.Socket(failure) -> stream.SourceError.Unavailable(
+            reason: "Redis can't be reached: ${failure}"
+        ),
+        RedisError.InvalidUrl(reason) -> stream.SourceError.Unavailable(reason: reason),
+        RedisError.Server(message) -> stream.SourceError.Protocol(reason: message),
+        RedisError.MalformedReply(reason) -> stream.SourceError.Protocol(reason: reason),
+        RedisError.InvalidCommand(reason) -> stream.SourceError.Protocol(reason: reason)
     }
 }

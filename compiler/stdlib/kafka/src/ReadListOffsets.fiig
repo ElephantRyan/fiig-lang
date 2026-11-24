@@ -35,25 +35,15 @@ private {
 
     need(read: int | None) -> Result<int, KafkaError> {
         return match (read) {
-            None -> {
-                return Err(short());
-            },
-
-            found -> {
-                return Ok(found);
-            }
+            None -> Err(short()),
+            found -> Ok(found)
         }
     }
 
     textOf(read: TextAt | None) -> Result<TextAt, KafkaError> {
         return match (read) {
-            None -> {
-                return Err(short());
-            },
-
-            found -> {
-                return Ok(found);
-            }
+            None -> Err(short()),
+            found -> Ok(found)
         }
     }
 }

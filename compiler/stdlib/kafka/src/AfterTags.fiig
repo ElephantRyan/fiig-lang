@@ -3,10 +3,7 @@
 // end.
 conversion afterTags(data: bytes, at: int) -> int | None {
     return match (uvarintAt(data, at)) {
-        None -> {
-            return None;
-        },
-
+        None -> None,
         count -> {
             pos: int = count.next;
             i: int = 0;

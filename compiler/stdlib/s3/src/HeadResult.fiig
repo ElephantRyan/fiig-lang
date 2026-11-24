@@ -9,19 +9,14 @@ conversion headResult(reply: http.Reply) -> Result<ObjectInfo, S3Error> {
     }
 
     return match (headerValue(reply, "Content-Length").toIntOrNone()) {
-        None -> {
-            return Err(
-                S3Error.Http(
-                    failure: http.HttpError.MalformedReply(
-                        reason: "a HEAD reply has no readable Content-Length"
-                    )
+        None -> Err(
+            S3Error.Http(
+                failure: http.HttpError.MalformedReply(
+                    reason: "a HEAD reply has no readable Content-Length"
                 )
-            );
-        },
-
-        size -> {
-            return Ok(objectInfoOf(reply, size));
-        }
+            )
+        ),
+        size -> Ok(objectInfoOf(reply, size))
     }
 }
 

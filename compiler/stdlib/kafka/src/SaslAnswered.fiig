@@ -10,10 +10,7 @@ conversion saslAnswered(turn: SessionTurn, kind: string, frame: bytes, login: Sa
         -> SessionTurn {
     s = turn.state;
     return match (login.mechanism) {
-        None -> {
-            return refused(turn, "the broker answered a SASL request this session didn't make");
-        },
-
+        None -> refused(turn, "the broker answered a SASL request this session didn't make"),
         mechanism -> {
             if (kind == "saslHandshake") {
                 match (readSaslHandshake(frame, saslMechanismName(mechanism))) {
@@ -35,20 +32,14 @@ conversion saslAnswered(turn: SessionTurn, kind: string, frame: bytes, login: Sa
             }
 
             return match (readSaslAuthenticate(frame)) {
-                Err(reason) -> {
-                    return refused(turn, reason);
-                },
-
+                Err(reason) -> refused(turn, reason),
                 Ok(message) -> {
                     if (kind == "saslPlain") {
                         return loggedIn(turn);
                     }
 
                     return match (message.utf8()) {
-                        None -> {
-                            return refused(turn, "the broker's SCRAM message isn't text");
-                        },
-
+                        None -> refused(turn, "the broker's SCRAM message isn't text"),
                         text -> {
                             if (kind == "saslFirst") {
                                 match (computeScramFinal(mechanism, login.password, s.scramFirstBare, s.scramNonce, text)) {

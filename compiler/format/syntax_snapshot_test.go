@@ -151,23 +151,12 @@ func TestSyntaxFormSnapshots(t *testing.T) {
 			src: `workflow checkout(orderId: OrderId, input: NewCustomer, total: Money)
         -> Result<Order, CheckoutError> {
     return match (createCustomer(input)) {
-        Err(error) -> {
-            return Err(CheckoutError.Customer(error)); // wrapped unchanged
-        },
-
+        Err(error) -> Err(CheckoutError.Customer(error)), // wrapped unchanged
         found -> {
             return match (placeOrder(orderId, found.id, total)) {
-                Ok(order) -> {
-                    return Ok(order);
-                },
-
-                Err(OrderError.InventoryUnavailable(_)) -> {
-                    return Err(CheckoutError.OutOfStock); // reinterpreted
-                },
-
-                Err(error) -> {
-                    return Err(CheckoutError.Order(error)); // wrapped unchanged
-                }
+                Ok(order) -> Ok(order),
+                Err(OrderError.InventoryUnavailable(_)) -> Err(CheckoutError.OutOfStock), // reinterpreted
+                Err(error) -> Err(CheckoutError.Order(error)) // wrapped unchanged
             }
         }
     }

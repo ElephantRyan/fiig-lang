@@ -121,37 +121,22 @@ private {
 
     intAt(data: bytes, at: int) -> Result<int, KafkaError> {
         return match (i32At(data, at)) {
-            None -> {
-                return Err(short());
-            },
-
-            value -> {
-                return Ok(value);
-            }
+            None -> Err(short()),
+            value -> Ok(value)
         }
     }
 
     shortAt(data: bytes, at: int) -> Result<int, KafkaError> {
         return match (i16At(data, at)) {
-            None -> {
-                return Err(short());
-            },
-
-            value -> {
-                return Ok(value);
-            }
+            None -> Err(short()),
+            value -> Ok(value)
         }
     }
 
     textAt(data: bytes, at: int) -> Result<TextAt, KafkaError> {
         return match (stringAt(data, at)) {
-            None -> {
-                return Err(short());
-            },
-
-            value -> {
-                return Ok(value);
-            }
+            None -> Err(short()),
+            value -> Ok(value)
         }
     }
 }

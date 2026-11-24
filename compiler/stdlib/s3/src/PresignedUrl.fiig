@@ -68,13 +68,8 @@ private {
     // already their own encoding.
     queryValue(text: string) -> string {
         return match (http.pathSegment(text)) {
-            None -> {
-                return text;
-            },
-
-            encoded -> {
-                return encoded;
-            }
+            None -> text,
+            encoded -> encoded
         }
     }
 }

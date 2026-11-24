@@ -5,12 +5,7 @@ conversion i64At(data: bytes, at: int) -> int | None {
     }
 
     return match (data.slice(at, at + 8)) {
-        <<value: i64be>> -> {
-            return value;
-        },
-
-        _ -> {
-            return None;
-        }
+        <<value: i64be>> -> value,
+        _ -> None
     }
 }

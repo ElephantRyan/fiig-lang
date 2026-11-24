@@ -13,10 +13,7 @@ conversion groupSettings(
     commitMillis: int)
         -> Result<Map<string, string>, stream.SourceError> {
     return match (bootstrapOf(bootstrap)) {
-        Err(failure) -> {
-            return Err(consumerError(failure));
-        },
-
+        Err(failure) -> Err(consumerError(failure)),
         Ok(servers) -> {
             first = servers.first();
             alternates: string = "";

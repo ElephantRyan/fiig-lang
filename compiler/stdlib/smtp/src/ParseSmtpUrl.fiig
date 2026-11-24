@@ -140,13 +140,8 @@ private {
         }
 
         return match (out.utf8()) {
-            None -> {
-                return Err(invalid("its user or password isn't UTF-8 once decoded"));
-            },
-
-            decoded -> {
-                return Ok(decoded);
-            }
+            None -> Err(invalid("its user or password isn't UTF-8 once decoded")),
+            decoded -> Ok(decoded)
         }
     }
 

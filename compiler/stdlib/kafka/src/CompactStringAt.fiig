@@ -2,10 +2,7 @@
 // the response is too short or the text isn't UTF-8.
 conversion compactStringAt(data: bytes, at: int) -> TextAt | None {
     return match (uvarintAt(data, at)) {
-        None -> {
-            return None;
-        },
-
+        None -> None,
         length -> {
             if (length.value == 0) {
                 return TextAt(text: "", next: length.next);
@@ -17,13 +14,8 @@ conversion compactStringAt(data: bytes, at: int) -> TextAt | None {
             }
 
             return match (data.slice(length.next, end).utf8()) {
-                None -> {
-                    return None;
-                },
-
-                text -> {
-                    return TextAt(text: text, next: end);
-                }
+                None -> None,
+                text -> TextAt(text: text, next: end)
             }
         }
     }

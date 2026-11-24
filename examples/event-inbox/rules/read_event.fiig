@@ -36,41 +36,15 @@ private {
     // match has to say what happens to it (ADR 0081 §3).
     needsAttention(status: SubscriptionStatus | string) -> bool {
         return match (status) {
-            SubscriptionStatus.PastDue -> {
-                return true;
-            },
-
-            SubscriptionStatus.Unpaid -> {
-                return true;
-            },
-
-            SubscriptionStatus.IncompleteExpired -> {
-                return true;
-            },
-
-            SubscriptionStatus.Incomplete -> {
-                return false;
-            },
-
-            SubscriptionStatus.Trialing -> {
-                return false;
-            },
-
-            SubscriptionStatus.Active -> {
-                return false;
-            },
-
-            SubscriptionStatus.Canceled -> {
-                return false;
-            },
-
-            SubscriptionStatus.Paused -> {
-                return false;
-            },
-
-            unknown -> {
-                return unknown.length() > 0;
-            }
+            SubscriptionStatus.PastDue -> true,
+            SubscriptionStatus.Unpaid -> true,
+            SubscriptionStatus.IncompleteExpired -> true,
+            SubscriptionStatus.Incomplete -> false,
+            SubscriptionStatus.Trialing -> false,
+            SubscriptionStatus.Active -> false,
+            SubscriptionStatus.Canceled -> false,
+            SubscriptionStatus.Paused -> false,
+            unknown -> unknown.length() > 0
         }
     }
 }

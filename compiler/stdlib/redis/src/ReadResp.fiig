@@ -133,10 +133,7 @@ private {
     // A bulk string: its length on the first line, then that many bytes and CRLF.
     bulkAt(line: bytes, after: bytes) -> RespRead {
         return match (numberOf(line)) {
-            None -> {
-                return RespRead.Malformed(reason: "a bulk string's length isn't a number");
-            },
-
+            None -> RespRead.Malformed(reason: "a bulk string's length isn't a number"),
             size -> {
                 if (size == -1) {
                     return RespRead.Done(value: RespValue.Null, rest: after);
@@ -167,10 +164,7 @@ private {
     // An array: its count on the first line, then that many replies.
     arrayAt(line: bytes, after: bytes, depth: int) -> RespRead {
         return match (numberOf(line)) {
-            None -> {
-                return RespRead.Malformed(reason: "an array's count isn't a number");
-            },
-
+            None -> RespRead.Malformed(reason: "an array's count isn't a number"),
             count -> {
                 if (count == -1) {
                     return RespRead.Done(value: RespValue.Null, rest: after);

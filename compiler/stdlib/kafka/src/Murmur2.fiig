@@ -60,13 +60,8 @@ private {
     // a XOR b, for a and b below 2^32.
     xor32(a: int, b: int) -> int {
         return match (<<a: u32be>>.xor(<<b: u32be>>)) {
-            <<value: u32be>> -> {
-                return value;
-            },
-
-            _ -> {
-                return 0;
-            }
+            <<value: u32be>> -> value,
+            _ -> 0
         }
     }
 }

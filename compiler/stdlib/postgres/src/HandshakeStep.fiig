@@ -32,16 +32,11 @@ conversion handshakeStep(state: Handshake, kind: int, body: bytes) -> Handshake 
     }
 
     return match (body) {
-        <<code: i32be, data: bytes>> -> {
-            return authStep(state, code, data);
-        },
-
-        _ -> {
-            return copy(
-                state,
-                send: <<>>,
-                failed: db.DatabaseError.Protocol(reason: "an authentication message is too short")
-            );
-        }
+        <<code: i32be, data: bytes>> -> authStep(state, code, data),
+        _ -> copy(
+            state,
+            send: <<>>,
+            failed: db.DatabaseError.Protocol(reason: "an authentication message is too short")
+        )
     }
 }

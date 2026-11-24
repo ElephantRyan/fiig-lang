@@ -116,9 +116,7 @@ capability RedisStreams provides stream.StreamSource {
                 return Ok([]);
             },
 
-            _ -> {
-                return Ok([]);
-            }
+            _ -> Ok([])
         }
     }
 

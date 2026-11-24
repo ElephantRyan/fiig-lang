@@ -10,12 +10,7 @@ conversion pollReplyOf(parts: List<bytes>) -> Result<PollReply, stream.SourceErr
 
     decoded: Result<PollReply, JsonError> = json.decode(parts.first());
     return match (decoded) {
-        Err(_) -> {
-            return Err(stream.SourceError.Protocol(reason: "a poll's answer isn't a PollReply"));
-        },
-
-        Ok(reply) -> {
-            return Ok(reply);
-        }
+        Err(_) -> Err(stream.SourceError.Protocol(reason: "a poll's answer isn't a PollReply")),
+        Ok(reply) -> Ok(reply)
     }
 }

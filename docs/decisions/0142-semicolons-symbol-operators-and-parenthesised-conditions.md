@@ -147,6 +147,14 @@ conversion absPathId(id: string) -> Result<string, AbsError> {
   name its value, so a binding's `match` can't produce a value from a
   multi-line arm. Java answers that with `yield`. Fiig leaves it out until
   real code needs it (Open questions).
+
+  Since the two agree, `fiig fmt` writes an arm of a `return match` whose
+  block is only `return value;` as the value: `None -> { return
+  Err(e); }` becomes `None -> Err(e)` (added 2026-11-24, from Hearsay's
+  code). A comment after the `return` moves with it. The block stays when
+  the arm has any other comment, when the value is a `match`, when it is
+  too wide for one line and can't wrap at a `(`, and in a binding's
+  `match`, where the `return` means something else.
 - **The closing `}` of a `match` ends the statement.** Nothing follows it
   on the same statement: `match (x) { ... }(b)` is not a call, so the merge
   in Context can't come back through a `match`.

@@ -10,10 +10,7 @@ conversion rangeHeader(first: int, last: int | None) -> Result<http.Header, S3Er
     }
 
     return match (last) {
-        None -> {
-            return Ok(http.Header(name: "Range", value: "bytes=${first}-"));
-        },
-
+        None -> Ok(http.Header(name: "Range", value: "bytes=${first}-")),
         given -> {
             if (given < first) {
                 return Err(S3Error.InvalidRequest(reason: "a range can't end before it starts"));

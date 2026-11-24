@@ -10,12 +10,9 @@ conversion layoutOf(parts: List<bytes>) -> Result<TopicLayout, KafkaError> {
 
     decoded: Result<LayoutReply, JsonError> = json.decode(parts.first());
     return match (decoded) {
-        Err(_) -> {
-            return Err(
-                KafkaError.MalformedReply(reason: "a Layout ask's answer isn't a LayoutReply")
-            );
-        },
-
+        Err(_) -> Err(
+            KafkaError.MalformedReply(reason: "a Layout ask's answer isn't a LayoutReply")
+        ),
         Ok(reply) -> {
             match (reply.error) {
                 None -> None,
@@ -25,17 +22,12 @@ conversion layoutOf(parts: List<bytes>) -> Result<TopicLayout, KafkaError> {
             }
 
             return match (reply.layout) {
-                None -> {
-                    return Err(
-                        KafkaError.MalformedReply(
-                            reason: "a Layout ask's answer has no layout and no error"
-                        )
-                    );
-                },
-
-                layout -> {
-                    return Ok(layout);
-                }
+                None -> Err(
+                    KafkaError.MalformedReply(
+                        reason: "a Layout ask's answer has no layout and no error"
+                    )
+                ),
+                layout -> Ok(layout)
             }
         }
     }

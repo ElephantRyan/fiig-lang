@@ -151,7 +151,8 @@ func TestFormatPreservesTrailingComment(t *testing.T) {
 // arms' comments to the first arm, and CallExpr/FieldAccess nodes never
 // getting a real Span from the parser (so the trailing-comment range
 // collapsed to empty and comments were dropped from their rightful line
-// entirely). Each arm's comment must end up on its own return line.
+// entirely). Each arm's comment must end up on its own arm, which is now
+// written as its value.
 func TestFormatPreservesTrailingCommentOnCallReturnInMatchArm(t *testing.T) {
 	src := `enum E {
     A(x: int)
@@ -165,11 +166,11 @@ workflow w(x: int) -> int {
 }
 `
 	out := mustFormat(t, src)
-	if !strings.Contains(out, "return f(y); // first") {
-		t.Fatalf("first arm's trailing comment not attached to its return line:\n%s", out)
+	if !strings.Contains(out, "A(y) -> f(y), // first") {
+		t.Fatalf("first arm's trailing comment not attached to its arm:\n%s", out)
 	}
-	if !strings.Contains(out, "return g(y); // second") {
-		t.Fatalf("second arm's trailing comment not attached to its return line, or was stolen by the first arm:\n%s", out)
+	if !strings.Contains(out, "B(y) -> g(y) // second") {
+		t.Fatalf("second arm's trailing comment not attached to its arm, or was stolen by the first arm:\n%s", out)
 	}
 }
 
@@ -428,11 +429,13 @@ func TestFormatBlankLineAfterABlock(t *testing.T) {
     note = "a brace on its own line\n}\nstays as it is";
     return match (x) {
         0 -> {
-            return note;
+            shown = note;
+            return shown;
         },
 
         _ -> {
-            return "${total}";
+            shown = "${total}";
+            return shown;
         }
     }
 }

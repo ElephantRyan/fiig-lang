@@ -2,10 +2,7 @@
 // or None when the response is too short or the text isn't UTF-8.
 conversion stringAt(data: bytes, at: int) -> TextAt | None {
     return match (i16At(data, at)) {
-        None -> {
-            return None;
-        },
-
+        None -> None,
         size -> {
             if (size < 0) {
                 return TextAt(text: "", next: at + 2);
@@ -17,13 +14,8 @@ conversion stringAt(data: bytes, at: int) -> TextAt | None {
 
             text = data.slice(at + 2, at + 2 + size).utf8();
             return match (text) {
-                None -> {
-                    return None;
-                },
-
-                decoded -> {
-                    return TextAt(text: decoded, next: at + 2 + size);
-                }
+                None -> None,
+                decoded -> TextAt(text: decoded, next: at + 2 + size)
             }
         }
     }

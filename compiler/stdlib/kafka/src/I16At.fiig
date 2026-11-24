@@ -5,12 +5,7 @@ conversion i16At(data: bytes, at: int) -> int | None {
     }
 
     return match (data.slice(at, at + 2)) {
-        <<value: i16be>> -> {
-            return value;
-        },
-
-        _ -> {
-            return None;
-        }
+        <<value: i16be>> -> value,
+        _ -> None
     }
 }

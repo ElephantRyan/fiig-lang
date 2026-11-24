@@ -3,16 +3,10 @@
 // its own error, so the route can answer with a challenge.
 activity startSession(authorization: string | None) -> Result<Session, AccountError> {
     return match (authorization) {
-        None -> {
-            return Err(AccountError.NoCredentials);
-        },
-
+        None -> Err(AccountError.NoCredentials),
         header -> {
             return match (basicCredentials(header)) {
-                None -> {
-                    return Err(AccountError.BadCredentials);
-                },
-
+                None -> Err(AccountError.BadCredentials),
                 credentials -> {
                     account = findAccountByKey(credentials)?;
                     token = Random.bytes(count: 32).toBase64Url();

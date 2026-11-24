@@ -14,25 +14,15 @@ rule quoteCents(request: QuoteRequest) -> Result<int, QuoteError> {
         Destination.Domestic(_) -> {
             base = 500 + 100 * kilograms;
             return match (request.speed) {
-                Speed.Standard -> {
-                    return Ok(base);
-                },
-
-                Speed.Express -> {
-                    return Ok(base * 2);
-                }
+                Speed.Standard -> Ok(base),
+                Speed.Express -> Ok(base * 2)
             }
         },
 
         Destination.International(_, _) -> {
             return match (request.speed) {
-                Speed.Standard -> {
-                    return Ok(1500 + 400 * kilograms);
-                },
-
-                Speed.Express -> {
-                    return Err(QuoteError.NoExpressAbroad);
-                }
+                Speed.Standard -> Ok(1500 + 400 * kilograms),
+                Speed.Express -> Err(QuoteError.NoExpressAbroad)
             }
         }
     }

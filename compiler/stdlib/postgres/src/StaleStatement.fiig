@@ -10,8 +10,6 @@ conversion staleStatement(failed: db.DatabaseError | None) -> bool {
             return code == "26000" || (code == "0A000" && message.contains("cached plan must not change result type"));
         },
 
-        _ -> {
-            return false;
-        }
+        _ -> false
     }
 }

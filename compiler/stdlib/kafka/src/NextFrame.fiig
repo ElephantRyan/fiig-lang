@@ -18,8 +18,6 @@ conversion nextFrame(buffer: bytes) -> FrameRead {
             );
         },
 
-        _ -> {
-            return FrameRead.NeedMore;
-        }
+        _ -> FrameRead.NeedMore
     }
 }

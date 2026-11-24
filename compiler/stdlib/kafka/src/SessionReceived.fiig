@@ -9,10 +9,7 @@ use fiig.session;
 conversion sessionReceived(state: bytes, data: bytes, now: int, login: SaslLogin) -> session.Step {
     decoded: Result<KafkaSessionState, JsonError> = json.decode(state);
     return match (decoded) {
-        Err(_) -> {
-            return failedStep("fiig.kafka's session state doesn't decode");
-        },
-
+        Err(_) -> failedStep("fiig.kafka's session state doesn't decode"),
         Ok(s) -> {
             turn: SessionTurn = SessionTurn(
                 state: copy(s, buffer: <<>>),
@@ -113,9 +110,7 @@ private {
                 return next;
             },
 
-            _ -> {
-                return failed(turn, "a response is shorter than its correlation id");
-            }
+            _ -> failed(turn, "a response is shorter than its correlation id")
         }
     }
 
@@ -128,10 +123,7 @@ private {
         }
 
         return match (checkApiVersions(frame, correlation)) {
-            Ok(_) -> {
-                return copy(turn, state: s);
-            },
-
+            Ok(_) -> copy(turn, state: s),
             Err(refusal) -> {
                 if (s.refused != None) {
                     return copy(turn, state: s);
@@ -171,10 +163,7 @@ private {
     // On the coordinator, the member joins; elsewhere, the session moves.
     coordinatorAnswered(turn: SessionTurn, frame: bytes, now: int) -> SessionTurn {
         return match (readCoordinator(frame)) {
-            Err(reason) -> {
-                return failed(turn, reason);
-            },
-
+            Err(reason) -> failed(turn, reason),
             Ok(node) -> {
                 s = turn.state;
                 if (node.host != s.host || node.port != s.port) {
@@ -192,10 +181,7 @@ private {
     heartbeatAnswered(turn: SessionTurn, frame: bytes, now: int) -> SessionTurn {
         s = copy(turn.state, heartbeatInFlight: false);
         return match (readHeartbeat(frame)) {
-            Err(reason) -> {
-                return failed(turn, reason);
-            },
-
+            Err(reason) -> failed(turn, reason),
             Ok(answer) -> {
                 if (answer.code == 25 || answer.code == 110) {
                     // Fenced or forgotten: join again, owning nothing, and
@@ -320,10 +306,7 @@ private {
     // none, where the route's `from` says (-1, which receive resolves).
     offsetsAnswered(turn: SessionTurn, frame: bytes) -> SessionTurn {
         return match (readOffsetFetch(frame)) {
-            Err(reason) -> {
-                return failed(turn, reason);
-            },
-
+            Err(reason) -> failed(turn, reason),
             Ok(committed) -> {
                 placed: List<OwnedPartition> = [];
                 for (p in turn.state.partitions) {

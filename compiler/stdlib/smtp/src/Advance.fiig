@@ -80,26 +80,15 @@ private {
     // read: the refusal that follows says the rest.
     oauthStatus(reply: SmtpReply) -> string {
         return match (reply.lines.join("").trim().fromBase64()) {
-            None -> {
-                return "";
-            },
-
+            None -> "",
             raw -> {
                 decoded: Result<XOAuth2Failure, JsonError> = json.decode(raw);
                 return match (decoded) {
-                    Err(_) -> {
-                        return "";
-                    },
-
+                    Err(_) -> "",
                     Ok(failure) -> {
                         return match (failure.status) {
-                            None -> {
-                                return "";
-                            },
-
-                            status -> {
-                                return " (status ${status})";
-                            }
+                            None -> "",
+                            status -> " (status ${status})"
                         }
                     }
                 }
@@ -150,13 +139,8 @@ private {
         }
 
         return match (d.target.user) {
-            None -> {
-                return Ok(copy(learned, phase: SmtpPhase.MailFrom));
-            },
-
-            _ -> {
-                return loginPhase(learned);
-            }
+            None -> Ok(copy(learned, phase: SmtpPhase.MailFrom)),
+            _ -> loginPhase(learned)
         }
     }
 
