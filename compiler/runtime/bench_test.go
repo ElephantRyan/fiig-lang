@@ -190,3 +190,62 @@ func BenchmarkParse(b *testing.B) {
 	b.SetBytes(int64(len(stream)))
 	benchCall(b, in, "rows", map[string]Value{"stream": Bytes{B: stream}})
 }
+
+// BenchmarkCallsTraced is BenchmarkCalls with a tracer that wants only
+// gateway spans, as fiig serve's does at info (ADR 0150 §3a): none of
+// these calls is a gateway, so it should cost what BenchmarkCalls does.
+func BenchmarkCallsTraced(b *testing.B) {
+	in := benchInterp(b, `conversion step(n: int) -> int {
+    return twice(n) + 1;
+}
+
+private {
+    twice(n: int) -> int {
+        return n * 2;
+    }
+}`, `activity calls(n: int) -> int {
+    total: int = 0;
+    i: int = 0;
+    while (i < n) {
+        total = (total + step(i)) % 1000003;
+        i = i + 1;
+    }
+    return total;
+}`)
+	in.Tracer = gatewaysOnly{}
+	benchCall(b, in, "calls", map[string]Value{"n": Int(100_000)})
+}
+
+// BenchmarkGatewayCallsTraced is the cost a traced gateway call pays: a
+// span per call, recorded into a request's counts.
+func BenchmarkGatewayCallsTraced(b *testing.B) {
+	for _, traced := range []bool{false, true} {
+		name := "untraced"
+		if traced {
+			name = "traced"
+		}
+		b.Run(name, func(b *testing.B) {
+			in := benchInterp(b, `gateway step(n: int) -> int requires Socket {
+    return n + 1;
+}`, `activity calls(n: int) -> int {
+    total: int = 0;
+    i: int = 0;
+    while (i < n) {
+        total = (total + step(i)) % 1000003;
+        i = i + 1;
+    }
+    return total;
+}`)
+			if traced {
+				in.Tracer = gatewaysOnly{}
+			}
+			benchCall(b, in, "calls", map[string]Value{"n": Int(10_000)})
+		})
+	}
+}
+
+type gatewaysOnly struct{}
+
+func (gatewaysOnly) Wants(kind SpanKind) bool { return kind == SpanGateway }
+
+func (gatewaysOnly) RecordSpan(ctx context.Context, s Span) { _ = ctx.Value(gatewaysOnly{}) }

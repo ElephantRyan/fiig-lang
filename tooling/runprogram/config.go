@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"fiig-lang/compiler/format"
+	"fiig-lang/compiler/logging"
 	"fiig-lang/compiler/manifest"
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/syntax"
@@ -499,6 +500,46 @@ func UseConcurrency(in *runtime.Interp, root string) {
 		in.DefaultConcurrencyLimit = def
 	}
 	in.MaxConcurrencyLimit = maximum
+}
+
+// ReadLogger is fiig serve's log (ADR 0150 §3a): the format and level from
+// the flags when given, else FIIG_LOG_FORMAT and FIIG_LOG_LEVEL, else text
+// at info, with the root manifest's path and version as its service. A
+// value that isn't one of the names is a problem for the startup report,
+// and the default is used meanwhile.
+func ReadLogger(env *Environment, root, formatFlag, levelFlag string) (*logging.Logger, []string) {
+	var problems []string
+	read := func(flag, variable string) (string, string) {
+		if flag != "" {
+			return flag, "-" + strings.ToLower(strings.TrimPrefix(strings.ReplaceAll(variable, "_", "-"), "FIIG-"))
+		}
+		if v, ok := env.Lookup(variable); ok && v != "" {
+			return v, variable
+		}
+		return "", ""
+	}
+	format, level := logging.Text, logging.Info
+	if v, where := read(formatFlag, "FIIG_LOG_FORMAT"); v != "" {
+		f, err := logging.ParseFormat(v)
+		if err != nil {
+			problems = append(problems, where+": "+err.Error())
+		}
+		format = f
+	}
+	if v, where := read(levelFlag, "FIIG_LOG_LEVEL"); v != "" {
+		l, err := logging.ParseLevel(v)
+		if err != nil {
+			problems = append(problems, where+": "+err.Error())
+		}
+		level = l
+	}
+	service, version := "", ""
+	if _, err := os.Stat(filepath.Join(root, manifest.Filename)); err == nil {
+		if m, errs := manifest.Load(root); len(errs) == 0 {
+			service, version = m.Path, m.Version
+		}
+	}
+	return logging.New(format, level, service, version), problems
 }
 
 // ConfigReport is §3's one startup report: every configuration problem,

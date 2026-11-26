@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"fiig-lang/compiler/adapter"
+	"fiig-lang/compiler/logging"
 	"fiig-lang/tooling/migrate"
 	"fiig-lang/tooling/runprogram"
 )
@@ -114,7 +115,7 @@ func TestADegradedStartupIsReadThroughConfig(t *testing.T) {
 		t.Fatalf("before the checks ran, /status = %s, want not degraded", got)
 	}
 	var logs []string
-	loops[0].setLog(func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) })
+	loops[0].setLog(logging.FromLogf(func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) }))
 	if err := loops[0].run(context.Background()); err != nil {
 		t.Fatalf("a degraded start was refused: %v", err)
 	}

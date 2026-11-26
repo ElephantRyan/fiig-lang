@@ -283,6 +283,39 @@ carries it back as `X-Request-Id`.
   `fiig: GET /boom 500 3ms id=cc18879cb00d86b2`. The path is logged and the
   query isn't, since it can carry a token. `-access-log=false` turns the line
   off; faults are always logged.
+- **A failed request names the calls that failed.** A request that faulted
+  or answered 5xx writes a line for each gateway call that returned an `Err`
+  or faulted, before its access line:
+  `fiig: request 72bb4f0cc3187b9a: fetchSeries returned Err(connection refused) after 10003ms`.
+  A stream element that is retried, dead-lettered or halts, and a schedule
+  firing that fails, do the same.
+
+### For a log platform (ADR 0150)
+
+`-log-format json` (or `FIIG_LOG_FORMAT=json`) writes every line as one
+JSON object, on stdout, for Datadog, Grafana Loki, CloudWatch or Elastic's
+agent to read from the container's output. None of them needs a parsing
+rule for it:
+
+```json
+{"timestamp":"2026-11-25T09:14:03.512Z","level":"error","msg":"GET /series/down 503 10013ms id=72bb4f0cc3187b9a","event":"request","service":"hearsay","version":"0.4.0","requestId":"72bb4f0cc3187b9a","method":"GET","path":"/series/down","route":"/series/{id}","adapter":"hearsay.series.seriesApi","status":503,"durationMs":10013,"calls":1,"callErrs":1,"callMs":10003}
+```
+
+- `timestamp`, `level` (`debug`, `info`, `warn`, `error`), `msg`, `event`
+  (`request`, `fault`, `call`, `startup`, `schedule`, `stream`,
+  `lifecycle`, `runtime`), and the manifest's `service` and `version` are
+  on every line, then the event's own fields: `requestId`, `route`,
+  `adapter`, `status`, `durationMs`, `calls`, `callErrs`, `callMs`,
+  `elementId`, `declaration`, `outcome`, `detail`.
+- A request with a W3C `traceparent` header has `trace_id` and `span_id`,
+  which Datadog uses to show its logs beside its trace.
+- `-log-level` (or `FIIG_LOG_LEVEL`) drops the lines below it; a fault is
+  always written. At `error` nothing is recorded per call, so it costs what
+  serving cost before ADR 0150; at `info` (the default) a gateway call costs
+  about 80 ns more. `debug` writes every gateway call.
+- A bad value for either stops the server at startup, in the configuration
+  report.
+- The text format, on stderr, is unchanged.
 
 ## Stream adapters
 

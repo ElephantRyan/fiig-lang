@@ -40,7 +40,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -51,6 +50,7 @@ import (
 
 	"fiig-lang/compiler/adapter"
 	"fiig-lang/compiler/loader"
+	"fiig-lang/compiler/logging"
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
@@ -58,6 +58,11 @@ import (
 	"fiig-lang/tooling/migrate"
 	"fiig-lang/tooling/runprogram"
 )
+
+// serveTracer is the Tracer fiig serve's interpreter gets: CallTracer when
+// its log level counts calls (ADR 0150 §3a), else nil, which records
+// nothing.
+var serveTracer runtime.Tracer
 
 type stringList []string
 
@@ -81,10 +86,12 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	migrateFlag := fs.String("migrate", "apply", "apply pending migrations before serving, or check: refuse to start while any are pending (ADR 0096 §2)")
 	requestTimeout := fs.Duration("request-timeout", 0, "how long a request may run, else 503 (ADR 0076 §3); default $REQUEST_TIMEOUT, else 30s")
 	accessLog := fs.Bool("access-log", true, "log a line for each request: method, path, status, duration, and its id (ADR 0128); a fault is always logged under its request's id, and `-access-log=false` turns the line off")
+	logFormat := fs.String("log-format", "", "text, on stderr, or json, one object per line on stdout for a log platform's agent (ADR 0150 §1); default $FIIG_LOG_FORMAT, else text")
+	logLevel := fs.String("log-level", "", "debug, info, warn or error: the lines written, and at error nothing is recorded per call (ADR 0150 §3a); a fault is always written; default $FIIG_LOG_LEVEL, else info")
 	checkOnly := fs.Bool("check", false, "run only the startup routes (ADR 0124), then exit 0 if the program could start and 1 if not; nothing listens, no migration is applied, and `once` is ignored")
 	fs.Parse(args)
 	if fs.NArg() < 1 {
-		fmt.Fprintln(os.Stderr, "usage: "+name+" [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-max-body N] [-max-requests N] [-request-timeout D] [-workspace DIR]... <root> [<role> | <adapterName>...]")
+		fmt.Fprintln(os.Stderr, "usage: "+name+" [-addr ADDR] [-caps FILE] [-env-file FILE] [-allow-origin ORIGIN]... [-max-body N] [-max-requests N] [-request-timeout D] [-log-format text|json] [-log-level LEVEL] [-workspace DIR]... <root> [<role> | <adapterName>...]")
 		os.Exit(2)
 	}
 	env, err := runprogram.NewEnvironment(*envFile)
@@ -111,9 +118,18 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	}
 	limits, limitProblems := readLimits(env, *maxBody, *maxRequests, *requestTimeout)
 	originProblems = append(originProblems, limitProblems...)
+	lg, logProblems := runprogram.ReadLogger(env, fs.Arg(0), *logFormat, *logLevel)
+	originProblems = append(originProblems, logProblems...)
+	runtime.Log = lg
+	if adapter.CountsCalls(lg) {
+		serveTracer = adapter.CallTracer{}
+	}
+	fail := func(err any) {
+		lg.Log(logging.Error, logging.EventLifecycle, fmt.Sprint("error: ", err))
+	}
 	mode, err := migrate.ParseMode(*migrateFlag)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fail(err)
 		os.Exit(2)
 	}
 	if *checkOnly {
@@ -121,7 +137,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	}
 	handler, loops, bindings, caps, err := load(fs.Arg(0), fs.Args()[1:], *capsPath, workspaces, factories, cors, limits, env, originProblems, mode)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fail(err)
 		os.Exit(1)
 	}
 
@@ -132,13 +148,13 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	if handler != nil {
 		readTimeout, writeTimeout := limits.ServerTimeouts()
 		// ADR 0128: every request has an id, and a fault stays in this log.
-		handler = adapter.Observer{Logf: log.Printf, Access: *accessLog}.Wrap(handler)
+		handler = adapter.Observer{Log: lg, Access: *accessLog}.Wrap(handler)
 		srv = &http.Server{
 			Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second,
 			ReadTimeout: readTimeout, WriteTimeout: writeTimeout, MaxHeaderBytes: adapter.MaxHeaderBytes,
 		}
 	} else if *addrFlag != "" {
-		log.Printf("fiig: ignoring -addr %s: nothing served here is an http adapter", *addrFlag)
+		lg.Logf(logging.Info, logging.EventLifecycle, nil, "fiig: ignoring -addr %s: nothing served here is an http adapter", *addrFlag)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -150,13 +166,13 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 			background = append(background, l)
 			continue
 		}
-		l.setLog(log.Printf)
+		l.setLog(lg)
 		if *checkOnly {
 			l.ignoreOnce()
 		}
-		log.Printf("fiig: %s", l.describe)
+		lg.Logf(logging.Info, logging.EventLifecycle, nil, "fiig: %s", l.describe)
 		if err := l.run(ctx); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
+			fail(err)
 			caps.Close()
 			os.Exit(1)
 		}
@@ -164,7 +180,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	if *checkOnly {
 		// ADR 0124 §6: the program could start, which is all -check says.
 		caps.Close()
-		log.Print("fiig: the startup checks passed, so the program could start")
+		lg.Log(logging.Info, logging.EventStartup, "fiig: the startup checks passed, so the program could start")
 		return
 	}
 	loops = background
@@ -175,7 +191,7 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	halted := make(chan error, len(loops))
 	running := make(chan struct{}, len(loops))
 	for _, l := range loops {
-		l.setLog(log.Printf)
+		l.setLog(lg)
 		go func() {
 			defer func() { running <- struct{}{} }()
 			if err := l.run(ctx); err != nil {
@@ -192,23 +208,23 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 			defer cancel()
 			srv.Shutdown(done)
 		}()
-		log.Printf("fiig %s: serving %s on %s", version.Version, served, addr)
+		lg.Logf(logging.Info, logging.EventLifecycle, []logging.Field{logging.F("fiig", version.Version)}, "fiig %s: serving %s on %s", version.Version, served, addr)
 	} else {
-		log.Printf("fiig %s: running %s, listening on nothing", version.Version, served)
+		lg.Logf(logging.Info, logging.EventLifecycle, []logging.Field{logging.F("fiig", version.Version)}, "fiig %s: running %s, listening on nothing", version.Version, served)
 	}
 	for _, b := range bindings {
-		log.Printf("fiig: %s", b)
+		lg.Logf(logging.Info, logging.EventLifecycle, nil, "fiig: %s", b)
 	}
 	if cors != nil {
-		log.Printf("fiig: allowing cross-origin calls from %s", strings.Join(cors.Origins(), ", "))
+		lg.Logf(logging.Info, logging.EventLifecycle, nil, "fiig: allowing cross-origin calls from %s", strings.Join(cors.Origins(), ", "))
 	}
 	for _, l := range loops {
-		log.Printf("fiig: %s", l.describe)
+		lg.Logf(logging.Info, logging.EventLifecycle, nil, "fiig: %s", l.describe)
 	}
 	if srv == nil {
 		<-ctx.Done()
 	} else if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fail(err)
 		os.Exit(1)
 	}
 	// Each stream route finishes the element in hand (ADR 0111 §5), and
@@ -221,11 +237,11 @@ func Main(name string, args []string, factories runtime.FactoryRegistry) {
 	caps.Close()
 	select {
 	case err := <-halted:
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fail(err)
 		os.Exit(1)
 	default:
 	}
-	log.Print("fiig: stopped")
+	lg.Log(logging.Info, logging.EventLifecycle, "fiig: stopped")
 }
 
 // load checks root and builds the handler for the http adapters named
@@ -267,6 +283,7 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	}
 	runprogram.RegisterDefaults(caps)
 	in := runtime.New(universe, caps)
+	in.Tracer = serveTracer
 	runprogram.UseConcurrency(in, root)
 	in.Imports = runprogram.BuildImports(files, packages)
 	in.Groups = runprogram.BuildGroups(files, packages)
@@ -332,9 +349,9 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 				}
 				return nil
 			},
-			setLog: func(f func(string, ...any)) {
+			setLog: func(lg *logging.Logger) {
 				for _, r := range checks {
-					r.Logf = f
+					r.Log = lg
 				}
 			},
 			ignoreOnce: func() {
@@ -348,14 +365,14 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 	for _, r := range streams {
 		pkg, group, _ := r.Source().Resolve()
 		entries = append(entries, runprogram.Entry{Package: pkg, Name: group})
-		loops = append(loops, loop{run: r.Run, setLog: func(f func(string, ...any)) { r.Logf = f }, describe: fmt.Sprintf("reading stream %s from %s", r.Name(), r.Source().Path())})
+		loops = append(loops, loop{run: r.Run, setLog: func(lg *logging.Logger) { r.Log = lg }, describe: fmt.Sprintf("reading stream %s from %s", r.Name(), r.Source().Path())})
 	}
 	for _, r := range jobs {
 		if p, isFiig := r.Lock().(*runtime.LockProvider); isFiig {
 			pkg, group, _ := p.Resolve()
 			entries = append(entries, runprogram.Entry{Package: pkg, Name: group})
 		}
-		loops = append(loops, loop{run: r.Run, setLog: func(f func(string, ...any)) { r.Logf = f }, describe: fmt.Sprintf("running %s, claimed with %s", r.Name(), r.Lock().Describe())})
+		loops = append(loops, loop{run: r.Run, setLog: func(lg *logging.Logger) { r.Log = lg }, describe: fmt.Sprintf("running %s, claimed with %s", r.Name(), r.Lock().Describe())})
 	}
 	sources := runprogram.ReachableConfigFrom(program, entries)
 	problems = append(problems, runprogram.UseDatabaseSettings(context.Background(), in, caps, sources)...)
@@ -385,7 +402,7 @@ func load(root string, names []string, capsPath string, workspaces []string, fac
 // listener until shutdown (ADRs 0111, 0112).
 type loop struct {
 	run      func(context.Context) error
-	setLog   func(func(string, ...any))
+	setLog   func(*logging.Logger)
 	describe string
 	// startup marks the one loop that checks the program before anything
 	// else starts, and ends when it has (ADR 0124 §2).

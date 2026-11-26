@@ -3,6 +3,7 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -115,7 +116,7 @@ func TestSqlScheduleLockRunsAOnceRouteOncePerDeploy(t *testing.T) {
 	var logs []string
 	for _, holder := range []string{"replica-a", "replica-b"} {
 		r := sqlLockRunner(t, db, holder, 11)
-		r.Logf = func(format string, args ...any) { logs = append(logs, format) }
+		r.Logf = func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) }
 		if err := adapter.RunStartup(context.Background(), []*adapter.StartupRunner{r}); err != nil {
 			t.Fatalf("%s: %v", holder, err)
 		}

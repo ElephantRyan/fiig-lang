@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"fiig-lang/compiler/logging"
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
@@ -104,9 +105,13 @@ type StreamRunner struct {
 	// unless fiig serve or a test sets it).
 	Settings StreamSettings
 	// Logf reports what the loop can carry on past: a source that's
-	// unavailable, a settle that failed.
+	// unavailable, a settle that failed. Log, when set, is used instead,
+	// with each line's level and fields (ADR 0150).
 	Logf func(format string, args ...any)
+	Log  *logging.Logger
 }
+
+func (r *StreamRunner) lg() *logging.Logger { return pickLogger(r.Log, r.Logf) }
 
 // Name is the route as logs and a Halt name it.
 func (r *StreamRunner) Name() string { return r.name }
@@ -194,7 +199,7 @@ func (r *StreamRunner) Run(ctx context.Context) error {
 			return &Halt{Route: r.name, Element: "receive", Reason: "the source is misconfigured: " + sf.Reason}
 		}
 		if failure != nil {
-			r.Logf("stream %s: the source can't be read (%v); trying again in %s", r.name, failure, backoff)
+			r.lg().Logf(logging.Warn, logging.EventStream, []logging.Field{logging.F("route", r.name)}, "stream %s: the source can't be read (%v); trying again in %s", r.name, failure, backoff)
 			select {
 			case <-ctx.Done():
 				return nil
@@ -229,7 +234,7 @@ func (r *StreamRunner) Run(ctx context.Context) error {
 				return &Halt{Route: r.name, Element: "id " + d.ID, Reason: "settling it faulted: " + fault.Message}
 			}
 			if failure != nil {
-				r.Logf("stream %s: settling id %s as %s failed (%v); the source will deliver it again", r.name, d.ID, outcome, failure)
+				r.lg().Logf(logging.Warn, logging.EventStream, []logging.Field{logging.F("route", r.name), logging.F("elementId", d.ID)}, "stream %s: settling id %s as %s failed (%v); the source will deliver it again", r.name, d.ID, outcome, failure)
 			}
 			if outcome == "Retry" && d.Order != "" {
 				if retried == nil {
@@ -293,7 +298,17 @@ func (r *StreamRunner) Decide(ctx context.Context, d runtime.Delivery) Dispositi
 // handle runs the workflow on one element and decides its outcome:
 // "Ack", "Retry", or "DeadLetter" with its target; or halts.
 func (r *StreamRunner) handle(ctx context.Context, d runtime.Delivery) (string, string, *Halt) {
+	// ADR 0150 §4: an element that didn't succeed writes its failing calls.
+	log := r.lg()
+	var c *calls
+	what, fields := "stream "+r.name+" id "+d.ID, []logging.Field{logging.F("route", r.name), logging.F("elementId", d.ID)}
+	if CountsCalls(log) {
+		ctx, c = elementCalls(ctx, log, what, fields)
+	}
 	disp := r.decide(ctx, d)
+	if c != nil && (disp.Halt != nil || disp.Outcome == "Retry" || disp.Outcome == "DeadLetter") {
+		c.writeFailed(log, what, fields)
+	}
 	return disp.Outcome, disp.Target, disp.Halt
 }
 

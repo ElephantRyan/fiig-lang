@@ -77,13 +77,15 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 	trace := fs.Bool("trace", false, "print the call tree (compiler/runtime.Span) to stderr after running")
 	envFile := fs.String("env-file", "", "a file of NAME=value lines that sets environment variables the process doesn't (ADR 0071 §3a)")
 	replay := fs.String("replay", "", "the id of one element of a stream adapter's source: run the route's workflow on it and print what its mapping chose, settling nothing (ADR 0111)")
+	logFormat := fs.String("log-format", "", "with -replay, text or json for the lines the route's run logs, as fiig serve takes it (ADR 0150 §1); default $FIIG_LOG_FORMAT, else text")
+	logLevel := fs.String("log-level", "", "with -replay, debug, info, warn or error, as fiig serve takes it (ADR 0150 §3a); default $FIIG_LOG_LEVEL, else info")
 	replaySource := fs.String("source", "", "with -replay, the source of the route to replay, when the adapter reads more than one")
 	var workspaces stringList
 	fs.Var(&workspaces, "workspace", "directory to search for root's package dependencies (compiler/loader); repeatable. Omitted, only the packages fiig ships are searched (ADR 0074)")
 	fs.Parse(argv)
 	if fs.NArg() != 2 {
 		fmt.Fprintln(os.Stderr, "usage: "+name+" [-json] [-args JSON | -args-file FILE] [-caps FILE] [-env-file FILE] [-migrate apply|check] [-trace] [-workspace DIR]... <root> <declName>")
-		fmt.Fprintln(os.Stderr, "       "+name+" -replay ID [-source NAME] [-json] [-caps FILE] [-env-file FILE] [-migrate apply|check] [-trace] [-workspace DIR]... <root> <streamAdapter>")
+		fmt.Fprintln(os.Stderr, "       "+name+" -replay ID [-source NAME] [-log-format text|json] [-log-level LEVEL] [-json] [-caps FILE] [-env-file FILE] [-migrate apply|check] [-trace] [-workspace DIR]... <root> <streamAdapter>")
 		os.Exit(2)
 	}
 	root, name := fs.Arg(0), fs.Arg(1)
@@ -103,6 +105,13 @@ func Main(name string, argv []string, factories runtime.FactoryRegistry) {
 			fmt.Fprintln(os.Stderr, "error: -replay takes its argument from the element; -args and -args-file don't apply")
 			os.Exit(2)
 		}
+		// ADR 0150 §1: a replayed route logs as fiig serve would.
+		lg, problems := runprogram.ReadLogger(env, root, *logFormat, *logLevel)
+		if len(problems) > 0 {
+			fmt.Fprintln(os.Stderr, "error:", strings.Join(problems, "; "))
+			os.Exit(2)
+		}
+		runtime.Log = lg
 		runReplay(servecmd.ReplayOptions{
 			Root: root, Adapter: name, ID: *replay, Source: *replaySource,
 			CapsPath: *capsPath, Workspaces: workspaces, Factories: factories, Env: env, Migrate: mode,

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"fiig-lang/compiler/logging"
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/schedule"
 	"fiig-lang/compiler/syntax"
@@ -61,9 +62,14 @@ type ScheduleRunner struct {
 	// Rand(n) picks the wait in [0, n): math/rand unless a test sets it.
 	Jitter time.Duration
 	Rand   func(n int64) int64
-	// Logf reports a failed job, an overrun, and a claim that failed.
+	// Logf reports a failed job, an overrun, and a claim that failed. Log,
+	// when set, is used instead, with each line's level and fields (ADR
+	// 0150).
 	Logf func(format string, args ...any)
+	Log  *logging.Logger
 }
+
+func (r *ScheduleRunner) lg() *logging.Logger { return pickLogger(r.Log, r.Logf) }
 
 // Name is the job's name, which its lock claims are keyed by.
 func (r *ScheduleRunner) Name() string { return r.name }
@@ -182,6 +188,8 @@ func (r *ScheduleRunner) jitter(fire time.Time) time.Duration {
 func (r *ScheduleRunner) fire(ctx context.Context, fire time.Time) *Halt {
 	after := r.sched.Next(fire)
 	element := "the firing at " + fire.UTC().Format(time.RFC3339)
+	log := r.lg()
+	fields := []logging.Field{logging.F("route", r.name), logging.F("elementId", fire.UTC().Format(time.RFC3339))}
 	lctx, cancel := context.WithTimeout(r.enter(ctx), lockTimeout)
 	// Held to the next firing, and never less than a minute, so a replica
 	// whose clock runs late by less than that can't claim a firing that
@@ -193,7 +201,7 @@ func (r *ScheduleRunner) fire(ctx context.Context, fire time.Time) *Halt {
 		return &Halt{Route: r.name, Element: element, Reason: "claiming it faulted: " + fault.Message}
 	}
 	if failure != nil {
-		r.Logf("schedule %s: skipping %s, since it couldn't be claimed (%v)", r.name, element, failure)
+		log.Logf(logging.Warn, logging.EventSchedule, fields, "schedule %s: skipping %s, since it couldn't be claimed (%v)", r.name, element, failure)
 		return nil
 	}
 	if !claimed {
@@ -206,16 +214,28 @@ func (r *ScheduleRunner) fire(ctx context.Context, fire time.Time) *Halt {
 	// Finished even if ctx ends meanwhile, but never past the next firing.
 	wctx, cancelRun := context.WithTimeout(r.enter(context.WithoutCancel(ctx)), after.Sub(r.Now()))
 	defer cancelRun()
+	// ADR 0150 §4: a firing that failed writes its failing calls.
+	var c *calls
+	what := "schedule " + r.name + " " + element
+	if CountsCalls(log) {
+		wctx, c = elementCalls(wctx, log, what, fields)
+	}
+	failedCalls := func() {
+		if c != nil {
+			c.writeFailed(log, what, fields)
+		}
+	}
 	result, fault := r.in.Call(wctx, workflowName(r.route), args)
 	if fault != nil {
+		failedCalls()
 		if wctx.Err() == context.DeadlineExceeded {
-			r.Logf("schedule %s: %s overran into the next firing, so it was stopped (ADR 0112 §3)", r.name, element)
+			log.Logf(logging.Error, logging.EventSchedule, fields, "schedule %s: %s overran into the next firing, so it was stopped (ADR 0112 §3)", r.name, element)
 			return nil
 		}
 		// A fault fails this firing only (ADR 0112 §2, as amended): the
 		// next firing is the retry, and only the mapping's halt stops the
 		// process.
-		r.Logf("schedule %s: %s faulted, so it was skipped: %s", r.name, element, fault.Message)
+		log.Logf(logging.Error, logging.EventSchedule, append(fields, logging.F("detail", fault.Message)), "schedule %s: %s faulted, so it was skipped: %s", r.name, element, fault.Message)
 		return nil
 	}
 	for _, arm := range r.route.Mapping {
@@ -224,7 +244,8 @@ func (r *ScheduleRunner) fire(ctx context.Context, fire time.Time) *Halt {
 		}
 		if d, ok := arm.Value.(*syntax.DispositionResponse); ok && d.Kind == "done" {
 			if res, isResult := result.(runtime.Result); isResult && !res.Ok {
-				r.Logf("schedule %s: %s failed with %s", r.name, element, res.Value)
+				failedCalls()
+				log.Logf(logging.Warn, logging.EventSchedule, append(fields, logging.F("detail", res.Value.String())), "schedule %s: %s failed with %s", r.name, element, res.Value)
 			}
 			return nil
 		}

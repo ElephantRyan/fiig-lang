@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"fiig-lang/compiler/logging"
 	"fiig-lang/compiler/runtime"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
@@ -63,6 +64,8 @@ type StartupRunner struct {
 	// Logf reports a failed check the mapping lets the process start after,
 	// and a `once` route another replica ran or is running.
 	Logf func(format string, args ...any)
+	// Log, when set, is used instead of Logf (ADR 0150).
+	Log *logging.Logger
 }
 
 // Name is the route's name, as the report of a failure gives it.
@@ -187,7 +190,7 @@ func (r *StartupRunner) claim(ctx context.Context) (bool, error) {
 			return false, err
 		}
 		if done {
-			r.Logf("startup %s: another replica has run it for this deploy, so this one starts without running it", r.name)
+			pickLogger(r.Log, r.Logf).Logf(logging.Info, logging.EventStartup, []logging.Field{logging.F("route", r.name)}, "startup %s: another replica has run it for this deploy, so this one starts without running it", r.name)
 			return false, nil
 		}
 		if !r.Wait(wctx, r.Poll) {
@@ -206,9 +209,9 @@ func (r *StartupRunner) complete(ctx context.Context) {
 	failure, fault := r.lock.Complete(lctx, r.name, r.deploy, r.holder, OnceRetain.Milliseconds())
 	switch {
 	case fault != nil:
-		r.Logf("startup %s: it passed, but recording that faulted: %s", r.name, fault.Message)
+		pickLogger(r.Log, r.Logf).Logf(logging.Warn, logging.EventStartup, []logging.Field{logging.F("route", r.name)}, "startup %s: it passed, but recording that faulted: %s", r.name, fault.Message)
 	case failure != nil:
-		r.Logf("startup %s: it passed, but recording that failed: %v", r.name, failure)
+		pickLogger(r.Log, r.Logf).Logf(logging.Warn, logging.EventStartup, []logging.Field{logging.F("route", r.name)}, "startup %s: it passed, but recording that failed: %v", r.name, failure)
 	}
 }
 
@@ -253,12 +256,12 @@ func (r *StartupRunner) run(ctx context.Context) error {
 		}
 		if d, ok := arm.Value.(*syntax.DispositionResponse); ok && d.Kind == "degrade" {
 			r.degraded = true
-			r.Logf("startup %s: starting degraded, for %s", r.name, result)
+			pickLogger(r.Log, r.Logf).Logf(logging.Warn, logging.EventStartup, []logging.Field{logging.F("route", r.name)}, "startup %s: starting degraded, for %s", r.name, result)
 			return nil
 		}
 		if d, ok := arm.Value.(*syntax.DispositionResponse); ok && d.Kind == "proceed" {
 			if res, isResult := result.(runtime.Result); isResult && !res.Ok {
-				r.Logf("startup %s failed with %s, and its mapping lets the process start", r.name, res.Value)
+				pickLogger(r.Log, r.Logf).Logf(logging.Warn, logging.EventStartup, []logging.Field{logging.F("route", r.name)}, "startup %s failed with %s, and its mapping lets the process start", r.name, res.Value)
 			}
 			return nil
 		}

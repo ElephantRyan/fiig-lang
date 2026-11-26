@@ -220,7 +220,8 @@ func (in *Interp) callDeclValues(ctx context.Context, sc scope, displayName stri
 	sc.universe = sc.universe.ScopeOf(decl)
 
 	var span Span
-	if in.Tracer != nil {
+	traced := in.tracing(kind)
+	if traced {
 		ctx, span = in.startSpan(ctx, displayName, kind)
 	}
 	// The frame's context layer carries both the depth and the scope, and
@@ -232,8 +233,8 @@ func (in *Interp) callDeclValues(ctx context.Context, sc scope, displayName stri
 		v := args[i]
 		if v == nil {
 			fault := Faultf("missing argument %q to %s", p.Name, displayName).withFrame(displayName)
-			if in.Tracer != nil {
-				in.finishSpan(span, nil, fault)
+			if traced {
+				in.finishSpan(ctx, span, nil, fault)
 			}
 			return nil, fault
 		}
@@ -252,8 +253,8 @@ func (in *Interp) callDeclValues(ctx context.Context, sc scope, displayName stri
 	if val == nil {
 		val = None{}
 	}
-	if in.Tracer != nil {
-		in.finishSpan(span, val, fault)
+	if traced {
+		in.finishSpan(ctx, span, val, fault)
 	}
 	if fault != nil {
 		return nil, fault

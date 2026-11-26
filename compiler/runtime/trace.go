@@ -5,6 +5,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"fiig-lang/compiler/logging"
 )
 
 // SpanKind classifies what a Span recorded — the five callable
@@ -59,8 +61,30 @@ func (s Span) Duration() time.Duration { return s.End.Sub(s.Start) }
 // happens after the fact (a span is only ever reported once it's
 // finished) rather than a separate start/end pair, since nothing in this
 // package needs to observe an in-flight span.
+//
+// ctx is the context the span ran under, so a tracer can find what it
+// belongs to, such as the one request it ran for (ADR 0150 §4).
 type Tracer interface {
-	RecordSpan(s Span)
+	RecordSpan(ctx context.Context, s Span)
+}
+
+// KindTracer is a Tracer that wants only some kinds of span, such as fiig
+// serve's, which counts gateway calls (ADR 0150 §4). A call of a kind it
+// doesn't want is run without a span, so it costs what it does untraced.
+type KindTracer interface {
+	Tracer
+	Wants(kind SpanKind) bool
+}
+
+// tracing reports whether a call of kind gets a span.
+func (in *Interp) tracing(kind SpanKind) bool {
+	if in.Tracer == nil {
+		return false
+	}
+	if k, ok := in.Tracer.(KindTracer); ok {
+		return k.Wants(kind)
+	}
+	return true
 }
 
 // Recorder is an in-memory Tracer — the obvious one for tests, and simple
@@ -71,7 +95,7 @@ type Recorder struct {
 	spans []Span
 }
 
-func (r *Recorder) RecordSpan(s Span) {
+func (r *Recorder) RecordSpan(_ context.Context, s Span) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.spans = append(r.spans, s)
@@ -106,7 +130,7 @@ func (in *Interp) startSpan(ctx context.Context, name string, kind SpanKind) (co
 // reports it to in.Tracer. val is only consulted when fault is nil — a
 // Fault always means OutcomeFault regardless of what (if anything) val
 // holds.
-func (in *Interp) finishSpan(span Span, val Value, fault *Fault) {
+func (in *Interp) finishSpan(ctx context.Context, span Span, val Value, fault *Fault) {
 	span.End = time.Now()
 	switch {
 	case fault != nil:
@@ -120,5 +144,10 @@ func (in *Interp) finishSpan(span Span, val Value, fault *Fault) {
 			span.Outcome = OutcomeOk
 		}
 	}
-	in.Tracer.RecordSpan(span)
+	in.Tracer.RecordSpan(ctx, span)
 }
+
+// Log is where the runtime writes its own notes, such as a TLS reload that
+// kept the last good files (ADR 0150 §1). nil writes text through the
+// standard log; fiig serve sets the logger its flags chose.
+var Log *logging.Logger

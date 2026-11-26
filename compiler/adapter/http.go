@@ -80,7 +80,14 @@ func HTTPHandlerFor(adapters []Served, u *types.Universe, in *runtime.Interp, l 
 			if prev, taken := owner[pattern]; taken {
 				return nil, fmt.Errorf("routes %s and %s serve the same requests; give each domain its own path prefix (ADR 0079 §6)", prev, where)
 			}
-			if err := register(mux, pattern, lim.wrap(httpRouteHandler(route, plan, scope, in, lim, enter))); err != nil {
+			handler, adapterName := lim.wrap(httpRouteHandler(route, plan, scope, in, lim, enter)), a.Name()
+			// ADR 0150 §2: the access line names the route and its adapter,
+			// a request the limits refused included.
+			observed := func(w http.ResponseWriter, r *http.Request) {
+				routed(r.Context(), adapterName, pathPart)
+				handler(w, r)
+			}
+			if err := register(mux, pattern, observed); err != nil {
 				return nil, fmt.Errorf("route %s conflicts with another route: %v (ADR 0079 §6)", where, err)
 			}
 			owner[pattern] = where

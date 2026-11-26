@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"net"
 	"sort"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"fiig-lang/compiler/logging"
 	"fiig-lang/compiler/syntax"
 	"fiig-lang/compiler/types"
 )
@@ -591,7 +591,7 @@ func (s *session) op(name string, args ...Value) (sessionStep, bool) {
 }
 
 func (s *session) defect(op, why string) {
-	log.Printf("fiig: Session: %s's %s.%s failed, a defect in %s: %s", s.proto.path, s.proto.group.Name, op, s.proto.path, why)
+	Log.Logf(logging.Error, logging.EventRuntime, nil, "fiig: Session: %s's %s.%s failed, a defect in %s: %s", s.proto.path, s.proto.group.Name, op, s.proto.path, why)
 	s.broken(fmt.Sprintf("%s.%s failed: %s", s.proto.group.Name, op, why))
 }
 

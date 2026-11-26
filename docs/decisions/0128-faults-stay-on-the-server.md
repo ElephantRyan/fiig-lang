@@ -90,11 +90,13 @@ a fault is logged either way.
 ## Open questions
 
 1. **The span tree of a faulted request**, once a tracer can be scoped to one
-   request.
+   request. *Answered by ADR 0150 §4 for the calls that leave the process:
+   a failed request writes each gateway call that failed.*
 2. **Propagating the id** to `fiig.http` calls the request makes, and into a
    schedule's or a stream route's log lines.
 3. **A structured log** (JSON lines) for an aggregator. The lines are text
-   today, as every other `fiig serve` line is.
+   today, as every other `fiig serve` line is. *Answered by ADR 0150:
+   `-log-format json`.*
 
 ## Implementation notes (2026-11-21)
 

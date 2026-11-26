@@ -82,9 +82,10 @@ The last row is the most important finding, and was not among the questions.
 | A5 | **A status route** `fiig serve` adds: version, startup routes that passed or degraded, the loops that are running. | S | ADR (exposure, naming) |
 
 **Status (2026-11-21): A1 and A2 are done (ADR 0128, Proposed).** A3 is
-partly done: the log carries the fault's declaration stack, and the span tree
-waits on a tracer that can be scoped to one request (ADR 0128 open question
-1). A4 and A5 hang on the same `Observer`.
+done as ADR 0150 (2026-11-25): a request's gateway calls are recorded by a
+tracer scoped to it, counted on its access line, and written out when it
+failed, with JSON lines for a log platform. A4 and A5 hang on the same
+`Observer`.
 
 ### B. The language
 

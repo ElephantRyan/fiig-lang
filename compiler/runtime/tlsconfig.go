@@ -7,11 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"fiig-lang/compiler/logging"
 )
 
 // ADR 0086: the CAs a TLS connection trusts beyond the system's, and the
@@ -182,7 +183,7 @@ func (s *TLSSettings) refresh() {
 	}
 	roots, certs := s.roots, s.certs
 	if err := s.rebuild(); err != nil {
-		log.Printf("fiig: Socket: keeping the last good TLS files: %v", err)
+		Log.Logf(logging.Warn, logging.EventRuntime, nil, "fiig: Socket: keeping the last good TLS files: %v", err)
 		s.roots, s.certs = roots, certs
 	}
 }

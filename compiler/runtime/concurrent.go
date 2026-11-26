@@ -30,12 +30,12 @@ import (
 // actually calls gets its own nested span the ordinary way, with no extra
 // plumbing needed for the fan-out to show up in the trace.
 func (in *Interp) evalConcurrent(ctx context.Context, e *syntax.ConcurrentExpr, env *Env) (Value, bool, *Fault) {
-	if in.Tracer == nil {
+	if !in.tracing(SpanConcurrent) {
 		return in.evalConcurrentBody(ctx, e, env)
 	}
 	spanCtx, span := in.startSpan(ctx, "concurrent("+e.Var+")", SpanConcurrent)
 	val, earlyReturn, fault := in.evalConcurrentBody(spanCtx, e, env)
-	in.finishSpan(span, val, fault)
+	in.finishSpan(spanCtx, span, val, fault)
 	return val, earlyReturn, fault
 }
 

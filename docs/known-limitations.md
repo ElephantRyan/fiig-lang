@@ -188,6 +188,12 @@ doesn't have to discover them.
   element again by its id but settles nothing, and a Kafka record replays
   as attempt 1, since only a group member counts its retries. The batch and the wait are set for the whole process
   (`STREAM_BATCH_SIZE`, `STREAM_WAIT_MS`), not per route.
+- **fiig code can't write a log line** (ADR 0150 open question 1). The
+  runtime logs requests, faults and failed gateway calls, as text or as JSON
+  lines (`-log-format json`). fiig exports no spans or metrics
+  (OpenTelemetry is open question 2), doesn't pass a trace on to the calls
+  it makes, and samples nothing. Google Cloud's `severity` field isn't
+  written.
 - **The concurrency maximum is per block** (ADR 0149 §4). An application's
   `concurrency.maximum` caps each `concurrent` block, not the process: two
   blocks running at once, or one nested in another, can have more bodies in

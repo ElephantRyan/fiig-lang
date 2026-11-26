@@ -1,6 +1,7 @@
 # ADR 0150: A Log an Aggregator Can Read
 
-Status: Proposed
+Status: Accepted (2026-11-25, by the owner). Implemented the same day (see
+Implementation notes).
 Date: 2026-11-25
 Answers: ADR 0128 open questions 1 (the calls behind a failed request) and 3
 (a structured log); improvement idea A3.
@@ -364,6 +365,58 @@ different places.
    wants `debug` now, without a restart. A soft setting (ADR 0140 §1a)
    could hold it, but settings are the program's, and this is the
    runtime's. Wait until a restart is shown to be the problem.
+
+## Implementation notes (2026-11-25)
+
+- **`compiler/logging`** (new): `Logger` with `Log(level, event, text,
+  fields...)`. Text writes the line through the standard log, as before;
+  JSON writes one object to stdout with `timestamp`, `level`, `msg` (the
+  text without `fiig: `), `event`, `service`, `version`, then the fields,
+  leaving out an empty one. A fault is written at any level. A nil
+  `*Logger` writes text, so code that has none still logs.
+- **Runtime**: `Tracer.RecordSpan` takes the span's context. A new
+  `KindTracer` names the kinds it wants, and a call of another kind runs
+  with no span at all, so serve's tracer, which wants gateways alone, costs
+  rules, conversions, activities and workflows nothing. The runtime's own
+  notes (`session.go`, `tlsconfig.go`) go through a package-level
+  `runtime.Log`, not a logger on the `Interp` as §Consequences said: they
+  are written from places that hold no interpreter, and the log is the
+  process's anyway.
+- **Adapter**: `CallTracer` adds each gateway span to the `calls` in its
+  context. `Observer` gives each request its calls (at `warn` and below),
+  reads `traceparent`, and learns the route and adapter from the route
+  handler, which sets them before the limits run, so a request the limits
+  refused is named too. The stream runner gives each element its calls and
+  writes the failed ones when it is retried, dead-lettered or halts; the
+  schedule runner does the same for a firing that faults, overruns or
+  returns an `Err`. The runners and the observer take `Log`, and keep
+  `Logf` as the text fallback their tests use.
+- **Commands**: `fiig serve` and `fiig run -replay` take `-log-format` and
+  `-log-level`, else `FIIG_LOG_FORMAT` and `FIIG_LOG_LEVEL` from the
+  environment or `-env-file` (`runprogram.ReadLogger`); a bad value joins
+  the startup configuration report. Serve's interpreter gets `CallTracer`
+  only when the level counts calls. Its own lines, and an `error:` it stops
+  on, go through the logger.
+- **Cost** (`compiler/runtime/bench_test.go`, 32 cores, min of 5):
+  `BenchmarkCallsTraced`, 100,000 non-gateway calls under a gateways-only
+  tracer, is 40.5 ms, the same as untraced `BenchmarkCalls` (40.1 ms), with
+  the same allocations. `BenchmarkGatewayCallsTraced`: 10,000 gateway calls
+  take 2.10 ms untraced and 2.89 ms traced, about 80 ns and 2 allocations
+  per call, against a real gateway call's network round trip.
+- **Dogfooded** with `fiig serve` on a small app whose gateway returns
+  `Err` for one id: JSON on stdout, nothing on stderr, a `traceparent`'s
+  ids on its request, a 503 preceded by its `call` line at `warn`; the same
+  requests in text on stderr; `FIIG_LOG_FORMAT=json FIIG_LOG_LEVEL=error`
+  writing only the 503, without counts; `FIIG_LOG_LEVEL=loud` stopping
+  startup with the problem named.
+- **Tested**: `compiler/logging` (the line's shape, levels, text unchanged,
+  parsing), `compiler/adapter/calls_test.go` (counts and route on a success,
+  the failing call before a 503, nothing counted at `error`, every call at
+  `debug`, `traceparent` valid and invalid, an element's calls carrying its
+  id), `tooling/runprogram`'s `TestReadLogger`. One test in `libraries/sql`
+  kept only the format string of what it logged; it formats it now.
+- **Not done**: a startup route that passed writes no line of its own, as
+  before; the startup lines its describe gives are `lifecycle` at `info`.
 
 ## Sources
 
