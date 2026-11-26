@@ -64,14 +64,14 @@ the conversion `shelfFailure` says what a status means (401 is
 
 ## Putting an argument into a path
 
-Text a caller supplied goes into a path through `httpText.pathSegment`
-(`use fiig.http.httpText`; ADR 0101, ADR 0151), never straight into the
+Text a caller supplied goes into a path through `syntax.pathSegment`
+(`use fiig.http.syntax`; ADR 0101, ADR 0151), never straight into the
 interpolation: an id like `../../api/users` would otherwise reach another
 endpoint with the client's credentials. It percent-encodes what could change the URL's
 shape, and is `None` for empty, `.` and `..`:
 
 ```fiig
-return match (httpText.pathSegment(id)) {
+return match (syntax.pathSegment(id)) {
     None -> Err(ShelfError.NotFound)
     safe -> shelfBook(token, safe)
 }
@@ -86,7 +86,7 @@ client's config:
 ```fiig
 use fiig.http;
 use fiig.http.HttpClient;
-use fiig.http.httpText;
+use fiig.http.syntax;
 
 test bookSendsTheToken {
     fake Shelf {
@@ -95,7 +95,7 @@ test bookSendsTheToken {
 
     fake HttpClient {
         gateway send(request: http.Request) -> Result<http.Reply, http.HttpError> {
-            expect httpText.headerValue(request.headers, "authorization") == "Bearer tok-1";
+            expect syntax.headerValue(request.headers, "authorization") == "Bearer tok-1";
             return Ok(
                 http.Reply(
                     status: 200,

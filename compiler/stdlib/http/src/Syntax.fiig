@@ -1,7 +1,7 @@
 // Text an HTTP message is made of: a form or query body, a URL path
 // segment, a header name, and finding a header. Formulas, so a rule may use
 // them (ADR 0151).
-formulas httpText {
+formulas syntax {
     // ADR 0074 §6: name and value pairs as application/x-www-form-urlencoded,
     // for a form body or, through .utf8(), a query string. Letters, digits,
     // and *-._ stay as they are, a space becomes +, and every other byte of

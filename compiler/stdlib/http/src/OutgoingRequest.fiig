@@ -1,4 +1,4 @@
-use fiig.http.httpText;
+use fiig.http.syntax;
 
 // ADR 0074 §6: the HTTP/1.1 request's bytes and where to send them, or
 // InvalidRequest for a request send refuses before connecting. send owns
@@ -189,7 +189,7 @@ private {
 
     // ADR 0069 §6's rule on the server, applied to what fiig sends.
     checkHeader(header: Header) -> Result<None, HttpError> {
-        if (!httpText.isToken(header.name)) {
+        if (!syntax.isToken(header.name)) {
             return Err(
                 HttpError.InvalidRequest(
                     reason: "the header name \"${header.name}\" isn't an HTTP token"

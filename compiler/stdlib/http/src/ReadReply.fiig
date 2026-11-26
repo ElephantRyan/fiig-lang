@@ -1,4 +1,4 @@
-use fiig.http.httpText;
+use fiig.http.syntax;
 
 // ADR 0074 §7: a reply from the bytes read so far. closed says the server
 // has hung up, which ends a body that runs until close and makes any other
@@ -135,7 +135,7 @@ private {
                 }
 
                 name = parts.first();
-                if (!httpText.isToken(name)) {
+                if (!syntax.isToken(name)) {
                     return Err("the header name \"${name}\" isn't an HTTP token");
                 }
 

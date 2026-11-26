@@ -296,7 +296,8 @@ migration in §Consequences leaves the line between them unclear.
   in `test/Calendar.fiig` (a test file mirrors a source file, ADR 0102 §3),
   plus one for a four-digit early year now that `zeroPad` can't be called
   from a test. `fiig.http`'s `formEncode`, `pathSegment`, `isToken` and
-  `headerValue` are the `httpText` group (`src/HttpText.fiig`). Their
+  `headerValue` are the `syntax` group (`src/Syntax.fiig`; first named `httpText`,
+  renamed the next day by ADR 0152 §2a). Their
   callers in `fiig.http`, `fiig.s3` and `fiig.smtp`, the Go test fixtures,
   and `docs/writing-a-client.md` call through the groups.
 - **Breaking, for the release notes:**
@@ -305,7 +306,7 @@ migration in §Consequences leaves the line between them unclear.
   | --- | --- |
   | `use fiig.time;` `time.formatIso(m)`, and `formatBasic`, `formatHttp`, `formatRfc5322`, `parseIso`, `toDateTime`, `toMillis`, `weekday` | `use fiig.time.calendar;` `calendar.formatIso(m)`, and the same names |
   | `time.zeroPad(n, w)` | private to `calendar`; no replacement |
-  | `use fiig.http;` `http.formEncode(fields)`, and `pathSegment`, `isToken`, `headerValue` | `use fiig.http.httpText;` `httpText.formEncode(fields)`, and the same names |
+  | `use fiig.http;` `http.formEncode(fields)`, and `pathSegment`, `isToken`, `headerValue` | `use fiig.http.syntax;` `syntax.formEncode(fields)`, and the same names |
 
   The types (`time.DateTime`, `time.TimeError`, `http.Header`) don't move,
   so a file that also names one keeps its `use fiig.time;` or

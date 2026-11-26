@@ -119,7 +119,8 @@ language.
 
 - **A reverse domain name** is Maven's convention, because owning the
   domain shows who owns the prefix, and a future registry can check it the
-  way Maven Central does. The path depends on the owner keeping the domain.
+  way Maven Central does. The owner holds `degeneratedevelopment.com`, and
+  the path depends on keeping it.
 - **The prefix names the maintainer.** Each manifest's `Origin` (ADR 0037
   §3) says where the source lives.
 - **Each driver is versioned on its own** (ADR 0032), and is outside the
@@ -131,6 +132,20 @@ language.
 
 A future driver follows the same test: does it implement a standard, or
 one product?
+
+### 2a. A group doesn't repeat its package
+
+A `formulas` group inside a package is named for its subject alone:
+`use com.degeneratedevelopment.kafka.codec;` and `codec.varint(...)`, not
+`kafkaCodec`. The path already names the package, and a name that says it
+twice is the stutter Go's naming guide warns against. Two packages' groups
+can share a name. A file that imports both renames one with `as`, which G4
+already requires. This applies to the standard library too, so ADR 0151's
+phase 1 group `fiig.http.httpText` is renamed (decided by the owner,
+2026-11-26). Its new name is `syntax`, not `text`: `text` is a common local
+name (three files in `fiig.http` and `fiig.s3` had one), and a local that
+shares an imported group's name is G4. A group's name should be one a
+caller is unlikely to use for a variable.
 
 ### 3. Bundled, until fiig can fetch a package
 
@@ -254,8 +269,3 @@ Alpha programs make one change, in the manifest and in every `use`:
 1. **Fetching.** What fiig fetches from, and whether `Origin` (ADR 0037 §3)
    becomes the address. When it exists, §3 says the drivers leave the
    binary.
-2. **Group names inside a package** (from ADR 0151's phase 2): whether a
-   group repeats its package (`com.degeneratedevelopment.kafka.kafkaCodec`)
-   or not (`…kafka.codec`). The second avoids stutter. If it is chosen,
-   it applies to the standard library too, which renames phase 1's
-   `fiig.http.httpText` to `fiig.http.text`.

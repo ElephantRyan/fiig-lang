@@ -41,7 +41,7 @@ gateway head(url: string) -> Result<http.Reply, http.HttpError>
     return HttpClient.send(http.Request(method: http.Method.Head, url: url));
 }`,
 	"post_form.fiig": `use fiig.http;
-use fiig.http.httpText;
+use fiig.http.syntax;
 use fiig.http.HttpClient;
 
 gateway postForm(url: string, amount: string, note: string) -> Result<http.Reply, http.HttpError>
@@ -54,7 +54,7 @@ gateway postForm(url: string, amount: string, note: string) -> Result<http.Reply
             http.Header(name: "Authorization", value: "Bearer sk_test"),
             http.Header(name: "Content-Type", value: "application/x-www-form-urlencoded")
         ],
-        body: httpText.formEncode([
+        body: syntax.formEncode([
             http.Header(name: "amount", value: amount),
             http.Header(name: "note", value: note)
         ])
@@ -74,16 +74,16 @@ gateway withHeader(url: string, name: string, value: string, timeout: int) -> Re
     ));
 }`,
 	"segments.fiig": `use fiig.http;
-use fiig.http.httpText;
+use fiig.http.syntax;
 activity segments() -> string {
-    return "${httpText.pathSegment("b-12_x.y~")}|${httpText.pathSegment("../../api/users")}|${httpText.pathSegment("a b?c#d%e")}|${httpText.pathSegment("Zoë")}|${httpText.pathSegment("..")}|${httpText.pathSegment(".")}|${httpText.pathSegment("")}";
+    return "${syntax.pathSegment("b-12_x.y~")}|${syntax.pathSegment("../../api/users")}|${syntax.pathSegment("a b?c#d%e")}|${syntax.pathSegment("Zoë")}|${syntax.pathSegment("..")}|${syntax.pathSegment(".")}|${syntax.pathSegment("")}";
 }`,
 	"header_of.fiig": `use fiig.http;
-use fiig.http.httpText;
+use fiig.http.syntax;
 activity headerOf(token: string) -> string {
     bare = http.Request(method: http.Method.Get, url: "http://x.example.com");
     sent = http.Request(method: http.Method.Get, url: "http://x.example.com", headers: [http.Header(name: "Authorization", value: token)]);
-    return "${httpText.headerValue(bare.headers, "authorization")} ${httpText.headerValue(sent.headers, "AUTHORIZATION")}";
+    return "${syntax.headerValue(bare.headers, "authorization")} ${syntax.headerValue(sent.headers, "AUTHORIZATION")}";
 }`,
 }
 

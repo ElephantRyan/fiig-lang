@@ -1,4 +1,4 @@
-use fiig.http.httpText;
+use fiig.http.syntax;
 use fiig.http;
 use fiig.time.calendar;
 
@@ -65,10 +65,10 @@ conversion presignedUrl(
 private {
     // A query value as SigV4 encodes it: every byte but RFC 3986's
     // unreserved characters is %XX, `/` included, which is what
-    // httpText.pathSegment does; the empty, `.` and `..` values it refuses are
+    // syntax.pathSegment does; the empty, `.` and `..` values it refuses are
     // already their own encoding.
     queryValue(text: string) -> string {
-        return match (httpText.pathSegment(text)) {
+        return match (syntax.pathSegment(text)) {
             None -> text,
             encoded -> encoded
         }
