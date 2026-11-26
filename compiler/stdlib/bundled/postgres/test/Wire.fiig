@@ -1,0 +1,32 @@
+use fiig.sql as db;
+use com.degeneratedevelopment.postgres.wire;
+
+test integerColumnsAreInt {
+    expect wire.columnValue("42".utf8(), 23) is db.SqlValue.Int(v1);
+    expect v1 == 42;
+    expect wire.columnValue("-7".utf8(), 20) is db.SqlValue.Int(v2);
+    expect v2 == -7;
+}
+
+test floatColumnsAreFloatButNotNaNOrInfinity {
+    expect wire.columnValue("2.5".utf8(), 701) is db.SqlValue.Float(v3);
+    expect math.closeTo(v3, 2.5, relative: 0.0, absolute: 0.0);
+    expect wire.columnValue("NaN".utf8(), 701) is db.SqlValue.Text(v4);
+    expect v4 == "NaN";
+    expect wire.columnValue("-Infinity".utf8(), 700) is db.SqlValue.Text(v5);
+    expect v5 == "-Infinity";
+}
+
+test boolAndByteaColumnsAreRead {
+    expect wire.columnValue("t".utf8(), 16) is db.SqlValue.Bool(v6);
+    expect v6 == true;
+    expect wire.columnValue("\\x00ff".utf8(), 17) is db.SqlValue.Bytes(v7);
+    expect v7 == <<0: u8, 255: u8>>;
+}
+
+test otherColumnsAreText {
+    expect wire.columnValue("19.90".utf8(), 1700) is db.SqlValue.Text(v8);
+    expect v8 == "19.90";
+    expect wire.columnValue("2026-11-17".utf8(), 1082) is db.SqlValue.Text(v9);
+    expect v9 == "2026-11-17";
+}

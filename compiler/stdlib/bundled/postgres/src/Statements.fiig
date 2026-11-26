@@ -1,0 +1,270 @@
+use fiig.sql as db;
+use com.degeneratedevelopment.postgres.wire;
+
+// A statement's text: numbering its `?` placeholders outside quotes and
+// comments, and the statement cache's plan for preparing it (ADR 0085).
+formulas statements {
+    // ADR 0085 §3b: the messages for one statement, given the statements the
+    // connection has prepared and room for cacheSize of them. A prepared one is
+    // only bound; one the server stopped knowing is closed and parsed again
+    // under its name; a new one gets the next name, after the least recently
+    // used are closed to make room. Whichever runs moves to the end, most
+    // recently used. With cacheSize 0 nothing is cached and every
+    // statement is the unnamed one, parsed each time.
+    formula planStatement(on: db.SqlConnection, sql: string, values: List<db.SqlValue>)
+            -> StatementPlan {
+        numbered = numberPlaceholders(sql);
+        if (on.cacheSize <= 0) {
+            return StatementPlan(
+                connection: on,
+                write: <<wire.parseMessage("", numbered): bytes, wire.statementMessages("", values): bytes>>,
+                name: "",
+                parsing: false
+            );
+        }
+
+        others: List<db.SqlStatement> = [];
+        found: db.SqlStatement | None = None;
+        for (statement in on.statements) {
+            if (statement.sql == sql) {
+                found = statement;
+            } else {
+                others = append(others, statement);
+            }
+        }
+
+        return match (found) {
+            None -> {
+                name = "fiig_s${on.named}";
+                closing: bytes = <<>>;
+                while (others.length() >= on.cacheSize) {
+                    closing = <<closing: bytes, wire.closeMessage(others.first().name): bytes>>;
+                    others = others.slice(1, others.length());
+                }
+
+                added = append(others, db.SqlStatement(sql: sql, name: name, prepared: false));
+                return StatementPlan(
+                    connection: copy(on, statements: added, named: on.named + 1),
+                    write: <<closing: bytes, wire.parseMessage(name, numbered): bytes, wire.statementMessages(name, values): bytes>>,
+                    name: name,
+                    parsing: true
+                );
+            },
+
+            cached -> {
+                moved = append(others, cached);
+                if (cached.prepared) {
+                    return StatementPlan(
+                        connection: copy(on, statements: moved),
+                        write: wire.statementMessages(cached.name, values),
+                        name: cached.name,
+                        parsing: false
+                    );
+                }
+
+                return StatementPlan(
+                    connection: copy(on, statements: moved),
+                    write: <<wire.closeMessage(cached.name): bytes, wire.parseMessage(cached.name, numbered): bytes, wire.statementMessages(cached.name, values): bytes>>,
+                    name: cached.name,
+                    parsing: true
+                );
+            }
+        }
+    }
+
+    // ADR 0085 §4: each ? becomes $1, $2, ... in order, skipping what isn't
+    // SQL code: quoted strings and identifiers, comments, and dollar-quoted
+    // bodies. ?? is a literal ? (JSONB's operators). The scan is over bytes,
+    // since every character it looks for is ASCII.
+    formula numberPlaceholders(sql: string) -> string {
+        data = sql.utf8();
+        n = data.length();
+        out: bytes = <<>>;
+        i: int = 0;
+        start: int = 0;
+        count: int = 0;
+        while (i < n) {
+            c = data.at(i);
+            if (c == 39 || c == 34) {
+                i = quotedEnd(data, i);
+            } else if (c == 45 && i + 1 < n && data.at(i + 1) == 45) {
+                i = lineCommentEnd(data, i);
+            } else if (c == 47 && i + 1 < n && data.at(i + 1) == 42) {
+                i = blockCommentEnd(data, i);
+            } else if (c == 36) {
+                i = dollarQuoteEnd(data, i);
+            } else if (c == 63) {
+                if (i + 1 < n && data.at(i + 1) == 63) {
+                    out = <<out: bytes, data.slice(start, i + 1): bytes>>;
+                    i = i + 2;
+                } else {
+                    count = count + 1;
+                    out = <<out: bytes, data.slice(start, i): bytes, "$${count}": utf8>>;
+                    i = i + 1;
+                }
+
+                start = i;
+            } else {
+                i = i + 1;
+            }
+        }
+
+        out = <<out: bytes, data.slice(start, n): bytes>>;
+        return match (out.utf8()) {
+            None -> sql,
+            text -> text
+        }
+    }
+
+    // ADR 0085 §3b: the statement cache after a reply to plan. A statement
+    // whose Parse completed is prepared; one whose Parse didn't (a syntax
+    // error, a failed transaction) doesn't exist on the server and leaves the
+    // cache; one the server no longer knows as cached (staleStatement) is
+    // marked to be parsed again.
+    formula settleStatement(plan: StatementPlan, reply: Reply) -> db.SqlConnection {
+        if (plan.name == "") {
+            return plan.connection;
+        }
+
+        kept: List<db.SqlStatement> = [];
+        for (statement in plan.connection.statements) {
+            if (statement.name != plan.name) {
+                kept = append(kept, statement);
+            } else if (plan.parsing) {
+                if (reply.parsed) {
+                    kept = append(kept, copy(statement, prepared: true));
+                }
+            } else if (staleStatement(reply.failed)) {
+                kept = append(kept, copy(statement, prepared: false));
+            } else {
+                kept = append(kept, statement);
+            }
+        }
+
+        return copy(plan.connection, statements: kept);
+    }
+
+    // ADR 0085 §3b: the server no longer knows a cached statement as it was
+    // prepared: 26000, it has none by that name (a DEALLOCATE or DISCARD ALL
+    // the program ran), or 0A000 with the message pgx and PgJDBC also match,
+    // a schema change that altered its result columns.
+    formula staleStatement(failed: db.DatabaseError | None) -> bool {
+        return match (failed) {
+            db.DatabaseError.Server(code, message, _, _, _) -> {
+                return code == "26000" || (code == "0A000" && message.contains("cached plan must not change result type"));
+            },
+
+            _ -> false
+        }
+    }
+}
+
+private {
+    // Past a /* */ comment starting at i; Postgres nests them.
+    blockCommentEnd(data: bytes, i: int) -> int {
+        n = data.length();
+        depth: int = 1;
+        j: int = i + 2;
+        while (j < n) {
+            if (data.at(j) == 47 && j + 1 < n && data.at(j + 1) == 42) {
+                depth = depth + 1;
+                j = j + 2;
+            } else if (data.at(j) == 42 && j + 1 < n && data.at(j + 1) == 47) {
+                depth = depth - 1;
+                j = j + 2;
+                if (depth == 0) {
+                    return j;
+                }
+            } else {
+                j = j + 1;
+            }
+        }
+
+        return n;
+    }
+
+    // The newline ending a -- comment starting at i.
+    lineCommentEnd(data: bytes, i: int) -> int {
+        j: int = i + 2;
+        while (j < data.length()) {
+            if (data.at(j) == 10) {
+                return j;
+            }
+
+            j = j + 1;
+        }
+
+        return data.length();
+    }
+
+    // Past a $tag$...$tag$ body starting at i. A $ that opens no tag, such as
+    // $1 or one inside an identifier, is passed over alone.
+    dollarQuoteEnd(data: bytes, i: int) -> int {
+        n = data.length();
+        if (i > 0 && isIdentByte(data.at(i - 1))) {
+            return i + 1;
+        }
+
+        j: int = i + 1;
+        if (j < n && data.at(j) >= 48 && data.at(j) <= 57) {
+            return i + 1;
+        }
+
+        while (j < n && isIdentByte(data.at(j))) {
+            j = j + 1;
+        }
+
+        if (j >= n || data.at(j) != 36) {
+            return i + 1;
+        }
+
+        tag = data.slice(i, j + 1);
+        size = tag.length();
+        k: int = j + 1;
+        while (k + size <= n) {
+            if (data.slice(k, k + size) == tag) {
+                return k + size;
+            }
+
+            k = k + 1;
+        }
+
+        return n;
+    }
+
+    // Past a '...' string or a "..." identifier starting at i, where a
+    // doubled quote stays inside. An E'...' string also skips a byte after
+    // each backslash.
+    quotedEnd(data: bytes, i: int) -> int {
+        n = data.length();
+        quote = data.at(i);
+        escapes: bool = false;
+        if (quote == 39 && i > 0 && (data.at(i - 1) == 69 || data.at(i - 1) == 101)) {
+            escapes = i == 1 || !isIdentByte(data.at(i - 2));
+        }
+
+        j: int = i + 1;
+        while (j < n) {
+            c = data.at(j);
+            if (escapes && c == 92) {
+                j = j + 2;
+            } else if (c == quote) {
+                if (j + 1 < n && data.at(j + 1) == quote) {
+                    j = j + 2;
+                } else {
+                    return j + 1;
+                }
+            } else {
+                j = j + 1;
+            }
+        }
+
+        return n;
+    }
+
+    // A byte that can be part of an identifier: a letter, a digit, _, or any
+    // byte of a non-ASCII character.
+    isIdentByte(b: int) -> bool {
+        return b >= 48 && b <= 57 || b >= 65 && b <= 90 || b >= 97 && b <= 122 || b == 95 || b >= 128;
+    }
+}

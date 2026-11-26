@@ -1,0 +1,10 @@
+{
+  "toolchain": "dev",
+  "dependencies": [
+    {
+      "path": "fiig.sql",
+      "version": "1.0.0",
+      "source": "builtin:sql"
+    }
+  ]
+}

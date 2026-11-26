@@ -1,0 +1,32 @@
+use com.degeneratedevelopment.postgres.statements;
+
+test placeholdersAreNumberedInOrder {
+    expect statements.numberPlaceholders("SELECT * FROM t WHERE a = ? AND b = ?") == "SELECT * FROM t WHERE a = $1 AND b = $2";
+}
+
+test placeholdersInsideQuotesAreText {
+    expect statements.numberPlaceholders("SELECT '?' , ? FROM t") == "SELECT '?' , $1 FROM t";
+    expect statements.numberPlaceholders("SELECT 'it''s ?', ?") == "SELECT 'it''s ?', $1";
+    expect statements.numberPlaceholders("SELECT E'a\\'?', ?") == "SELECT E'a\\'?', $1";
+    expect statements.numberPlaceholders("SELECT \"col?\" FROM t WHERE x = ?") == "SELECT \"col?\" FROM t WHERE x = $1";
+}
+
+test placeholdersInsideCommentsAreText {
+    expect statements.numberPlaceholders("SELECT ? -- what?\n, ?") == "SELECT $1 -- what?\n, $2";
+    expect statements.numberPlaceholders("SELECT /* a /* nested ? */ ? */ ?") == "SELECT /* a /* nested ? */ ? */ $1";
+}
+
+test placeholdersInsideDollarQuotesAreText {
+    expect statements.numberPlaceholders("SELECT $tag$ ? $tag$, ?") == "SELECT $tag$ ? $tag$, $1";
+    expect statements.numberPlaceholders("SELECT $$?$$, ?") == "SELECT $$?$$, $1";
+}
+
+test aDoubledQuestionMarkIsOneOperator {
+    expect statements.numberPlaceholders("SELECT doc ?? 'key', doc ??| array['a'], ?") == "SELECT doc ? 'key', doc ?| array['a'], $1";
+}
+
+test numberedPlaceholdersAndUnfinishedTextAreLeftAlone {
+    expect statements.numberPlaceholders("SELECT $1, $2") == "SELECT $1, $2";
+    expect statements.numberPlaceholders("SELECT 'é', ?") == "SELECT 'é', $1";
+    expect statements.numberPlaceholders("SELECT 'unterminated ?") == "SELECT 'unterminated ?";
+}

@@ -1,0 +1,452 @@
+use fiig.sql as db;
+use com.degeneratedevelopment.postgres.wire;
+
+// The Postgres frontend/backend protocol's messages: framing a message,
+// writing the ones the driver sends, and reading the server's replies
+// (ADR 0085). Formulas, so a test or another group can call them (ADR 0151).
+formulas wire {
+    // A frontend message: its type byte, then its length and body.
+    formula pgMessage(kind: int, body: bytes) -> bytes {
+        length = body.length() + 4;
+        return <<kind: u8, length: i32be, body: bytes>>;
+    }
+
+    // Text as the protocol writes it: UTF-8 and a zero byte.
+    formula cString(text: string) -> bytes {
+        return <<text: utf8, 0: u8>>;
+    }
+
+    // A list of zero-ended strings, ended by an empty one: the SASL
+    // mechanisms a server offers.
+    formula cStrings(data: bytes) -> List<string> {
+        out: List<string> = [];
+        rest: bytes = data;
+        while (rest.length() > 0) {
+            end = cStringEnd(rest);
+            if (end <= 0) {
+                return out;
+            }
+
+            match (rest.slice(0, end).utf8()) {
+                None -> None,
+                text -> {
+                    out = append(out, text);
+                }
+            }
+
+            rest = rest.slice(end + 1, rest.length());
+        }
+
+        return out;
+    }
+
+    // A backend message is a type byte, then an Int32 length that counts
+    // itself but not the type byte. None until the buffer holds a whole one.
+    formula nextFrame(buffer: bytes) -> PgFrame | None {
+        return match (buffer) {
+            <<kind: u8, length: i32be, body: bytes(length - 4), rest: bytes>> -> PgFrame(
+                kind: kind,
+                body: body,
+                rest: rest
+            ),
+            _ -> None
+        }
+    }
+
+    // ADR 0085 §3b: Close, forgetting the prepared statement named name. It
+    // isn't an error when the server has none by that name.
+    formula closeMessage(name: string) -> bytes {
+        return pgMessage(67, <<83: u8, cString(name): bytes>>);
+    }
+
+    // ADR 0085 §3: Parse, preparing sql as the statement named name ("" the
+    // unnamed one), every parameter type left for the server to infer.
+    formula parseMessage(name: string, sql: string) -> bytes {
+        return pgMessage(80, <<cString(name): bytes, cString(sql): bytes, 0: i16be>>);
+    }
+
+    // ADR 0085 §3, §8: Bind, Describe, Execute and Sync for one statement,
+    // the one named name ("" the unnamed one), written at once after its
+    // Parse, if it needs one (§3b). Parameters are text, except bytes, which
+    // are binary; every result column is text.
+    formula statementMessages(name: string, values: List<db.SqlValue>) -> bytes {
+        formats: bytes = <<>>;
+        params: bytes = <<>>;
+        for (value in values) {
+            match (value) {
+                db.SqlValue.Null -> {
+                    formats = <<formats: bytes, 0: i16be>>;
+                    params = <<params: bytes, -1: i32be>>;
+                },
+
+                db.SqlValue.Bytes(data) -> {
+                    formats = <<formats: bytes, 1: i16be>>;
+                    params = withParam(params, data);
+                },
+
+                db.SqlValue.Int(n) -> {
+                    formats = <<formats: bytes, 0: i16be>>;
+                    params = withParam(params, "${n}".utf8());
+                },
+
+                db.SqlValue.Float(x) -> {
+                    formats = <<formats: bytes, 0: i16be>>;
+                    params = withParam(params, "${x}".utf8());
+                },
+
+                db.SqlValue.Text(text) -> {
+                    formats = <<formats: bytes, 0: i16be>>;
+                    params = withParam(params, text.utf8());
+                },
+
+                db.SqlValue.Bool(flag) -> {
+                    formats = <<formats: bytes, 0: i16be>>;
+                    params = withParam(params, "${flag}".utf8());
+                }
+            }
+        }
+
+        count = values.length();
+        bind = pgMessage(
+            66,
+            <<cString(""): bytes, cString(name): bytes, count: i16be, formats: bytes, count: i16be, params: bytes, 0: i16be>>
+        );
+        describe = pgMessage(68, <<80: u8, 0: u8>>);
+        execute = pgMessage(69, <<0: u8, 0: i32be>>);
+        sync = pgMessage(83, <<>>);
+        return <<bind: bytes, describe: bytes, execute: bytes, sync: bytes>>;
+    }
+
+    // ADR 0085 §8: a column's text, read by its type's OID. Integers (20, 21,
+    // 23) are Int; float4 and float8 (700, 701) are Float, but NaN and the
+    // infinities stay Text, which a float field refuses by name; bool (16) is
+    // Bool; bytea (17) is Bytes from its \x hex form; anything else, numeric
+    // (1700) included, is Text.
+    formula columnValue(text: bytes, oid: int) -> db.SqlValue {
+        return match (text.utf8()) {
+            None -> db.SqlValue.Bytes(value: text),
+            value -> {
+                if (oid == 20 || oid == 21 || oid == 23) {
+                    match (value.toIntOrNone()) {
+                        None -> None,
+                        n -> {
+                            return db.SqlValue.Int(value: n);
+                        }
+                    }
+                }
+
+                if (oid == 700 || oid == 701) {
+                    if (value == "NaN" || value == "Infinity" || value == "-Infinity") {
+                        return db.SqlValue.Text(value: value);
+                    }
+
+                    match (value.toFloatOrNone()) {
+                        None -> None,
+                        x -> {
+                            return db.SqlValue.Float(value: x);
+                        }
+                    }
+                }
+
+                if (oid == 16) {
+                    if (value == "t") {
+                        return db.SqlValue.Bool(value: true);
+                    }
+
+                    if (value == "f") {
+                        return db.SqlValue.Bool(value: false);
+                    }
+                }
+
+                if (oid == 17 && value.startsWith("\\x")) {
+                    match (value.removePrefix("\\x").fromHex()) {
+                        None -> None,
+                        data -> {
+                            return db.SqlValue.Bytes(value: data);
+                        }
+                    }
+                }
+
+                return db.SqlValue.Text(value: value);
+            }
+        }
+    }
+
+    // An ErrorResponse's fields (§9): C is the SQLSTATE, M the message, and n,
+    // t, and c the constraint, table, and column a conflict is in, when the
+    // server names them (ADR 0087 §4).
+    formula serverError(body: bytes) -> db.DatabaseError {
+        code: string = "XX000";
+        message: string = "the server reported an error";
+        constraint: string | None = None;
+        table: string | None = None;
+        column: string | None = None;
+        rest: bytes = body;
+        while (rest.length() > 0) {
+            match (rest) {
+                <<field: u8, after: bytes>> -> {
+                    end = cStringEnd(after);
+                    if (field == 0 || end < 0) {
+                        break;
+                    }
+
+                    match (after.slice(0, end).utf8()) {
+                        None -> None,
+                        value -> {
+                            if (field == 67) {
+                                code = value;
+                            } else if (field == 77) {
+                                message = value;
+                            } else if (field == 110) {
+                                constraint = value;
+                            } else if (field == 116) {
+                                table = value;
+                            } else if (field == 99) {
+                                column = value;
+                            }
+                        }
+                    }
+
+                    rest = after.slice(end + 1, after.length());
+                },
+
+                _ -> {
+                    break;
+                }
+            }
+        }
+
+        return db.DatabaseError.Server(
+            code: code,
+            message: message,
+            constraint: constraint,
+            table: table,
+            column: column
+        );
+    }
+
+    // One backend message of a statement's reply (§3, §9). An error is kept
+    // until ReadyForQuery, which ends the reply either way; a message the
+    // driver can't read ends it at once. ParseComplete is noted (§3b), and
+    // ReadyForQuery's transaction status kept. Notices, ParameterStatus and
+    // the other Complete messages are skipped.
+    formula replyStep(state: Reply, kind: int, body: bytes) -> Reply {
+        if (kind == 84) {
+            match (rowDescription(body)) {
+                None -> {
+                    return copy(
+                        state,
+                        row: None,
+                        failed: db.DatabaseError.Protocol(reason: "a RowDescription is malformed"),
+                        ready: true
+                    );
+                },
+
+                shape -> {
+                    return copy(state, row: None, columns: shape.names, types: shape.types);
+                }
+            }
+        }
+
+        if (kind == 68) {
+            match (dataRow(body, state.types)) {
+                None -> {
+                    return copy(
+                        state,
+                        row: None,
+                        failed: db.DatabaseError.Protocol(
+                            reason: "a DataRow doesn't match its RowDescription"
+                        ),
+                        ready: true
+                    );
+                },
+
+                row -> {
+                    return copy(state, row: row);
+                }
+            }
+        }
+
+        if (kind == 67) {
+            end = cStringEnd(body);
+            if (end >= 0) {
+                match (body.slice(0, end).utf8()) {
+                    None -> None,
+                    tag -> {
+                        return copy(state, row: None, affected: commandCount(tag));
+                    }
+                }
+            }
+
+            return copy(state, row: None);
+        }
+
+        if (kind == 69) {
+            return copy(state, row: None, failed: serverError(body));
+        }
+
+        if (kind == 49) {
+            return copy(state, row: None, parsed: true);
+        }
+
+        if (kind == 90) {
+            status: int = 0;
+            if (body.length() > 0) {
+                status = body.at(0);
+            }
+
+            return copy(state, row: None, ready: true, status: status);
+        }
+
+        return copy(state, row: None);
+    }
+
+    formula bytesOr(result: Result<bytes, SocketError>) -> Result<bytes, db.DatabaseError> {
+        return match (result) {
+            Ok(data) -> Ok(data),
+            Err(failure) -> Err(db.DatabaseError.Broken(failure: failure))
+        }
+    }
+
+    formula writtenOr(result: Result<None, SocketError>) -> Result<None, db.DatabaseError> {
+        return match (result) {
+            Ok(_) -> Ok(None),
+            Err(failure) -> Err(db.DatabaseError.Broken(failure: failure))
+        }
+    }
+
+    // A socket failure, as the driver reports it: the connection is broken.
+    formula connectionOr(result: Result<Connection, SocketError>)
+            -> Result<Connection, db.DatabaseError> {
+        return match (result) {
+            Ok(connection) -> Ok(connection),
+            Err(failure) -> Err(db.DatabaseError.Broken(failure: failure))
+        }
+    }
+}
+
+private {
+    // Where the zero byte ending a string is, or -1 when there is none.
+    cStringEnd(data: bytes) -> int {
+        i: int = 0;
+        while (i < data.length()) {
+            if (data.at(i) == 0) {
+                return i;
+            }
+
+            i = i + 1;
+        }
+
+        return -1;
+    }
+
+    // One Bind parameter: its length, then its bytes.
+    withParam(params: bytes, data: bytes) -> bytes {
+        length = data.length();
+        return <<params: bytes, length: i32be, data: bytes>>;
+    }
+
+    // A DataRow's values, each read by its column's type (§8). A length of -1
+    // is NULL.
+    dataRow(body: bytes, types: List<int>) -> List<db.SqlValue> | None {
+        return match (body) {
+            <<count: i16be, cells: bytes>> -> {
+                if (count != types.length()) {
+                    return None;
+                }
+
+                values: List<db.SqlValue> = [];
+                rest: bytes = cells;
+                i: int = 0;
+                while (i < count) {
+                    match (rest) {
+                        <<length: i32be, after: bytes>> -> {
+                            if (length < 0) {
+                                values = append(values, db.SqlValue.Null);
+                                rest = after;
+                            } else {
+                                if (length > after.length()) {
+                                    return None;
+                                }
+
+                                values = append(
+                                    values,
+                                    wire.columnValue(after.slice(0, length), types.at(i))
+                                );
+                                rest = after.slice(length, after.length());
+                            }
+                        },
+
+                        _ -> {
+                            return None;
+                        }
+                    }
+
+                    i = i + 1;
+                }
+
+                return values;
+            },
+
+            _ -> None
+        }
+    }
+
+    // Each column's name and type OID; the other fields are skipped.
+    rowDescription(body: bytes) -> RowShape | None {
+        return match (body) {
+            <<count: i16be, fields: bytes>> -> {
+                names: List<string> = [];
+                types: List<int> = [];
+                rest: bytes = fields;
+                i: int = 0;
+                while (i < count) {
+                    end = cStringEnd(rest);
+                    if (end < 0) {
+                        return None;
+                    }
+
+                    match (rest.slice(0, end).utf8()) {
+                        None -> {
+                            return None;
+                        },
+
+                        name -> {
+                            names = append(names, name);
+                        }
+                    }
+
+                    match (rest.slice(end + 1, rest.length())) {
+                        <<skipped: bytes(6), oid: i32be, more: bytes(8), after: bytes>> -> {
+                            types = append(types, oid);
+                            rest = after;
+                        },
+
+                        _ -> {
+                            return None;
+                        }
+                    }
+
+                    i = i + 1;
+                }
+
+                return RowShape(names: names, types: types);
+            },
+
+            _ -> None
+        }
+    }
+
+    // The rows a CommandComplete tag counts: INSERT 0 3, UPDATE 2, DELETE 1.
+    // A query's is 0 (ADR 0085 §8).
+    commandCount(tag: string) -> int {
+        if (tag.startsWith("SELECT")) {
+            return 0;
+        }
+
+        return match (tag.split(" ").last().toIntOrNone()) {
+            None -> 0,
+            n -> n
+        }
+    }
+}

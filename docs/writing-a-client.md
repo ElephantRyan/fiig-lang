@@ -56,8 +56,9 @@ the conversion `shelfFailure` says what a status means (401 is
 - **A conversion turns the result into the client's error, and `?` passes
   it on.** `?` never converts an error itself (ADR 0006), so the
   conversion is where `HttpError` becomes `ShelfError`, written once. The
-  Postgres driver does the same over `Socket`:
-  `connection = connectionOr(Socket.connect(host, port))?`.
+  Postgres driver does the same over `Socket`, with a formula in its `wire`
+  group, since a driver is a library with no domain of its own (ADR 0151):
+  `connection = wire.connectionOr(Socket.connect(host, port))?`.
 - **A capability group has no `private` block.** Its shared steps are
   ordinary rules and conversions, which also means each one can be tested
   by passing it values.

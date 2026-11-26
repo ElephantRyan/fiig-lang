@@ -1,5 +1,0 @@
-// One Bind parameter: its length, then its bytes.
-conversion withParam(params: bytes, data: bytes) -> bytes {
-    length = data.length();
-    return <<params: bytes, length: i32be, data: bytes>>;
-}

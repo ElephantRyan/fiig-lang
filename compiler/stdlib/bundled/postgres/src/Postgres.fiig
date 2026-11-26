@@ -1,4 +1,7 @@
 use fiig.sql as db;
+use com.degeneratedevelopment.postgres.startup;
+use com.degeneratedevelopment.postgres.statements;
+use com.degeneratedevelopment.postgres.wire;
 
 // ADR 0085: a Postgres driver written in fiig, the frontend side of
 // protocol 3.0 over Socket. The runtime pools its connections, keeps each
@@ -11,11 +14,11 @@ capability Postgres provides db.SqlConnectionDriver {
     // BackendKeyData becomes the connection's cancelKey (ADR 0084 §3a).
     gateway open(settings: Map<string, string>) -> Result<db.SqlConnection, db.DatabaseError>
             requires Socket {
-        pg = readSettings(settings)?;
-        connection: Connection = connectionOr(Socket.connect(pg.host, pg.port))?;
+        pg = startup.readSettings(settings)?;
+        connection: Connection = wire.connectionOr(Socket.connect(pg.host, pg.port))?;
         if (pg.secure) {
-            writtenOr(Socket.write(connection, <<8: i32be, 80877103: i32be>>))?;
-            answer = bytesOr(Socket.read(connection))?;
+            wire.writtenOr(Socket.write(connection, <<8: i32be, 80877103: i32be>>))?;
+            answer = wire.bytesOr(Socket.read(connection))?;
             if (answer.length() != 1 || answer.at(0) != 83) {
                 return Err(
                     db.DatabaseError.Protocol(
@@ -24,10 +27,10 @@ capability Postgres provides db.SqlConnectionDriver {
                 );
             }
 
-            connection = connectionOr(Socket.startTls(connection, pg.host))?;
+            connection = wire.connectionOr(Socket.startTls(connection, pg.host))?;
         }
 
-        writtenOr(Socket.write(connection, startupMessage(pg)))?;
+        wire.writtenOr(Socket.write(connection, startup.startupMessage(pg)))?;
         nonce = Random.bytes(18).toBase64();
         state: Handshake = Handshake(
             settings: pg,
@@ -42,15 +45,15 @@ capability Postgres provides db.SqlConnectionDriver {
         );
         buffer: bytes = <<>>;
         while (true) {
-            match (nextFrame(buffer)) {
+            match (wire.nextFrame(buffer)) {
                 None -> {
-                    chunk = bytesOr(Socket.read(connection))?;
+                    chunk = wire.bytesOr(Socket.read(connection))?;
                     buffer = <<buffer: bytes, chunk: bytes>>;
                 },
 
                 frame -> {
                     buffer = frame.rest;
-                    state = handshakeStep(state, frame.kind, frame.body);
+                    state = startup.handshakeStep(state, frame.kind, frame.body);
                     match (state.failed) {
                         None -> None,
                         failure -> {
@@ -71,7 +74,7 @@ capability Postgres provides db.SqlConnectionDriver {
                     }
 
                     if (state.send.length() > 0) {
-                        writtenOr(Socket.write(connection, state.send))?;
+                        wire.writtenOr(Socket.write(connection, state.send))?;
                     }
                 }
             }
@@ -88,7 +91,7 @@ capability Postgres provides db.SqlConnectionDriver {
         current: db.SqlConnection = on;
         again: bool = true;
         while (true) {
-            plan = planStatement(current, sql, values);
+            plan = statements.planStatement(current, sql, values);
             current = plan.connection;
             match (Socket.write(on.connection, plan.write)) {
                 Ok(_) -> None,
@@ -113,7 +116,7 @@ capability Postgres provides db.SqlConnectionDriver {
             rows: List<List<db.SqlValue>> = [];
             buffer: bytes = <<>>;
             while (!state.ready) {
-                match (nextFrame(buffer)) {
+                match (wire.nextFrame(buffer)) {
                     None -> {
                         match (Socket.read(on.connection)) {
                             Ok(chunk) -> {
@@ -131,7 +134,7 @@ capability Postgres provides db.SqlConnectionDriver {
 
                     frame -> {
                         buffer = frame.rest;
-                        state = replyStep(state, frame.kind, frame.body);
+                        state = wire.replyStep(state, frame.kind, frame.body);
                         match (state.row) {
                             None -> None,
                             row -> {
@@ -142,10 +145,10 @@ capability Postgres provides db.SqlConnectionDriver {
                 }
             }
 
-            current = settleStatement(plan, state);
+            current = statements.settleStatement(plan, state);
             // 73 is idle: outside a transaction, the statement can run
             // again; inside one, the server refuses all until ROLLBACK.
-            if (again && !plan.parsing && state.status == 73 && staleStatement(state.failed)) {
+            if (again && !plan.parsing && state.status == 73 && statements.staleStatement(state.failed)) {
                 again = false;
                 continue;
             }
@@ -182,7 +185,7 @@ capability Postgres provides db.SqlConnectionDriver {
             return None;
         }
 
-        match (readSettings(settings)) {
+        match (startup.readSettings(settings)) {
             Err(_) -> None,
             Ok(pg) -> {
                 match (Socket.connect(pg.host, pg.port)) {

@@ -1,0 +1,411 @@
+use fiig.sql as db;
+use com.degeneratedevelopment.postgres.startup;
+use com.degeneratedevelopment.postgres.wire;
+
+// Opening a connection: the settings it reads, the startup message, and
+// the authentication exchange, SCRAM-SHA-256 included (ADR 0085 Â§6).
+formulas startup {
+    // ADR 0085 §2: the settings a capabilities file gives the driver.
+    formula readSettings(settings: Map<string, string>) -> Result<PgSettings, db.DatabaseError> {
+        if (!settings.containsKey("host")) {
+            return Err(
+                db.DatabaseError.Protocol(
+                    reason: "com.degeneratedevelopment.postgres needs a host setting"
+                )
+            );
+        }
+
+        if (!settings.containsKey("user")) {
+            return Err(
+                db.DatabaseError.Protocol(
+                    reason: "com.degeneratedevelopment.postgres needs a user setting"
+                )
+            );
+        }
+
+        user = settings.at("user");
+        port: int = 5432;
+        if (settings.containsKey("port")) {
+            match (settings.at("port").toIntOrNone()) {
+                None -> {
+                    return Err(
+                        db.DatabaseError.Protocol(
+                            reason: "the port setting must be a number, not ${settings.at("port")}"
+                        )
+                    );
+                },
+
+                number -> {
+                    port = number;
+                }
+            }
+        }
+
+        database: string = user;
+        if (settings.containsKey("database")) {
+            database = settings.at("database");
+        }
+
+        secure: bool = true;
+        if (settings.containsKey("sslmode")) {
+            mode = settings.at("sslmode");
+            if (mode == "disable") {
+                secure = false;
+            } else if (mode != "verify-full") {
+                return Err(
+                    db.DatabaseError.Protocol(
+                        reason: "sslmode must be verify-full or disable, not ${mode} (ADR 0085 §5)"
+                    )
+                );
+            }
+        }
+
+        // §3b: 100 holds every distinct statement most services send, at a few
+        // kilobytes of server memory each per connection.
+        cacheSize: int = 100;
+        if (settings.containsKey("statementCacheSize")) {
+            match (settings.at("statementCacheSize").toIntOrNone()) {
+                None -> {
+                    return Err(
+                        db.DatabaseError.Protocol(
+                            reason: "the statementCacheSize setting must be a number, not ${settings.at("statementCacheSize")}"
+                        )
+                    );
+                },
+
+                number -> {
+                    if (number < 0) {
+                        return Err(
+                            db.DatabaseError.Protocol(
+                                reason: "the statementCacheSize setting must be 0 or more, not ${number}"
+                            )
+                        );
+                    }
+
+                    cacheSize = number;
+                }
+            }
+        }
+
+        return Ok(
+            PgSettings(
+                host: settings.at("host"),
+                port: port,
+                user: user,
+                password: settings.atOrNone("password"),
+                database: database,
+                secure: secure,
+                applicationName: settings.atOrNone("applicationName"),
+                statementCacheSize: cacheSize
+            )
+        );
+    }
+
+    // ADR 0085 §2: protocol 3.0, the user and database, and the settings that
+    // keep text results independent of the server's configuration.
+    formula startupMessage(settings: PgSettings) -> bytes {
+        body: bytes = <<
+            wire.cString("user"): bytes,
+            wire.cString(settings.user): bytes,
+            wire.cString("database"): bytes,
+            wire.cString(settings.database): bytes,
+            wire.cString("client_encoding"): bytes,
+            wire.cString("UTF8"): bytes,
+            wire.cString("DateStyle"): bytes,
+            wire.cString("ISO"): bytes
+        >>;
+        match (settings.applicationName) {
+            None -> None,
+            name -> {
+                body = <<
+                    body: bytes,
+                    wire.cString("application_name"): bytes,
+                    wire.cString(name): bytes
+                >>;
+            }
+        }
+
+        length = body.length() + 9;
+        return <<length: i32be, 196608: i32be, body: bytes, 0: u8>>;
+    }
+
+    // One backend message during startup (§6): authentication requests go to
+    // authStep, an error ends the handshake, ReadyForQuery finishes it,
+    // BackendKeyData is kept for a CancelRequest (ADR 0084 §3a), and
+    // ParameterStatus and notices are skipped.
+    formula handshakeStep(state: Handshake, kind: int, body: bytes) -> Handshake {
+        if (kind == 75) {
+            return copy(state, send: <<>>, cancelKey: body);
+        }
+
+        if (kind == 69) {
+            return copy(state, send: <<>>, failed: wire.serverError(body));
+        }
+
+        if (kind == 90) {
+            if (state.expectSignature.length() > 0 && !state.verified) {
+                return copy(
+                    state,
+                    send: <<>>,
+                    failed: db.DatabaseError.Protocol(
+                        reason: "the server finished without proving it knows the password"
+                    )
+                );
+            }
+
+            return copy(state, send: <<>>, ready: true);
+        }
+
+        if (kind != 82) {
+            return copy(state, send: <<>>);
+        }
+
+        return match (body) {
+            <<code: i32be, data: bytes>> -> authStep(state, code, data),
+            _ -> copy(
+                state,
+                send: <<>>,
+                failed: db.DatabaseError.Protocol(reason: "an authentication message is too short")
+            )
+        }
+    }
+
+    // SCRAM-SHA-256's client proof (RFC 5802 §3, RFC 7677), from the
+    // server's first message: the nonce it extended, the salt, and the
+    // iteration count, which may be at most 1,000,000 (ADR 0085 §6).
+    formula computeScramFinal(
+        password: bytes,
+        clientFirstBare: string,
+        clientNonce: string,
+        serverFirst: string)
+            -> Result<ScramFinal, string> {
+        nonce: string = "";
+        salt: bytes = <<>>;
+        iterations: int = 0;
+        for (part in serverFirst.split(",")) {
+            if (part.startsWith("r=")) {
+                nonce = part.removePrefix("r=");
+            } else if (part.startsWith("s=")) {
+                match (part.removePrefix("s=").fromBase64()) {
+                    None -> {
+                        return Err("the server's SCRAM salt isn't base64");
+                    },
+
+                    decoded -> {
+                        salt = decoded;
+                    }
+                }
+            } else if (part.startsWith("i=")) {
+                match (part.removePrefix("i=").toIntOrNone()) {
+                    None -> {
+                        return Err("the server's SCRAM iteration count isn't a number");
+                    },
+
+                    count -> {
+                        iterations = count;
+                    }
+                }
+            }
+        }
+
+        if (!nonce.startsWith(clientNonce) || nonce.length() == clientNonce.length()) {
+            return Err("the server's SCRAM nonce doesn't extend the client's");
+        }
+
+        if (salt.length() == 0) {
+            return Err("the server sent no SCRAM salt");
+        }
+
+        if (iterations < 1 || iterations > 1000000) {
+            return Err(
+                "the server asks for ${iterations} SCRAM iterations; com.degeneratedevelopment.postgres allows 1 to 1000000"
+            );
+        }
+
+        salted = crypto.pbkdf2Sha256(password, salt, iterations);
+        clientKey = crypto.hmacSha256(salted, "Client Key".utf8());
+        withoutProof = "c=biws,r=${nonce}";
+        authMessage = "${clientFirstBare},${serverFirst},${withoutProof}".utf8();
+        clientSignature = crypto.hmacSha256(crypto.sha256(clientKey), authMessage);
+        proof = clientKey.xor(clientSignature);
+        serverKey = crypto.hmacSha256(salted, "Server Key".utf8());
+        return Ok(
+            ScramFinal(
+                message: "${withoutProof},p=${proof.toBase64()}",
+                serverSignature: crypto.hmacSha256(serverKey, authMessage)
+            )
+        );
+    }
+}
+
+private {
+    // One authentication request (§6): AuthenticationOk, a cleartext password
+    // on TLS only, or SCRAM-SHA-256's three steps. MD5 is refused by name.
+    authStep(state: Handshake, code: int, data: bytes) -> Handshake {
+        if (code == 0) {
+            return copy(state, send: <<>>);
+        }
+
+        if (code == 5) {
+            return copy(
+                state,
+                send: <<>>,
+                failed: db.DatabaseError.Protocol(
+                    reason: "the server asks for MD5 password authentication, which com.degeneratedevelopment.postgres doesn't support (ADR 0085 §6); set the role's password with SCRAM-SHA-256"
+                )
+            );
+        }
+
+        if (code == 3) {
+            if (!state.settings.secure) {
+                return copy(
+                    state,
+                    send: <<>>,
+                    failed: db.DatabaseError.Protocol(
+                        reason: "the server asks for the password in clear text, which com.degeneratedevelopment.postgres sends only over TLS (ADR 0085 §6)"
+                    )
+                );
+            }
+
+            match (state.settings.password) {
+                None -> {
+                    return copy(
+                        state,
+                        send: <<>>,
+                        failed: db.DatabaseError.Protocol(
+                            reason: "the server asks for a password, and the settings have none"
+                        )
+                    );
+                },
+
+                password -> {
+                    return copy(state, send: wire.pgMessage(112, wire.cString(password)));
+                }
+            }
+        }
+
+        if (code == 10) {
+            if (!wire.cStrings(data).contains("SCRAM-SHA-256")) {
+                return copy(
+                    state,
+                    send: <<>>,
+                    failed: db.DatabaseError.Protocol(
+                        reason: "the server offers no SASL mechanism com.degeneratedevelopment.postgres supports; it needs SCRAM-SHA-256"
+                    )
+                );
+            }
+
+            if (state.settings.password == None) {
+                return copy(
+                    state,
+                    send: <<>>,
+                    failed: db.DatabaseError.Protocol(
+                        reason: "the server asks for a password, and the settings have none"
+                    )
+                );
+            }
+
+            first = "n,,${state.clientFirstBare}".utf8();
+            length = first.length();
+            return copy(
+                state,
+                send: wire.pgMessage(
+                    112,
+                    <<wire.cString("SCRAM-SHA-256"): bytes, length: i32be, first: bytes>>
+                )
+            );
+        }
+
+        if (code == 11) {
+            match (state.settings.password) {
+                None -> {
+                    return copy(
+                        state,
+                        send: <<>>,
+                        failed: db.DatabaseError.Protocol(
+                            reason: "the server asks for a password, and the settings have none"
+                        )
+                    );
+                },
+
+                password -> {
+                    match (data.utf8()) {
+                        None -> {
+                            return copy(
+                                state,
+                                send: <<>>,
+                                failed: db.DatabaseError.Protocol(
+                                    reason: "the server's SCRAM message isn't text"
+                                )
+                            );
+                        },
+
+                        serverFirst -> {
+                            match (startup.computeScramFinal(password.utf8(), state.clientFirstBare, state.clientNonce, serverFirst)) {
+                                Err(reason) -> {
+                                    return copy(
+                                        state,
+                                        send: <<>>,
+                                        failed: db.DatabaseError.Protocol(reason: reason)
+                                    );
+                                },
+
+                                Ok(final) -> {
+                                    return copy(
+                                        state,
+                                        send: wire.pgMessage(112, final.message.utf8()),
+                                        expectSignature: final.serverSignature
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (code == 12) {
+            if (state.expectSignature.length() == 0) {
+                return copy(
+                    state,
+                    send: <<>>,
+                    failed: db.DatabaseError.Protocol(
+                        reason: "the server ended SCRAM before the client's proof"
+                    )
+                );
+            }
+
+            match (data.utf8()) {
+                None -> None,
+                text -> {
+                    if (text.startsWith("v=")) {
+                        match (text.removePrefix("v=").fromBase64()) {
+                            None -> None,
+                            signature -> {
+                                if (crypto.equal(signature, state.expectSignature)) {
+                                    return copy(state, send: <<>>, verified: true);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return copy(
+                state,
+                send: <<>>,
+                failed: db.DatabaseError.Protocol(
+                    reason: "the server's SCRAM signature is wrong, so it doesn't know the password"
+                )
+            );
+        }
+
+        return copy(
+            state,
+            send: <<>>,
+            failed: db.DatabaseError.Protocol(
+                reason: "the server asks for authentication method ${code}, which com.degeneratedevelopment.postgres doesn't support"
+            )
+        );
+    }
+}
