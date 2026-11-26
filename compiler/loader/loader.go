@@ -409,6 +409,21 @@ func reservedError(dir, path string) error {
 	return fmt.Errorf("%s: package path %q starts with %q, which is reserved for packages the fiig toolchain ships (ADR 0074 §1); choose another path", filepath.ToSlash(dir), path, BuiltinPrefix)
 }
 
+// BuiltinFS is the files of a package built into the toolchain, for a
+// lockfile Source such as "builtin:http" (ADR 0074 §1); ok is false for a
+// Source that names a directory on disk.
+func BuiltinFS(source string) (fsys fs.FS, ok bool) {
+	dir, isBuiltin := strings.CutPrefix(source, "builtin:")
+	if !isBuiltin {
+		return nil, false
+	}
+	sub, err := fs.Sub(stdlib.FS, dir)
+	if err != nil {
+		return nil, false
+	}
+	return sub, true
+}
+
 // scanBuiltin indexes the packages built into the toolchain (stdlib.FS),
 // which every Load searches as if they were one more workspace root. Each
 // is named builtin:<dir> in errors and the lockfile.

@@ -125,7 +125,13 @@ func loadCatalog(root string, workspaces []string) []*registry.Card {
 	}
 	sources := []registry.MergeSource{{Path: loaded.Manifest.Path, Version: loaded.Manifest.Version, Root: root}}
 	for _, e := range loaded.Lockfile.Dependencies {
-		sources = append(sources, registry.MergeSource{Path: e.Path, Version: e.Version, Root: e.Source})
+		source := registry.MergeSource{Path: e.Path, Version: e.Version, Root: e.Source}
+		// A package fiig ships has no directory; its files are the
+		// toolchain's (ADR 0074).
+		if fsys, ok := loader.BuiltinFS(e.Source); ok {
+			source.FS = fsys
+		}
+		sources = append(sources, source)
 	}
 	cards, fileErrs, err := registry.Merge(sources)
 	if err != nil {

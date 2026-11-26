@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"io/fs"
 	"sort"
 )
 
@@ -13,6 +14,9 @@ type MergeSource struct {
 	Path    string
 	Version string
 	Root    string
+	// FS, when set, is the package's files, read in place of Root's: a
+	// package built into the toolchain has no directory (ADR 0074).
+	FS fs.FS
 }
 
 // Merge generates contract cards from every source and combines them
@@ -31,7 +35,14 @@ func Merge(sources []MergeSource) ([]*Card, []FileError, error) {
 	var all []*Card
 	var allFileErrs []FileError
 	for _, s := range sources {
-		cards, fileErrs, err := Generate(s.Root)
+		var cards []*Card
+		var fileErrs []FileError
+		var err error
+		if s.FS != nil {
+			cards, fileErrs, err = GenerateFS(s.FS)
+		} else {
+			cards, fileErrs, err = Generate(s.Root)
+		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("%s: %w", s.Root, err)
 		}

@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
+	pathpkg "path"
 	"sort"
 	"strings"
 	"unicode"
@@ -337,6 +337,13 @@ func BuildCard(decl syntax.Decl, source string) *Card {
 // identical builds"). Parse errors are collected rather than aborting the
 // walk, so one malformed file doesn't hide the rest of the registry.
 func Generate(root string) ([]*Card, []FileError, error) {
+	return GenerateFS(os.DirFS(root))
+}
+
+// GenerateFS is Generate over a package's files in fsys, rooted at the
+// package, so a package built into the toolchain (ADR 0074), which has no
+// directory on disk, is read from the toolchain's own files.
+func GenerateFS(fsys fs.FS) ([]*Card, []FileError, error) {
 	var cards []*Card
 	var fileErrs []FileError
 	type parsedFile struct {
@@ -345,25 +352,20 @@ func Generate(root string) ([]*Card, []FileError, error) {
 	}
 	var parsed []parsedFile
 
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(fsys, ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && path == filepath.Join(root, "tests") {
-			return filepath.SkipDir // tests aren't in the registry (ADR 0091 §2)
+		if d.IsDir() && rel == "tests" {
+			return fs.SkipDir // tests aren't in the registry (ADR 0091 §2)
 		}
-		if d.IsDir() || filepath.Ext(path) != ".fiig" {
+		if d.IsDir() || pathpkg.Ext(rel) != ".fiig" {
 			return nil
 		}
-		src, err := os.ReadFile(path)
+		src, err := fs.ReadFile(fsys, rel)
 		if err != nil {
 			return err
 		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
 
 		file, errs := parser.Parse(string(src))
 		if len(errs) > 0 {
@@ -409,7 +411,7 @@ func Generate(root string) ([]*Card, []FileError, error) {
 	// all) — Load failing just means nothing here is deprecated, same
 	// graceful degradation every other manifest-derived field in this
 	// package already uses.
-	if m, errs := manifest.Load(root); len(errs) == 0 {
+	if m, errs := loadManifest(fsys); len(errs) == 0 {
 		for _, c := range cards {
 			if dep, ok := m.Deprecations[c.Name]; ok {
 				c.Deprecated = &dep
@@ -723,4 +725,13 @@ func principalSummaries(prs []*syntax.PrincipalDecl) []string {
 		out = append(out, fmt.Sprintf("%s: %s from %s by %s else %s", pr.Name, typeString(pr.Type), from, pr.By.Name(), pr.Else.Name()))
 	}
 	return out
+}
+
+// loadManifest is manifest.Load for a package's files in fsys.
+func loadManifest(fsys fs.FS) (*manifest.Manifest, []error) {
+	data, err := fs.ReadFile(fsys, manifest.Filename)
+	if err != nil {
+		return nil, []error{err}
+	}
+	return manifest.Parse(data)
 }
