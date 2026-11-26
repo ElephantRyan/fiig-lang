@@ -1,4 +1,5 @@
 use fiig.schedule;
+use com.degeneratedevelopment.redis.consumerGroup;
 
 // ADR 0112 §4: a schedule lock in Redis. A firing is claimed by setting a
 // key named by the job and the firing time, only if nobody has, for as long
@@ -18,7 +19,7 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
             Ok(RespValue.Simple(_)) -> Ok(true),
             Ok(_) -> Ok(false),
             Err(failure) -> Err(
-                schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}")
+                schedule.LockError.Unavailable(reason: "${consumerGroup.sourceErrorOf(failure)}")
             )
         }
     }
@@ -31,7 +32,7 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
             Ok(RespValue.Simple(_)) -> Ok(true),
             Ok(_) -> Ok(false),
             Err(failure) -> Err(
-                schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}")
+                schedule.LockError.Unavailable(reason: "${consumerGroup.sourceErrorOf(failure)}")
             )
         }
     }
@@ -43,7 +44,7 @@ capability RedisScheduleLock provides schedule.ScheduleLock {
             Ok(RespValue.Integer(count)) -> Ok(count > 0),
             Ok(_) -> Ok(false),
             Err(failure) -> Err(
-                schedule.LockError.Unavailable(reason: "${sourceErrorOf(failure)}")
+                schedule.LockError.Unavailable(reason: "${consumerGroup.sourceErrorOf(failure)}")
             )
         }
     }

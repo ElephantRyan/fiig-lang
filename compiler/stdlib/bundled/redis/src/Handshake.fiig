@@ -1,0 +1,258 @@
+use com.degeneratedevelopment.redis.resp;
+
+// Opening a connection: the REDIS_URL it reads, and the HELLO, AUTH and
+// SELECT it sends first (ADR 0110).
+formulas handshake {
+    // ADR 0110 §2: REDIS_URL read into a server. A reason never repeats the
+    // URL, which usually holds a password.
+    formula parseRedisUrl(url: string) -> Result<RedisTarget, RedisError> {
+        secure: bool = false;
+        rest: string = "";
+        if (url.startsWith("rediss://")) {
+            secure = true;
+            rest = url.removePrefix("rediss://");
+        } else if (url.startsWith("redis://")) {
+            rest = url.removePrefix("redis://");
+        } else {
+            return Err(invalid("it must start with redis:// or rediss://"));
+        }
+
+        if (rest.contains("?") || rest.contains("#")) {
+            return Err(
+                invalid(
+                    "it has a query or a fragment, which com.degeneratedevelopment.redis doesn't read"
+                )
+            );
+        }
+
+        pieces = rest.split("/");
+        if (pieces.length() > 2) {
+            return Err(invalid("its path is more than a database number"));
+        }
+
+        database: int = 0;
+        if (pieces.length() == 2 && pieces.last() != "") {
+            match (pieces.last().toIntOrNone()) {
+                None -> {
+                    return Err(invalid("its database isn't a number"));
+                },
+
+                number -> {
+                    if (number < 0) {
+                        return Err(invalid("its database is negative"));
+                    }
+
+                    database = number;
+                }
+            }
+        }
+
+        authority = pieces.first();
+        hostPort: string = authority;
+        user: string | None = None;
+        password: string | None = None;
+        signs = authority.split("@");
+        if (signs.length() > 1) {
+            hostPort = signs.last();
+            parts = signs.slice(0, signs.length() - 1).join("@").split(":");
+            if (parts.first() != "") {
+                user = percentDecoded(parts.first())?;
+            }
+
+            if (parts.length() > 1) {
+                password = percentDecoded(parts.slice(1, parts.length()).join(":"))?;
+            }
+        }
+
+        host: string = hostPort;
+        portText: string = "";
+        if (hostPort.startsWith("[")) {
+            bracket = hostPort.split("]");
+            if (bracket.length() != 2) {
+                return Err(invalid("its IPv6 host opens [ and never closes it"));
+            }
+
+            host = bracket.first().removePrefix("[");
+            if (bracket.last() != "") {
+                if (!bracket.last().startsWith(":")) {
+                    return Err(invalid("something other than a port follows its IPv6 host"));
+                }
+
+                portText = bracket.last().removePrefix(":");
+            }
+        } else {
+            colons = hostPort.split(":");
+            if (colons.length() > 2) {
+                return Err(
+                    invalid("its host has more than one colon; write an IPv6 host in brackets")
+                );
+            }
+
+            host = colons.first();
+            if (colons.length() == 2) {
+                portText = colons.last();
+            }
+        }
+
+        if (host == "") {
+            return Err(invalid("it has no host"));
+        }
+
+        port: int = 6379;
+        if (portText != "") {
+            match (portText.toIntOrNone()) {
+                None -> {
+                    return Err(invalid("its port isn't a number"));
+                },
+
+                number -> {
+                    if (number < 1 || number > 65535) {
+                        return Err(invalid("its port is outside 1 to 65535"));
+                    }
+
+                    port = number;
+                }
+            }
+        }
+
+        return Ok(
+            RedisTarget(
+                host: host,
+                port: port,
+                secure: secure,
+                user: user,
+                password: password,
+                database: database
+            )
+        );
+    }
+
+    // ADR 0110 §3: what a new connection sends before its first command, AUTH
+    // when the URL has a password and SELECT when the database isn't 0, and
+    // how many replies come back (0 when there is nothing to send). They are
+    // sent and answered before the command, so a refused SELECT can't let the
+    // command run on database 0.
+    formula setupRequest(target: RedisTarget) -> RedisRequest {
+        commands: List<List<string>> = [];
+        match (target.password) {
+            None -> None,
+            password -> {
+                match (target.user) {
+                    None -> {
+                        commands = append(commands, ["AUTH", password]);
+                    },
+
+                    user -> {
+                        commands = append(commands, ["AUTH", user, password]);
+                    }
+                }
+            }
+        }
+
+        if (target.database != 0) {
+            commands = append(commands, ["SELECT", "${target.database}"]);
+        }
+
+        data: bytes = <<>>;
+        for (each in commands) {
+            words: List<bytes> = [];
+            for (word in each) {
+                words = append(words, word.utf8());
+            }
+
+            data = <<data: bytes, resp.encodeCommand(words): bytes>>;
+        }
+
+        return RedisRequest(data: data, replies: commands.length());
+    }
+
+    // The first error among a new connection's setup replies, such as
+    // WRONGPASS from AUTH or "ERR DB index is out of range" from SELECT, or
+    // None when the server accepted them all (ADR 0110 §3).
+    formula setupRefusal(replies: List<RespValue>) -> RedisError | None {
+        for (reply in replies) {
+            match (reply) {
+                RespValue.Error(text) -> {
+                    return RedisError.Server(message: text);
+                },
+
+                _ -> None
+            }
+        }
+
+        return None;
+    }
+
+    // What AUTH and SELECT leave on a connection, which a kept one must match
+    // to serve a command (ADR 0109 §2, ADR 0110 §3).
+    formula sessionOf(target: RedisTarget) -> string {
+        user: string = "default";
+        match (target.user) {
+            None -> None,
+            name -> {
+                user = name;
+            }
+        }
+
+        return "user=${user} db=${target.database}";
+    }
+}
+
+private {
+    invalid(why: string) -> RedisError {
+        return RedisError.InvalidUrl(reason: "REDIS_URL can't be read: ${why}");
+    }
+
+    // A user or password as a URL writes it, with %XX for each byte that
+    // would otherwise end it, such as %40 for @.
+    percentDecoded(text: string) -> Result<string, RedisError> {
+        raw = text.utf8();
+        out: bytes = <<>>;
+        i: int = 0;
+        while (i < raw.length()) {
+            b = raw.at(i);
+            if (b == 37) {
+                if (i + 2 >= raw.length()) {
+                    return Err(
+                        invalid("a % in its user or password isn't followed by two hex digits")
+                    );
+                }
+
+                high = hexValue(raw.at(i + 1));
+                low = hexValue(raw.at(i + 2));
+                if (high < 0 || low < 0) {
+                    return Err(
+                        invalid("a % in its user or password isn't followed by two hex digits")
+                    );
+                }
+
+                out = <<out: bytes, high * 16 + low: u8>>;
+                i = i + 3;
+            } else {
+                out = <<out: bytes, b: u8>>;
+                i = i + 1;
+            }
+        }
+
+        return match (out.utf8()) {
+            None -> Err(invalid("its user or password isn't UTF-8 once decoded")),
+            decoded -> Ok(decoded)
+        }
+    }
+
+    hexValue(b: int) -> int {
+        if (b >= 48 && b <= 57) {
+            return b - 48;
+        }
+
+        if (b >= 65 && b <= 70) {
+            return b - 55;
+        }
+
+        if (b >= 97 && b <= 102) {
+            return b - 87;
+        }
+
+        return -1;
+    }
+}

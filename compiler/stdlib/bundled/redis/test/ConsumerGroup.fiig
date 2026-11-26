@@ -1,4 +1,5 @@
 use fiig.stream;
+use com.degeneratedevelopment.redis.consumerGroup;
 
 test aPendingEntryIsOnTheAttemptItWasLastDeliveredOn {
     found = RespValue.Array(items: [entry("7-0", "{}")]);
@@ -14,31 +15,44 @@ test aPendingEntryIsOnTheAttemptItWasLastDeliveredOn {
             )
         ]
     );
-    expect fetchedEntry("7-0", found, pending) is Ok(delivery);
+    expect consumerGroup.fetchedEntry("7-0", found, pending) is Ok(delivery);
     expect delivery == stream.Delivery(id: "7-0", payload: "{}".utf8(), attempt: 3, order: "");
 }
 
 test anEntryNotPendingIsOnItsFirstAttempt {
     found = RespValue.Array(items: [entry("7-0", "{}")]);
-    expect fetchedEntry("7-0", found, RespValue.Array(items: [])) is Ok(delivery);
+    expect consumerGroup.fetchedEntry("7-0", found, RespValue.Array(items: [])) is Ok(delivery);
     expect delivery == stream.Delivery(id: "7-0", payload: "{}".utf8(), attempt: 1, order: "");
     // Nor is anything pending in a group that doesn't exist yet.
     noGroup = RespValue.Error(text: "NOGROUP No such key 'orders' or consumer group 'intake'");
-    expect fetchedEntry("7-0", found, noGroup) is Ok(again);
+    expect consumerGroup.fetchedEntry("7-0", found, noGroup) is Ok(again);
     expect again == delivery;
 }
 
 test anEntryTheStreamNoLongerHoldsIsNone {
-    expect fetchedEntry("7-0", RespValue.Array(items: []), RespValue.Array(items: [])) is Ok(None);
+    expect consumerGroup.fetchedEntry("7-0", RespValue.Array(items: []), RespValue.Array(items: [])) is Ok(None);
     // XRANGE 7 7 is every entry of millisecond 7; only the very id is it.
     found = RespValue.Array(items: [entry("7-1", "{}")]);
-    expect fetchedEntry("7", found, RespValue.Array(items: [])) is Ok(None);
+    expect consumerGroup.fetchedEntry("7", found, RespValue.Array(items: [])) is Ok(None);
 }
 
 test aRefusalIsAProtocolError {
     refused = RespValue.Error(text: "ERR Invalid stream ID specified as stream command argument");
-    expect fetchedEntry("x", refused, refused) is Err(stream.SourceError.Protocol(reason));
+    expect consumerGroup.fetchedEntry("x", refused, refused) is Err(stream.SourceError.Protocol(reason));
     expect reason.startsWith("ERR Invalid stream ID");
+}
+
+test aBatchFitsInsideTheRedeliveryDelay {
+    // Defaults: 5 minutes, and 30 s + 10 s an element.
+    expect consumerGroup.fitBatch(16, 300000, 40000) is Ok(count);
+    expect count == 7;
+    expect consumerGroup.fitBatch(16, 300000, 1000) is Ok(full);
+    expect full == 16;
+}
+
+test noBatchFitsIsMisconfigured {
+    expect consumerGroup.fitBatch(16, 30000, 40000) is Err(stream.SourceError.Misconfigured(reason));
+    expect reason.contains("REDIS_STREAM_RETRY_AFTER_MS is 30000");
 }
 
 private {

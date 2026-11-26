@@ -1,7 +1,0 @@
-// Redis's answer for a group that doesn't exist yet.
-conversion isNoGroup(failure: RedisError) -> bool {
-    return match (failure) {
-        RedisError.Server(message) -> message.startsWith("NOGROUP"),
-        _ -> false
-    }
-}

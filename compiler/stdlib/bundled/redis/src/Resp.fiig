@@ -1,10 +1,100 @@
-// A reply from the bytes read so far. The first byte says the kind, and a
-// line ends at CRLF. Nothing is consumed until a whole reply, with every
-// element of an array, has arrived, so a caller reads more and asks again.
-// Slicing makes a view, not a copy, so handing the rest of the bytes on to
-// the next element costs nothing.
-conversion readResp(buffer: bytes) -> RespRead {
-    return replyAt(buffer, 0);
+// RESP3, Redis's wire format: encoding a command, reading a reply, and
+// what a pipeline sends and keeps (ADR 0110).
+formulas resp {
+    // A command as Redis reads it: an array of bulk strings, `*N CRLF` and then
+    // `$len CRLF bytes CRLF` for each argument. Every command, however it is
+    // spelled to a program, goes out in this one form.
+    formula encodeCommand(args: List<bytes>) -> bytes {
+        out: bytes = <<42: u8, "${args.length()}": utf8, 13: u8, 10: u8>>;
+        for (arg in args) {
+            out = <<
+                out: bytes,
+                36: u8,
+                "${arg.length()}": utf8,
+                13: u8,
+                10: u8,
+                arg: bytes,
+                13: u8,
+                10: u8
+            >>;
+        }
+
+        return out;
+    }
+
+    // ADR 0110 §1: one command as Redis reads it, and the one reply it brings.
+    formula commandRequest(words: List<bytes>) -> RedisRequest {
+        return RedisRequest(data: encodeCommand(words), replies: 1);
+    }
+
+    // ADR 0110 §1: a reply read as its command's result. An error reply is a
+    // failed command, so it is Err, not Ok(RespValue.Error).
+    formula commandReply(reply: RespValue) -> Result<RespValue, RedisError> {
+        return match (reply) {
+            RespValue.Error(text) -> Err(RedisError.Server(message: text)),
+            _ -> Ok(reply)
+        }
+    }
+
+    // A reply from the bytes read so far. The first byte says the kind, and a
+    // line ends at CRLF. Nothing is consumed until a whole reply, with every
+    // element of an array, has arrived, so a caller reads more and asks again.
+    // Slicing makes a view, not a copy, so handing the rest of the bytes on to
+    // the next element costs nothing.
+    formula readResp(buffer: bytes) -> RespRead {
+        return replyAt(buffer, 0);
+    }
+
+    // ADR 0110 open question 1, as amended 2026-11-21: commands pipelined,
+    // every one in one write, and as many replies back, in the same order.
+    formula pipelineRequest(commands: List<List<bytes>>) -> RedisRequest {
+        data: bytes = <<>>;
+        for (words in commands) {
+            data = <<data: bytes, encodeCommand(words): bytes>>;
+        }
+
+        return RedisRequest(data: data, replies: commands.length());
+    }
+
+    // ADR 0110 §3 for a pipeline: the connection can serve another call when
+    // no command in it changes the connection, by keepsConnection's list. A
+    // name that isn't text is no command Redis has, so it isn't trusted.
+    formula pipelineKeeps(commands: List<List<bytes>>) -> bool {
+        for (words in commands) {
+            match (words.first().utf8()) {
+                None -> {
+                    return false;
+                },
+
+                name -> {
+                    if (!keepsConnection(name)) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    // ADR 0110 §3: whether a connection can serve another call after a command
+    // of this name. These change it for whoever uses it next.
+    formula keepsConnection(name: string) -> bool {
+        changing = [
+            "SUBSCRIBE",
+            "PSUBSCRIBE",
+            "SSUBSCRIBE",
+            "MONITOR",
+            "MULTI",
+            "WATCH",
+            "SELECT",
+            "CLIENT",
+            "HELLO",
+            "AUTH",
+            "RESET"
+        ];
+        return !changing.contains(name.uppercase());
+    }
 }
 
 private {

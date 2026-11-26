@@ -1,0 +1,206 @@
+use fiig.stream;
+
+// Reading a Redis stream as a consumer group: what XREADGROUP and
+// XPENDING return, and how many deliveries fit a batch (ADR 0111).
+formulas consumerGroup {
+    // ADR 0111 open question 1, as amended 2026-11-21: what fetch's pipelined
+    // XRANGE and XPENDING answered, as the entry with exactly that id, on the
+    // attempt the group last delivered it on, else 1; None when the stream no
+    // longer holds it. A group that doesn't exist yet has delivered nothing.
+    formula fetchedEntry(id: string, found: RespValue, pending: RespValue)
+            -> Result<stream.Delivery | None, stream.SourceError> {
+        match (found) {
+            RespValue.Error(message) -> {
+                return Err(stream.SourceError.Protocol(reason: message));
+            },
+
+            _ -> None
+        }
+
+        counts: Map<string, int> = [:];
+        match (pending) {
+            RespValue.Error(message) -> {
+                if (!message.startsWith("NOGROUP")) {
+                    return Err(stream.SourceError.Protocol(reason: message));
+                }
+            },
+
+            _ -> {
+                for (entry in pendingEntries(pending)) {
+                    counts = counts.put(entry.id, entry.deliveries);
+                }
+            }
+        }
+
+        match (found) {
+            RespValue.Array(entries) -> {
+                for (d in streamDeliveries(entries, counts)) {
+                    if (d.id == id) {
+                        return Ok(d);
+                    }
+                }
+            },
+
+            _ -> None
+        }
+
+        return Ok(None);
+    }
+
+    // How many entries one receive may take (ADR 0111 §5a): no more than the
+    // runtime asked for, and no more than it can handle one after another
+    // before the first is reclaimed after retryAfter. When even one doesn't fit,
+    // no batch is safe, so the route halts naming the setting.
+    formula fitBatch(batchSize: int, retryAfter: int, handleMillis: int)
+            -> Result<int, stream.SourceError> {
+        if (handleMillis <= 0) {
+            return Ok(batchSize);
+        }
+
+        fits = retryAfter / handleMillis;
+        if (fits < 1) {
+            return Err(
+                stream.SourceError.Misconfigured(
+                    reason: "REDIS_STREAM_RETRY_AFTER_MS is ${retryAfter}, but one element may take ${handleMillis} ms (its workflow's timeout and its settle), so another consumer would take it while it is still being handled; raise REDIS_STREAM_RETRY_AFTER_MS above ${handleMillis}"
+                )
+            );
+        }
+
+        if (fits < batchSize) {
+            return Ok(fits);
+        }
+
+        return Ok(batchSize);
+    }
+
+    // Redis's answer for a group that doesn't exist yet.
+    formula isNoGroup(failure: RedisError) -> bool {
+        return match (failure) {
+            RedisError.Server(message) -> message.startsWith("NOGROUP"),
+            _ -> false
+        }
+    }
+
+    // XPENDING's extended reply: an array of [id, consumer, idle ms, deliveries].
+    formula pendingEntries(reply: RespValue) -> List<PendingEntry> {
+        out: List<PendingEntry> = [];
+        match (reply) {
+            RespValue.Array(items) -> {
+                for (item in items) {
+                    match (item) {
+                        RespValue.Array(fields) -> {
+                            if (fields.length() == 4) {
+                                match (textOf(fields.first())) {
+                                    None -> None,
+                                    id -> {
+                                        match (fields.last()) {
+                                            RespValue.Integer(count) -> {
+                                                out = append(
+                                                    out,
+                                                    PendingEntry(id: id, deliveries: count)
+                                                );
+                                            },
+
+                                            _ -> None
+                                        }
+                                    }
+                                }
+                            }
+                        },
+
+                        _ -> None
+                    }
+                }
+            },
+
+            _ -> None
+        }
+
+        return out;
+    }
+
+    // Stream entries, [id, [field, value, ...]] each, as deliveries: the
+    // payload field's bytes, and the attempt counts gives the id, else 1
+    // (ADR 0111 §7). An entry with no payload field delivers empty bytes,
+    // which a model element can't decode, so its route halts and says so.
+    formula streamDeliveries(entries: List<RespValue>, counts: Map<string, int>)
+            -> List<stream.Delivery> {
+        out: List<stream.Delivery> = [];
+        for (entry in entries) {
+            match (entry) {
+                RespValue.Array(parts) -> {
+                    if (parts.length() == 2) {
+                        match (textOf(parts.first())) {
+                            None -> None,
+                            id -> {
+                                out = append(
+                                    out,
+                                    stream.Delivery(
+                                        id: id,
+                                        payload: payloadOf(parts.last()),
+                                        attempt: counts.atOr(id, 1),
+                                        order: ""
+                                    )
+                                );
+                            }
+                        }
+                    }
+                },
+
+                _ -> None
+            }
+        }
+
+        return out;
+    }
+
+    // A failed command as the stream runtime reads it (ADR 0111 §1): the
+    // server out of reach is Unavailable, an answer it can't use is Protocol.
+    formula sourceErrorOf(failure: RedisError) -> stream.SourceError {
+        return match (failure) {
+            RedisError.Socket(failure) -> stream.SourceError.Unavailable(
+                reason: "Redis can't be reached: ${failure}"
+            ),
+            RedisError.InvalidUrl(reason) -> stream.SourceError.Unavailable(reason: reason),
+            RedisError.Server(message) -> stream.SourceError.Protocol(reason: message),
+            RedisError.MalformedReply(reason) -> stream.SourceError.Protocol(reason: reason),
+            RedisError.InvalidCommand(reason) -> stream.SourceError.Protocol(reason: reason)
+        }
+    }
+}
+
+private {
+    payloadOf(fields: RespValue) -> bytes {
+        match (fields) {
+            RespValue.Array(items) -> {
+                i: int = 0;
+                while (i + 1 < items.length()) {
+                    if (textOf(items.at(i)) == "payload") {
+                        match (items.at(i + 1)) {
+                            RespValue.Bulk(data) -> {
+                                return data;
+                            },
+
+                            _ -> None
+                        }
+                    }
+
+                    i = i + 2;
+                }
+            },
+
+            _ -> None
+        }
+
+        return <<>>;
+    }
+
+    // A bulk or status reply as text, or None for anything else.
+    textOf(reply: RespValue) -> string | None {
+        return match (reply) {
+            RespValue.Bulk(data) -> data.utf8(),
+            RespValue.Simple(text) -> text,
+            _ -> None
+        }
+    }
+}

@@ -1,8 +1,0 @@
-// ADR 0110 §1: a reply read as its command's result. An error reply is a
-// failed command, so it is Err, not Ok(RespValue.Error).
-conversion commandReply(reply: RespValue) -> Result<RespValue, RedisError> {
-    return match (reply) {
-        RespValue.Error(text) -> Err(RedisError.Server(message: text)),
-        _ -> Ok(reply)
-    }
-}

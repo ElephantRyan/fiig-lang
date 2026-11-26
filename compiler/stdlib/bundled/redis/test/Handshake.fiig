@@ -1,22 +1,25 @@
+use com.degeneratedevelopment.redis.handshake;
+use com.degeneratedevelopment.redis.resp;
+
 test plainUrlTakesDefaults {
-    expect parseRedisUrl("redis://cache.internal") is Ok(target);
+    expect handshake.parseRedisUrl("redis://cache.internal") is Ok(target);
     expect target == RedisTarget(host: "cache.internal", port: 6379, secure: false, user: None, password: None, database: 0);
 }
 
 test everyPartOfAUrl {
-    expect parseRedisUrl("rediss://app:s3cr%40t:x@cache.example.com:6380/2") is Ok(target);
+    expect handshake.parseRedisUrl("rediss://app:s3cr%40t:x@cache.example.com:6380/2") is Ok(target);
     expect target == RedisTarget(host: "cache.example.com", port: 6380, secure: true, user: "app", password: "s3cr@t:x", database: 2);
 }
 
 test passwordWithoutUser {
-    expect parseRedisUrl("redis://:hunter2@localhost/") is Ok(target);
+    expect handshake.parseRedisUrl("redis://:hunter2@localhost/") is Ok(target);
     expect target.user == None;
     expect target.password == "hunter2";
     expect target.database == 0;
 }
 
 test ipv6Host {
-    expect parseRedisUrl("redis://[::1]:7000") is Ok(target);
+    expect handshake.parseRedisUrl("redis://[::1]:7000") is Ok(target);
     expect target.host == "::1";
     expect target.port == 7000;
 }
@@ -33,7 +36,7 @@ test refusalsNeverShowTheUrl {
         "redis://a:b:c"
     ];
     for (url in cases) {
-        expect parseRedisUrl(url) is Err(RedisError.InvalidUrl(reason));
+        expect handshake.parseRedisUrl(url) is Err(RedisError.InvalidUrl(reason));
         expect !reason.contains(url);
     }
 }
@@ -47,7 +50,7 @@ test newConnectionAuthenticatesAndSelects {
         password: "pw",
         database: 3
     );
-    setup = setupRequest(target);
+    setup = handshake.setupRequest(target);
     expect setup.replies == 2;
     expect setup.data == "*3\r\n$4\r\nAUTH\r\n$3\r\napp\r\n$2\r\npw\r\n*2\r\n$6\r\nSELECT\r\n$1\r\n3\r\n".utf8();
 }
@@ -61,32 +64,32 @@ test noSetupWithoutPasswordOrDatabase {
         password: None,
         database: 0
     );
-    expect setupRequest(target).replies == 0;
+    expect handshake.setupRequest(target).replies == 0;
 }
 
 test aCommandIsOneArray {
-    request = commandRequest(["PING".utf8()]);
+    request = resp.commandRequest(["PING".utf8()]);
     expect request.replies == 1;
     expect request.data == "*1\r\n$4\r\nPING\r\n".utf8();
 }
 
 test sessionNamesUserAndDatabase {
-    expect sessionOf(RedisTarget(host: "h", port: 1, secure: false, user: None, password: None, database: 0)) == "user=default db=0";
-    expect sessionOf(RedisTarget(host: "h", port: 1, secure: false, user: "app", password: "x", database: 4)) == "user=app db=4";
+    expect handshake.sessionOf(RedisTarget(host: "h", port: 1, secure: false, user: None, password: None, database: 0)) == "user=default db=0";
+    expect handshake.sessionOf(RedisTarget(host: "h", port: 1, secure: false, user: "app", password: "x", database: 4)) == "user=app db=4";
 }
 
 test commandsThatChangeTheConnection {
-    expect keepsConnection("get");
-    expect !keepsConnection("subscribe");
-    expect !keepsConnection("MULTI");
+    expect resp.keepsConnection("get");
+    expect !resp.keepsConnection("subscribe");
+    expect !resp.keepsConnection("MULTI");
 }
 
 test errorRepliesAreErrors {
-    expect commandReply(RespValue.Integer(value: 2)) is Ok(RespValue.Integer(value));
+    expect resp.commandReply(RespValue.Integer(value: 2)) is Ok(RespValue.Integer(value));
     expect value == 2;
-    expect commandReply(RespValue.Error(text: "ERR wrong type")) is Err(RedisError.Server(message));
+    expect resp.commandReply(RespValue.Error(text: "ERR wrong type")) is Err(RedisError.Server(message));
     expect message.startsWith("ERR");
-    expect setupRefusal([RespValue.Simple(text: "OK"), RespValue.Error(text: "ERR DB index is out of range")]) is RedisError.Server(refused);
+    expect handshake.setupRefusal([RespValue.Simple(text: "OK"), RespValue.Error(text: "ERR DB index is out of range")]) is RedisError.Server(refused);
     expect refused.contains("out of range");
-    expect setupRefusal([RespValue.Simple(text: "OK"), RespValue.Simple(text: "OK")]) == None;
+    expect handshake.setupRefusal([RespValue.Simple(text: "OK"), RespValue.Simple(text: "OK")]) == None;
 }

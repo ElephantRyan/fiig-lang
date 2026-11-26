@@ -1,8 +1,0 @@
-// A bulk or status reply as text, or None for anything else.
-conversion textOf(reply: RespValue) -> string | None {
-    return match (reply) {
-        RespValue.Bulk(data) -> data.utf8(),
-        RespValue.Simple(text) -> text,
-        _ -> None
-    }
-}

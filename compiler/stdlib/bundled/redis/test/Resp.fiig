@@ -1,58 +1,62 @@
+use com.degeneratedevelopment.redis.resp;
+
 test statusLine {
-    result = readResp(line("+OK"));
+    result = resp.readResp(line("+OK"));
     expect result is RespRead.Done(value, rest);
     expect value == RespValue.Simple(text: "OK");
     expect rest.length() == 0;
 }
 
 test errorKeepsItsCode {
-    result = readResp(line("-WRONGTYPE Operation against a key holding the wrong kind of value"));
+    result = resp.readResp(
+        line("-WRONGTYPE Operation against a key holding the wrong kind of value")
+    );
     expect result is RespRead.Done(value, rest);
     expect value == RespValue.Error(text: "WRONGTYPE Operation against a key holding the wrong kind of value");
 }
 
 test integers {
-    expect readResp(line(":1000")) is RespRead.Done(positive, rest);
+    expect resp.readResp(line(":1000")) is RespRead.Done(positive, rest);
     expect positive == RespValue.Integer(value: 1000);
-    expect readResp(line(":-42")) is RespRead.Done(negative, rest2);
+    expect resp.readResp(line(":-42")) is RespRead.Done(negative, rest2);
     expect negative == RespValue.Integer(value: -42);
 }
 
 test bulkStringKeepsItsBytes {
     // A bulk string is binary-safe: this one holds a CRLF of its own.
     body: bytes = <<97: u8, 13: u8, 10: u8, 98: u8>>;
-    result = readResp(<<line("$4"): bytes, body: bytes, 13: u8, 10: u8>>);
+    result = resp.readResp(<<line("$4"): bytes, body: bytes, 13: u8, 10: u8>>);
     expect result is RespRead.Done(value, rest);
     expect value == RespValue.Bulk(data: body);
     expect rest.length() == 0;
 }
 
 test emptyAndNullBulk {
-    expect readResp(lines(["$0", ""])) is RespRead.Done(empty, rest);
+    expect resp.readResp(lines(["$0", ""])) is RespRead.Done(empty, rest);
     expect empty == RespValue.Bulk(data: <<>>);
-    expect readResp(line("$-1")) is RespRead.Done(missing, rest2);
+    expect resp.readResp(line("$-1")) is RespRead.Done(missing, rest2);
     expect missing == RespValue.Null;
 }
 
 test nullArrayIsNull {
-    expect readResp(line("*-1")) is RespRead.Done(value, rest);
+    expect resp.readResp(line("*-1")) is RespRead.Done(value, rest);
     expect value == RespValue.Null;
 }
 
 test nestedArray {
     // What SCAN answers: a cursor, then a list of keys.
     reply = lines(["*2", "$1", "0", "*2", "$1", "a", "$1", "b"]);
-    expect readResp(reply) is RespRead.Done(value, rest);
+    expect resp.readResp(reply) is RespRead.Done(value, rest);
     expect value == RespValue.Array(items: [RespValue.Bulk(data: "0".utf8()), RespValue.Array(items: [RespValue.Bulk(data: "a".utf8()), RespValue.Bulk(data: "b".utf8())])]);
     expect rest.length() == 0;
 }
 
 test bytesAfterAReplyAreLeftAlone {
     // A pipelined answer: the next reply is already in the buffer.
-    result = readResp(lines([":1", ":2"]));
+    result = resp.readResp(lines([":1", ":2"]));
     expect result is RespRead.Done(first, rest);
     expect first == RespValue.Integer(value: 1);
-    expect readResp(rest) is RespRead.Done(second, rest2);
+    expect resp.readResp(rest) is RespRead.Done(second, rest2);
     expect second == RespValue.Integer(value: 2);
     expect rest2.length() == 0;
 }
@@ -61,26 +65,26 @@ test everyPartialReplyAsksForMore {
     reply = lines(["*2", "$3", "foo", ":7"]);
     cut: int = 0;
     while (cut < reply.length()) {
-        expect readResp(reply.slice(0, cut)) is RespRead.NeedMore;
+        expect resp.readResp(reply.slice(0, cut)) is RespRead.NeedMore;
         cut = cut + 1;
     }
 
-    expect readResp(reply) is RespRead.Done(value, rest);
+    expect resp.readResp(reply) is RespRead.Done(value, rest);
 }
 
 test unknownTypeByteIsMalformed {
-    expect readResp(line("~3")) is RespRead.Malformed(reason);
+    expect resp.readResp(line("~3")) is RespRead.Malformed(reason);
 }
 
 test badLengthsAreMalformed {
-    expect readResp(line("$abc")) is RespRead.Malformed(reason);
-    expect readResp(line("$-2")) is RespRead.Malformed(reason2);
-    expect readResp(line("*x")) is RespRead.Malformed(reason3);
-    expect readResp(line(":1234567890123456789")) is RespRead.Malformed(reason4);
+    expect resp.readResp(line("$abc")) is RespRead.Malformed(reason);
+    expect resp.readResp(line("$-2")) is RespRead.Malformed(reason2);
+    expect resp.readResp(line("*x")) is RespRead.Malformed(reason3);
+    expect resp.readResp(line(":1234567890123456789")) is RespRead.Malformed(reason4);
 }
 
 test bulkWithoutItsCrlfIsMalformed {
-    expect readResp(<<line("$3"): bytes, "abcXY": utf8>>) is RespRead.Malformed(reason);
+    expect resp.readResp(<<line("$3"): bytes, "abcXY": utf8>>) is RespRead.Malformed(reason);
 }
 
 test arraysNestedTooDeepAreMalformed {
@@ -91,18 +95,18 @@ test arraysNestedTooDeepAreMalformed {
         n = n + 1;
     }
 
-    expect readResp(reply) is RespRead.Malformed(reason);
+    expect resp.readResp(reply) is RespRead.Malformed(reason);
 }
 
 test aCommandIsAnArrayOfBulkStrings {
-    sent = encodeCommand(["SET".utf8(), "k".utf8(), "hello".utf8()]);
+    sent = resp.encodeCommand(["SET".utf8(), "k".utf8(), "hello".utf8()]);
     expect sent == lines(["*3", "$3", "SET", "$1", "k", "$5", "hello"]);
 }
 
 test aCommandRoundTripsThroughTheReader {
     arg: bytes = <<0: u8, 13: u8, 10: u8, 255: u8>>;
-    sent = encodeCommand([arg]);
-    expect readResp(sent) is RespRead.Done(value, rest);
+    sent = resp.encodeCommand([arg]);
+    expect resp.readResp(sent) is RespRead.Done(value, rest);
     expect value == RespValue.Array(items: [RespValue.Bulk(data: arg)]);
 }
 
