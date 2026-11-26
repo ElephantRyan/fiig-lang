@@ -1,3 +1,5 @@
+use com.degeneratedevelopment.kafka.cluster;
+
 test thePartitionsLeader {
     layout = TopicLayout(
         brokers: [
@@ -6,14 +8,14 @@ test thePartitionsLeader {
         ],
         leaders: [2, 1]
     );
-    expect leaderAt(layout, 0) is Ok(leader);
+    expect cluster.leaderAt(layout, 0) is Ok(leader);
     expect leader == BrokerNode(id: 2, host: "b", port: 9092);
-    expect leaderAt(layout, 2) is Ok(None);
-    expect leaderAt(layout, 0 - 1) is Ok(None);
+    expect cluster.leaderAt(layout, 2) is Ok(None);
+    expect cluster.leaderAt(layout, 0 - 1) is Ok(None);
 }
 
 test aLeaderMetadataDoesntListIsMalformed {
     layout = TopicLayout(brokers: [BrokerNode(id: 1, host: "a", port: 9092)], leaders: [3]);
-    expect leaderAt(layout, 0) is Err(KafkaError.MalformedReply(reason));
+    expect cluster.leaderAt(layout, 0) is Err(KafkaError.MalformedReply(reason));
     expect reason.contains("leader 3");
 }

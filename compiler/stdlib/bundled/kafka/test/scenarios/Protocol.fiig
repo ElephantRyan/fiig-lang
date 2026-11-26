@@ -1,6 +1,10 @@
+use com.degeneratedevelopment.kafka.cluster;
+use com.degeneratedevelopment.kafka.codec;
+use com.degeneratedevelopment.kafka.produce;
+
 test aBatchCarriesItsCrcAndLength {
     record = KafkaRecord(key: None, value: "v".utf8(), headers: None);
-    expect recordBatch([record], 1000, Compression.None) is Ok(batch);
+    expect codec.recordBatch([record], 1000, Compression.None) is Ok(batch);
     match (batch) {
         <<baseOffset: i64be, length: i32be, epoch: i32be, magic: u8, crc: u32be, rest: bytes>> -> {
             expect baseOffset == 0;
@@ -15,7 +19,7 @@ test aBatchCarriesItsCrcAndLength {
         }
     }
 
-    expect recordBatch([], 1000, Compression.None) is Err(KafkaError.InvalidRecord(empty));
+    expect codec.recordBatch([], 1000, Compression.None) is Err(KafkaError.InvalidRecord(empty));
 }
 
 test apiVersionsChecksTheVersionsSent {
@@ -32,7 +36,7 @@ test apiVersionsChecksTheVersionsSent {
         0: i16be,
         13: i16be
     >>;
-    expect checkApiVersions(good, 1) is Ok(_);
+    expect cluster.checkApiVersions(good, 1) is Ok(_);
     old = <<
         1: i32be,
         0: i16be,
@@ -44,7 +48,7 @@ test apiVersionsChecksTheVersionsSent {
         0: i16be,
         13: i16be
     >>;
-    expect checkApiVersions(old, 1) is Err(KafkaError.Unsupported(reason));
+    expect cluster.checkApiVersions(old, 1) is Err(KafkaError.Unsupported(reason));
     expect reason.contains("Produce v9");
     // A broker whose Metadata stops before v12, the flexible version the
     // producer sends (as amended 2026-11-21).
@@ -59,56 +63,56 @@ test apiVersionsChecksTheVersionsSent {
         0: i16be,
         11: i16be
     >>;
-    expect checkApiVersions(noFlexible, 1) is Err(KafkaError.Unsupported(_));
-    expect checkApiVersions(good, 9) is Err(KafkaError.MalformedReply(mismatch));
+    expect cluster.checkApiVersions(noFlexible, 1) is Err(KafkaError.Unsupported(_));
+    expect cluster.checkApiVersions(good, 9) is Err(KafkaError.MalformedReply(mismatch));
 }
 
 // ADR 0113 §4, as amended 2026-11-21: the producer's Metadata v12 and
 // Produce v9, flexible versions with compact encodings and tagged fields.
 test flexibleMetadataNamesTheTopicOnly {
-    request = metadataV12Request("fiig", 5, "orders");
+    request = cluster.metadataV12Request("fiig", 5, "orders");
     // Size, then header v2: Metadata v12, the correlation id, the client
     // id as a STRING, and no tags.
-    expect request.slice(0, 19) == <<request.length() - 4: i32be, 3: i16be, 12: i16be, 5: i32be, kafkaString("fiig"): bytes, 0: u8>>;
+    expect request.slice(0, 19) == <<request.length() - 4: i32be, 3: i16be, 12: i16be, 5: i32be, codec.kafkaString("fiig"): bytes, 0: u8>>;
     // One topic, no id, by name; no auto-creation, no authorized
     // operations, no tags.
-    expect request.slice(19, request.length()) == <<2: u8, 0: i64be, 0: i64be, compactString("orders"): bytes, 0: u8, 0: u8, 0: u8, 0: u8>>;
+    expect request.slice(19, request.length()) == <<2: u8, 0: i64be, 0: i64be, codec.compactString("orders"): bytes, 0: u8, 0: u8, 0: u8, 0: u8>>;
 }
 
 test flexibleMetadataListsPartitionsInOrder {
-    expect readMetadataV12(ordersMetadataV12(), 2, "orders") is Ok(layout);
+    expect cluster.readMetadataV12(ordersMetadataV12(), 2, "orders") is Ok(layout);
     expect layout.leaders == [1, 2, 1];
     expect layout.brokers == [BrokerNode(id: 1, host: "b1", port: 9092), BrokerNode(id: 2, host: "b2", port: 9093)];
-    expect readMetadataV12(ordersMetadataV12(), 2, "payments") is Err(KafkaError.UnknownTopic(_));
-    expect readMetadataV12(ordersMetadataV12(), 3, "orders") is Err(KafkaError.MalformedReply(mismatch));
+    expect cluster.readMetadataV12(ordersMetadataV12(), 2, "payments") is Err(KafkaError.UnknownTopic(_));
+    expect cluster.readMetadataV12(ordersMetadataV12(), 3, "orders") is Err(KafkaError.MalformedReply(mismatch));
     expect mismatch.contains("correlation 2");
     whole = ordersMetadataV12();
-    expect readMetadataV12(whole.slice(0, whole.length() - 40), 2, "orders") is Err(KafkaError.MalformedReply(short));
+    expect cluster.readMetadataV12(whole.slice(0, whole.length() - 40), 2, "orders") is Err(KafkaError.MalformedReply(short));
     expect short.contains("ends early");
 }
 
 test flexibleProduceRepliesGiveEachRecordItsOffset {
-    expect readMetadataV12(ordersMetadataV12(), 2, "orders") is Ok(layout);
+    expect cluster.readMetadataV12(ordersMetadataV12(), 2, "orders") is Ok(layout);
     records = [
         KafkaRecord(key: "order-1".utf8(), value: "a".utf8(), headers: None),
         KafkaRecord(key: "order-2".utf8(), value: "b".utf8(), headers: None)
     ];
     // order-1 is partition 1, led by broker 2; order-2 partition 0, by 1.
-    expect producePlan(layout, records, 1000, Compression.None) is Ok(calls);
+    expect produce.producePlan(layout, records, 1000, Compression.None) is Ok(calls);
     expect calls.length() == 2;
     call = calls.last();
     expect call.broker.id == 2;
-    request = produceV9Request("fiig", 4, "orders", 30000, call.batches);
+    request = produce.produceV9Request("fiig", 4, "orders", 30000, call.batches);
     batch = call.batches.first().batch;
     expect request.slice(4, 8) == <<0: i16be, 9: i16be>>;
     // No transactional id, acks=all, the timeout, then one topic of one
     // partition, its batch as COMPACT_RECORDS.
-    expect request.slice(19, request.length()) == <<0: u8, 0 - 1: i16be, 30000: i32be, 2: u8, compactString("orders"): bytes, 2: u8, 1: i32be, uvarint(batch.length() + 1): bytes, batch: bytes, 0: u8, 0: u8, 0: u8>>;
+    expect request.slice(19, request.length()) == <<0: u8, 0 - 1: i16be, 30000: i32be, 2: u8, codec.compactString("orders"): bytes, 2: u8, 1: i32be, codec.uvarint(batch.length() + 1): bytes, batch: bytes, 0: u8, 0: u8, 0: u8>>;
     reply = <<
         4: i32be,
         0: u8,
         2: u8,
-        compactString("orders"): bytes,
+        codec.compactString("orders"): bytes,
         2: u8,
         1: i32be,
         0: i16be,
@@ -122,13 +126,13 @@ test flexibleProduceRepliesGiveEachRecordItsOffset {
         0: i32be,
         0: u8
     >>;
-    expect readProduceV9(reply, 4, call) is Ok(sent);
+    expect produce.readProduceV9(reply, 4, call) is Ok(sent);
     expect sent == [SentAt(index: 0, partition: 1, offset: 7)];
     refused = <<
         4: i32be,
         0: u8,
         2: u8,
-        compactString("orders"): bytes,
+        codec.compactString("orders"): bytes,
         2: u8,
         1: i32be,
         6: i16be,
@@ -136,33 +140,33 @@ test flexibleProduceRepliesGiveEachRecordItsOffset {
         0 - 1: i64be,
         0: i64be,
         1: u8,
-        compactString("leader moved"): bytes,
+        codec.compactString("leader moved"): bytes,
         0: u8,
         0: u8,
         0: i32be,
         0: u8
     >>;
-    expect readProduceV9(refused, 4, call) is Err(KafkaError.Broker(code, name, retriable, message));
+    expect produce.readProduceV9(refused, 4, call) is Err(KafkaError.Broker(code, name, retriable, message));
     expect code == 6;
     expect name == "NOT_LEADER_OR_FOLLOWER";
     expect retriable;
     expect message.contains("leader moved");
-    expect readProduceV9(reply.slice(0, 20), 4, call) is Err(KafkaError.MalformedReply(_));
+    expect produce.readProduceV9(reply.slice(0, 20), 4, call) is Err(KafkaError.MalformedReply(_));
 }
 
 test metadataListsPartitionsInOrder {
-    expect readMetadata(ordersMetadata(), 2, "orders") is Ok(layout);
+    expect cluster.readMetadata(ordersMetadata(), 2, "orders") is Ok(layout);
     expect layout.leaders == [1, 1, 1];
     expect layout.brokers.first().host == "b1";
     expect layout.brokers.first().port == 9092;
-    expect readMetadata(ordersMetadata(), 2, "payments") is Err(KafkaError.UnknownTopic(topic));
+    expect cluster.readMetadata(ordersMetadata(), 2, "payments") is Err(KafkaError.UnknownTopic(topic));
     expect topic == "payments";
-    expect readMetadata(ordersMetadata().slice(0, 30), 2, "orders") is Err(KafkaError.MalformedReply(short));
+    expect cluster.readMetadata(ordersMetadata().slice(0, 30), 2, "orders") is Err(KafkaError.MalformedReply(short));
     expect short.contains("ends early");
 }
 
 test keysGoWhereJavaPutsThem {
-    expect readMetadata(ordersMetadata(), 2, "orders") is Ok(layout);
+    expect cluster.readMetadata(ordersMetadata(), 2, "orders") is Ok(layout);
     records = [
         KafkaRecord(key: "order-1".utf8(), value: "a".utf8(), headers: None),
         KafkaRecord(key: "order-2".utf8(), value: "b".utf8(), headers: None),
@@ -170,7 +174,7 @@ test keysGoWhereJavaPutsThem {
     ];
     // order-1 is partition 1 and order-2 partition 0 of 3, as the Java
     // client computes; the keyless record goes to 1000 % 3, partition 1.
-    expect producePlan(layout, records, 1000, Compression.None) is Ok(calls);
+    expect produce.producePlan(layout, records, 1000, Compression.None) is Ok(calls);
     expect calls.length() == 1;
     batches = calls.first().batches;
     expect batches.length() == 2;
@@ -181,18 +185,18 @@ test keysGoWhereJavaPutsThem {
 }
 
 test produceRepliesGiveEachRecordItsOffset {
-    expect readMetadata(ordersMetadata(), 2, "orders") is Ok(layout);
+    expect cluster.readMetadata(ordersMetadata(), 2, "orders") is Ok(layout);
     records = [
         KafkaRecord(key: "order-1".utf8(), value: "a".utf8(), headers: None),
         KafkaRecord(key: "order-2".utf8(), value: "b".utf8(), headers: None),
         KafkaRecord(key: None, value: "c".utf8(), headers: None)
     ];
-    expect producePlan(layout, records, 1000, Compression.None) is Ok(calls);
+    expect produce.producePlan(layout, records, 1000, Compression.None) is Ok(calls);
     call = calls.first();
     reply = <<
         2: i32be,
         1: i32be,
-        kafkaString("orders"): bytes,
+        codec.kafkaString("orders"): bytes,
         2: i32be,
         0: i32be,
         0: i16be,
@@ -210,13 +214,13 @@ test produceRepliesGiveEachRecordItsOffset {
         0 - 1: i16be,
         0: i32be
     >>;
-    expect readProduce(reply, 2, call) is Ok(sent);
-    expect inOrder(sent, 3) is Ok(placed);
+    expect produce.readProduce(reply, 2, call) is Ok(sent);
+    expect produce.inOrder(sent, 3) is Ok(placed);
     expect placed == [Sent(partition: 1, offset: 7), Sent(partition: 0, offset: 40), Sent(partition: 1, offset: 8)];
     refused = <<
         2: i32be,
         1: i32be,
-        kafkaString("orders"): bytes,
+        codec.kafkaString("orders"): bytes,
         1: i32be,
         1: i32be,
         6: i16be,
@@ -224,10 +228,10 @@ test produceRepliesGiveEachRecordItsOffset {
         0: i64be,
         0: i64be,
         0: i32be,
-        kafkaString("leader moved"): bytes,
+        codec.kafkaString("leader moved"): bytes,
         0: i32be
     >>;
-    expect readProduce(refused, 2, call) is Err(KafkaError.Broker(code, name, retriable, message));
+    expect produce.readProduce(refused, 2, call) is Err(KafkaError.Broker(code, name, retriable, message));
     expect code == 6;
     expect name == "NOT_LEADER_OR_FOLLOWER";
     expect retriable;
@@ -240,7 +244,7 @@ private {
     // at b2:9093; the first broker and partition 1 carry a tagged field a
     // newer broker might add, which is skipped.
     ordersMetadataV12() -> bytes {
-        partitions: bytes = uvarint(4);
+        partitions: bytes = codec.uvarint(4);
         for (index in [2, 0, 1]) {
             leader: int = 1;
             tags: bytes = <<0: u8>>;
@@ -255,11 +259,11 @@ private {
                 index: i32be,
                 leader: i32be,
                 0: i32be,
-                uvarint(2): bytes,
+                codec.uvarint(2): bytes,
                 leader: i32be,
-                uvarint(2): bytes,
+                codec.uvarint(2): bytes,
                 leader: i32be,
-                uvarint(1): bytes,
+                codec.uvarint(1): bytes,
                 tags: bytes
             >>;
         }
@@ -268,9 +272,9 @@ private {
             2: i32be,
             0: u8,
             0: i32be,
-            uvarint(3): bytes,
+            codec.uvarint(3): bytes,
             1: i32be,
-            compactString("b1"): bytes,
+            codec.compactString("b1"): bytes,
             9092: i32be,
             0: u8,
             1: u8,
@@ -278,15 +282,15 @@ private {
             1: u8,
             7: u8,
             2: i32be,
-            compactString("b2"): bytes,
+            codec.compactString("b2"): bytes,
             9093: i32be,
-            compactString("rack-b"): bytes,
+            codec.compactString("rack-b"): bytes,
             0: u8,
-            compactString("c"): bytes,
+            codec.compactString("c"): bytes,
             1: i32be,
-            uvarint(2): bytes,
+            codec.uvarint(2): bytes,
             0: i16be,
-            compactString("orders"): bytes,
+            codec.compactString("orders"): bytes,
             "0123456789abcdef".utf8(): bytes,
             0: u8,
             partitions: bytes,
@@ -318,14 +322,14 @@ private {
             0: i32be,
             1: i32be,
             1: i32be,
-            kafkaString("b1"): bytes,
+            codec.kafkaString("b1"): bytes,
             9092: i32be,
             0 - 1: i16be,
-            kafkaString("c"): bytes,
+            codec.kafkaString("c"): bytes,
             1: i32be,
             1: i32be,
             0: i16be,
-            kafkaString("orders"): bytes,
+            codec.kafkaString("orders"): bytes,
             0: u8,
             partitions: bytes
         >>;

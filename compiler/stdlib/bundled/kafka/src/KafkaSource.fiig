@@ -1,4 +1,10 @@
 use fiig.stream;
+use com.degeneratedevelopment.kafka.cluster;
+use com.degeneratedevelopment.kafka.codec;
+use com.degeneratedevelopment.kafka.consumerGroup;
+use com.degeneratedevelopment.kafka.dialogue;
+use com.degeneratedevelopment.kafka.fetch;
+use com.degeneratedevelopment.kafka.produce;
 
 // ADR 0117: Kafka as a stream source, a KIP-848 consumer group over
 // sessions (ADR 0114). A route's source is the topic and its group the
@@ -9,7 +15,7 @@ capability KafkaSource provides stream.StreamSource {
     gateway receive(subscription: stream.Subscription, batchSize: int)
             -> Result<List<stream.Delivery>, stream.SourceError>
             requires Session {
-        group = groupSettings(
+        group = consumerGroup.groupSettings(
             subscription,
             KafkaServer.bootstrap,
             KafkaServer.tls,
@@ -22,8 +28,8 @@ capability KafkaSource provides stream.StreamSource {
         maxBytes = KafkaConsumer.fetchMaxBytes;
         poll = KafkaAsk.Poll(waitMillis: subscription.waitMillis);
         polled = mapErr(e in Session.call(group, json.encode(poll), deadline: Clock.now() + subscription.waitMillis + timeout)):
-                unavailable(e)?;
-        reply = pollReplyOf(polled)?;
+                cluster.unavailable(e)?;
+        reply = fetch.pollReplyOf(polled)?;
         if (reply.failure != "") {
             return Err(stream.SourceError.Misconfigured(reason: reply.failure));
         }
@@ -33,10 +39,12 @@ capability KafkaSource provides stream.StreamSource {
         }
 
         until = Clock.now() + timeout;
-        described = mapErr(e in Session.call(group, requestAsk(metadataRequest(clientId, 1, topic)), deadline: until)):
-                unavailable(e)?;
-        layout = mapErr(e in readMetadata(described.first(), 1, topic)): consumerError(e)?;
-        plans = mapErr(e in fetchPlans(layout, reply.partitions)): consumerError(e)?;
+        described = mapErr(e in Session.call(group, dialogue.requestAsk(cluster.metadataRequest(clientId, 1, topic)), deadline: until)):
+                cluster.unavailable(e)?;
+        layout = mapErr(e in cluster.readMetadata(described.first(), 1, topic)):
+                consumerGroup.consumerError(e)?;
+        plans = mapErr(e in fetch.fetchPlans(layout, reply.partitions)):
+                consumerGroup.consumerError(e)?;
         // Where a partition with no committed offset starts (ADR 0111 §3a).
         timestamp: int = 0 - 2;
         match (subscription.start) {
@@ -50,7 +58,7 @@ capability KafkaSource provides stream.StreamSource {
         deliveries: List<stream.Delivery> = [];
         wait: int = subscription.waitMillis;
         for (plan in plans) {
-            broker = brokerSettings(plan.broker, KafkaServer.tls, clientId);
+            broker = cluster.brokerSettings(plan.broker, KafkaServer.tls, clientId);
             unplaced: List<int> = [];
             positions: List<PartitionOffset> = [];
             for (p in plan.partitions) {
@@ -65,35 +73,37 @@ capability KafkaSource provides stream.StreamSource {
             }
 
             if (unplaced.length() > 0) {
-                listed = mapErr(e in Session.call(broker, requestAsk(listOffsetsRequest(clientId, 1, topic, unplaced, timestamp)), deadline: until)):
-                        unavailable(e)?;
-                found = mapErr(e in readListOffsets(listed.first())): consumerError(e)?;
+                listed = mapErr(e in Session.call(broker, dialogue.requestAsk(fetch.listOffsetsRequest(clientId, 1, topic, unplaced, timestamp)), deadline: until)):
+                        cluster.unavailable(e)?;
+                found = mapErr(e in fetch.readListOffsets(listed.first())):
+                        consumerGroup.consumerError(e)?;
                 for (o in found) {
                     positions = append(positions, o);
                     advance = KafkaAsk.Advance(partition: o.partition, next: o.offset);
                     mapErr(e in Session.call(group, json.encode(advance), deadline: until)):
-                            unavailable(e)?;
+                            cluster.unavailable(e)?;
                 }
             }
 
             if (positions.length() > 0 && deliveries.length() < batchSize) {
-                request = fetchRequest(clientId, 1, topic, wait, maxBytes, positions);
-                fetched = mapErr(e in Session.call(broker, requestAsk(request), deadline: Clock.now() + wait + timeout)):
-                        unavailable(e)?;
-                parts = mapErr(e in readFetch(fetched.first(), maxBytes)): consumerError(e)?;
+                request = fetch.fetchRequest(clientId, 1, topic, wait, maxBytes, positions);
+                fetched = mapErr(e in Session.call(broker, dialogue.requestAsk(request), deadline: Clock.now() + wait + timeout)):
+                        cluster.unavailable(e)?;
+                parts = mapErr(e in fetch.readFetch(fetched.first(), maxBytes)):
+                        consumerGroup.consumerError(e)?;
                 for (part in parts) {
                     if (part.code == 1) {
                         // The log no longer reaches the position: start the
                         // partition again where `from` says.
                         reset = KafkaAsk.Advance(partition: part.partition, next: 0 - 1);
                         mapErr(e in Session.call(group, json.encode(reset), deadline: until)):
-                                unavailable(e)?;
+                                cluster.unavailable(e)?;
                     } else if (part.code == 0) {
                         for (p in plan.partitions) {
                             if (p.partition == part.partition) {
                                 for (o in positions) {
                                     if (o.partition == part.partition) {
-                                        taken = takenFrom(
+                                        taken = fetch.takenFrom(
                                             part,
                                             o.offset,
                                             p,
@@ -109,7 +119,7 @@ capability KafkaSource provides stream.StreamSource {
                                                 next: taken.next
                                             );
                                             mapErr(e in Session.call(group, json.encode(advance), deadline: until)):
-                                                    unavailable(e)?;
+                                                    cluster.unavailable(e)?;
                                         }
                                     }
                                 }
@@ -133,14 +143,14 @@ capability KafkaSource provides stream.StreamSource {
         outcome: stream.Outcome)
             -> Result<None, stream.SourceError>
             requires Session {
-        group = groupSettings(
+        group = consumerGroup.groupSettings(
             subscription,
             KafkaServer.bootstrap,
             KafkaServer.tls,
             KafkaServer.clientId,
             KafkaConsumer.commitIntervalMillis
         )?;
-        at = deliveryAt(delivery.id)?;
+        at = fetch.deliveryAt(delivery.id)?;
         clientId = KafkaServer.clientId;
         until = Clock.now() + KafkaServer.timeoutMillis;
         match (outcome) {
@@ -153,32 +163,34 @@ capability KafkaSource provides stream.StreamSource {
                     resumeAt: Clock.now() + KafkaConsumer.retryAfterMillis
                 );
                 mapErr(e in Session.call(group, json.encode(seekBack), deadline: until)):
-                        unavailable(e)?;
+                        cluster.unavailable(e)?;
                 return Ok(None);
             },
 
             stream.Outcome.DeadLetter(target) -> {
-                described = mapErr(e in Session.call(group, requestAsk(metadataRequest(clientId, 1, target)), deadline: until)):
-                        unavailable(e)?;
-                layout = mapErr(e in readMetadata(described.first(), 1, target)): consumerError(e)?;
+                described = mapErr(e in Session.call(group, dialogue.requestAsk(cluster.metadataRequest(clientId, 1, target)), deadline: until)):
+                        cluster.unavailable(e)?;
+                layout = mapErr(e in cluster.readMetadata(described.first(), 1, target)):
+                        consumerGroup.consumerError(e)?;
                 record = KafkaRecord(
                     key: "${subscription.source}/${delivery.id}".utf8(),
                     value: delivery.payload,
                     headers: None
                 );
-                calls = mapErr(e in producePlan(layout, [record], Clock.now(), Compression.None)):
-                        consumerError(e)?;
+                calls = mapErr(e in produce.producePlan(layout, [record], Clock.now(), Compression.None)):
+                        consumerGroup.consumerError(e)?;
                 for (call in calls) {
-                    produce = produceRequest(
+                    produceBody = produce.produceRequest(
                         clientId,
                         1,
                         target,
                         KafkaServer.timeoutMillis,
                         call.batches
                     );
-                    sent = mapErr(e in Session.call(brokerSettings(call.broker, KafkaServer.tls, clientId), requestAsk(produce), deadline: until)):
-                            unavailable(e)?;
-                    mapErr(e in readProduce(sent.first(), 1, call)): consumerError(e)?;
+                    sent = mapErr(e in Session.call(cluster.brokerSettings(call.broker, KafkaServer.tls, clientId), dialogue.requestAsk(produceBody), deadline: until)):
+                            cluster.unavailable(e)?;
+                    mapErr(e in produce.readProduce(sent.first(), 1, call)):
+                            consumerGroup.consumerError(e)?;
                 }
             },
 
@@ -186,7 +198,8 @@ capability KafkaSource provides stream.StreamSource {
         }
 
         ack = KafkaAsk.Ack(partition: at.partition, offset: at.offset);
-        mapErr(e in Session.call(group, json.encode(ack), deadline: until)): unavailable(e)?;
+        mapErr(e in Session.call(group, json.encode(ack), deadline: until)):
+                cluster.unavailable(e)?;
         return Ok(None);
     }
 
@@ -199,26 +212,29 @@ capability KafkaSource provides stream.StreamSource {
     gateway fetch(subscription: stream.Subscription, id: string)
             -> Result<stream.Delivery | None, stream.SourceError>
             requires Session {
-        at = deliveryAt(id)?;
+        at = fetch.deliveryAt(id)?;
         clientId = KafkaServer.clientId;
         topic = subscription.source;
         until = Clock.now() + KafkaServer.timeoutMillis;
         // The bootstrap session, with the other servers as its alternates.
-        bootstrap = mapErr(e in bootstrapSettings(KafkaServer.bootstrap, KafkaServer.tls, clientId)):
-                consumerError(e)?;
-        described = mapErr(e in Session.call(bootstrap, requestAsk(metadataRequest(clientId, 1, topic)), deadline: until)):
-                unavailable(e)?;
-        layout = mapErr(e in readMetadata(described.first(), 1, topic)): consumerError(e)?;
-        leader = mapErr(e in leaderAt(layout, at.partition)): consumerError(e)?;
+        bootstrap = mapErr(e in cluster.bootstrapSettings(KafkaServer.bootstrap, KafkaServer.tls, clientId)):
+                consumerGroup.consumerError(e)?;
+        described = mapErr(e in Session.call(bootstrap, dialogue.requestAsk(cluster.metadataRequest(clientId, 1, topic)), deadline: until)):
+                cluster.unavailable(e)?;
+        layout = mapErr(e in cluster.readMetadata(described.first(), 1, topic)):
+                consumerGroup.consumerError(e)?;
+        leader = mapErr(e in cluster.leaderAt(layout, at.partition)):
+                consumerGroup.consumerError(e)?;
         return match (leader) {
             None -> Ok(None),
             broker -> {
                 maxBytes = KafkaConsumer.fetchMaxBytes;
-                request = fetchRequest(clientId, 1, topic, 0, maxBytes, [at]);
-                fetched = mapErr(e in Session.call(brokerSettings(broker, KafkaServer.tls, clientId), requestAsk(request), deadline: until)):
-                        unavailable(e)?;
-                parts = mapErr(e in readFetch(fetched.first(), maxBytes)): consumerError(e)?;
-                return mapErr(e in recordAt(parts, at)): consumerError(e);
+                request = fetch.fetchRequest(clientId, 1, topic, 0, maxBytes, [at]);
+                fetched = mapErr(e in Session.call(cluster.brokerSettings(broker, KafkaServer.tls, clientId), dialogue.requestAsk(request), deadline: until)):
+                        cluster.unavailable(e)?;
+                parts = mapErr(e in fetch.readFetch(fetched.first(), maxBytes)):
+                        consumerGroup.consumerError(e)?;
+                return mapErr(e in codec.recordAt(parts, at)): consumerGroup.consumerError(e);
             }
         }
     }

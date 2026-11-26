@@ -1,0 +1,432 @@
+use fiig.stream;
+use com.degeneratedevelopment.kafka.codec;
+
+// Fetching: which broker to ask for which partitions, the Fetch and
+// ListOffsets requests and replies, and what a poll delivers (ADR 0116).
+formulas fetch {
+    // ADR 0117 §4: the partitions a poll gave, grouped by the broker that
+    // leads each, in the order the brokers first appear.
+    formula fetchPlans(layout: TopicLayout, partitions: List<AssignedPartition>)
+            -> Result<List<LeaderFetch>, KafkaError> {
+        plans: List<LeaderFetch> = [];
+        for (p in partitions) {
+            if (p.partition < 0 || p.partition >= layout.leaders.length()) {
+                return Err(
+                    KafkaError.MalformedReply(
+                        reason: "Metadata has no partition ${p.partition}, which the group assigned"
+                    )
+                );
+            }
+
+            leader = layout.leaders.at(p.partition);
+            broker = leaderOf(layout, leader)?;
+            placed: bool = false;
+            grown: List<LeaderFetch> = [];
+            for (plan in plans) {
+                if (plan.broker.id == leader) {
+                    grown = append(grown, copy(plan, partitions: append(plan.partitions, p)));
+                    placed = true;
+                } else {
+                    grown = append(grown, plan);
+                }
+            }
+
+            if (!placed) {
+                grown = append(grown, LeaderFetch(broker: broker, partitions: [p]));
+            }
+
+            plans = grown;
+        }
+
+        return Ok(plans);
+    }
+
+    // ADR 0117 §4: Fetch v11 (API key 1) at a leader: each partition from its
+    // position, waiting up to waitMillis for a first byte, at most maxBytes in
+    // all and in any one partition. Read uncommitted, as Java's consumer does
+    // by default; no fetch session (KIP-227) and no rack.
+    formula fetchRequest(
+        clientId: string,
+        correlation: int,
+        topic: string,
+        waitMillis: int,
+        maxBytes: int,
+        positions: List<PartitionOffset>)
+            -> bytes {
+        partitions: bytes = <<positions.length(): i32be>>;
+        for (p in positions) {
+            partitions = <<
+                partitions: bytes,
+                p.partition: i32be,
+                0 - 1: i32be,
+                p.offset: i64be,
+                0 - 1: i64be,
+                maxBytes: i32be
+            >>;
+        }
+
+        body = <<
+            0 - 1: i32be,
+            waitMillis: i32be,
+            1: i32be,
+            maxBytes: i32be,
+            0: u8,
+            0: i32be,
+            0 - 1: i32be,
+            1: i32be,
+            codec.kafkaString(topic): bytes,
+            partitions: bytes,
+            0: i32be,
+            codec.kafkaString(""): bytes
+        >>;
+        return codec.kafkaRequest(1, 11, correlation, clientId, body);
+    }
+
+    // A Fetch v11 response: each partition's error and records. The records
+    // are v2 record batches (ADR 0113 §5), each checked against its CRC-32C
+    // and decompressed by its codec (ADR 0116 §4), at most maxSize bytes a
+    // batch. A transaction's control batches carry no records for the
+    // program, and a batch cut short at the end of the response (the broker
+    // stops at maxBytes) is left for the next fetch.
+    formula readFetch(frame: bytes, maxSize: int) -> Result<List<FetchedPartition>, KafkaError> {
+        // The correlation id, the throttle time, the error, the session id.
+        code = fetchNumber(codec.i16At(frame, 8))?;
+        if (code != 0) {
+            return Err(codec.brokerError(code, "Fetch"));
+        }
+
+        topics = fetchNumber(codec.i32At(frame, 14))?;
+        pos: int = 18;
+        out: List<FetchedPartition> = [];
+        t: int = 0;
+        while (t < topics) {
+            name = fetchText(codec.stringAt(frame, pos))?;
+            count = fetchNumber(codec.i32At(frame, name.next))?;
+            pos = name.next + 4;
+            i: int = 0;
+            while (i < count) {
+                partition = fetchNumber(codec.i32At(frame, pos))?;
+                partitionCode = fetchNumber(codec.i16At(frame, pos + 4))?;
+                // The high watermark, last stable offset, and log start offset,
+                // then the aborted transactions, null as -1.
+                aborted = fetchNumber(codec.i32At(frame, pos + 30))?;
+                pos = pos + 34;
+                if (aborted > 0) {
+                    pos = pos + aborted * 16;
+                }
+
+                // The preferred read replica, then the records.
+                size = fetchNumber(codec.i32At(frame, pos + 4))?;
+                pos = pos + 8;
+                records: List<FetchedRecord> = [];
+                if (size > 0) {
+                    if (pos + size > frame.length()) {
+                        return Err(fetchEndsEarly());
+                    }
+
+                    records = batchRecords(frame.slice(pos, pos + size), maxSize)?;
+                    pos = pos + size;
+                }
+
+                out = append(
+                    out,
+                    FetchedPartition(partition: partition, code: partitionCode, records: records)
+                );
+                i = i + 1;
+            }
+
+            t = t + 1;
+        }
+
+        return Ok(out);
+    }
+
+    // ADR 0117 §4: ListOffsets v2 (API key 2) at a leader, for partitions with
+    // no committed offset: timestamp -2 asks for each log's start, -1 for its
+    // end (ADR 0111 §3a's earliest and latest).
+    formula listOffsetsRequest(
+        clientId: string,
+        correlation: int,
+        topic: string,
+        partitions: List<int>,
+        timestamp: int)
+            -> bytes {
+        ids: bytes = <<partitions.length(): i32be>>;
+        for (p in partitions) {
+            ids = <<ids: bytes, p: i32be, timestamp: i64be>>;
+        }
+
+        body = <<0 - 1: i32be, 0: u8, 1: i32be, codec.kafkaString(topic): bytes, ids: bytes>>;
+        return codec.kafkaRequest(2, 2, correlation, clientId, body);
+    }
+
+    // A ListOffsets v2 response: each partition's offset. A partition the
+    // broker refused is left out, so it is asked again on the next receive.
+    formula readListOffsets(frame: bytes) -> Result<List<PartitionOffset>, KafkaError> {
+        topics = listOffsetsNumber(codec.i32At(frame, 8))?;
+        pos: int = 12;
+        out: List<PartitionOffset> = [];
+        t: int = 0;
+        while (t < topics) {
+            name = listOffsetsText(codec.stringAt(frame, pos))?;
+            count = listOffsetsNumber(codec.i32At(frame, name.next))?;
+            pos = name.next + 4;
+            i: int = 0;
+            while (i < count) {
+                partition = listOffsetsNumber(codec.i32At(frame, pos))?;
+                code = listOffsetsNumber(codec.i16At(frame, pos + 4))?;
+                offset = listOffsetsNumber(codec.i64At(frame, pos + 14))?;
+                if (code == 0) {
+                    out = append(out, PartitionOffset(partition: partition, offset: offset));
+                }
+
+                pos = pos + 22;
+                i = i + 1;
+            }
+
+            t = t + 1;
+        }
+
+        return Ok(out);
+    }
+
+    // A group session's answer to Poll, read back.
+    formula pollReplyOf(parts: List<bytes>) -> Result<PollReply, stream.SourceError> {
+        if (parts.length() != 1) {
+            return Err(
+                stream.SourceError.Protocol(
+                    reason: "a poll was answered in ${parts.length()} parts"
+                )
+            );
+        }
+
+        decoded: Result<PollReply, JsonError> = json.decode(parts.first());
+        return match (decoded) {
+            Err(_) -> Err(stream.SourceError.Protocol(reason: "a poll's answer isn't a PollReply")),
+            Ok(reply) -> Ok(reply)
+        }
+    }
+
+    // A delivery's id, "partition/offset" (ADR 0117 §4), read back.
+    formula deliveryAt(id: string) -> Result<PartitionOffset, stream.SourceError> {
+        pieces = id.split("/");
+        if (pieces.length() == 2) {
+            match (pieces.first().toIntOrNone()) {
+                None -> None,
+                partition -> {
+                    match (pieces.last().toIntOrNone()) {
+                        None -> None,
+                        offset -> {
+                            return Ok(PartitionOffset(partition: partition, offset: offset));
+                        }
+                    }
+                }
+            }
+        }
+
+        return Err(stream.SourceError.Protocol(reason: "delivery ${id} isn't partition/offset"));
+    }
+
+    // ADR 0117 §4, §6: up to room of a fetched partition's records, from its
+    // position on (a batch may start before it), as deliveries ordered by
+    // their partition. The record a retry seeks back to is on the attempt the
+    // group session counted.
+    formula takenFrom(part: FetchedPartition, position: int, assigned: AssignedPartition, room: int)
+            -> Taken {
+        out: List<stream.Delivery> = [];
+        next: int = 0 - 2;
+        for (record in part.records) {
+            if (record.offset >= position && out.length() < room) {
+                attempt: int = 1;
+                if (record.offset == assigned.retryOffset) {
+                    attempt = assigned.attempt;
+                }
+
+                out = append(
+                    out,
+                    stream.Delivery(
+                        id: "${part.partition}/${record.offset}",
+                        payload: record.value,
+                        attempt: attempt,
+                        order: "${part.partition}"
+                    )
+                );
+                next = record.offset + 1;
+            }
+        }
+
+        return Taken(deliveries: out, next: next);
+    }
+}
+
+private {
+    leaderOf(layout: TopicLayout, id: int) -> Result<BrokerNode, KafkaError> {
+        for (broker in layout.brokers) {
+            if (broker.id == id) {
+                return Ok(broker);
+            }
+        }
+
+        return Err(
+            KafkaError.MalformedReply(
+                reason: "Metadata names leader ${id}, which isn't among its brokers"
+            )
+        );
+    }
+
+    fetchEndsEarly() -> KafkaError {
+        return KafkaError.MalformedReply(reason: "a Fetch response ends early");
+    }
+
+    fetchNumber(read: int | None) -> Result<int, KafkaError> {
+        return match (read) {
+            None -> Err(fetchEndsEarly()),
+            found -> Ok(found)
+        }
+    }
+
+    fetchText(read: TextAt | None) -> Result<TextAt, KafkaError> {
+        return match (read) {
+            None -> Err(fetchEndsEarly()),
+            found -> Ok(found)
+        }
+    }
+
+    varOf(read: IntAt | None) -> Result<IntAt, KafkaError> {
+        return match (read) {
+            None -> Err(KafkaError.MalformedReply(reason: "a fetched record ends early")),
+            found -> Ok(found)
+        }
+    }
+
+    // Every record of the whole batches in data.
+    batchRecords(data: bytes, maxSize: int) -> Result<List<FetchedRecord>, KafkaError> {
+        out: List<FetchedRecord> = [];
+        rest: bytes = data;
+        reading: bool = true;
+        while (reading) {
+            match (rest) {
+                <<base: i64be, length: i32be, batch: bytes(length), more: bytes>> -> {
+                    for (record in batchOf(base, batch, maxSize)?) {
+                        out = append(out, record);
+                    }
+
+                    rest = more;
+                },
+
+                _ -> {
+                    reading = false;
+                }
+            }
+        }
+
+        return Ok(out);
+    }
+
+    // One batch's records, from after its length: the leader epoch, magic
+    // 2, the CRC of the rest, then the attributes and the batch's header.
+    batchOf(base: int, batch: bytes, maxSize: int) -> Result<List<FetchedRecord>, KafkaError> {
+        return match (batch) {
+            <<_: i32be, magic: u8, crc: u32be, checked: bytes>> -> {
+                if (magic != 2) {
+                    return Err(
+                        KafkaError.MalformedReply(
+                            reason: "a fetched batch has magic ${magic}, not 2"
+                        )
+                    );
+                }
+
+                if (crypto.crc32c(checked) != crc) {
+                    return Err(
+                        KafkaError.MalformedReply(
+                            reason: "a fetched batch at offset ${base} fails its CRC"
+                        )
+                    );
+                }
+
+                return match (checked) {
+                    <<attributes: i16be, _: i32be, _: i64be, _: i64be, _: i64be, _: i16be, _: i32be, count: i32be, section: bytes>> -> {
+                        if (attributes / 32 % 2 == 1) {
+                            return Ok([]);
+                        }
+
+                        bits = attributes % 8;
+                        compression: Compression = Compression.None;
+                        if (bits == 1) {
+                            compression = Compression.Gzip;
+                        } else if (bits == 2) {
+                            compression = Compression.Snappy;
+                        } else if (bits == 3) {
+                            compression = Compression.Lz4;
+                        } else if (bits == 4) {
+                            compression = Compression.Zstd;
+                        }
+
+                        body = codec.unpackedRecords(compression, section, maxSize)?;
+                        return recordsOf(base, body, count);
+                    },
+
+                    _ -> Err(
+                        KafkaError.MalformedReply(reason: "a fetched batch's header ends early")
+                    )
+                }
+            },
+
+            _ -> Err(KafkaError.MalformedReply(reason: "a fetched batch ends early"))
+        }
+    }
+
+    // count records: each its length, attributes, timestamp delta, offset
+    // delta, key, value, and headers, all but the attributes varints.
+    recordsOf(base: int, body: bytes, count: int) -> Result<List<FetchedRecord>, KafkaError> {
+        out: List<FetchedRecord> = [];
+        pos: int = 0;
+        i: int = 0;
+        while (i < count) {
+            length = varOf(codec.varintAt(body, pos))?;
+            stamp = varOf(codec.varintAt(body, length.next + 1))?;
+            delta = varOf(codec.varintAt(body, stamp.next))?;
+            keyLength = varOf(codec.varintAt(body, delta.next))?;
+            valueAt: int = keyLength.next;
+            if (keyLength.value > 0) {
+                valueAt = valueAt + keyLength.value;
+            }
+
+            valueLength = varOf(codec.varintAt(body, valueAt))?;
+            value: bytes = <<>>;
+            if (valueLength.value > 0) {
+                if (valueLength.next + valueLength.value > body.length()) {
+                    return Err(
+                        KafkaError.MalformedReply(reason: "a fetched record's value ends early")
+                    );
+                }
+
+                value = body.slice(valueLength.next, valueLength.next + valueLength.value);
+            }
+
+            out = append(out, FetchedRecord(offset: base + delta.value, value: value));
+            pos = length.next + length.value;
+            i = i + 1;
+        }
+
+        return Ok(out);
+    }
+
+    listOffsetsEndsEarly() -> KafkaError {
+        return KafkaError.MalformedReply(reason: "a ListOffsets response ends early");
+    }
+
+    listOffsetsNumber(read: int | None) -> Result<int, KafkaError> {
+        return match (read) {
+            None -> Err(listOffsetsEndsEarly()),
+            found -> Ok(found)
+        }
+    }
+
+    listOffsetsText(read: TextAt | None) -> Result<TextAt, KafkaError> {
+        return match (read) {
+            None -> Err(listOffsetsEndsEarly()),
+            found -> Ok(found)
+        }
+    }
+}

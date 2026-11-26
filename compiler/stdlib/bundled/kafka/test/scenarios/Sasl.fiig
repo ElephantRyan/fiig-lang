@@ -1,10 +1,15 @@
 use fiig.session;
+use com.degeneratedevelopment.kafka.cluster;
+use com.degeneratedevelopment.kafka.codec;
+use com.degeneratedevelopment.kafka.consumerGroup;
+use com.degeneratedevelopment.kafka.dialogue;
+use com.degeneratedevelopment.kafka.sasl;
 
 // ADR 0113 §6, as amended 2026-11-21: SASL, PLAIN and SCRAM, as states of
 // the session's state machine, driven with bytes alone. First, RFC 7677
 // §3's SCRAM-SHA-256 example: user "user", password "pencil".
 test scramSha256MatchesRfc7677 {
-    expect computeScramFinal(SaslMechanism.ScramSha256, "pencil".utf8(), rfcFirstBare(), rfcNonce(), rfcServerFirst()) is Ok(final);
+    expect sasl.computeScramFinal(SaslMechanism.ScramSha256, "pencil".utf8(), rfcFirstBare(), rfcNonce(), rfcServerFirst()) is Ok(final);
     expect final.message == "c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=";
     expect final.serverSignature.toBase64() == "6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=";
 }
@@ -12,7 +17,7 @@ test scramSha256MatchesRfc7677 {
 // The same exchange with SHA-512, checked against Python's hashlib and
 // hmac computing RFC 5802 §3's steps.
 test scramSha512UsesSha512Throughout {
-    expect computeScramFinal(SaslMechanism.ScramSha512, "pencil".utf8(), rfcFirstBare(), rfcNonce(), rfcServerFirst()) is Ok(final);
+    expect sasl.computeScramFinal(SaslMechanism.ScramSha512, "pencil".utf8(), rfcFirstBare(), rfcNonce(), rfcServerFirst()) is Ok(final);
     expect final.message == "c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=gMGXRcevScNtxZ6/8lQYpGtnsNAc3mGcmNomv+xnoOMw+3R2xNJdMNnzMlTN8PPC6wdp6dybEmDYXYTxwnYPJQ==";
     expect final.serverSignature.toBase64() == "ZQnYEgWQMFmmsM8aQMF0nDDCy/AgCzkwk8CmMZYcMg0vSVlKDanekLtifDSeVGT4+5ZxXnJq199RVG2rR7N7Zw==";
 }
@@ -20,16 +25,16 @@ test scramSha512UsesSha512Throughout {
 test aScramServerFirstIsChecked {
     pencil = "pencil".utf8();
     // A nonce that doesn't extend the client's.
-    expect computeScramFinal(SaslMechanism.ScramSha256, pencil, rfcFirstBare(), rfcNonce(), "r=other,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096") is Err(notOurs);
+    expect sasl.computeScramFinal(SaslMechanism.ScramSha256, pencil, rfcFirstBare(), rfcNonce(), "r=other,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096") is Err(notOurs);
     expect notOurs.contains("nonce");
     // Fewer iterations than Kafka keeps, or more than fiig allows.
-    expect computeScramFinal(SaslMechanism.ScramSha256, pencil, rfcFirstBare(), rfcNonce(), "r=${rfcNonce()}x,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=1") is Err(few);
+    expect sasl.computeScramFinal(SaslMechanism.ScramSha256, pencil, rfcFirstBare(), rfcNonce(), "r=${rfcNonce()}x,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=1") is Err(few);
     expect few.contains("4096 to 1000000");
-    expect computeScramFinal(SaslMechanism.ScramSha256, pencil, rfcFirstBare(), rfcNonce(), "r=${rfcNonce()}x,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=99999999") is Err(_);
-    expect computeScramFinal(SaslMechanism.ScramSha256, pencil, rfcFirstBare(), rfcNonce(), "r=${rfcNonce()}x,s=!!,i=4096") is Err(salt);
+    expect sasl.computeScramFinal(SaslMechanism.ScramSha256, pencil, rfcFirstBare(), rfcNonce(), "r=${rfcNonce()}x,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=99999999") is Err(_);
+    expect sasl.computeScramFinal(SaslMechanism.ScramSha256, pencil, rfcFirstBare(), rfcNonce(), "r=${rfcNonce()}x,s=!!,i=4096") is Err(salt);
     expect salt.contains("base64");
-    expect computeScramFinal(SaslMechanism.ScramSha256, pencil, rfcFirstBare(), rfcNonce(), "m=ext,r=${rfcNonce()}x,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096") is Err(_);
-    expect scramName("a=b,c") == "a=3Db=2Cc";
+    expect sasl.computeScramFinal(SaslMechanism.ScramSha256, pencil, rfcFirstBare(), rfcNonce(), "m=ext,r=${rfcNonce()}x,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096") is Err(_);
+    expect sasl.scramName("a=b,c") == "a=3Db=2Cc";
 }
 
 // A broker session logs in with SCRAM-SHA-256 before anything else: the
@@ -41,32 +46,37 @@ test aBrokerSessionLogsInWithScramFirst {
         username: "user",
         password: "pencil".utf8()
     );
-    opened = sessionOpened(brokerAt(), 1000, login, rfcNonce());
-    expect opened.write == <<apiVersionsRequest("fiig", 1): bytes, saslHandshakeRequest("fiig", 2, "SCRAM-SHA-256"): bytes>>;
-    held = sessionAsked(opened.state, layoutAsk(), 1000);
+    opened = dialogue.sessionOpened(brokerAt(), 1000, login, rfcNonce());
+    expect opened.write == <<cluster.apiVersionsRequest("fiig", 1): bytes, sasl.saslHandshakeRequest("fiig", 2, "SCRAM-SHA-256"): bytes>>;
+    held = dialogue.sessionAsked(opened.state, layoutAsk(), 1000);
     expect held.accepted == None;
     // Handshake taken: the client's first message.
-    first = sessionReceived(
+    first = dialogue.sessionReceived(
         opened.state,
         <<versionsOf(1): bytes, handshakeOk(2): bytes>>,
         1001,
         login
     );
-    expect first.write == saslAuthenticateRequest("fiig", 3, "n,,n=user,r=${rfcNonce()}".utf8());
-    expect sessionAsked(first.state, layoutAsk(), 1001).accepted == None;
+    expect first.write == sasl.saslAuthenticateRequest("fiig", 3, "n,,n=user,r=${rfcNonce()}".utf8());
+    expect dialogue.sessionAsked(first.state, layoutAsk(), 1001).accepted == None;
     // The broker's first message: the client's proof.
-    proof = sessionReceived(first.state, authOf(3, 0, rfcServerFirst().utf8()), 1002, login);
-    expect proof.write == saslAuthenticateRequest("fiig", 4, "c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=".utf8());
+    proof = dialogue.sessionReceived(
+        first.state,
+        authOf(3, 0, rfcServerFirst().utf8()),
+        1002,
+        login
+    );
+    expect proof.write == sasl.saslAuthenticateRequest("fiig", 4, "c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=".utf8());
     // The broker's signature: logged in, and the Layout goes out.
-    done = sessionReceived(
+    done = dialogue.sessionReceived(
         proof.state,
         authOf(4, 0, "v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=".utf8()),
         1003,
         login
     );
-    asked = sessionAsked(done.state, layoutAsk(), 1004);
+    asked = dialogue.sessionAsked(done.state, layoutAsk(), 1004);
     expect asked.accepted == 5;
-    expect asked.write == metadataV12Request("fiig", 5, "orders");
+    expect asked.write == cluster.metadataV12Request("fiig", 5, "orders");
 }
 
 test aBrokerThatDoesntKnowThePasswordIsRefused {
@@ -75,23 +85,28 @@ test aBrokerThatDoesntKnowThePasswordIsRefused {
         username: "user",
         password: "pencil".utf8()
     );
-    opened = sessionOpened(brokerAt(), 1000, login, rfcNonce());
-    first = sessionReceived(
+    opened = dialogue.sessionOpened(brokerAt(), 1000, login, rfcNonce());
+    first = dialogue.sessionReceived(
         opened.state,
         <<versionsOf(1): bytes, handshakeOk(2): bytes>>,
         1001,
         login
     );
-    proof = sessionReceived(first.state, authOf(3, 0, rfcServerFirst().utf8()), 1002, login);
-    forged = sessionReceived(
+    proof = dialogue.sessionReceived(
+        first.state,
+        authOf(3, 0, rfcServerFirst().utf8()),
+        1002,
+        login
+    );
+    forged = dialogue.sessionReceived(
         proof.state,
         authOf(4, 0, "v=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".utf8()),
         1003,
         login
     );
-    asked = sessionAsked(forged.state, layoutAsk(), 1004);
+    asked = dialogue.sessionAsked(forged.state, layoutAsk(), 1004);
     expect asked.write == <<>>;
-    expect layoutOf([asked.replies.first().message]) is Err(KafkaError.Authentication(reason));
+    expect cluster.layoutOf([asked.replies.first().message]) is Err(KafkaError.Authentication(reason));
     expect reason.contains("doesn't know the password");
 }
 
@@ -101,16 +116,21 @@ test aWrongPasswordIsTheBrokersRefusal {
         username: "user",
         password: "wrong".utf8()
     );
-    opened = sessionOpened(brokerAt(), 1000, login, rfcNonce());
-    expect opened.write == <<apiVersionsRequest("fiig", 1): bytes, saslHandshakeRequest("fiig", 2, "SCRAM-SHA-512"): bytes>>;
-    first = sessionReceived(
+    opened = dialogue.sessionOpened(brokerAt(), 1000, login, rfcNonce());
+    expect opened.write == <<cluster.apiVersionsRequest("fiig", 1): bytes, sasl.saslHandshakeRequest("fiig", 2, "SCRAM-SHA-512"): bytes>>;
+    first = dialogue.sessionReceived(
         opened.state,
         <<versionsOf(1): bytes, handshakeOk(2): bytes>>,
         1001,
         login
     );
-    proof = sessionReceived(first.state, authOf(3, 0, rfcServerFirst().utf8()), 1002, login);
-    refused = sessionReceived(
+    proof = dialogue.sessionReceived(
+        first.state,
+        authOf(3, 0, rfcServerFirst().utf8()),
+        1002,
+        login
+    );
+    refused = dialogue.sessionReceived(
         proof.state,
         authErrorOf(
             4,
@@ -120,8 +140,8 @@ test aWrongPasswordIsTheBrokersRefusal {
         1003,
         login
     );
-    asked = sessionAsked(refused.state, layoutAsk(), 1004);
-    expect layoutOf([asked.replies.first().message]) is Err(KafkaError.Authentication(reason));
+    asked = dialogue.sessionAsked(refused.state, layoutAsk(), 1004);
+    expect cluster.layoutOf([asked.replies.first().message]) is Err(KafkaError.Authentication(reason));
     expect reason.contains("SASL_AUTHENTICATION_FAILED");
     expect reason.contains("invalid credentials");
 }
@@ -130,17 +150,17 @@ test aWrongPasswordIsTheBrokersRefusal {
 // mechanism the broker doesn't offer halts its route by name.
 test aGroupSessionLogsInWithPlainThenFindsItsCoordinator {
     login = SaslLogin(mechanism: SaslMechanism.Plain, username: "alice", password: "s3cret".utf8());
-    opened = sessionOpened(groupAt(), 1000, login, "n1");
-    expect opened.write == <<apiVersionsRequest("fiig", 1): bytes, saslHandshakeRequest("fiig", 2, "PLAIN"): bytes>>;
-    plain = sessionReceived(
+    opened = dialogue.sessionOpened(groupAt(), 1000, login, "n1");
+    expect opened.write == <<cluster.apiVersionsRequest("fiig", 1): bytes, sasl.saslHandshakeRequest("fiig", 2, "PLAIN"): bytes>>;
+    plain = dialogue.sessionReceived(
         opened.state,
         <<versionsOf(1): bytes, handshakeOk(2): bytes>>,
         1001,
         login
     );
-    expect plain.write == saslAuthenticateRequest("fiig", 3, <<0: u8, "alice".utf8(): bytes, 0: u8, "s3cret".utf8(): bytes>>);
-    loggedIn = sessionReceived(plain.state, authOf(3, 0, <<>>), 1002, login);
-    expect loggedIn.write == findCoordinatorRequest("fiig", 4, "g");
+    expect plain.write == sasl.saslAuthenticateRequest("fiig", 3, <<0: u8, "alice".utf8(): bytes, 0: u8, "s3cret".utf8(): bytes>>);
+    loggedIn = dialogue.sessionReceived(plain.state, authOf(3, 0, <<>>), 1002, login);
+    expect loggedIn.write == consumerGroup.findCoordinatorRequest("fiig", 4, "g");
     // The password is in no state.
     expect !"${loggedIn.state.utf8()}".contains("s3cret");
 }
@@ -151,12 +171,21 @@ test aMechanismTheBrokerDoesntOfferHaltsTheRoute {
         username: "alice",
         password: "s3cret".utf8()
     );
-    opened = sessionOpened(groupAt(), 1000, login, "n1");
+    opened = dialogue.sessionOpened(groupAt(), 1000, login, "n1");
     offered = framed(
-        <<2: i32be, 33: i16be, 2: i32be, kafkaString("PLAIN"): bytes, kafkaString("GSSAPI"): bytes>>
+        <<2: i32be, 33: i16be, 2: i32be, codec.kafkaString("PLAIN"): bytes, codec.kafkaString("GSSAPI"): bytes>>
     );
-    refused = sessionReceived(opened.state, <<versionsOf(1): bytes, offered: bytes>>, 1001, login);
-    polled = sessionAsked(refused.state, json.encode(KafkaAsk.Poll(waitMillis: 500)), 1002);
+    refused = dialogue.sessionReceived(
+        opened.state,
+        <<versionsOf(1): bytes, offered: bytes>>,
+        1001,
+        login
+    );
+    polled = dialogue.sessionAsked(
+        refused.state,
+        json.encode(KafkaAsk.Poll(waitMillis: 500)),
+        1002
+    );
     expect polled.replies.length() == 1;
     failure = pollFailureOf(polled.replies.first().message);
     expect failure.contains("SASL authentication failed");
@@ -165,10 +194,10 @@ test aMechanismTheBrokerDoesntOfferHaltsTheRoute {
 
 test aMechanismWithoutAUsernameIsRefusedAtOnce {
     login = SaslLogin(mechanism: SaslMechanism.Plain, username: "", password: <<>>);
-    opened = sessionOpened(brokerAt(), 1000, login, "n1");
+    opened = dialogue.sessionOpened(brokerAt(), 1000, login, "n1");
     expect opened.write == <<>>;
-    asked = sessionAsked(opened.state, layoutAsk(), 1000);
-    expect layoutOf([asked.replies.first().message]) is Err(KafkaError.Authentication(reason));
+    asked = dialogue.sessionAsked(opened.state, layoutAsk(), 1000);
+    expect cluster.layoutOf([asked.replies.first().message]) is Err(KafkaError.Authentication(reason));
     expect reason.contains("KAFKA_SASL_USERNAME");
 }
 
@@ -235,7 +264,7 @@ private {
 
     handshakeOk(correlation: int) -> bytes {
         return framed(
-            <<correlation: i32be, 0: i16be, 1: i32be, kafkaString("SCRAM-SHA-256"): bytes>>
+            <<correlation: i32be, 0: i16be, 1: i32be, codec.kafkaString("SCRAM-SHA-256"): bytes>>
         );
     }
 
@@ -243,13 +272,13 @@ private {
     // mechanism's bytes, and the session's lifetime.
     authOf(correlation: int, code: int, data: bytes) -> bytes {
         return framed(
-            <<correlation: i32be, 0: u8, code: i16be, 0: u8, uvarint(data.length() + 1): bytes, data: bytes, 0: i64be, 0: u8>>
+            <<correlation: i32be, 0: u8, code: i16be, 0: u8, codec.uvarint(data.length() + 1): bytes, data: bytes, 0: i64be, 0: u8>>
         );
     }
 
     authErrorOf(correlation: int, code: int, message: string) -> bytes {
         return framed(
-            <<correlation: i32be, 0: u8, code: i16be, compactString(message): bytes, 1: u8, 0: i64be, 0: u8>>
+            <<correlation: i32be, 0: u8, code: i16be, codec.compactString(message): bytes, 1: u8, 0: i64be, 0: u8>>
         );
     }
 

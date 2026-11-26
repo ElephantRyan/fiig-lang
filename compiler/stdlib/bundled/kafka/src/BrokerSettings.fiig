@@ -1,5 +1,0 @@
-// ADR 0117 §3: the settings naming the broker session to one broker, which
-// carries Fetch, ListOffsets, and a dead letter's Produce.
-conversion brokerSettings(broker: BrokerNode, tls: bool, clientId: string) -> Map<string, string> {
-    return ["host": broker.host, "port": "${broker.port}", "tls": "${tls}", "role": "broker", "clientId": clientId];
-}

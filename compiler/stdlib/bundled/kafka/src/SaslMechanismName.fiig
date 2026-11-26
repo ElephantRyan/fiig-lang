@@ -1,8 +1,0 @@
-// A SASL mechanism by the name SaslHandshake asks for it (KIP-43).
-conversion saslMechanismName(mechanism: SaslMechanism) -> string {
-    return match (mechanism) {
-        SaslMechanism.Plain -> "PLAIN",
-        SaslMechanism.ScramSha256 -> "SCRAM-SHA-256",
-        SaslMechanism.ScramSha512 -> "SCRAM-SHA-512"
-    }
-}

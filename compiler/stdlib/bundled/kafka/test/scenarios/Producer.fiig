@@ -1,85 +1,92 @@
 use fiig.session;
+use com.degeneratedevelopment.kafka.cluster;
+use com.degeneratedevelopment.kafka.codec;
+use com.degeneratedevelopment.kafka.dialogue;
 
 // ADR 0113 §4, as amended 2026-11-21: the producer's broker sessions,
 // which check ApiVersions, keep each topic's layout for its max age, and
 // drop it when asked to.
 test aBrokerSessionKeepsATopicsLayout {
-    opened = sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1");
-    ready = sessionReceived(opened.state, producerVersionsOf(1, 12), 1000, noLogin());
+    opened = dialogue.sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1");
+    ready = dialogue.sessionReceived(opened.state, producerVersionsOf(1, 12), 1000, noLogin());
     // The first Layout asks the broker ...
-    first = sessionAsked(ready.state, layoutAsk("orders", 60000), 1000);
+    first = dialogue.sessionAsked(ready.state, layoutAsk("orders", 60000), 1000);
     expect first.accepted == 2;
-    expect first.write == metadataV12Request("fiig", 2, "orders");
+    expect first.write == cluster.metadataV12Request("fiig", 2, "orders");
     expect first.replies.length() == 0;
-    described = sessionReceived(first.state, metadataOf(2, "orders", 3), 1001, noLogin());
+    described = dialogue.sessionReceived(first.state, metadataOf(2, "orders", 3), 1001, noLogin());
     expect described.replies.length() == 1;
     expect layoutReplyOf(described.replies.first()) is Ok(layout);
     expect layout.leaders == [1, 1, 1];
     expect layout.brokers == [BrokerNode(id: 1, host: "a", port: 9092)];
     // ... the next, within the max age, is answered from the session ...
-    again = sessionAsked(described.state, layoutAsk("orders", 60000), 30000);
+    again = dialogue.sessionAsked(described.state, layoutAsk("orders", 60000), 30000);
     expect again.write == <<>>;
     expect layoutReplyOf(again.replies.first()) is Ok(kept);
     expect kept == layout;
     // ... another topic isn't ...
-    other = sessionAsked(again.state, layoutAsk("payments", 60000), 30000);
-    expect other.write == metadataV12Request("fiig", 4, "payments");
+    other = dialogue.sessionAsked(again.state, layoutAsk("payments", 60000), 30000);
+    expect other.write == cluster.metadataV12Request("fiig", 4, "payments");
     // ... and once the max age is up, it asks again.
-    stale = sessionAsked(described.state, layoutAsk("orders", 60000), 61001);
+    stale = dialogue.sessionAsked(described.state, layoutAsk("orders", 60000), 61001);
     expect stale.write.length() > 0;
     // A max age of 0 keeps nothing.
-    uncached = sessionAsked(described.state, layoutAsk("orders", 0), 1001);
+    uncached = dialogue.sessionAsked(described.state, layoutAsk("orders", 0), 1001);
     expect uncached.write.length() > 0;
 }
 
 test aForgottenLayoutIsReadAgain {
-    opened = sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1");
-    ready = sessionReceived(opened.state, producerVersionsOf(1, 12), 1000, noLogin());
-    first = sessionAsked(ready.state, layoutAsk("orders", 60000), 1000);
-    described = sessionReceived(first.state, metadataOf(2, "orders", 3), 1001, noLogin());
-    forgot = sessionAsked(described.state, json.encode(KafkaAsk.Forget(topic: "orders")), 1002);
+    opened = dialogue.sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1");
+    ready = dialogue.sessionReceived(opened.state, producerVersionsOf(1, 12), 1000, noLogin());
+    first = dialogue.sessionAsked(ready.state, layoutAsk("orders", 60000), 1000);
+    described = dialogue.sessionReceived(first.state, metadataOf(2, "orders", 3), 1001, noLogin());
+    forgot = dialogue.sessionAsked(
+        described.state,
+        json.encode(KafkaAsk.Forget(topic: "orders")),
+        1002
+    );
     expect forgot.replies == [session.SessionReply(key: 3, message: <<>>, last: true)];
-    asked = sessionAsked(forgot.state, layoutAsk("orders", 60000), 1003);
-    expect asked.write == metadataV12Request("fiig", 4, "orders");
+    asked = dialogue.sessionAsked(forgot.state, layoutAsk("orders", 60000), 1003);
+    expect asked.write == cluster.metadataV12Request("fiig", 4, "orders");
 }
 
 test aLayoutsErrorIsGivenAndNotKept {
-    opened = sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1");
-    ready = sessionReceived(opened.state, producerVersionsOf(1, 12), 1000, noLogin());
-    first = sessionAsked(ready.state, layoutAsk("missing", 60000), 1000);
-    unknown = sessionReceived(first.state, metadataOf(2, "missing", 0), 1001, noLogin());
+    opened = dialogue.sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1");
+    ready = dialogue.sessionReceived(opened.state, producerVersionsOf(1, 12), 1000, noLogin());
+    first = dialogue.sessionAsked(ready.state, layoutAsk("missing", 60000), 1000);
+    unknown = dialogue.sessionReceived(first.state, metadataOf(2, "missing", 0), 1001, noLogin());
     expect layoutReplyOf(unknown.replies.first()) is Err(KafkaError.UnknownTopic(topic));
     expect topic == "missing";
-    again = sessionAsked(unknown.state, layoutAsk("missing", 60000), 1002);
+    again = dialogue.sessionAsked(unknown.state, layoutAsk("missing", 60000), 1002);
     expect again.write.length() > 0;
 }
 
 test aBrokerWithoutTheFlexibleVersionsIsRefusedByName {
-    opened = sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1");
-    old = sessionReceived(opened.state, producerVersionsOf(1, 8), 1000, noLogin());
-    asked = sessionAsked(old.state, layoutAsk("orders", 60000), 1001);
+    opened = dialogue.sessionOpened(brokerAt("a", 9092), 1000, noLogin(), "n1");
+    old = dialogue.sessionReceived(opened.state, producerVersionsOf(1, 8), 1000, noLogin());
+    asked = dialogue.sessionAsked(old.state, layoutAsk("orders", 60000), 1001);
     expect asked.write == <<>>;
     expect layoutReplyOf(asked.replies.first()) is Err(KafkaError.Unsupported(reason));
     expect reason.contains("Metadata v12");
 }
 
 test theBootstrapSessionIsTheFirstServersBrokerSession {
-    expect bootstrapSettings("a:9092", false, "fiig") is Ok(alone);
-    expect alone == brokerSettings(BrokerNode(id: 0 - 1, host: "a", port: 9092), false, "fiig");
-    expect bootstrapSettings("a:9092,[::1]:9093", true, "fiig") is Ok(two);
+    expect cluster.bootstrapSettings("a:9092", false, "fiig") is Ok(alone);
+    expect alone == cluster.brokerSettings(BrokerNode(id: 0 - 1, host: "a", port: 9092), false, "fiig");
+    expect cluster.bootstrapSettings("a:9092,[::1]:9093", true, "fiig") is Ok(two);
     expect two.at("host") == "a";
     expect two.at("alternates") == "[::1]:9093";
     expect two.at("role") == "broker";
-    expect bootstrapSettings("", false, "fiig") is Err(KafkaError.InvalidConfig(_));
+    expect cluster.bootstrapSettings("", false, "fiig") is Err(KafkaError.InvalidConfig(_));
 }
 
 test aProduceThatSaysTheLeadersMovedDropsTheLayout {
-    expect layoutMoved(brokerError(6, "Produce"));
-    expect layoutMoved(brokerError(3, "Produce"));
-    expect layoutMoved(brokerError(5, "Produce"));
-    expect layoutMoved(KafkaError.Session(failure: SessionError.TimedOut));
-    expect !layoutMoved(brokerError(10, "Produce"));
-    expect !layoutMoved(KafkaError.InvalidRecord(reason: "empty"));
+    expect cluster.layoutMoved(codec.brokerError(6, "Produce"));
+    expect cluster.layoutMoved(codec.brokerError(3, "Produce"));
+    expect cluster.layoutMoved(codec.brokerError(5, "Produce"));
+    expect cluster.layoutMoved(KafkaError.Session(failure: SessionError.TimedOut));
+    expect !cluster.layoutMoved(codec.brokerError(10, "Produce"));
+    expect !cluster.layoutMoved(KafkaError.InvalidRecord(reason: "empty"));
 }
 
 private {
@@ -113,7 +120,7 @@ private {
             code = 3;
         }
 
-        listed: bytes = uvarint(partitions + 1);
+        listed: bytes = codec.uvarint(partitions + 1);
         p: int = 0;
         while (p < partitions) {
             listed = <<
@@ -122,22 +129,22 @@ private {
                 p: i32be,
                 1: i32be,
                 0: i32be,
-                uvarint(2): bytes,
+                codec.uvarint(2): bytes,
                 1: i32be,
-                uvarint(2): bytes,
+                codec.uvarint(2): bytes,
                 1: i32be,
-                uvarint(1): bytes,
+                codec.uvarint(1): bytes,
                 0: u8
             >>;
             p = p + 1;
         }
 
         return framed(
-            <<correlation: i32be, 0: u8, 0: i32be, uvarint(2): bytes, 1: i32be, compactString("a"): bytes, 9092: i32be, 0: u8, 0: u8, compactString("c"): bytes, 1: i32be, uvarint(2): bytes, code: i16be, compactString(topic): bytes, 0: i64be, 0: i64be, 0: u8, listed: bytes, 0: i32be, 0: u8, 0: u8>>
+            <<correlation: i32be, 0: u8, 0: i32be, codec.uvarint(2): bytes, 1: i32be, codec.compactString("a"): bytes, 9092: i32be, 0: u8, 0: u8, codec.compactString("c"): bytes, 1: i32be, codec.uvarint(2): bytes, code: i16be, codec.compactString(topic): bytes, 0: i64be, 0: i64be, 0: u8, listed: bytes, 0: i32be, 0: u8, 0: u8>>
         );
     }
 
     layoutReplyOf(reply: session.SessionReply) -> Result<TopicLayout, KafkaError> {
-        return layoutOf([reply.message]);
+        return cluster.layoutOf([reply.message]);
     }
 }

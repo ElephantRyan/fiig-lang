@@ -1,0 +1,585 @@
+use fiig.stream;
+use com.degeneratedevelopment.kafka.codec;
+
+// Kafka's wire encoding: fixed-width integers, varints and strings read at
+// an offset, a request's header and frame, error codes, and record batches
+// with their compression and partitioner hash (ADRs 0113, 0116).
+formulas codec {
+    // The offset after the tagged fields at offset at (KIP-482): a count, then
+    // each field's tag, size, and that many bytes. None when they run past the
+    // end.
+    formula afterTags(data: bytes, at: int) -> int | None {
+        return match (uvarintAt(data, at)) {
+            None -> None,
+            count -> {
+                pos: int = count.next;
+                i: int = 0;
+                while (i < count.value) {
+                    match (uvarintAt(data, pos)) {
+                        None -> {
+                            return None;
+                        },
+
+                        tag -> {
+                            match (uvarintAt(data, tag.next)) {
+                                None -> {
+                                    return None;
+                                },
+
+                                size -> {
+                                    pos = size.next + size.value;
+                                }
+                            }
+                        }
+                    }
+
+                    i = i + 1;
+                }
+
+                if (pos > data.length()) {
+                    return None;
+                }
+
+                return pos;
+            }
+        }
+    }
+
+    // A COMPACT_STRING, as flexible versions (KIP-482) write text: its length
+    // plus one as an unsigned varint, then its UTF-8. A null one is a single 0.
+    formula compactString(text: string) -> bytes {
+        data = text.utf8();
+        return <<uvarint(data.length() + 1): bytes, data: bytes>>;
+    }
+
+    // The COMPACT_STRING at offset at, a null one reading as "", or None when
+    // the response is too short or the text isn't UTF-8.
+    formula compactStringAt(data: bytes, at: int) -> TextAt | None {
+        return match (uvarintAt(data, at)) {
+            None -> None,
+            length -> {
+                if (length.value == 0) {
+                    return TextAt(text: "", next: length.next);
+                }
+
+                end = length.next + length.value - 1;
+                if (end > data.length()) {
+                    return None;
+                }
+
+                return match (data.slice(length.next, end).utf8()) {
+                    None -> None,
+                    text -> TextAt(text: text, next: end)
+                }
+            }
+        }
+    }
+
+    // The INT16 at offset at, or None when the response is too short.
+    formula i16At(data: bytes, at: int) -> int | None {
+        if (at < 0 || at + 2 > data.length()) {
+            return None;
+        }
+
+        return match (data.slice(at, at + 2)) {
+            <<value: i16be>> -> value,
+            _ -> None
+        }
+    }
+
+    // The INT32 at offset at, or None when the response is too short.
+    formula i32At(data: bytes, at: int) -> int | None {
+        if (at < 0 || at + 4 > data.length()) {
+            return None;
+        }
+
+        return match (data.slice(at, at + 4)) {
+            <<value: i32be>> -> value,
+            _ -> None
+        }
+    }
+
+    // The INT64 at offset at, or None when the response is too short.
+    formula i64At(data: bytes, at: int) -> int | None {
+        if (at < 0 || at + 8 > data.length()) {
+            return None;
+        }
+
+        return match (data.slice(at, at + 8)) {
+            <<value: i64be>> -> value,
+            _ -> None
+        }
+    }
+
+    // A Kafka STRING: its length in two bytes, then its UTF-8.
+    formula kafkaString(text: string) -> bytes {
+        data = text.utf8();
+        return <<data.length(): i16be, data: bytes>>;
+    }
+
+    // The STRING at offset at, a NULLABLE_STRING's -1 length reading as "",
+    // or None when the response is too short or the text isn't UTF-8.
+    formula stringAt(data: bytes, at: int) -> TextAt | None {
+        return match (i16At(data, at)) {
+            None -> None,
+            size -> {
+                if (size < 0) {
+                    return TextAt(text: "", next: at + 2);
+                }
+
+                if (at + 2 + size > data.length()) {
+                    return None;
+                }
+
+                text = data.slice(at + 2, at + 2 + size).utf8();
+                return match (text) {
+                    None -> None,
+                    decoded -> TextAt(text: decoded, next: at + 2 + size)
+                }
+            }
+        }
+    }
+
+    // An UNSIGNED_VARINT, as flexible versions (KIP-482) write lengths and
+    // counts: seven bits a byte, low first, with the high bit set on every
+    // byte but the last.
+    formula uvarint(value: int) -> bytes {
+        rest: int = value;
+        out: bytes = <<>>;
+        while (rest >= 128) {
+            out = <<out: bytes, rest % 128 + 128: u8>>;
+            rest = rest / 128;
+        }
+
+        return <<out: bytes, rest: u8>>;
+    }
+
+    // The UNSIGNED_VARINT at offset at, or None when the data ends first or it
+    // runs past nine bytes, more than any length a response carries.
+    formula uvarintAt(data: bytes, at: int) -> IntAt | None {
+        value: int = 0;
+        scale: int = 1;
+        i: int = at;
+        while (i >= 0 && i < data.length()) {
+            b = data.at(i);
+            value = value + b % 128 * scale;
+            i = i + 1;
+            if (b < 128) {
+                return IntAt(value: value, next: i);
+            }
+
+            if (i - at >= 9) {
+                return None;
+            }
+
+            scale = scale * 128;
+        }
+
+        return None;
+    }
+
+    // A record field's signed varint: zigzag-encoded, so small negative
+    // numbers stay short, then seven bits a byte, low first, with the high
+    // bit set on every byte but the last (Kafka's VARINT and VARLONG).
+    formula varint(value: int) -> bytes {
+        zigzag: int = value * 2;
+        if (value < 0) {
+            zigzag = (0 - value) * 2 - 1;
+        }
+
+        out: bytes = <<>>;
+        while (zigzag >= 128) {
+            out = <<out: bytes, zigzag % 128 + 128: u8>>;
+            zigzag = zigzag / 128;
+        }
+
+        return <<out: bytes, zigzag: u8>>;
+    }
+
+    // The signed VARINT or VARLONG at offset at, zigzag-decoded as varint
+    // encodes it, or None when the data ends first.
+    formula varintAt(data: bytes, at: int) -> IntAt | None {
+        return match (uvarintAt(data, at)) {
+            None -> None,
+            read -> {
+                if (read.value % 2 == 0) {
+                    return IntAt(value: read.value / 2, next: read.next);
+                }
+
+                return IntAt(value: 0 - (read.value - 1) / 2 - 1, next: read.next);
+            }
+        }
+    }
+
+    // A request as it goes on the wire: its size, then request header v1 (the
+    // API, its version, the correlation id the reply repeats, and the client's
+    // id), then its body.
+    formula kafkaRequest(
+        apiKey: int,
+        apiVersion: int,
+        correlation: int,
+        clientId: string,
+        body: bytes)
+            -> bytes {
+        message = <<
+            apiKey: i16be,
+            apiVersion: i16be,
+            correlation: i32be,
+            kafkaString(clientId): bytes,
+            body: bytes
+        >>;
+        return <<message.length(): i32be, message: bytes>>;
+    }
+
+    // A request of a flexible version (KIP-482): request header v2, which is
+    // header v1 and then its tagged fields, none here.
+    formula kafkaFlexRequest(
+        apiKey: int,
+        apiVersion: int,
+        correlation: int,
+        clientId: string,
+        body: bytes)
+            -> bytes {
+        message = <<
+            apiKey: i16be,
+            apiVersion: i16be,
+            correlation: i32be,
+            kafkaString(clientId): bytes,
+            0: u8,
+            body: bytes
+        >>;
+        return <<message.length(): i32be, message: bytes>>;
+    }
+
+    // A response from the bytes read so far: its size in four bytes, then
+    // that many bytes, starting with the correlation id. A broker's reply is
+    // bounded at 100 MiB, so a corrupt size can't ask for gigabytes.
+    formula nextFrame(buffer: bytes) -> FrameRead {
+        return match (buffer) {
+            <<size: i32be, rest: bytes>> -> {
+                if (size < 4 || size > 104857600) {
+                    return FrameRead.Malformed(reason: "a response says it is ${size} bytes");
+                }
+
+                if (rest.length() < size) {
+                    return FrameRead.NeedMore;
+                }
+
+                return FrameRead.Done(
+                    frame: rest.slice(0, size),
+                    rest: rest.slice(size, rest.length())
+                );
+            },
+
+            _ -> FrameRead.NeedMore
+        }
+    }
+
+    // A broker's error code by the name kafka.apache.org's error table gives
+    // it, for the codes a producer or a consumer meets; others keep their
+    // number.
+    formula errorName(code: int) -> string {
+        names: Map<int, string> = [0 - 1: "UNKNOWN_SERVER_ERROR", 1: "OFFSET_OUT_OF_RANGE", 2: "CORRUPT_MESSAGE", 3: "UNKNOWN_TOPIC_OR_PARTITION", 5: "LEADER_NOT_AVAILABLE", 6: "NOT_LEADER_OR_FOLLOWER", 7: "REQUEST_TIMED_OUT", 10: "MESSAGE_TOO_LARGE", 14: "COORDINATOR_LOAD_IN_PROGRESS", 15: "COORDINATOR_NOT_AVAILABLE", 16: "NOT_COORDINATOR", 17: "INVALID_TOPIC_EXCEPTION", 18: "RECORD_LIST_TOO_LARGE", 19: "NOT_ENOUGH_REPLICAS", 20: "NOT_ENOUGH_REPLICAS_AFTER_APPEND", 21: "INVALID_REQUIRED_ACKS", 24: "INVALID_GROUP_ID", 25: "UNKNOWN_MEMBER_ID", 29: "TOPIC_AUTHORIZATION_FAILED", 30: "GROUP_AUTHORIZATION_FAILED", 31: "CLUSTER_AUTHORIZATION_FAILED", 33: "UNSUPPORTED_SASL_MECHANISM", 34: "ILLEGAL_SASL_STATE", 35: "UNSUPPORTED_VERSION", 42: "INVALID_REQUEST", 43: "UNSUPPORTED_FOR_MESSAGE_FORMAT", 56: "KAFKA_STORAGE_ERROR", 58: "SASL_AUTHENTICATION_FAILED", 69: "GROUP_ID_NOT_FOUND", 74: "FENCED_LEADER_EPOCH", 75: "UNKNOWN_LEADER_EPOCH", 87: "INVALID_RECORD", 88: "UNSTABLE_OFFSET_COMMIT", 110: "FENCED_MEMBER_EPOCH", 112: "UNSUPPORTED_ASSIGNOR", 113: "STALE_MEMBER_EPOCH"];
+        return names.atOr(code, "UNKNOWN_CODE_${code}");
+    }
+
+    // A broker's error code as KafkaError.Broker (ADR 0113 §1), with its name
+    // (errorName) and the retriable flag the protocol gives it
+    // (kafka.apache.org's error table).
+    formula brokerError(code: int, during: string) -> KafkaError {
+        name = errorName(code);
+        retriable = [2, 3, 5, 6, 7, 19, 20, 56].contains(code);
+        return KafkaError.Broker(
+            code: code,
+            name: name,
+            retriable: retriable,
+            message: "${during}: ${name}"
+        );
+    }
+
+    // ADR 0116 §4: snappy as Kafka's Java client writes it, in xerial's
+    // framing (snappy-java's SnappyOutputStream): an 8-byte magic, version 1
+    // and compatible version 1, then the data in 32 KiB chunks, each one raw
+    // snappy block after its length.
+    formula xerialFramed(data: bytes) -> bytes {
+        out: bytes = <<xerialMagic(): bytes, 1: i32be, 1: i32be>>;
+        start: int = 0;
+        while (start < data.length()) {
+            block = compress.snappy(data.slice(start, math.min(start + 32768, data.length())));
+            out = <<out: bytes, block.length(): i32be, block: bytes>>;
+            start = start + 32768;
+        }
+
+        return out;
+    }
+
+    // ADR 0116 §4: the first eight bytes of xerial-framed snappy.
+    formula xerialMagic() -> bytes {
+        return <<130: u8, "SNAPPY".utf8(): bytes, 0: u8>>;
+    }
+
+    // ADR 0116 §4: a fetched batch's records section, decompressed by the
+    // codec its attributes name, at most maxSize bytes. Snappy comes either
+    // xerial-framed, as Java's client writes it, or as one raw block, as some
+    // other clients write it; both are read.
+    formula unpackedRecords(compression: Compression, data: bytes, maxSize: int)
+            -> Result<bytes, KafkaError> {
+        return match (compression) {
+            Compression.None -> Ok(data),
+            Compression.Gzip -> Ok(
+                mapErr(e in compress.gunzip(data, maxSize)): KafkaError.Decompress(failure: e)?
+            ),
+            Compression.Lz4 -> Ok(
+                mapErr(e in compress.unlz4(data, maxSize)): KafkaError.Decompress(failure: e)?
+            ),
+            Compression.Zstd -> Ok(
+                mapErr(e in compress.unzstd(data, maxSize)): KafkaError.Decompress(failure: e)?
+            ),
+            Compression.Snappy -> {
+                if (data.length() < 16 || data.slice(0, 8) != xerialMagic()) {
+                    return Ok(
+                        mapErr(e in compress.unsnappy(data, maxSize)):
+                                KafkaError.Decompress(failure: e)?
+                    );
+                }
+
+                return unxerial(data.slice(16, data.length()), maxSize);
+            }
+        }
+    }
+
+    // ADR 0113 §5: records as one v2 record batch (magic 2), the format every
+    // broker since 0.11 stores. Its CRC is CRC-32C over everything after the
+    // CRC field (§2). There is no producer id, epoch, or sequence (-1 each),
+    // since the producer isn't idempotent (§1), and every record's timestamp
+    // is the batch's own. ADR 0116 §4: with a codec, the records section is
+    // compressed and the attributes name the codec; the CRC covers the
+    // compressed bytes.
+    formula recordBatch(records: List<KafkaRecord>, timestamp: int, compression: Compression)
+            -> Result<bytes, KafkaError> {
+        if (records.length() == 0) {
+            return Err(KafkaError.InvalidRecord(reason: "a batch has at least one record"));
+        }
+
+        body: bytes = <<>>;
+        i: int = 0;
+        for (record in records) {
+            body = <<body: bytes, encodedRecord(record, i): bytes>>;
+            i = i + 1;
+        }
+
+        afterCrc = <<
+            codecBits(compression): i16be,
+            records.length() - 1: i32be,
+            timestamp: i64be,
+            timestamp: i64be,
+            0 - 1: i64be,
+            0 - 1: i16be,
+            0 - 1: i32be,
+            records.length(): i32be,
+            packed(compression, body): bytes
+        >>;
+        crc = crypto.crc32c(afterCrc);
+        // batchLength counts from the leader epoch on: 4 + 1 + 4 bytes, then
+        // what the CRC covers.
+        return Ok(
+            <<0: i64be, afterCrc.length() + 9: i32be, 0 - 1: i32be, 2: u8, crc: u32be, afterCrc: bytes>>
+        );
+    }
+
+    // ADR 0111 open question 1, as amended 2026-11-21: the record a fetch at
+    // one offset returned with exactly that offset, as its delivery on attempt
+    // 1, or None when the partition no longer reaches it (OFFSET_OUT_OF_RANGE)
+    // or holds no record there, such as a compacted one. A fetch returns whole
+    // batches, so it may start before the offset.
+    formula recordAt(parts: List<FetchedPartition>, at: PartitionOffset)
+            -> Result<stream.Delivery | None, KafkaError> {
+        for (part in parts) {
+            if (part.partition == at.partition) {
+                if (part.code == 1) {
+                    return Ok(None);
+                }
+
+                if (part.code != 0) {
+                    return Err(brokerError(part.code, "Fetch"));
+                }
+
+                for (record in part.records) {
+                    if (record.offset == at.offset) {
+                        return Ok(
+                            stream.Delivery(
+                                id: "${at.partition}/${at.offset}",
+                                payload: record.value,
+                                attempt: 1,
+                                order: "${at.partition}"
+                            )
+                        );
+                    }
+                }
+            }
+        }
+
+        return Ok(None);
+    }
+
+    // ADR 0113 §3: the Java client's murmur2 (org.apache.kafka.common.utils.
+    // Utils.murmur2), so a key lands on the partition a Java producer would
+    // pick. Returned as the unsigned 32-bit value; Java's int is the same bits.
+    // fiig ints fault on overflow (ADR 0063) and have no bit operators, so the
+    // 32-bit arithmetic is spelled out: XOR on four bytes, shifts as division
+    // or multiplication by a power of two, and multiplication split in halves
+    // so no product passes 2^49.
+    formula murmur2(data: bytes) -> int {
+        m = 1540483477;
+        h: int = xor32(2538058380, data.length() % 4294967296);
+        blocks = data.length() / 4;
+        i: int = 0;
+        while (i < blocks) {
+            k: int = 0;
+            match (data.slice(i * 4, i * 4 + 4)) {
+                <<word: u32le>> -> {
+                    k = word;
+                },
+
+                _ -> None
+            }
+
+            k = mul32(k, m);
+            k = xor32(k, k / 16777216);
+            k = mul32(k, m);
+            h = mul32(h, m);
+            h = xor32(h, k);
+            i = i + 1;
+        }
+
+        tail = blocks * 4;
+        left = data.length() - tail;
+        if (left == 3) {
+            h = xor32(h, data.at(tail + 2) * 65536);
+        }
+
+        if (left >= 2) {
+            h = xor32(h, data.at(tail + 1) * 256);
+        }
+
+        if (left >= 1) {
+            h = xor32(h, data.at(tail));
+            h = mul32(h, m);
+        }
+
+        h = xor32(h, h / 8192);
+        h = mul32(h, m);
+        h = xor32(h, h / 32768);
+        return h;
+    }
+}
+
+private {
+    // Each chunk after xerial's header, unsnapped, while the whole stays
+    // within maxSize.
+    unxerial(chunks: bytes, maxSize: int) -> Result<bytes, KafkaError> {
+        out: bytes = <<>>;
+        rest: bytes = chunks;
+        while (rest.length() > 0) {
+            match (rest) {
+                <<length: i32be, block: bytes(length), more: bytes>> -> {
+                    chunk = mapErr(e in compress.unsnappy(block, maxSize - out.length())):
+                            KafkaError.Decompress(failure: e)?;
+                    out = <<out: bytes, chunk: bytes>>;
+                    rest = more;
+                },
+
+                _ -> {
+                    return Err(
+                        KafkaError.Decompress(
+                            failure: DecompressError.Corrupt(
+                                reason: "a xerial chunk runs past the end of the data"
+                            )
+                        )
+                    );
+                }
+            }
+        }
+
+        return Ok(out);
+    }
+
+    // Bits 0-2 of the attributes.
+    codecBits(compression: Compression) -> int {
+        return match (compression) {
+            Compression.None -> 0,
+            Compression.Gzip -> 1,
+            Compression.Snappy -> 2,
+            Compression.Lz4 -> 3,
+            Compression.Zstd -> 4
+        }
+    }
+
+    // The records section as the codec writes it.
+    packed(compression: Compression, body: bytes) -> bytes {
+        return match (compression) {
+            Compression.None -> body,
+            Compression.Gzip -> compress.gzip(body),
+            Compression.Snappy -> codec.xerialFramed(body),
+            Compression.Lz4 -> compress.lz4(body),
+            Compression.Zstd -> compress.zstd(body)
+        }
+    }
+
+    // One record: its length as a varint, then attributes (none), its
+    // timestamp and offset as deltas from the batch's, its key (-1 for
+    // none), its value, and its headers.
+    encodedRecord(record: KafkaRecord, offsetDelta: int) -> bytes {
+        key: bytes = codec.varint(0 - 1);
+        match (record.key) {
+            None -> None,
+            given -> {
+                key = <<codec.varint(given.length()): bytes, given: bytes>>;
+            }
+        }
+
+        headers: bytes = codec.varint(0);
+        match (record.headers) {
+            None -> None,
+            list -> {
+                headers = codec.varint(list.length());
+                for (header in list) {
+                    name = header.name.utf8();
+                    headers = <<
+                        headers: bytes,
+                        codec.varint(name.length()): bytes,
+                        name: bytes,
+                        codec.varint(header.value.length()): bytes,
+                        header.value: bytes
+                    >>;
+                }
+            }
+        }
+
+        inner = <<
+            0: u8,
+            codec.varint(0): bytes,
+            codec.varint(offsetDelta): bytes,
+            key: bytes,
+            codec.varint(record.value.length()): bytes,
+            record.value: bytes,
+            headers: bytes
+        >>;
+        return <<codec.varint(inner.length()): bytes, inner: bytes>>;
+    }
+
+    // a * b modulo 2^32, for a and b below 2^32.
+    mul32(a: int, b: int) -> int {
+        low = a % 65536;
+        high = a / 65536;
+        return (low * b + (high * b % 65536) * 65536) % 4294967296;
+    }
+
+    // a XOR b, for a and b below 2^32.
+    xor32(a: int, b: int) -> int {
+        return match (<<a: u32be>>.xor(<<b: u32be>>)) {
+            <<value: u32be>> -> value,
+            _ -> 0
+        }
+    }
+}

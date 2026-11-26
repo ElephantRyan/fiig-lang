@@ -1,0 +1,861 @@
+use fiig.session;
+use com.degeneratedevelopment.kafka.cluster;
+use com.degeneratedevelopment.kafka.codec;
+use com.degeneratedevelopment.kafka.consumerGroup;
+use com.degeneratedevelopment.kafka.dialogue;
+use com.degeneratedevelopment.kafka.sasl;
+
+// A broker connection's dialogue, as a fiig.session protocol: each turn's
+// next request, the polls it answers, and the work due on a tick
+// (ADR 0117 Â§3).
+formulas dialogue {
+    // ADR 0117 §3-§5: a call's ask. A Request is written with the session's
+    // own correlation id, and answered when its response comes; the group's
+    // asks change its state and are answered at once, but for Poll, which is
+    // held until there is something to fetch. A broker session holds every
+    // ask until ApiVersions has answered, and answers a Layout from what it
+    // keeps when that is young enough, else from Metadata (ADR 0113 §4, as
+    // amended 2026-11-21).
+    formula sessionAsked(state: bytes, message: bytes, now: int) -> session.Step {
+        decodedState: Result<KafkaSessionState, JsonError> = json.decode(state);
+        decodedAsk: Result<KafkaAsk, JsonError> = json.decode(message);
+        return match (decodedState) {
+            Err(_) -> failedStep("com.degeneratedevelopment.kafka's session state doesn't decode"),
+            Ok(s) -> {
+                return match (decodedAsk) {
+                    Err(_) -> failedStep(
+                        "a com.degeneratedevelopment.kafka session was asked something that isn't a KafkaAsk"
+                    ),
+                    Ok(ask) -> askedOf(s, ask, now)
+                }
+            }
+        }
+    }
+
+    // ADR 0117 §2, §5: the process is stopping. A group member commits what
+    // was acked and leaves its group (epoch -1), so its partitions move at
+    // once rather than after the session timeout.
+    formula sessionClosing(state: bytes, now: int) -> session.Step {
+        decoded: Result<KafkaSessionState, JsonError> = json.decode(state);
+        return match (decoded) {
+            Err(_) -> failedStep("com.degeneratedevelopment.kafka's session state doesn't decode"),
+            Ok(s) -> {
+                turn = SessionTurn(state: s, write: <<>>, replies: [], close: None);
+                if (s.role != "group" || s.phase != "member") {
+                    return sessionStep(turn, None);
+                }
+
+                committed = consumerGroup.commitAll(turn);
+                c = committed.state;
+                leave = consumerGroup.heartbeatRequest(
+                    c.clientId,
+                    c.nextCorrelation,
+                    c.group,
+                    c.memberId,
+                    0 - 1,
+                    c.topic,
+                    c.topicId,
+                    []
+                );
+                left = copy(
+                    committed,
+                    state: copy(tracked(c, "leave"), phase: "leaving"),
+                    write: <<committed.write: bytes, leave: bytes>>
+                );
+                return sessionStep(left, None);
+            }
+        }
+    }
+
+    // ADR 0117 §3: a new connection of a com.degeneratedevelopment.kafka session. A broker session
+    // asks ApiVersions first and holds every ask until it answers, so the
+    // producer is told by name when a broker can't take its versions (ADR 0113
+    // §4, as amended 2026-11-21). A group session asks ApiVersions first, so
+    // a broker older than KIP-848 is refused by name (§1), and
+    // FindCoordinator, so it can move to the broker that coordinates its
+    // group. Its member id is the session's id, which stays the same across
+    // reconnects, so the broker knows it for the same member.
+    //
+    // With a SASL login (ADR 0113 §6, as amended 2026-11-21), either kind
+    // asks SaslHandshake beside ApiVersions, the two requests a broker takes
+    // before a login, and is "authenticating", holding every ask, until the
+    // login is done (saslAnswered); a group session asks for its coordinator
+    // after. nonce is SCRAM's client nonce, fresh for each connection.
+    formula sessionOpened(settings: Map<string, string>, now: int, login: SaslLogin, nonce: string)
+            -> session.Step {
+        s = KafkaSessionState(
+            role: settings.atOr("role", "broker"),
+            host: settings.atOr("host", ""),
+            port: settings.atOr("port", "0").toIntOrNone() ?? 0,
+            clientId: settings.atOr("clientId", "fiig"),
+            group: settings.atOr("group", ""),
+            topic: settings.atOr("topic", ""),
+            memberId: settings.atOr("sessionId", ""),
+            phase: "broker",
+            fatal: "",
+            nextCorrelation: 1,
+            inflight: [],
+            buffer: <<>>,
+            epoch: 0,
+            topicId: <<>>,
+            heartbeatMillis: 5000,
+            nextHeartbeatAt: now,
+            heartbeatInFlight: false,
+            commitMillis: settings.atOr("commitMillis", "1000").toIntOrNone() ?? 1000,
+            commitAt: 0,
+            partitions: [],
+            polls: [],
+            layouts: [],
+            refused: None,
+            scramNonce: nonce,
+            scramFirstBare: "",
+            scramSignature: <<>>
+        );
+        versions = cluster.apiVersionsRequest(s.clientId, 1);
+        match (login.mechanism) {
+            None -> None,
+            mechanism -> {
+                if (login.username == "") {
+                    refused = sasl.saslRefused(
+                        s,
+                        "KAFKA_SASL_MECHANISM is set, and KAFKA_SASL_USERNAME isn't"
+                    );
+                    return sessionStep(
+                        SessionTurn(state: refused, write: <<>>, replies: [], close: None),
+                        None
+                    );
+                }
+
+                handshake = sasl.saslHandshakeRequest(
+                    s.clientId,
+                    2,
+                    sasl.saslMechanismName(mechanism)
+                );
+                authenticating = copy(
+                    tracked(tracked(s, "versions"), "saslHandshake"),
+                    phase: "authenticating"
+                );
+                return sessionStep(
+                    SessionTurn(
+                        state: authenticating,
+                        write: <<versions: bytes, handshake: bytes>>,
+                        replies: [],
+                        close: None
+                    ),
+                    None
+                );
+            }
+        }
+
+        if (s.role != "group") {
+            opening = copy(tracked(s, "versions"), phase: "opening");
+            return sessionStep(
+                SessionTurn(state: opening, write: versions, replies: [], close: None),
+                None
+            );
+        }
+
+        coordinator = consumerGroup.findCoordinatorRequest(s.clientId, 2, s.group);
+        finding = copy(tracked(tracked(s, "versions"), "coordinator"), phase: "finding");
+        return sessionStep(
+            SessionTurn(
+                state: finding,
+                write: <<versions: bytes, coordinator: bytes>>,
+                replies: [],
+                close: None
+            ),
+            None
+        );
+    }
+
+    // ADR 0117 §3: bytes the broker sent. Each whole response answers the
+    // oldest request still waiting: a call's Request gets it back, and the
+    // group's own, and a broker session's ApiVersions and Layouts (ADR 0113
+    // §4, as amended 2026-11-21), are read here, as is a SASL login's, with
+    // login (§6, as amended). Then whatever became due is written, and held
+    // polls are answered.
+    formula sessionReceived(state: bytes, data: bytes, now: int, login: SaslLogin) -> session.Step {
+        decoded: Result<KafkaSessionState, JsonError> = json.decode(state);
+        return match (decoded) {
+            Err(_) -> failedStep("com.degeneratedevelopment.kafka's session state doesn't decode"),
+            Ok(s) -> {
+                turn: SessionTurn = SessionTurn(
+                    state: copy(s, buffer: <<>>),
+                    write: <<>>,
+                    replies: [],
+                    close: None
+                );
+                rest: bytes = <<s.buffer: bytes, data: bytes>>;
+                reading: bool = true;
+                while (reading) {
+                    match (codec.nextFrame(rest)) {
+                        FrameRead.Done(frame, more) -> {
+                            turn = answered(turn, frame, now, login);
+                            rest = more;
+                            reading = turn.close == None;
+                        },
+
+                        FrameRead.NeedMore -> {
+                            reading = false;
+                        },
+
+                        FrameRead.Malformed(reason) -> {
+                            turn = copy(turn, close: session.SessionClose.Failed(reason: reason));
+                            reading = false;
+                        }
+                    }
+                }
+
+                turn = copy(turn, state: copy(turn.state, buffer: rest));
+                if (turn.close == None) {
+                    turn = answerPolls(dueWork(turn, now), now);
+                }
+
+                return sessionStep(turn, None);
+            }
+        }
+    }
+
+    // ADR 0117 §3: the time a group session asked for came: a heartbeat or a
+    // commit is due, or a held poll's wait is up.
+    formula sessionTick(state: bytes, now: int) -> session.Step {
+        decoded: Result<KafkaSessionState, JsonError> = json.decode(state);
+        return match (decoded) {
+            Err(_) -> failedStep("com.degeneratedevelopment.kafka's session state doesn't decode"),
+            Ok(s) -> {
+                turn = SessionTurn(state: s, write: <<>>, replies: [], close: None);
+                return sessionStep(answerPolls(dueWork(turn, now), now), None);
+            }
+        }
+    }
+
+    // s once a request of the group's own, of kind, is written with the
+    // session's next correlation id: that id is taken, and the response read
+    // for it.
+    formula tracked(s: KafkaSessionState, kind: string) -> KafkaSessionState {
+        entry = Inflight(
+            correlation: s.nextCorrelation,
+            key: 0 - 1,
+            callerCorrelation: 0,
+            kind: kind,
+            topic: ""
+        );
+        return copy(s, nextCorrelation: s.nextCorrelation + 1, inflight: append(s.inflight, entry));
+    }
+
+    // A whole Kafka request as the ask a session sends on (ADR 0117 §3).
+    formula requestAsk(data: bytes) -> bytes {
+        return json.encode(KafkaAsk.Request(data: data));
+    }
+}
+
+private {
+    askedOf(s: KafkaSessionState, ask: KafkaAsk, now: int) -> session.Step {
+        if (s.phase == "opening" || s.phase == "authenticating") {
+            // Not accepted: the runtime asks again after the next step.
+            return sessionStep(SessionTurn(state: s, write: <<>>, replies: [], close: None), None);
+        }
+
+        key = s.nextCorrelation;
+        taken = copy(s, nextCorrelation: key + 1);
+        turn = SessionTurn(state: taken, write: <<>>, replies: [], close: None);
+        return match (ask) {
+            KafkaAsk.Request(data) -> {
+                return match (data) {
+                    <<size: i32be, apiKey: i16be, version: i16be, caller: i32be, rest: bytes>> -> {
+                        entry = Inflight(
+                            correlation: key,
+                            key: key,
+                            callerCorrelation: caller,
+                            kind: "request",
+                            topic: ""
+                        );
+                        sent = <<
+                            size: i32be,
+                            apiKey: i16be,
+                            version: i16be,
+                            key: i32be,
+                            rest: bytes
+                        >>;
+                        return sessionStep(
+                            copy(
+                                turn,
+                                state: copy(taken, inflight: append(taken.inflight, entry)),
+                                write: sent
+                            ),
+                            key
+                        );
+                    },
+
+                    _ -> failedStep(
+                        "a com.degeneratedevelopment.kafka session was asked to send a request shorter than its header"
+                    )
+                }
+            },
+
+            KafkaAsk.Poll(waitMillis) -> {
+                held = copy(
+                    taken,
+                    polls: append(taken.polls, WaitingPoll(key: key, until: now + waitMillis))
+                );
+                return sessionStep(answerPolls(copy(turn, state: held), now), key);
+            },
+
+            KafkaAsk.Advance(partition, next) -> {
+                moved: List<OwnedPartition> = [];
+                for (p in taken.partitions) {
+                    if (p.partition == partition) {
+                        moved = append(moved, copy(p, position: next));
+                    } else {
+                        moved = append(moved, p);
+                    }
+                }
+
+                return done(copy(turn, state: copy(taken, partitions: moved)), key);
+            },
+
+            KafkaAsk.Ack(partition, offset) -> {
+                acked: List<OwnedPartition> = [];
+                pending: bool = false;
+                for (p in taken.partitions) {
+                    if (p.partition == partition && offset + 1 > p.acked) {
+                        pending = true;
+                        if (p.retryOffset == offset) {
+                            acked = append(
+                                acked,
+                                copy(
+                                    p,
+                                    acked: offset + 1,
+                                    retryOffset: 0 - 1,
+                                    retries: 0,
+                                    resumeAt: 0
+                                )
+                            );
+                        } else {
+                            acked = append(acked, copy(p, acked: offset + 1));
+                        }
+                    } else {
+                        acked = append(acked, p);
+                    }
+                }
+
+                commitAt: int = taken.commitAt;
+                if (pending && commitAt == 0) {
+                    commitAt = now + taken.commitMillis;
+                }
+
+                return done(
+                    copy(turn, state: copy(taken, partitions: acked, commitAt: commitAt)),
+                    key
+                );
+            },
+
+            KafkaAsk.Retry(partition, offset, resumeAt) -> {
+                // Seek back (§5): the partition is fetched again from the
+                // retried record once resumeAt comes.
+                retried: List<OwnedPartition> = [];
+                for (p in taken.partitions) {
+                    if (p.partition == partition) {
+                        retries: int = 1;
+                        if (p.retryOffset == offset) {
+                            retries = p.retries + 1;
+                        }
+
+                        retried = append(
+                            retried,
+                            copy(
+                                p,
+                                position: offset,
+                                retryOffset: offset,
+                                retries: retries,
+                                resumeAt: resumeAt
+                            )
+                        );
+                    } else {
+                        retried = append(retried, p);
+                    }
+                }
+
+                return done(copy(turn, state: copy(taken, partitions: retried)), key);
+            },
+
+            KafkaAsk.Layout(topic, maxAgeMillis) -> {
+                match (taken.refused) {
+                    None -> None,
+                    refusal -> {
+                        return replied(turn, key, LayoutReply(layout: None, error: refusal));
+                    }
+                }
+
+                for (cached in taken.layouts) {
+                    if (cached.topic == topic && now - cached.at < maxAgeMillis) {
+                        return replied(turn, key, LayoutReply(layout: cached.layout, error: None));
+                    }
+                }
+
+                entry = Inflight(
+                    correlation: key,
+                    key: key,
+                    callerCorrelation: 0,
+                    kind: "metadata",
+                    topic: topic
+                );
+                return sessionStep(
+                    copy(
+                        turn,
+                        state: copy(taken, inflight: append(taken.inflight, entry)),
+                        write: cluster.metadataV12Request(taken.clientId, key, topic)
+                    ),
+                    key
+                );
+            },
+
+            KafkaAsk.Forget(topic) -> {
+                kept = filter(c in taken.layouts): c.topic != topic;
+                return done(copy(turn, state: copy(taken, layouts: kept)), key);
+            }
+        }
+    }
+
+    // The ask answered at once, with a broker session's LayoutReply.
+    replied(turn: SessionTurn, key: int, reply: LayoutReply) -> session.Step {
+        answer = session.SessionReply(key: key, message: json.encode(reply), last: true);
+        return sessionStep(copy(turn, replies: append(turn.replies, answer)), key);
+    }
+
+    // The ask answered at once, with nothing.
+    done(turn: SessionTurn, key: int) -> session.Step {
+        reply = session.SessionReply(key: key, message: <<>>, last: true);
+        return sessionStep(copy(turn, replies: append(turn.replies, reply)), key);
+    }
+
+    answered(turn: SessionTurn, frame: bytes, now: int, login: SaslLogin) -> SessionTurn {
+        s = turn.state;
+        if (s.inflight.length() == 0) {
+            return failed(turn, "the broker sent a response no request asked for");
+        }
+
+        head = s.inflight.first();
+        return match (frame) {
+            <<correlation: i32be, body: bytes>> -> {
+                if (correlation != head.correlation) {
+                    return failed(
+                        turn,
+                        "the broker answered correlation ${correlation}, not ${head.correlation}"
+                    );
+                }
+
+                next = copy(
+                    turn,
+                    state: copy(s, inflight: s.inflight.slice(1, s.inflight.length()))
+                );
+                if (head.kind == "request") {
+                    reply = session.SessionReply(
+                        key: head.key,
+                        message: <<head.callerCorrelation: i32be, body: bytes>>,
+                        last: true
+                    );
+                    return copy(next, replies: append(next.replies, reply));
+                }
+
+                if (head.kind == "versions") {
+                    if (s.role == "group") {
+                        return copy(
+                            next,
+                            state: copy(next.state, fatal: cluster.consumerVersions(frame))
+                        );
+                    }
+
+                    return versionsAnswered(next, frame, head.correlation);
+                }
+
+                if (head.kind.startsWith("sasl")) {
+                    return sasl.saslAnswered(next, head.kind, frame, login);
+                }
+
+                if (head.kind == "metadata") {
+                    return layoutAnswered(next, head, frame, now);
+                }
+
+                if (head.kind == "coordinator") {
+                    return coordinatorAnswered(next, frame, now);
+                }
+
+                if (head.kind == "heartbeat") {
+                    return heartbeatAnswered(next, frame, now);
+                }
+
+                if (head.kind == "offsets") {
+                    return offsetsAnswered(next, frame);
+                }
+
+                // A commit's answer: a failed one is delivered again (§5).
+                return next;
+            },
+
+            _ -> failed(turn, "a response is shorter than its correlation id")
+        }
+    }
+
+    // A broker session is open once ApiVersions answers; one that can't
+    // take the producer's versions answers every Layout with why.
+    versionsAnswered(turn: SessionTurn, frame: bytes, correlation: int) -> SessionTurn {
+        s: KafkaSessionState = turn.state;
+        if (s.phase == "opening") {
+            s = copy(s, phase: "broker");
+        }
+
+        return match (cluster.checkApiVersions(frame, correlation)) {
+            Ok(_) -> copy(turn, state: s),
+            Err(refusal) -> {
+                if (s.refused != None) {
+                    return copy(turn, state: s);
+                }
+
+                return copy(turn, state: copy(s, refused: refusal));
+            }
+        }
+    }
+
+    // A Layout's Metadata: the layout is kept, in place of what was, and
+    // given to the ask; an error drops what was kept and is given instead.
+    layoutAnswered(turn: SessionTurn, head: Inflight, frame: bytes, now: int) -> SessionTurn {
+        s = turn.state;
+        kept = filter(c in s.layouts): c.topic != head.topic;
+        reply: LayoutReply = LayoutReply(layout: None, error: None);
+        layouts: List<CachedLayout> = kept;
+        match (cluster.readMetadataV12(frame, head.correlation, head.topic)) {
+            Err(failure) -> {
+                reply = LayoutReply(layout: None, error: failure);
+            },
+
+            Ok(layout) -> {
+                reply = LayoutReply(layout: layout, error: None);
+                layouts = append(kept, CachedLayout(topic: head.topic, layout: layout, at: now));
+            }
+        }
+
+        answer = session.SessionReply(key: head.key, message: json.encode(reply), last: true);
+        return copy(turn, state: copy(s, layouts: layouts), replies: append(turn.replies, answer));
+    }
+
+    failed(turn: SessionTurn, reason: string) -> SessionTurn {
+        return copy(turn, close: session.SessionClose.Failed(reason: reason));
+    }
+
+    // On the coordinator, the member joins; elsewhere, the session moves.
+    coordinatorAnswered(turn: SessionTurn, frame: bytes, now: int) -> SessionTurn {
+        return match (consumerGroup.readCoordinator(frame)) {
+            Err(reason) -> failed(turn, reason),
+            Ok(node) -> {
+                s = turn.state;
+                if (node.host != s.host || node.port != s.port) {
+                    return copy(
+                        turn,
+                        close: session.SessionClose.MoveTo(host: node.host, port: node.port)
+                    );
+                }
+
+                return copy(turn, state: copy(s, phase: "member", nextHeartbeatAt: now));
+            }
+        }
+    }
+
+    heartbeatAnswered(turn: SessionTurn, frame: bytes, now: int) -> SessionTurn {
+        s = copy(turn.state, heartbeatInFlight: false);
+        return match (consumerGroup.readHeartbeat(frame)) {
+            Err(reason) -> failed(turn, reason),
+            Ok(answer) -> {
+                if (answer.code == 25 || answer.code == 110) {
+                    // Fenced or forgotten: join again, owning nothing, and
+                    // commit nothing, since the broker would refuse it.
+                    return copy(
+                        turn,
+                        state: copy(
+                            s,
+                            epoch: 0,
+                            topicId: <<>>,
+                            partitions: [],
+                            commitAt: 0,
+                            nextHeartbeatAt: now
+                        )
+                    );
+                }
+
+                if (answer.code == 14) {
+                    return copy(turn, state: copy(s, nextHeartbeatAt: now + s.heartbeatMillis));
+                }
+
+                if (answer.code == 15 || answer.code == 16) {
+                    return failed(turn, "ConsumerGroupHeartbeat: ${codec.errorName(answer.code)}");
+                }
+
+                if (answer.code != 0) {
+                    return copy(
+                        turn,
+                        state: copy(
+                            s,
+                            fatal: "ConsumerGroupHeartbeat: ${codec.errorName(answer.code)}: ${answer.message}"
+                        )
+                    );
+                }
+
+                beat = copy(
+                    turn,
+                    state: copy(
+                        s,
+                        heartbeatMillis: answer.intervalMillis,
+                        nextHeartbeatAt: now + answer.intervalMillis
+                    )
+                );
+                if (!answer.assigned) {
+                    return copy(beat, state: copy(beat.state, epoch: answer.epoch));
+                }
+
+                return reconciled(beat, answer, now);
+            }
+        }
+    }
+
+    // The broker's assignment taken (KIP-848): what was acked is committed
+    // at the old epoch before anything is given up, a new partition's
+    // committed offset is asked for, and the next heartbeat goes at once
+    // to say the member owns what it was given.
+    reconciled(turn: SessionTurn, answer: HeartbeatAnswer, now: int) -> SessionTurn {
+        before = turn.state;
+        kept: List<OwnedPartition> = [];
+        changed: bool = false;
+        for (p in before.partitions) {
+            if (answer.partitions.contains(p.partition)) {
+                kept = append(kept, p);
+            } else {
+                changed = true;
+            }
+        }
+
+        added: List<int> = [];
+        for (n in answer.partitions) {
+            owned: bool = false;
+            for (p in before.partitions) {
+                owned = owned || p.partition == n;
+            }
+
+            if (!owned) {
+                added = append(added, n);
+                kept = append(
+                    kept,
+                    OwnedPartition(
+                        partition: n,
+                        position: 0 - 2,
+                        acked: 0 - 1,
+                        committed: 0 - 1,
+                        retryOffset: 0 - 1,
+                        retries: 0,
+                        resumeAt: 0
+                    )
+                );
+            }
+        }
+
+        out: SessionTurn = turn;
+        if (changed) {
+            out = consumerGroup.commitAll(out);
+        }
+
+        s: KafkaSessionState = copy(
+            out.state,
+            epoch: answer.epoch,
+            topicId: answer.topicId,
+            partitions: kept
+        );
+        write: bytes = out.write;
+        if (added.length() > 0) {
+            write = <<
+                write: bytes,
+                consumerGroup.offsetFetchRequest(s.clientId, s.nextCorrelation, s.group, s.topic, added): bytes
+            >>;
+            s = dialogue.tracked(s, "offsets");
+            changed = true;
+        }
+
+        if (changed) {
+            s = copy(s, nextHeartbeatAt: now);
+        }
+
+        return copy(out, state: s, write: write);
+    }
+
+    // Each newly owned partition starts at its committed offset, or, with
+    // none, where the route's `from` says (-1, which receive resolves).
+    offsetsAnswered(turn: SessionTurn, frame: bytes) -> SessionTurn {
+        return match (consumerGroup.readOffsetFetch(frame)) {
+            Err(reason) -> failed(turn, reason),
+            Ok(committed) -> {
+                placed: List<OwnedPartition> = [];
+                for (p in turn.state.partitions) {
+                    if (p.position == 0 - 2) {
+                        position: int = 0 - 1;
+                        for (c in committed) {
+                            if (c.partition == p.partition && c.offset >= 0) {
+                                position = c.offset;
+                            }
+                        }
+
+                        placed = append(
+                            placed,
+                            copy(p, position: position, committed: position, acked: position)
+                        );
+                    } else {
+                        placed = append(placed, p);
+                    }
+                }
+
+                return copy(turn, state: copy(turn.state, partitions: placed));
+            }
+        }
+    }
+
+    // A turn as the Step the runtime takes (ADR 0114 §1): the state as JSON,
+    // and the next tick, the soonest of a group session's heartbeat, commit,
+    // held polls' deadlines, and, while a poll is held, the moment a retried
+    // partition may be fetched again.
+    sessionStep(turn: SessionTurn, accepted: int | None) -> session.Step {
+        return session.Step(
+            state: json.encode(turn.state),
+            write: turn.write,
+            accepted: accepted,
+            replies: turn.replies,
+            nextTickAt: nextTickOf(turn.state),
+            close: turn.close
+        );
+    }
+
+    nextTickOf(s: KafkaSessionState) -> int | None {
+        if (s.role != "group") {
+            return None;
+        }
+
+        times: List<int> = [];
+        if (s.phase == "member" && !s.heartbeatInFlight && s.fatal == "") {
+            times = append(times, s.nextHeartbeatAt);
+        }
+
+        if (s.commitAt > 0) {
+            times = append(times, s.commitAt);
+        }
+
+        for (poll in s.polls) {
+            times = append(times, poll.until);
+        }
+
+        if (s.polls.length() > 0) {
+            for (p in s.partitions) {
+                if (p.resumeAt > 0) {
+                    times = append(times, p.resumeAt);
+                }
+            }
+        }
+
+        if (times.length() == 0) {
+            return None;
+        }
+
+        return times.sorted().first();
+    }
+
+    // turn with every held Poll answered that can be (ADR 0117 §4): with the
+    // partitions ready to fetch, those whose committed offset is known and
+    // that no retry pauses, once there are any; with none once a poll's wait
+    // is up; and with the failure once the group can't be joined.
+    answerPolls(turn: SessionTurn, now: int) -> SessionTurn {
+        s = turn.state;
+        if (s.polls.length() == 0) {
+            return turn;
+        }
+
+        ready: List<AssignedPartition> = [];
+        if (s.phase == "member") {
+            for (p in s.partitions) {
+                if (p.position != 0 - 2 && p.resumeAt <= now) {
+                    ready = append(
+                        ready,
+                        AssignedPartition(
+                            partition: p.partition,
+                            position: p.position,
+                            retryOffset: p.retryOffset,
+                            attempt: p.retries + 1
+                        )
+                    );
+                }
+            }
+        }
+
+        replies: List<session.SessionReply> = turn.replies;
+        waiting: List<WaitingPoll> = [];
+        for (poll in s.polls) {
+            if (s.fatal != "" || ready.length() > 0 || poll.until <= now) {
+                answer = json.encode(PollReply(failure: s.fatal, partitions: ready));
+                replies = append(
+                    replies,
+                    session.SessionReply(key: poll.key, message: answer, last: true)
+                );
+            } else {
+                waiting = append(waiting, poll);
+            }
+        }
+
+        return copy(turn, state: copy(s, polls: waiting), replies: replies);
+    }
+
+    // turn with a group member's heartbeat when it is due, one at a time, and
+    // its commit when the commit interval since the first unsent ack is up.
+    dueWork(turn: SessionTurn, now: int) -> SessionTurn {
+        out: SessionTurn = turn;
+        s = turn.state;
+        if (s.role != "group" || s.phase != "member" || s.fatal != "") {
+            return out;
+        }
+
+        if (!s.heartbeatInFlight && s.nextHeartbeatAt <= now) {
+            owned: List<int> = [];
+            for (p in s.partitions) {
+                owned = append(owned, p.partition);
+            }
+
+            request = consumerGroup.heartbeatRequest(
+                s.clientId,
+                s.nextCorrelation,
+                s.group,
+                s.memberId,
+                s.epoch,
+                s.topic,
+                s.topicId,
+                owned
+            );
+            out = copy(
+                out,
+                state: copy(dialogue.tracked(s, "heartbeat"), heartbeatInFlight: true),
+                write: <<out.write: bytes, request: bytes>>
+            );
+        }
+
+        if (out.state.commitAt > 0 && out.state.commitAt <= now) {
+            out = consumerGroup.commitAll(out);
+        }
+
+        return out;
+    }
+
+    // A Step that ends the connection, failing every waiting call, for a state
+    // or an ask this package can't read: a defect, so nothing is kept.
+    failedStep(reason: string) -> session.Step {
+        return session.Step(
+            state: <<>>,
+            write: <<>>,
+            accepted: None,
+            replies: [],
+            nextTickAt: None,
+            close: session.SessionClose.Failed(reason: reason)
+        );
+    }
+}

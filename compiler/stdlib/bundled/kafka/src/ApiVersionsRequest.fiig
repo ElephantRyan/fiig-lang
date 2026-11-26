@@ -1,5 +1,0 @@
-// ADR 0113 §4: ApiVersions v0 (API key 18), which has no body: what a new
-// connection asks first, so an old broker is refused by name.
-conversion apiVersionsRequest(clientId: string, correlation: int) -> bytes {
-    return kafkaRequest(18, 0, correlation, clientId, <<>>);
-}

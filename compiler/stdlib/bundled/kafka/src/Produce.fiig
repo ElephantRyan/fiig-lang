@@ -1,0 +1,445 @@
+use com.degeneratedevelopment.kafka.codec;
+
+// Producing: which partition and broker each record goes to, the Produce
+// request, and reading its reply (ADR 0113).
+formulas produce {
+    // ADR 0113 §3: which partition each record goes to, one batch per
+    // partition, and one request per leading broker. A keyed record goes where
+    // the Java client would put it, murmur2 of its key; the call's keyless
+    // records all go to one partition, chosen by the clock. Each batch is
+    // compressed with compression (ADR 0116 §4).
+    formula producePlan(
+        layout: TopicLayout,
+        records: List<KafkaRecord>,
+        now: int,
+        compression: Compression)
+            -> Result<List<ProduceCall>, KafkaError> {
+        count = layout.leaders.length();
+        keyless = now % count;
+        byPartition: Map<int, List<int>> = [:];
+        i: int = 0;
+        for (record in records) {
+            partition: int = keyless;
+            match (record.key) {
+                None -> None,
+                key -> {
+                    partition = codec.murmur2(key) % 2147483648 % count;
+                }
+            }
+
+            byPartition = byPartition.put(partition, append(byPartition.atOr(partition, []), i));
+            i = i + 1;
+        }
+
+        calls: List<ProduceCall> = [];
+        p: int = 0;
+        while (p < count) {
+            if (byPartition.containsKey(p)) {
+                indexes = byPartition.at(p);
+                chosen: List<KafkaRecord> = [];
+                for (index in indexes) {
+                    chosen = append(chosen, records.at(index));
+                }
+
+                batch = PartitionBatch(
+                    partition: p,
+                    indexes: indexes,
+                    batch: codec.recordBatch(chosen, now, compression)?
+                );
+                broker = brokerOf(layout, layout.leaders.at(p))?;
+                calls = addTo(calls, broker, batch);
+            }
+
+            p = p + 1;
+        }
+
+        return Ok(calls);
+    }
+
+    // ADR 0113 §1, §4: Produce v8 (API key 0) of one topic's batches, with no
+    // transactional id and acks=all (-1), so the leader answers once every
+    // in-sync replica has the batch. timeoutMillis is how long it may wait for
+    // them.
+    formula produceRequest(
+        clientId: string,
+        correlation: int,
+        topic: string,
+        timeoutMillis: int,
+        batches: List<PartitionBatch>)
+            -> bytes {
+        partitions: bytes = <<batches.length(): i32be>>;
+        for (batch in batches) {
+            partitions = <<
+                partitions: bytes,
+                batch.partition: i32be,
+                batch.batch.length(): i32be,
+                batch.batch: bytes
+            >>;
+        }
+
+        body = <<
+            0 - 1: i16be,
+            0 - 1: i16be,
+            timeoutMillis: i32be,
+            1: i32be,
+            codec.kafkaString(topic): bytes,
+            partitions: bytes
+        >>;
+        return codec.kafkaRequest(0, 8, correlation, clientId, body);
+    }
+
+    // ADR 0113 §1, §4, as amended 2026-11-21: Produce v9 (API key 0), the
+    // producer's flexible version (KIP-482), of one topic's batches: no
+    // transactional id (a null compact string), acks=all (-1), and each
+    // partition's batch as COMPACT_RECORDS, its length plus one then the
+    // batch. timeoutMillis is how long the leader may wait for the in-sync
+    // replicas.
+    formula produceV9Request(
+        clientId: string,
+        correlation: int,
+        topic: string,
+        timeoutMillis: int,
+        batches: List<PartitionBatch>)
+            -> bytes {
+        partitions: bytes = codec.uvarint(batches.length() + 1);
+        for (batch in batches) {
+            partitions = <<
+                partitions: bytes,
+                batch.partition: i32be,
+                codec.uvarint(batch.batch.length() + 1): bytes,
+                batch.batch: bytes,
+                0: u8
+            >>;
+        }
+
+        body = <<
+            0: u8,
+            0 - 1: i16be,
+            timeoutMillis: i32be,
+            codec.uvarint(2): bytes,
+            codec.compactString(topic): bytes,
+            partitions: bytes,
+            0: u8,
+            0: u8
+        >>;
+        return codec.kafkaFlexRequest(0, 9, correlation, clientId, body);
+    }
+
+    // ADR 0113 §1: a Produce v8 response read as where each record went: a
+    // batch's records are at its base offset and the ones after it. A
+    // partition's error is the call's, with the broker's message when it gives
+    // one.
+    formula readProduce(frame: bytes, correlation: int, call: ProduceCall)
+            -> Result<List<SentAt>, KafkaError> {
+        got = intAt(frame, 0)?;
+        if (got != correlation) {
+            return Err(
+                KafkaError.MalformedReply(
+                    reason: "Produce answered correlation ${got}, not ${correlation}"
+                )
+            );
+        }
+
+        pos: int = 4;
+        topics = intAt(frame, pos)?;
+        pos = pos + 4;
+        sent: List<SentAt> = [];
+        t: int = 0;
+        while (t < topics) {
+            name = textAt(frame, pos)?;
+            pos = name.next;
+            partitions = intAt(frame, pos)?;
+            pos = pos + 4;
+            p: int = 0;
+            while (p < partitions) {
+                index = intAt(frame, pos)?;
+                code = shortAt(frame, pos + 4)?;
+                baseOffset = longAt(frame, pos + 6)?;
+                // log_append_time_ms and log_start_offset, then the record errors.
+                pos = pos + 30;
+                recordErrors = intAt(frame, pos)?;
+                pos = pos + 4;
+                detail: string = "";
+                e: int = 0;
+                while (e < recordErrors) {
+                    message = textAt(frame, pos + 4)?;
+                    if (detail == "") {
+                        detail = message.text;
+                    }
+
+                    pos = message.next;
+                    e = e + 1;
+                }
+
+                message = textAt(frame, pos)?;
+                pos = message.next;
+                if (message.text != "") {
+                    detail = message.text;
+                }
+
+                if (code != 0) {
+                    failure = codec.brokerError(code, "Produce to ${name.text} partition ${index}");
+                    match (failure) {
+                        KafkaError.Broker(failed, label, retriable, text) -> {
+                            if (detail != "") {
+                                return Err(
+                                    KafkaError.Broker(
+                                        code: failed,
+                                        name: label,
+                                        retriable: retriable,
+                                        message: "${text}: ${detail}"
+                                    )
+                                );
+                            }
+                        },
+
+                        _ -> None
+                    }
+
+                    return Err(failure);
+                }
+
+                for (batch in call.batches) {
+                    if (batch.partition == index) {
+                        n: int = 0;
+                        for (record in batch.indexes) {
+                            sent = append(
+                                sent,
+                                SentAt(index: record, partition: index, offset: baseOffset + n)
+                            );
+                            n = n + 1;
+                        }
+                    }
+                }
+
+                p = p + 1;
+            }
+
+            t = t + 1;
+        }
+
+        return Ok(sent);
+    }
+
+    // ADR 0113 §1, as amended 2026-11-21: a Produce v9 response read as
+    // readProduce reads v8's, where each record went: response header v1,
+    // then compact arrays, each struct ending in its tagged fields. A
+    // partition's error is the call's, with the broker's message when it
+    // gives one.
+    formula readProduceV9(frame: bytes, correlation: int, call: ProduceCall)
+            -> Result<List<SentAt>, KafkaError> {
+        got = intAt(frame, 0)?;
+        if (got != correlation) {
+            return Err(
+                KafkaError.MalformedReply(
+                    reason: "Produce answered correlation ${got}, not ${correlation}"
+                )
+            );
+        }
+
+        topics = countAt(frame, tagsAt(frame, 4)?)?;
+        pos: int = topics.next;
+        sent: List<SentAt> = [];
+        t: int = 0;
+        while (t < topics.value) {
+            name = compactTextAt(frame, pos)?;
+            partitions = countAt(frame, name.next)?;
+            pos = partitions.next;
+            p: int = 0;
+            while (p < partitions.value) {
+                index = intAt(frame, pos)?;
+                code = shortAt(frame, pos + 4)?;
+                baseOffset = longAt(frame, pos + 6)?;
+                // log_append_time_ms and log_start_offset, then the record errors.
+                recordErrors = countAt(frame, pos + 30)?;
+                pos = recordErrors.next;
+                detail: string = "";
+                e: int = 0;
+                while (e < recordErrors.value) {
+                    message = compactTextAt(frame, pos + 4)?;
+                    if (detail == "") {
+                        detail = message.text;
+                    }
+
+                    pos = tagsAt(frame, message.next)?;
+                    e = e + 1;
+                }
+
+                message = compactTextAt(frame, pos)?;
+                pos = tagsAt(frame, message.next)?;
+                if (message.text != "") {
+                    detail = message.text;
+                }
+
+                if (code != 0) {
+                    failure = codec.brokerError(code, "Produce to ${name.text} partition ${index}");
+                    match (failure) {
+                        KafkaError.Broker(failed, label, retriable, text) -> {
+                            if (detail != "") {
+                                return Err(
+                                    KafkaError.Broker(
+                                        code: failed,
+                                        name: label,
+                                        retriable: retriable,
+                                        message: "${text}: ${detail}"
+                                    )
+                                );
+                            }
+                        },
+
+                        _ -> None
+                    }
+
+                    return Err(failure);
+                }
+
+                for (batch in call.batches) {
+                    if (batch.partition == index) {
+                        n: int = 0;
+                        for (record in batch.indexes) {
+                            sent = append(
+                                sent,
+                                SentAt(index: record, partition: index, offset: baseOffset + n)
+                            );
+                            n = n + 1;
+                        }
+                    }
+                }
+
+                p = p + 1;
+            }
+
+            pos = tagsAt(frame, pos)?;
+            t = t + 1;
+        }
+
+        return Ok(sent);
+    }
+
+    // Where each of count records went, in the order they were given, or
+    // MalformedReply when a broker's reply left one out.
+    formula inOrder(sent: List<SentAt>, count: int) -> Result<List<Sent>, KafkaError> {
+        byIndex: Map<int, Sent> = [:];
+        for (s in sent) {
+            byIndex = byIndex.put(s.index, Sent(partition: s.partition, offset: s.offset));
+        }
+
+        out: List<Sent> = [];
+        i: int = 0;
+        while (i < count) {
+            if (!byIndex.containsKey(i)) {
+                return Err(
+                    KafkaError.MalformedReply(
+                        reason: "no Produce response says where record ${i} went"
+                    )
+                );
+            }
+
+            out = append(out, byIndex.at(i));
+            i = i + 1;
+        }
+
+        return Ok(out);
+    }
+}
+
+private {
+    brokerOf(layout: TopicLayout, id: int) -> Result<BrokerNode, KafkaError> {
+        for (broker in layout.brokers) {
+            if (broker.id == id) {
+                return Ok(broker);
+            }
+        }
+
+        return Err(
+            KafkaError.MalformedReply(
+                reason: "Metadata names leader ${id}, which isn't among its brokers"
+            )
+        );
+    }
+
+    // calls with batch added to its broker's call, or a new call for it.
+    addTo(calls: List<ProduceCall>, broker: BrokerNode, batch: PartitionBatch)
+            -> List<ProduceCall> {
+        out: List<ProduceCall> = [];
+        added: bool = false;
+        for (call in calls) {
+            if (call.broker.id == broker.id) {
+                out = append(
+                    out,
+                    ProduceCall(broker: call.broker, batches: append(call.batches, batch))
+                );
+                added = true;
+            } else {
+                out = append(out, call);
+            }
+        }
+
+        if (!added) {
+            out = append(out, ProduceCall(broker: broker, batches: [batch]));
+        }
+
+        return out;
+    }
+
+    short() -> KafkaError {
+        return KafkaError.MalformedReply(reason: "a Produce response ends early");
+    }
+
+    intAt(data: bytes, at: int) -> Result<int, KafkaError> {
+        return match (codec.i32At(data, at)) {
+            None -> Err(short()),
+            value -> Ok(value)
+        }
+    }
+
+    shortAt(data: bytes, at: int) -> Result<int, KafkaError> {
+        return match (codec.i16At(data, at)) {
+            None -> Err(short()),
+            value -> Ok(value)
+        }
+    }
+
+    longAt(data: bytes, at: int) -> Result<int, KafkaError> {
+        return match (codec.i64At(data, at)) {
+            None -> Err(short()),
+            value -> Ok(value)
+        }
+    }
+
+    textAt(data: bytes, at: int) -> Result<TextAt, KafkaError> {
+        return match (codec.stringAt(data, at)) {
+            None -> Err(short()),
+            value -> Ok(value)
+        }
+    }
+
+    compactTextAt(data: bytes, at: int) -> Result<TextAt, KafkaError> {
+        return match (codec.compactStringAt(data, at)) {
+            None -> Err(short()),
+            value -> Ok(value)
+        }
+    }
+
+    tagsAt(data: bytes, at: int) -> Result<int, KafkaError> {
+        return match (codec.afterTags(data, at)) {
+            None -> Err(short()),
+            value -> Ok(value)
+        }
+    }
+
+    // A compact array's length, from its length plus one; a null one (0)
+    // is empty.
+    countAt(data: bytes, at: int) -> Result<IntAt, KafkaError> {
+        return match (codec.uvarintAt(data, at)) {
+            None -> Err(short()),
+            found -> {
+                if (found.value == 0) {
+                    return Ok(found);
+                }
+
+                return Ok(IntAt(value: found.value - 1, next: found.next));
+            }
+        }
+    }
+}

@@ -1,4 +1,5 @@
 use fiig.session;
+use com.degeneratedevelopment.kafka.dialogue;
 
 // ADR 0117 §2-§3: com.degeneratedevelopment.kafka's session protocol, which the consumer's
 // gateways reach through Session.call. Each operation is a conversion
@@ -21,7 +22,7 @@ capability KafkaSession provides session.SessionProtocol {
             username: KafkaServer.saslUsername,
             password: password
         );
-        return sessionOpened(settings, now, login, Random.bytes(24).toBase64());
+        return dialogue.sessionOpened(settings, now, login, Random.bytes(24).toBase64());
     }
 
     gateway received(state: bytes, data: bytes, now: int) -> session.Step requires Session {
@@ -38,19 +39,19 @@ capability KafkaSession provides session.SessionProtocol {
             username: KafkaServer.saslUsername,
             password: password
         );
-        return sessionReceived(state, data, now, login);
+        return dialogue.sessionReceived(state, data, now, login);
     }
 
     gateway asked(state: bytes, message: bytes, now: int) -> session.Step requires Session {
-        return sessionAsked(state, message, now);
+        return dialogue.sessionAsked(state, message, now);
     }
 
     gateway tick(state: bytes, now: int) -> session.Step requires Session {
-        return sessionTick(state, now);
+        return dialogue.sessionTick(state, now);
     }
 
     gateway closing(state: bytes, now: int) -> session.Step requires Session {
-        return sessionClosing(state, now);
+        return dialogue.sessionClosing(state, now);
     }
 
     // Never called: a Kafka session's state ends with its connection

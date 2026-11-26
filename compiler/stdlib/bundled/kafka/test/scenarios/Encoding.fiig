@@ -1,54 +1,57 @@
+use com.degeneratedevelopment.kafka.cluster;
+use com.degeneratedevelopment.kafka.codec;
+
 test varintsAreZigzag {
-    expect varint(0) == <<0: u8>>;
-    expect varint(1) == <<2: u8>>;
-    expect varint(0 - 1) == <<1: u8>>;
-    expect varint(63) == <<126: u8>>;
-    expect varint(64) == <<128: u8, 1: u8>>;
+    expect codec.varint(0) == <<0: u8>>;
+    expect codec.varint(1) == <<2: u8>>;
+    expect codec.varint(0 - 1) == <<1: u8>>;
+    expect codec.varint(63) == <<126: u8>>;
+    expect codec.varint(64) == <<128: u8, 1: u8>>;
     // 300 zigzags to 600: 88 with the high bit, then 4.
-    expect varint(300) == <<216: u8, 4: u8>>;
+    expect codec.varint(300) == <<216: u8, 4: u8>>;
 }
 
 test stringsCarryTheirLength {
-    expect kafkaString("ab") == <<0: u8, 2: u8, 97: u8, 98: u8>>;
+    expect codec.kafkaString("ab") == <<0: u8, 2: u8, 97: u8, 98: u8>>;
 }
 
 // Kafka's own UtilsTest vectors for Utils.murmur2, as unsigned values: the
 // Java ints -973932308, -790332482, -985981536, -1486304829, -58897971,
 // and 479470107.
 test murmur2MatchesTheJavaClient {
-    expect murmur2("21".utf8()) == 3321034988;
-    expect murmur2("foobar".utf8()) == 3504634814;
-    expect murmur2("a-little-bit-long-string".utf8()) == 3308985760;
-    expect murmur2("a-little-bit-longer-string".utf8()) == 2808662467;
-    expect murmur2("lkjh234lh9fiuh90y23oiuhsafujhadof229phr9h19h89h8".utf8()) == 4236069325;
-    expect murmur2("abc".utf8()) == 479470107;
-    expect murmur2(<<>>) == 275646681;
+    expect codec.murmur2("21".utf8()) == 3321034988;
+    expect codec.murmur2("foobar".utf8()) == 3504634814;
+    expect codec.murmur2("a-little-bit-long-string".utf8()) == 3308985760;
+    expect codec.murmur2("a-little-bit-longer-string".utf8()) == 2808662467;
+    expect codec.murmur2("lkjh234lh9fiuh90y23oiuhsafujhadof229phr9h19h89h8".utf8()) == 4236069325;
+    expect codec.murmur2("abc".utf8()) == 479470107;
+    expect codec.murmur2(<<>>) == 275646681;
 }
 
 test bootstrapServers {
-    expect bootstrapOf("kafka-1:9092, kafka-2:9093") is Ok(servers);
+    expect cluster.bootstrapOf("kafka-1:9092, kafka-2:9093") is Ok(servers);
     expect servers.length() == 2;
     expect servers.last().host == "kafka-2";
     expect servers.last().port == 9093;
-    expect bootstrapOf("[::1]:9092") is Ok(local);
+    expect cluster.bootstrapOf("[::1]:9092") is Ok(local);
     expect local.first().host == "::1";
-    expect bootstrapOf("kafka-1") is Err(KafkaError.InvalidConfig(reason));
+    expect cluster.bootstrapOf("kafka-1") is Err(KafkaError.InvalidConfig(reason));
     expect reason.contains("host:port");
-    expect bootstrapOf(" , ") is Err(KafkaError.InvalidConfig(none));
+    expect cluster.bootstrapOf(" , ") is Err(KafkaError.InvalidConfig(none));
     expect none.contains("names no server");
 }
 
 test aRequestIsSizedAndHeaded {
     // ApiVersions v0: size 12, key 18, version 0, correlation 1, "id".
-    expect apiVersionsRequest("id", 1) == <<12: i32be, 18: i16be, 0: i16be, 1: i32be, 2: i16be, "id": utf8>>;
+    expect cluster.apiVersionsRequest("id", 1) == <<12: i32be, 18: i16be, 0: i16be, 1: i32be, 2: i16be, "id": utf8>>;
 }
 
 test framesWaitForTheirWholeSize {
-    expect nextFrame(<<0: u8, 0: u8>>) == FrameRead.NeedMore;
-    expect nextFrame(<<6: i32be, 1: i32be>>) == FrameRead.NeedMore;
-    expect nextFrame(<<4: i32be, 7: i32be, 9: u8>>) is FrameRead.Done(frame, rest);
+    expect codec.nextFrame(<<0: u8, 0: u8>>) == FrameRead.NeedMore;
+    expect codec.nextFrame(<<6: i32be, 1: i32be>>) == FrameRead.NeedMore;
+    expect codec.nextFrame(<<4: i32be, 7: i32be, 9: u8>>) is FrameRead.Done(frame, rest);
     expect frame == <<7: i32be>>;
     expect rest == <<9: u8>>;
-    expect nextFrame(<<0 - 5: i32be>>) is FrameRead.Malformed(reason);
+    expect codec.nextFrame(<<0 - 5: i32be>>) is FrameRead.Malformed(reason);
     expect reason.contains("-5 bytes");
 }

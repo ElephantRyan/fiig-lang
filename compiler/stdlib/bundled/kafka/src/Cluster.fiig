@@ -1,0 +1,629 @@
+use fiig.stream;
+use com.degeneratedevelopment.kafka.codec;
+
+// What a client learns about the cluster: the API versions a broker takes,
+// topic metadata and partition leaders, and the bootstrap and broker
+// settings it connects with (ADRs 0113, 0117).
+formulas cluster {
+    // ADR 0113 §4: ApiVersions v0 (API key 18), which has no body: what a new
+    // connection asks first, so an old broker is refused by name.
+    formula apiVersionsRequest(clientId: string, correlation: int) -> bytes {
+        return codec.kafkaRequest(18, 0, correlation, clientId, <<>>);
+    }
+
+    // ADR 0113 §4: whether the broker answering frame, ApiVersions v0's
+    // response, takes the versions this producer sends: Metadata v12 and
+    // Produce v9, the flexible ones (as amended 2026-11-21).
+    formula checkApiVersions(frame: bytes, correlation: int) -> Result<None, KafkaError> {
+        return match (frame) {
+            <<got: i32be, code: i16be, count: i32be, rest: bytes>> -> {
+                if (got != correlation) {
+                    return Err(
+                        KafkaError.MalformedReply(
+                            reason: "ApiVersions answered correlation ${got}, not ${correlation}"
+                        )
+                    );
+                }
+
+                if (code != 0) {
+                    return Err(codec.brokerError(code, "ApiVersions"));
+                }
+
+                if (count < 0 || rest.length() < count * 6) {
+                    return Err(
+                        KafkaError.MalformedReply(
+                            reason: "ApiVersions lists ${count} APIs in ${rest.length()} bytes"
+                        )
+                    );
+                }
+
+                metadataOk = apiSupports(rest, count, 3, 12);
+                produceOk = apiSupports(rest, count, 0, 9);
+                if (!metadataOk || !produceOk) {
+                    return Err(
+                        KafkaError.Unsupported(
+                            reason: "the broker doesn't take Metadata v12 and Produce v9, which com.degeneratedevelopment.kafka sends (ADR 0113 §4)"
+                        )
+                    );
+                }
+
+                return Ok(None);
+            },
+
+            _ -> Err(
+                KafkaError.MalformedReply(
+                    reason: "an ApiVersions response is shorter than its header"
+                )
+            )
+        }
+    }
+
+    // ADR 0117 §1: why the broker answering frame, ApiVersions v0's response,
+    // can't serve this consumer, or "" when it can. KIP-848's
+    // ConsumerGroupHeartbeat v1 is Kafka 4.0's; the rest are the versions the
+    // consumer sends.
+    formula consumerVersions(frame: bytes) -> string {
+        return match (frame) {
+            <<_: i32be, code: i16be, count: i32be, rest: bytes>> -> {
+                if (code != 0) {
+                    return "ApiVersions: ${codec.errorName(code)}";
+                }
+
+                if (count < 0 || rest.length() < count * 6) {
+                    return "an ApiVersions response lists ${count} APIs in ${rest.length()} bytes";
+                }
+
+                if (!apiSupports(rest, count, 68, 1)) {
+                    return "the broker doesn't take ConsumerGroupHeartbeat v1 (KIP-848); com.degeneratedevelopment.kafka's consumer needs Kafka 4.0 or later (ADR 0117 §1)";
+                }
+
+                // Fetch v11, ListOffsets v2, Metadata v4, OffsetCommit v9,
+                // OffsetFetch v1, FindCoordinator v1, Produce v8.
+                for (wanted in [[1, 11], [2, 2], [3, 4], [8, 9], [9, 1], [10, 1], [0, 8]]) {
+                    if (!apiSupports(rest, count, wanted.first(), wanted.last())) {
+                        return "the broker doesn't take API ${wanted.first()} v${wanted.last()}, which com.degeneratedevelopment.kafka's consumer sends (ADR 0117 §1)";
+                    }
+                }
+
+                return "";
+            },
+
+            _ -> "an ApiVersions response is shorter than its header"
+        }
+    }
+
+    // ADR 0113 §4: Metadata v4 (API key 3) for one topic, never creating it:
+    // a misspelled topic is UnknownTopic, not a new topic.
+    formula metadataRequest(clientId: string, correlation: int, topic: string) -> bytes {
+        return codec.kafkaRequest(
+            3,
+            4,
+            correlation,
+            clientId,
+            <<1: i32be, codec.kafkaString(topic): bytes, 0: u8>>
+        );
+    }
+
+    // ADR 0113 §4, as amended 2026-11-21: Metadata v12 (API key 3), the
+    // producer's flexible version (KIP-482), for one topic named with no
+    // topic id (sixteen zero bytes), never creating it, and asking for no
+    // authorized operations.
+    formula metadataV12Request(clientId: string, correlation: int, topic: string) -> bytes {
+        body = <<
+            codec.uvarint(2): bytes,
+            0: i64be,
+            0: i64be,
+            codec.compactString(topic): bytes,
+            0: u8,
+            0: u8,
+            0: u8,
+            0: u8
+        >>;
+        return codec.kafkaFlexRequest(3, 12, correlation, clientId, body);
+    }
+
+    // ADR 0113 §4: a Metadata v4 response read as the topic's layout. A
+    // partition without a leader (-1, mid-election) is LEADER_NOT_AVAILABLE,
+    // which is retriable.
+    formula readMetadata(frame: bytes, correlation: int, topic: string)
+            -> Result<TopicLayout, KafkaError> {
+        got = intAt(frame, 0)?;
+        if (got != correlation) {
+            return Err(
+                KafkaError.MalformedReply(
+                    reason: "Metadata answered correlation ${got}, not ${correlation}"
+                )
+            );
+        }
+
+        // After the correlation id, the throttle time.
+        pos: int = 8;
+        brokerCount = intAt(frame, pos)?;
+        pos = pos + 4;
+        brokers: List<BrokerNode> = [];
+        i: int = 0;
+        while (i < brokerCount) {
+            id = intAt(frame, pos)?;
+            host = textAt(frame, pos + 4)?;
+            port = intAt(frame, host.next)?;
+            rack = textAt(frame, host.next + 4)?;
+            brokers = append(brokers, BrokerNode(id: id, host: host.text, port: port));
+            pos = rack.next;
+            i = i + 1;
+        }
+
+        clusterId = textAt(frame, pos)?;
+        // The controller's id, then the topics.
+        pos = clusterId.next + 4;
+        topicCount = intAt(frame, pos)?;
+        pos = pos + 4;
+        t: int = 0;
+        while (t < topicCount) {
+            code = shortAt(frame, pos)?;
+            name = textAt(frame, pos + 2)?;
+            // is_internal, one byte, then the partitions.
+            pos = name.next + 1;
+            partitionCount = intAt(frame, pos)?;
+            pos = pos + 4;
+            // Partitions come in no promised order, so they are collected by
+            // index and listed 0 to n-1 afterwards.
+            byIndex: Map<int, int> = [:];
+            failure: KafkaError | None = None;
+            p: int = 0;
+            while (p < partitionCount) {
+                partitionCode = shortAt(frame, pos)?;
+                index = intAt(frame, pos + 2)?;
+                leader = intAt(frame, pos + 6)?;
+                replicas = intAt(frame, pos + 10)?;
+                isr = intAt(frame, pos + 14 + replicas * 4)?;
+                pos = pos + 18 + replicas * 4 + isr * 4;
+                if (partitionCode != 0) {
+                    failure = codec.brokerError(
+                        partitionCode,
+                        "Metadata for ${name.text} partition ${index}"
+                    );
+                } else if (leader < 0) {
+                    failure = codec.brokerError(5, "Metadata for ${name.text} partition ${index}");
+                }
+
+                byIndex = byIndex.put(index, leader);
+                p = p + 1;
+            }
+
+            if (name.text == topic) {
+                if (code == 0) {
+                    match (failure) {
+                        None -> None,
+                        found -> {
+                            return Err(found);
+                        }
+                    }
+                }
+
+                leaders: List<int> = [];
+                n: int = 0;
+                while (n < partitionCount) {
+                    if (!byIndex.containsKey(n)) {
+                        return Err(
+                            KafkaError.MalformedReply(
+                                reason: "Metadata for ${topic} skips partition ${n}"
+                            )
+                        );
+                    }
+
+                    leaders = append(leaders, byIndex.at(n));
+                    n = n + 1;
+                }
+
+                if (code == 3) {
+                    return Err(KafkaError.UnknownTopic(topic: topic));
+                }
+
+                if (code != 0) {
+                    return Err(codec.brokerError(code, "Metadata for ${topic}"));
+                }
+
+                if (leaders.length() == 0) {
+                    return Err(
+                        KafkaError.MalformedReply(
+                            reason: "Metadata lists no partitions for ${topic}"
+                        )
+                    );
+                }
+
+                return Ok(TopicLayout(brokers: brokers, leaders: leaders));
+            }
+
+            t = t + 1;
+        }
+
+        return Err(KafkaError.UnknownTopic(topic: topic));
+    }
+
+    // ADR 0113 §4, as amended 2026-11-21: a Metadata v12 response read as the
+    // topic's layout, as readMetadata reads v4's: response header v1 (the
+    // correlation id, then tagged fields), then compact arrays and strings,
+    // each struct ending in its own tagged fields. A partition without a
+    // leader (-1, mid-election) is LEADER_NOT_AVAILABLE, which is retriable.
+    formula readMetadataV12(frame: bytes, correlation: int, topic: string)
+            -> Result<TopicLayout, KafkaError> {
+        got = intAt(frame, 0)?;
+        if (got != correlation) {
+            return Err(
+                KafkaError.MalformedReply(
+                    reason: "Metadata answered correlation ${got}, not ${correlation}"
+                )
+            );
+        }
+
+        // After the header's tags, the throttle time.
+        afterHeader = tagsAt(frame, 4)?;
+        brokerCount = countAt(frame, afterHeader + 4)?;
+        pos: int = brokerCount.next;
+        brokers: List<BrokerNode> = [];
+        i: int = 0;
+        while (i < brokerCount.value) {
+            id = intAt(frame, pos)?;
+            host = compactTextAt(frame, pos + 4)?;
+            port = intAt(frame, host.next)?;
+            rack = compactTextAt(frame, host.next + 4)?;
+            brokers = append(brokers, BrokerNode(id: id, host: host.text, port: port));
+            pos = tagsAt(frame, rack.next)?;
+            i = i + 1;
+        }
+
+        clusterId = compactTextAt(frame, pos)?;
+        // The controller's id, then the topics.
+        topicCount = countAt(frame, clusterId.next + 4)?;
+        pos = topicCount.next;
+        t: int = 0;
+        while (t < topicCount.value) {
+            code = shortAt(frame, pos)?;
+            name = compactTextAt(frame, pos + 2)?;
+            // The topic id, sixteen bytes, and is_internal, one, then the
+            // partitions.
+            partitionCount = countAt(frame, name.next + 17)?;
+            pos = partitionCount.next;
+            // Partitions come in no promised order, so they are collected by
+            // index and listed 0 to n-1 afterwards.
+            byIndex: Map<int, int> = [:];
+            failure: KafkaError | None = None;
+            p: int = 0;
+            while (p < partitionCount.value) {
+                partitionCode = shortAt(frame, pos)?;
+                index = intAt(frame, pos + 2)?;
+                leader = intAt(frame, pos + 6)?;
+                // The leader's epoch, then the replicas, the in-sync replicas,
+                // and the offline ones, each a compact array of ids.
+                pos = pos + 14;
+                for (_ in [1, 2, 3]) {
+                    ids = countAt(frame, pos)?;
+                    pos = ids.next + ids.value * 4;
+                }
+
+                pos = tagsAt(frame, pos)?;
+                if (partitionCode != 0) {
+                    failure = codec.brokerError(
+                        partitionCode,
+                        "Metadata for ${name.text} partition ${index}"
+                    );
+                } else if (leader < 0) {
+                    failure = codec.brokerError(5, "Metadata for ${name.text} partition ${index}");
+                }
+
+                byIndex = byIndex.put(index, leader);
+                p = p + 1;
+            }
+
+            // The topic's authorized operations, then its tags.
+            pos = tagsAt(frame, pos + 4)?;
+            if (name.text == topic) {
+                if (code == 0) {
+                    match (failure) {
+                        None -> None,
+                        found -> {
+                            return Err(found);
+                        }
+                    }
+                }
+
+                leaders: List<int> = [];
+                n: int = 0;
+                while (n < partitionCount.value) {
+                    if (!byIndex.containsKey(n)) {
+                        return Err(
+                            KafkaError.MalformedReply(
+                                reason: "Metadata for ${topic} skips partition ${n}"
+                            )
+                        );
+                    }
+
+                    leaders = append(leaders, byIndex.at(n));
+                    n = n + 1;
+                }
+
+                if (code == 3) {
+                    return Err(KafkaError.UnknownTopic(topic: topic));
+                }
+
+                if (code != 0) {
+                    return Err(codec.brokerError(code, "Metadata for ${topic}"));
+                }
+
+                if (leaders.length() == 0) {
+                    return Err(
+                        KafkaError.MalformedReply(
+                            reason: "Metadata lists no partitions for ${topic}"
+                        )
+                    );
+                }
+
+                return Ok(TopicLayout(brokers: brokers, leaders: leaders));
+            }
+
+            t = t + 1;
+        }
+
+        return Err(KafkaError.UnknownTopic(topic: topic));
+    }
+
+    // A broker session's answer to Layout, read back as the topic's layout.
+    formula layoutOf(parts: List<bytes>) -> Result<TopicLayout, KafkaError> {
+        if (parts.length() != 1) {
+            return Err(
+                KafkaError.MalformedReply(
+                    reason: "a Layout ask was answered in ${parts.length()} parts"
+                )
+            );
+        }
+
+        decoded: Result<LayoutReply, JsonError> = json.decode(parts.first());
+        return match (decoded) {
+            Err(_) -> Err(
+                KafkaError.MalformedReply(reason: "a Layout ask's answer isn't a LayoutReply")
+            ),
+            Ok(reply) -> {
+                match (reply.error) {
+                    None -> None,
+                    failure -> {
+                        return Err(failure);
+                    }
+                }
+
+                return match (reply.layout) {
+                    None -> Err(
+                        KafkaError.MalformedReply(
+                            reason: "a Layout ask's answer has no layout and no error"
+                        )
+                    ),
+                    layout -> Ok(layout)
+                }
+            }
+        }
+    }
+
+    // ADR 0113 §4, as amended 2026-11-21: whether a produce's failure says
+    // the layout it was planned from is stale, so the bootstrap session drops
+    // it: UNKNOWN_TOPIC_OR_PARTITION, LEADER_NOT_AVAILABLE, or
+    // NOT_LEADER_OR_FOLLOWER, as the Java client reads them, or a leader that
+    // couldn't be reached.
+    formula layoutMoved(failure: KafkaError) -> bool {
+        return match (failure) {
+            KafkaError.Broker(code, _, _, _) -> code == 3 || code == 5 || code == 6,
+            KafkaError.Session(_) -> true,
+            _ -> false
+        }
+    }
+
+    // The broker that leads one partition of a topic, or None when the topic
+    // has no such partition, for fetching one record by its id (ADR 0111 open
+    // question 1, as amended 2026-11-21).
+    formula leaderAt(layout: TopicLayout, partition: int) -> Result<BrokerNode | None, KafkaError> {
+        if (partition < 0 || partition >= layout.leaders.length()) {
+            return Ok(None);
+        }
+
+        leader = layout.leaders.at(partition);
+        for (broker in layout.brokers) {
+            if (broker.id == leader) {
+                return Ok(broker);
+            }
+        }
+
+        return Err(
+            KafkaError.MalformedReply(
+                reason: "Metadata names leader ${leader}, which isn't among its brokers"
+            )
+        );
+    }
+
+    // ADR 0113 §6: KAFKA_BOOTSTRAP's host:port list, comma-separated, as
+    // Kafka's bootstrap.servers writes it; an IPv6 host goes in brackets.
+    formula bootstrapOf(text: string) -> Result<List<BrokerNode>, KafkaError> {
+        out: List<BrokerNode> = [];
+        for (part in text.split(",")) {
+            entry = part.trim();
+            if (entry != "") {
+                host: string = entry;
+                portText: string = "";
+                if (entry.startsWith("[")) {
+                    pieces = entry.split("]:");
+                    if (pieces.length() != 2) {
+                        return Err(invalid(entry, "an IPv6 host is written [host]:port"));
+                    }
+
+                    host = pieces.first().removePrefix("[");
+                    portText = pieces.last();
+                } else {
+                    pieces = entry.split(":");
+                    if (pieces.length() != 2) {
+                        return Err(invalid(entry, "each server is host:port"));
+                    }
+
+                    host = pieces.first();
+                    portText = pieces.last();
+                }
+
+                match (portText.toIntOrNone()) {
+                    None -> {
+                        return Err(invalid(entry, "its port isn't a number"));
+                    },
+
+                    port -> {
+                        if (host == "" || port < 1 || port > 65535) {
+                            return Err(
+                                invalid(entry, "it needs a host and a port from 1 to 65535")
+                            );
+                        }
+
+                        out = append(out, BrokerNode(id: 0 - 1, host: host, port: port));
+                    }
+                }
+            }
+        }
+
+        if (out.length() == 0) {
+            return Err(
+                KafkaError.InvalidConfig(
+                    reason: "KAFKA_BOOTSTRAP names no server; write host:port[,host:port...]"
+                )
+            );
+        }
+
+        return Ok(out);
+    }
+
+    // ADR 0113 §4, as amended 2026-11-21: the settings naming the producer's
+    // bootstrap session, a broker session (ADR 0117 §3) to the first
+    // bootstrap server with the rest as its "alternates", which keeps the
+    // topics' layouts. With one server it names the same session as
+    // brokerSettings does for that broker, so a one-broker cluster is one
+    // connection.
+    formula bootstrapSettings(bootstrap: string, tls: bool, clientId: string)
+            -> Result<Map<string, string>, KafkaError> {
+        servers = bootstrapOf(bootstrap)?;
+        settings = brokerSettings(servers.first(), tls, clientId);
+        if (servers.length() == 1) {
+            return Ok(settings);
+        }
+
+        alternates: string = "";
+        seen: int = 0;
+        for (server in servers) {
+            if (seen == 1) {
+                alternates = serverText(server);
+            } else if (seen > 1) {
+                alternates = "${alternates},${serverText(server)}";
+            }
+
+            seen = seen + 1;
+        }
+
+        return Ok(settings.put("alternates", alternates));
+    }
+
+    // ADR 0117 §3: the settings naming the broker session to one broker, which
+    // carries Fetch, ListOffsets, and a dead letter's Produce.
+    formula brokerSettings(broker: BrokerNode, tls: bool, clientId: string) -> Map<string, string> {
+        return ["host": broker.host, "port": "${broker.port}", "tls": "${tls}", "role": "broker", "clientId": clientId];
+    }
+
+    // A session that broke or didn't answer in time: the stream adapter waits
+    // and receives again (ADR 0111 §1).
+    formula unavailable(failure: SessionError) -> stream.SourceError {
+        return stream.SourceError.Unavailable(reason: "${failure}");
+    }
+}
+
+private {
+    // Whether ApiVersions v0's list of (key, min, max) six-byte entries covers
+    // API key at version.
+    apiSupports(entries: bytes, count: int, key: int, version: int) -> bool {
+        i: int = 0;
+        while (i < count) {
+            match (entries.slice(i * 6, i * 6 + 6)) {
+                <<apiKey: i16be, low: i16be, high: i16be>> -> {
+                    if (apiKey == key) {
+                        return low <= version && version <= high;
+                    }
+                },
+
+                _ -> None
+            }
+
+            i = i + 1;
+        }
+
+        return false;
+    }
+
+    short() -> KafkaError {
+        return KafkaError.MalformedReply(reason: "a Metadata response ends early");
+    }
+
+    intAt(data: bytes, at: int) -> Result<int, KafkaError> {
+        return match (codec.i32At(data, at)) {
+            None -> Err(short()),
+            value -> Ok(value)
+        }
+    }
+
+    shortAt(data: bytes, at: int) -> Result<int, KafkaError> {
+        return match (codec.i16At(data, at)) {
+            None -> Err(short()),
+            value -> Ok(value)
+        }
+    }
+
+    textAt(data: bytes, at: int) -> Result<TextAt, KafkaError> {
+        return match (codec.stringAt(data, at)) {
+            None -> Err(short()),
+            value -> Ok(value)
+        }
+    }
+
+    compactTextAt(data: bytes, at: int) -> Result<TextAt, KafkaError> {
+        return match (codec.compactStringAt(data, at)) {
+            None -> Err(short()),
+            value -> Ok(value)
+        }
+    }
+
+    tagsAt(data: bytes, at: int) -> Result<int, KafkaError> {
+        return match (codec.afterTags(data, at)) {
+            None -> Err(short()),
+            value -> Ok(value)
+        }
+    }
+
+    // A compact array's length, from its length plus one; a null one (0)
+    // is empty.
+    countAt(data: bytes, at: int) -> Result<IntAt, KafkaError> {
+        return match (codec.uvarintAt(data, at)) {
+            None -> Err(short()),
+            found -> {
+                if (found.value == 0) {
+                    return Ok(found);
+                }
+
+                return Ok(IntAt(value: found.value - 1, next: found.next));
+            }
+        }
+    }
+
+    invalid(entry: string, why: string) -> KafkaError {
+        return KafkaError.InvalidConfig(
+            reason: "KAFKA_BOOTSTRAP's \"${entry}\" can't be read: ${why}"
+        );
+    }
+
+    // A server as an alternate names it: host:port, an IPv6 host in
+    // brackets as bootstrapOf reads it.
+    serverText(server: BrokerNode) -> string {
+        if (server.host.contains(":")) {
+            return "[${server.host}]:${server.port}";
+        }
+
+        return "${server.host}:${server.port}";
+    }
+}

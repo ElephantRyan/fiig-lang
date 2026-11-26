@@ -1,6 +1,0 @@
-// ADR 0113, as amended 2026-11-21: SaslHandshake v1 (API key 17), which
-// names the mechanism; v1 means the exchange that follows goes in
-// SaslAuthenticate requests (KIP-152), not raw bytes.
-conversion saslHandshakeRequest(clientId: string, correlation: int, mechanism: string) -> bytes {
-    return kafkaRequest(17, 1, correlation, clientId, kafkaString(mechanism));
-}
