@@ -28,7 +28,25 @@ Go's `unicode.Version`, and `compiler/text`'s tables are generated from the
 same version (`go generate ./compiler/text`; `TestVersionMatchesGo` fails
 when a Go upgrade moves it). When it changes, the release notes say so.
 
-Every push to `main` runs `.github/workflows/ci.yml`: tests, vet, gofmt.
+Every push to `main` or to a release branch runs
+`.github/workflows/ci.yml`: tests, vet, gofmt.
+
+## Release branches
+
+`main` is the last release. Work for the next one goes on a branch named
+for it, `alpha.4.2` for `v0.1.0-alpha.4.2`, and not on `main`. When the
+branch is ready and its CI is green, tag its last commit and fast-forward
+`main` to it:
+
+```
+git tag v0.1.0-alpha.4.2 alpha.4.2
+git push origin v0.1.0-alpha.4.2
+git push origin alpha.4.2:main
+```
+
+Then open the next release's branch from it. A branch is never named
+like a tag (`v0.1.0-alpha.4.2`), so `git` never has to guess which one
+a name means.
 
 Before tagging, check an archive the way the alpha's exit criterion does:
 unpack it on a machine (or a shell) with no Go on `PATH` and follow
