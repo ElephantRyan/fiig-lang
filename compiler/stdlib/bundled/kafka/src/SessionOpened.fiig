@@ -1,6 +1,6 @@
 use fiig.session;
 
-// ADR 0117 §3: a new connection of a fiig.kafka session. A broker session
+// ADR 0117 §3: a new connection of a com.degeneratedevelopment.kafka session. A broker session
 // asks ApiVersions first and holds every ask until it answers, so the
 // producer is told by name when a broker can't take its versions (ADR 0113
 // §4, as amended 2026-11-21). A group session asks ApiVersions first, so

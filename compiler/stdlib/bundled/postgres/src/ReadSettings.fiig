@@ -3,11 +3,19 @@ use fiig.sql as db;
 // ADR 0085 §2: the settings a capabilities file gives the driver.
 conversion readSettings(settings: Map<string, string>) -> Result<PgSettings, db.DatabaseError> {
     if (!settings.containsKey("host")) {
-        return Err(db.DatabaseError.Protocol(reason: "fiig.postgres needs a host setting"));
+        return Err(
+            db.DatabaseError.Protocol(
+                reason: "com.degeneratedevelopment.postgres needs a host setting"
+            )
+        );
     }
 
     if (!settings.containsKey("user")) {
-        return Err(db.DatabaseError.Protocol(reason: "fiig.postgres needs a user setting"));
+        return Err(
+            db.DatabaseError.Protocol(
+                reason: "com.degeneratedevelopment.postgres needs a user setting"
+            )
+        );
     }
 
     user = settings.at("user");

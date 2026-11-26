@@ -2,7 +2,9 @@
 
 Status: Accepted and implemented (2026-11-10; see Implementation notes). Amended
 by ADR 0151 (2026-11-25): `formEncode` and `headerValue` are formulas in
-the `syntax` group (`use fiig.http.syntax;`, `syntax.formEncode(...)`).
+the `syntax` group (`use fiig.http.syntax;`, `syntax.formEncode(...)`). Amended
+by ADR 0152 (2026-11-26): the `fiig.` prefix is the standard library's;
+drivers are bundled under their maintainer's prefix.
 Date: 2026-11-10
 Related: ADR 0032 (package versions), ADR 0043 (capabilities written in
 fiig), ADR 0059 (`while`; the call's deadline), ADR 0060 (`Socket`,

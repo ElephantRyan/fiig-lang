@@ -164,7 +164,7 @@ doesn't pay a new TCP and TLS handshake for every call to the same host
 by default; ADR 0074 §7a). A reply past it, or one whose `Content-Length`
 says it will be, ends as `HttpError.ReplyTooLarge` and its connection is
 closed. Raise it for a program that downloads large bodies, such as big
-`fiig.s3` objects.
+`com.degeneratedevelopment.s3` objects.
 
 A capability can also be bound for one package's workflows, so each
 domain of a modular monolith keeps its own database (ADR 0079 §6a); see
@@ -189,12 +189,13 @@ Database` block, and closes them when the process stops:
               "maxConnections": 10, "idleTimeout": "5m", "maxLifetime": "30m"}}
 ```
 
-Postgres is such a driver, built into `fiig` as `fiig.postgres` (ADR
-0085): add `"fiig.postgres": "1.0.0"` to the application's dependencies
-and bind it.
+Postgres is such a driver, `com.degeneratedevelopment.postgres` (ADR 0085),
+bundled with `fiig` (ADR 0152): add
+`"com.degeneratedevelopment.postgres": "1.0.0"` to the application's
+dependencies and bind it.
 
 ```json
-{"Database": {"type": "driver", "driver": "fiig.postgres",
+{"Database": {"type": "driver", "driver": "com.degeneratedevelopment.postgres",
               "settings": {"host": "db.internal", "user": "app",
                            "password": "${DB_PASSWORD}", "database": "orders"}}}
 ```
@@ -324,10 +325,10 @@ An `adapter stream` is served the same way, beside any HTTP adapters:
 from the source the capabilities file binds (ADR 0111 §2):
 
 ```json
-{"StreamSource": {"type": "source", "source": "fiig.redis"}}
+{"StreamSource": {"type": "source", "source": "com.degeneratedevelopment.redis"}}
 ```
 
-`fiig.redis` reads Redis Streams at `REDIS_URL`, on Redis 6.2 or later.
+`com.degeneratedevelopment.redis` reads Redis Streams at `REDIS_URL`, on Redis 6.2 or later.
 Each process is one consumer, named after its host. Each route's `group` is
 a consumer group, so every replica shares the work, and a producer writes
 an element as `XADD orders * payload <json>`. The group is created the
@@ -353,13 +354,13 @@ effect, and renaming the group starts a new one.
   still take fewer, so each is handled before it would redeliver it (ADR
   0111 §5a).
 
-`fiig.kafka` reads a Kafka topic as a consumer group (ADR 0117), with
-`{"StreamSource": {"type": "source", "source": "fiig.kafka"}}`. The route's
+`com.degeneratedevelopment.kafka` reads a Kafka topic as a consumer group (ADR 0117), with
+`{"StreamSource": {"type": "source", "source": "com.degeneratedevelopment.kafka"}}`. The route's
 `source` is the topic and its `group` the consumer group. It speaks
 KIP-848's group protocol only, so the cluster must run **Kafka 4.0 or
 later**; an older one halts the route at its first read, saying so. It
 reads `KAFKA_BOOTSTRAP` and the rest of the producer's settings (below),
-and an application that depends on `fiig.kafka`, a producer-only one
+and an application that depends on `com.degeneratedevelopment.kafka`, a producer-only one
 too, lists `Session` among its manifest's capabilities.
 
 - Each partition is handled in order. A `retry` seeks the partition back
@@ -401,7 +402,7 @@ at the same times on every replica, and each firing is claimed first so
 one replica runs it (ADR 0112 §4). The capabilities file says how:
 
 ```json
-{"ScheduleLock": {"type": "lock", "lock": "fiig.redis"}}
+{"ScheduleLock": {"type": "lock", "lock": "com.degeneratedevelopment.redis"}}
 ```
 
 claims each firing with a Redis key at `REDIS_URL`, and
@@ -476,7 +477,7 @@ that route 2 minutes in place of 30 s (a Go duration, above zero).
 **One replica runs it, once per deploy.** `run once -> migrate() { ... }`
 is claimed with the `ScheduleLock` the capabilities file binds, as a
 schedule's firings are (`{"ScheduleLock": {"type": "lock", "lock":
-"fiig.redis"}}`).
+"com.degeneratedevelopment.redis"}}`).
 - One replica runs the route. The others **wait for it to finish** and then
   start, without running it, so a route that must finish before anything
   serves, such as a data migration, can say `once`.
@@ -526,7 +527,7 @@ wire Health {
 
 ## Kafka
 
-A program that sends to Kafka with `fiig.kafka` reads where the cluster
+A program that sends to Kafka with `com.degeneratedevelopment.kafka` reads where the cluster
 is from the environment (ADR 0113):
 
 - `KAFKA_BOOTSTRAP`: `host:port[,host:port...]`, as `bootstrap.servers`.
@@ -549,7 +550,7 @@ A send is **at least once**: every leader acknowledges with `acks=all`,
 but there is no idempotence, so if a reply is lost after the broker
 wrote the records, sending again writes them twice. A keyed record goes
 to the partition a Java producer would choose. The topic must exist:
-`fiig.kafka` never creates one. The broker must take
+`com.degeneratedevelopment.kafka` never creates one. The broker must take
 Metadata v12 and Produce v9 (Kafka 2.4 or later); an older one is refused
 by name.
 

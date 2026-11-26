@@ -97,7 +97,7 @@ func ScheduleRunners(adapters []Served, u *types.Universe, in *runtime.Interp, h
 		bound, ok := in.Capabilities.LookupFor(pkgPath, runtime.ScheduleLockCapability)
 		lock, isLock := bound.(runtime.ScheduleLock)
 		if !ok || !isLock {
-			return nil, fmt.Errorf(`adapter %s runs on a schedule, but the capabilities file binds no ScheduleLock, so every replica would run each job; add {"ScheduleLock": {"type": "lock", "lock": "fiig.redis"}}, or {"ScheduleLock": {"type": "local"}} when one process runs the schedule (ADR 0112 §4)`, a.Name())
+			return nil, fmt.Errorf(`adapter %s runs on a schedule, but the capabilities file binds no ScheduleLock, so every replica would run each job; add {"ScheduleLock": {"type": "lock", "lock": "com.degeneratedevelopment.redis"}}, or {"ScheduleLock": {"type": "local"}} when one process runs the schedule (ADR 0112 §4)`, a.Name())
 		}
 		if p, isFiig := lock.(*runtime.LockProvider); isFiig {
 			if _, _, f := p.Resolve(); f != nil {

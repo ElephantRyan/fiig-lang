@@ -9,7 +9,7 @@ use fiig.session;
 conversion sessionReceived(state: bytes, data: bytes, now: int, login: SaslLogin) -> session.Step {
     decoded: Result<KafkaSessionState, JsonError> = json.decode(state);
     return match (decoded) {
-        Err(_) -> failedStep("fiig.kafka's session state doesn't decode"),
+        Err(_) -> failedStep("com.degeneratedevelopment.kafka's session state doesn't decode"),
         Ok(s) -> {
             turn: SessionTurn = SessionTurn(
                 state: copy(s, buffer: <<>>),

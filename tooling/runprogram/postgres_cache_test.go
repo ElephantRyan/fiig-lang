@@ -8,7 +8,7 @@ import (
 	"fiig-lang/compiler/runtime"
 )
 
-// ADR 0085 §3b: fiig.postgres's per-connection statement cache, against
+// ADR 0085 §3b: com.degeneratedevelopment.postgres's per-connection statement cache, against
 // the fake server in postgres_test.go, which keeps prepared statements by
 // name as Postgres does.
 

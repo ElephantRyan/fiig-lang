@@ -187,15 +187,15 @@ func TestSchemasRefuseWhatTheToolchainRefuses(t *testing.T) {
 		{pkg, `{"path": "a.b", "kind": "library", "version": "1.0"}`},
 		{pkg, `{"path": "a.b", "kind": "library", "version": "1.0.0", "dependancies": {}}`},
 		{caps, `{"Database": {"type": "sql", "driver": "sqlite"}}`},
-		{caps, `{"Database": {"type": "driver", "driver": "fiig.postgres", "maxConnections": 0}}`},
+		{caps, `{"Database": {"type": "driver", "driver": "com.degeneratedevelopment.postgres", "maxConnections": 0}}`},
 		{caps, `{"Socket": {"type": "socket", "trust": "one.pem"}}`},
 		{caps, `{"Socket": {"type": "socket", "clientCertificates": [{"hosts": ["db"], "certificate": "c.pem"}]}}`},
 		{caps, `{"Socket": {"type": "socket", "idle": {"perKey": -1}}}`},
 		{caps, `{"Socket": {"type": "socket", "idle": {"timout": "90s"}}}`},
 		{caps, `{"StreamSource": {"type": "source"}}`},
 		{caps, `{"ScheduleLock": {"type": "lock"}}`},
-		{caps, `{"ScheduleLock": {"type": "local", "lock": "fiig.redis"}}`},
-		{caps, `{"StreamSource": {"type": "source", "source": "fiig.redis", "settings": {}}}`},
+		{caps, `{"ScheduleLock": {"type": "local", "lock": "com.degeneratedevelopment.redis"}}`},
+		{caps, `{"StreamSource": {"type": "source", "source": "com.degeneratedevelopment.redis", "settings": {}}}`},
 		{caps, `{"Random": {"type": "random-seeded"}}`},
 		{caps, `{"Database": {"type": "mysql"}}`},
 	}
@@ -208,13 +208,13 @@ func TestSchemasRefuseWhatTheToolchainRefuses(t *testing.T) {
 			t.Errorf("schema accepted %s", tc.doc)
 		}
 	}
-	good := `{"Database": {"type": "driver", "driver": "fiig.postgres", "settings": {"host": "${PGHOST}"}, "maxConnections": 4},
+	good := `{"Database": {"type": "driver", "driver": "com.degeneratedevelopment.postgres", "settings": {"host": "${PGHOST}"}, "maxConnections": 4},
 	          "Socket": {"type": "socket", "trust": ["/etc/ssl/rds.pem"], "systemRoots": false,
 	                     "clientCertificates": [{"hosts": ["db.internal"], "certificate": "c.pem", "key": "k.pem"}],
 	                     "idle": {"perKey": 4, "total": 50, "timeout": "30s"}},
 	          "Random": {"type": "random-seeded", "seed": 7},
-	          "StreamSource": {"type": "source", "source": "fiig.redis"},
-	          "ScheduleLock": {"type": "lock", "lock": "fiig.redis"},
+	          "StreamSource": {"type": "source", "source": "com.degeneratedevelopment.redis"},
+	          "ScheduleLock": {"type": "lock", "lock": "com.degeneratedevelopment.redis"},
 	          "EmailSender": {"send": [{"ok": true}]}}`
 	var doc any
 	json.Unmarshal([]byte(good), &doc)

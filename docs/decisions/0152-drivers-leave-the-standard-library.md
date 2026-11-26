@@ -1,6 +1,7 @@
 # ADR 0152: Drivers Leave the Standard Library
 
-Status: Proposed
+Status: Accepted (2026-11-26, by the owner). Implemented the same day (see
+Implementation notes).
 Date: 2026-11-26
 Amends: ADR 0074 §1 (what the toolchain ships), ADR 0085 (`fiig.postgres`'s
 path), ADR 0110 (`fiig.redis`'s path).
@@ -269,3 +270,38 @@ Alpha programs make one change, in the manifest and in every `use`:
 1. **Fetching.** What fiig fetches from, and whether `Origin` (ADR 0037 §3)
    becomes the address. When it exists, §3 says the drivers leave the
    binary.
+
+## Implementation notes (2026-11-26)
+
+- **The move:** the four drivers are in `compiler/stdlib/bundled/`, with
+  their new paths and an `origin` in each `fiig.pkg.json`, and
+  `//go:embed` lists `bundled`. The loader needed no change. It descends
+  into a directory with no manifest, and a bundled package's source is
+  `builtin:bundled/<name>`, so an ambiguous-dependency error names the
+  bundled copy.
+- **Found by building it: the drivers declared no capabilities.** The
+  standard library is never a root, so `fiig check` refused it as reserved
+  and nothing asked. A bundled path isn't reserved, so `fiig check
+  compiler/stdlib/bundled/postgres` works, and it reported the gap. Each
+  manifest now lists what it uses, as §4 asks of any package:
+  - `postgres`, `redis` and `s3`: `Socket`;
+  - `kafka`: `Session`.
+- **`TestTheStandardLibraryPassesItsTests`** finds every package with a
+  `test` folder, bundled ones included (its subtests are named
+  `bundled/kafka` and so on). It renames each copy by the package's own
+  path, not by assuming `fiig.`. `fmtcmd`'s `checkShipped` is unchanged: a
+  bundled package isn't reserved, so it is checked where it is.
+- **Renamed:**
+  - every `fiig.postgres`, `fiig.kafka`, `fiig.redis` and `fiig.s3`
+    outside the ADRs: the drivers' own messages and comments, the Go
+    fixtures, the three Go messages, `examples/relay-notes` (manifest,
+    capabilities file, and the lockfile's one entry, edited by hand),
+    `docs/` and `fiig-lang.md`;
+  - `compiler/stdlib/<driver>` paths in `compiler/runtime/bench_test.go`
+    and `docs/specification/grammar.md`.
+
+  The drivers' error messages now name `com.degeneratedevelopment.kafka`
+  and the others in full, which `fiig fmt` wraps where a line grew too
+  long.
+- **Status pointers:** ADRs 0074, 0085, 0110, 0113 and 0121.
+  `docs/known-limitations.md` says the drivers are bundled, not standard.

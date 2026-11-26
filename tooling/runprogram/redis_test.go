@@ -13,18 +13,18 @@ import (
 	"fiig-lang/internal/fixture"
 )
 
-// ADR 0110: fiig.redis's client against the in-memory Redis.
+// ADR 0110: com.degeneratedevelopment.redis's client against the in-memory Redis.
 
 var redisProgram = map[string]string{
 	"fiig.pkg.json": `{
     "path": "redistest.app",
     "kind": "application",
     "version": "1.0.0",
-    "dependencies": { "fiig.redis": "1.0.0" },
+    "dependencies": { "com.degeneratedevelopment.redis": "1.0.0" },
     "capabilities": ["Socket"]
 }`,
-	"src/counters/Bump.fiig": `use fiig.redis;
-use fiig.redis.Redis;
+	"src/counters/Bump.fiig": `use com.degeneratedevelopment.redis;
+use com.degeneratedevelopment.redis.Redis;
 
 gateway bump(key: string) -> Result<redis.RespValue, redis.RedisError>
     requires Redis

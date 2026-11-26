@@ -1,6 +1,9 @@
 # ADR 0113: A Kafka Producer in fiig, At Least Once
 
 Status: Accepted (2026-11-20; the owner approved it in review). Implemented 2026-11-20.
+Amended by ADR 0152 (2026-11-26): the package is
+`com.degeneratedevelopment.kafka`, bundled with the toolchain, not part of
+the standard library.
 Date: 2026-11-20
 Related: ADR 0042 (the socket floor), ADR 0058 (binary patterns), ADR
 0060 (Socket), ADR 0063 (int overflow faults), ADR 0071 (config), ADR

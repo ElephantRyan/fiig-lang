@@ -6,14 +6,20 @@ doesn't have to discover them.
 
 ## Capabilities and data
 
+- **The drivers are bundled, not standard** (ADR 0152). Postgres, Kafka,
+  Redis and S3 are `com.degeneratedevelopment.*` packages, shipped inside
+  `fiig` but versioned on their own and outside the language. Until `fiig`
+  can fetch a package, a driver fix arrives only with a toolchain release,
+  and one toolchain carries one version of each.
+
 - **SQLite and Postgres are the databases built in.** SQLite through
-  `libraries/sql` (Go), Postgres through `fiig.postgres`, written in fiig
-  (ADR 0085). No MySQL. Redis is `fiig.redis` (ADR 0110): one command
+  `libraries/sql` (Go), Postgres through `com.degeneratedevelopment.postgres`, written in fiig
+  (ADR 0085). No MySQL. Redis is `com.degeneratedevelopment.redis` (ADR 0110): one command
   per call, or a pipeline with `Redis.sendAll` (not a transaction:
   `MULTI`/`EXEC` are the caller's to send), and no pub/sub, Sentinel, or
   Cluster. Its stream source needs Redis 6.2 or later, for `XPENDING ...
   IDLE`.
-- **Kafka is at least once** (`fiig.kafka`, ADR 0113): `acks=all`, but
+- **Kafka is at least once** (`com.degeneratedevelopment.kafka`, ADR 0113): `acks=all`, but
   no idempotence or transactions, so a send that is retried after a lost
   reply writes its records twice. SASL is PLAIN, SCRAM-SHA-256 and
   SCRAM-SHA-512 only (no OAUTHBEARER or GSSAPI, and no KIP-368
@@ -30,7 +36,7 @@ doesn't have to discover them.
   keys in an HSM or cloud KMS, or encrypted private keys (ADR 0086 open
   questions). Custom CAs and client certificates are configured on
   `Socket` (ADR 0086).
-- **`fiig.postgres` normalizes no non-ASCII passwords (SASLprep), and has
+- **`com.degeneratedevelopment.postgres` normalizes no non-ASCII passwords (SASLprep), and has
   no `COPY` or `LISTEN`/`NOTIFY`.** One `execute` runs one statement. A
   query whose call timed out is cancelled with a CancelRequest and its
   connection discarded (ADR 0084 §3a); each connection caches up to
@@ -114,7 +120,7 @@ doesn't have to discover them.
   parameters. A mail to several recipients (To, Cc and Bcc together) goes
   to all of them or to none. Connections are kept between mails; a mail on
   a kept connection isn't checked against the server's SIZE limit first.
-- **`fiig.s3` covers single objects** (ADR 0121): put (optionally with
+- **`com.degeneratedevelopment.s3` covers single objects** (ADR 0121): put (optionally with
   user metadata, always with an `x-amz-checksum-sha256` for S3 to verify),
   get (whole, with its metadata, or a byte range), head, delete, and copy
   within or across buckets, and presigned URLs for GET, PUT, HEAD or
@@ -136,7 +142,7 @@ doesn't have to discover them.
   a reply's body in memory, up to `HTTP_CLIENT_MAX_REPLY_BYTES` (16 MiB by
   default); a larger reply is `HttpError.ReplyTooLarge`, and there is no
   way to stream a body in pieces, so a program reading big bodies (large
-  `fiig.s3` objects) must raise the limit for the whole process.
+  `com.degeneratedevelopment.s3` objects) must raise the limit for the whole process.
 - **Request limits are per service, not per route** (ADR 0076 open
   question 1): a route taking uploads over 2 MiB needs `MAX_BODY_BYTES`
   raised for every route. No rate limit per client (§5); put it in the

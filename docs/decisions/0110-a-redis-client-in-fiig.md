@@ -1,6 +1,9 @@
 # ADR 0110: A Redis Client in fiig
 
 Status: Accepted (2026-11-20; the owner approved it in review). Implemented 2026-11-20.
+Amended by ADR 0152 (2026-11-26): the package is
+`com.degeneratedevelopment.redis`, bundled with the toolchain, not part of
+the standard library.
 Date: 2026-11-20
 Related: ADR 0042 (the socket floor), ADR 0043 (capability groups), ADR
 0058 (binary patterns), ADR 0060 (Socket), ADR 0061 (`\r`), ADR 0071

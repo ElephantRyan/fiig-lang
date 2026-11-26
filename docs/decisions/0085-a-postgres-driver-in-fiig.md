@@ -1,6 +1,9 @@
 # ADR 0085: A Postgres Driver Written in fiig
 
 Status: Accepted and implemented (2026-11-17; see Implementation notes)
+Amended by ADR 0152 (2026-11-26): the package is
+`com.degeneratedevelopment.postgres`, bundled with the toolchain, not part of
+the standard library.
 Date: 2026-11-16
 Related: ADR 0058 (binary patterns), ADR 0060 (`Socket`, in-band TLS;
 open question 2, custom CAs), ADR 0067 §8 (no normalization), ADR 0074

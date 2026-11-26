@@ -19,7 +19,7 @@ import (
 
 var replayApp = map[string]string{
 	"app/fiig.pkg.json": `{"path": "t.replay", "kind": "application", "version": "1.0.0",
-    "dependencies": {"fiig.redis": "1.0.0"}, "capabilities": ["Socket"]}`,
+    "dependencies": {"com.degeneratedevelopment.redis": "1.0.0"}, "capabilities": ["Socket"]}`,
 	"app/order_placed.fiig": "model OrderPlaced {\n    orderId: string;\n}\n",
 	"app/place_order.fiig":  "workflow placeOrder(order: OrderPlaced) -> Result<None, string> {\n    return Ok(None);\n}\n",
 	"app/hello.fiig":        "workflow hello() -> string {\n    return \"hi\";\n}\n",
@@ -34,7 +34,7 @@ func replayWith(t *testing.T, adapterName, source string) error {
 	root := t.TempDir()
 	writeTree(t, root, replayApp)
 	caps := filepath.Join(root, "caps.json")
-	if err := os.WriteFile(caps, []byte(`{"StreamSource": {"type": "source", "source": "fiig.redis"}}`), 0o644); err != nil {
+	if err := os.WriteFile(caps, []byte(`{"StreamSource": {"type": "source", "source": "com.degeneratedevelopment.redis"}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Nothing listens on port 1.

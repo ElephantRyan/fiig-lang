@@ -2,19 +2,18 @@
   "toolchain": "dev",
   "dependencies": [
     {
-      "path": "examples.sqlrelay",
+      "path": "com.degeneratedevelopment.postgres",
       "version": "1.0.0",
-      "hash": "sha256:f8d36f7b7a417610bb618ef257dc815c40e5296dda551b194b19f4eccec8d0cf",
-      "source": "examples/sql-relay",
+      "source": "builtin:bundled/postgres",
       "capabilities": [
         "Socket"
       ]
     },
     {
-      "path": "fiig.postgres",
+      "path": "examples.sqlrelay",
       "version": "1.0.0",
-      "hash": "sha256:34f637dc557f02d4c54b24e6918f00e734558ed4d6c9d3c9d10cdc935907896a",
-      "source": "builtin:postgres",
+      "hash": "sha256:f8d36f7b7a417610bb618ef257dc815c40e5296dda551b194b19f4eccec8d0cf",
+      "source": "examples/sql-relay",
       "capabilities": [
         "Socket"
       ]

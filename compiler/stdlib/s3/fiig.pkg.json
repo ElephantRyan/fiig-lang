@@ -1,9 +1,0 @@
-{
-    "path": "fiig.s3",
-    "kind": "library",
-    "version": "1.0.0",
-    "dependencies": {
-        "fiig.http": "1.0.0",
-        "fiig.time": "1.0.0"
-    }
-}

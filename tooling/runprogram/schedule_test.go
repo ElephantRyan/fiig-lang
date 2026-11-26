@@ -19,7 +19,7 @@ import (
 	"fiig-lang/internal/fixture"
 )
 
-// ADR 0112: schedule adapters, claimed through fiig.redis's lock (or a
+// ADR 0112: schedule adapters, claimed through com.degeneratedevelopment.redis's lock (or a
 // local one), on a fake clock.
 
 var scheduleProgram = map[string]string{
@@ -27,14 +27,14 @@ var scheduleProgram = map[string]string{
     "path": "scheduletest.jobs",
     "kind": "application",
     "version": "1.0.0",
-    "dependencies": { "fiig.redis": "1.0.0" },
+    "dependencies": { "com.degeneratedevelopment.redis": "1.0.0" },
     "capabilities": ["Socket"]
 }`,
 	"job_error.fiig": `enum JobError {
     Busy,
     Broken
 }`,
-	"count_tick.fiig": `use fiig.redis.Redis;
+	"count_tick.fiig": `use com.degeneratedevelopment.redis.Redis;
 
 gateway countTick(firedAt: int) -> Result<None, JobError>
     requires Redis
@@ -64,7 +64,7 @@ gateway countTick(firedAt: int) -> Result<None, JobError>
     return Ok(None);
 }`,
 	// ADR 0124 §6: a startup route that runs once per deploy, counted.
-	"count_seed.fiig": `use fiig.redis.Redis;
+	"count_seed.fiig": `use com.degeneratedevelopment.redis.Redis;
 
 gateway countSeed() -> Result<None, JobError>
     requires Redis
@@ -237,7 +237,7 @@ func on(r *adapter.ScheduleRunner, c *fakeClock, l *logLines) *adapter.ScheduleR
 // between them, and a Busy firing is logged and carried past.
 func TestScheduleRunsEachFiringOnce(t *testing.T) {
 	redis := startFakeRedis(t, "pw")
-	lock := map[string]any{"type": "lock", "lock": "fiig.redis"}
+	lock := map[string]any{"type": "lock", "lock": "com.degeneratedevelopment.redis"}
 	start := time.Date(2026, 11, 20, 10, 50, 0, 0, time.UTC)
 	var logs logLines
 	for _, holder := range []string{"replica-a", "replica-b"} {

@@ -3,7 +3,7 @@
 // ReplyTooLarge. 16 MiB holds any JSON or form reply an API sends, a page
 // of a list endpoint many times over, while one runaway server can hold
 // no more than that of a process's memory per request. A program that
-// reads larger bodies, such as big fiig.s3 objects, raises it.
+// reads larger bodies, such as big com.degeneratedevelopment.s3 objects, raises it.
 wire HttpClientSettings {
     maxReplyBytes: int from env "HTTP_CLIENT_MAX_REPLY_BYTES" = 16777216;
 }

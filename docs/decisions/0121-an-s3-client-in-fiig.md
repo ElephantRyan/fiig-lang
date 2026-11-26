@@ -1,6 +1,9 @@
 # ADR 0121: An S3-Compatible Object Store Client in fiig
 
 Status: Accepted (2026-11-20; the owner approved it in review). Implemented 2026-11-20.
+Amended by ADR 0152 (2026-11-26): the package is
+`com.degeneratedevelopment.s3`, bundled with the toolchain, not part of
+the standard library.
 Date: 2026-11-20
 Related: ADR 0042 (the socket floor), ADR 0043 (capability groups), ADR 0071
 (config), ADR 0074 (`fiig.http`, which this is built on), ADR 0075 (hashing and

@@ -131,7 +131,7 @@ func TestLz4WritesKafkasFrame(t *testing.T) {
 // §2: the record sections of two batches Java's Kafka producer wrote
 // (kafka-console-producer, Kafka 4.0, --compression-codec snappy and lz4),
 // read from the broker's log segment. Each holds two records whose value is
-// "hello hello hello hello hello". Snappy's is xerial-framed: fiig.kafka
+// "hello hello hello hello hello". Snappy's is xerial-framed: com.degeneratedevelopment.kafka
 // unframes it, so this test takes its one chunk's block.
 func TestDecompressJavaKafkaBatches(t *testing.T) {
 	const (

@@ -25,7 +25,7 @@ import (
 	"fiig-lang/internal/fixture"
 )
 
-// ADR 0085: fiig.postgres, the driver built into the toolchain, against
+// ADR 0085: com.degeneratedevelopment.postgres, the driver built into the toolchain, against
 // RFC 7677's SCRAM vector and a fake Postgres server that speaks the wire
 // protocol (startup, authentication, the extended query protocol).
 
@@ -34,7 +34,7 @@ var pgProgram = map[string]string{
     "path": "pgtest.app",
     "kind": "application",
     "version": "1.0.0",
-    "dependencies": { "fiig.postgres": "1.0.0" },
+    "dependencies": { "com.degeneratedevelopment.postgres": "1.0.0" },
     "capabilities": ["Database", "Socket"],
     "nativeCapabilities": ["Database"]
 }`,
@@ -52,7 +52,7 @@ var pgProgram = map[string]string{
 }
 
 // pgLoad writes pgProgram to a fresh root and loads it with no workspace,
-// so fiig.postgres can only come from the toolchain.
+// so com.degeneratedevelopment.postgres can only come from the toolchain.
 func pgLoad(t *testing.T) (types.Packages, *types.Universe, map[string]map[string]*types.Package, map[string]map[string]*types.GroupRef) {
 	t.Helper()
 	root := t.TempDir()
@@ -77,12 +77,12 @@ func pgLoad(t *testing.T) (types.Packages, *types.Universe, map[string]map[strin
 	return loaded.Packages, u, BuildImports(files, loaded.Packages), BuildGroups(files, loaded.Packages)
 }
 
-// pgInterp is an interpreter whose Database is fiig.postgres with settings.
+// pgInterp is an interpreter whose Database is com.degeneratedevelopment.postgres with settings.
 func pgInterp(t *testing.T, settings map[string]any) (*runtime.Interp, *runtime.DriverProvider) {
 	t.Helper()
 	packages, u, imports, groups := pgLoad(t)
 	caps, err := runtime.LoadCapabilities(map[string]map[string]any{
-		"Database": {"type": "driver", "driver": "fiig.postgres", "settings": settings},
+		"Database": {"type": "driver", "driver": "com.degeneratedevelopment.postgres", "settings": settings},
 	}, runtime.FactoryRegistry{"driver": runtime.DriverFactory})
 	if err != nil {
 		t.Fatal(err)
@@ -96,11 +96,11 @@ func pgInterp(t *testing.T, settings map[string]any) (*runtime.Interp, *runtime.
 	return in, p.(*runtime.DriverProvider)
 }
 
-// pgCall calls one of fiig.postgres's own declarations.
+// pgCall calls one of com.degeneratedevelopment.postgres's own declarations.
 func pgCall(t *testing.T, name string, args map[string]runtime.Value) runtime.Value {
 	t.Helper()
 	in, _ := pgInterp(t, map[string]any{"host": "unused", "user": "u"})
-	ctx := in.EnterPackage(context.Background(), in.Packages["fiig.postgres"])
+	ctx := in.EnterPackage(context.Background(), in.Packages["com.degeneratedevelopment.postgres"])
 	v, f := in.Call(ctx, name, args)
 	if f != nil {
 		t.Fatalf("%s: %v", name, f)
@@ -693,7 +693,7 @@ func TestPostgresRefusals(t *testing.T) {
 	}
 }
 
-// ADR 0087 §4: fiig.postgres reads the constraint's name from the
+// ADR 0087 §4: com.degeneratedevelopment.postgres reads the constraint's name from the
 // ErrorResponse, so the conflict names it.
 func TestPostgresReportsTheConstraint(t *testing.T) {
 	server := &fakePostgres{t: t, auth: authTrust, handle: pets}

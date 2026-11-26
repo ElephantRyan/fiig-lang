@@ -11,7 +11,7 @@ import (
 	"fiig-lang/internal/fixture"
 )
 
-// ADR 0113 §6, as amended 2026-11-21: fiig.kafka's SASL logins, PLAIN,
+// ADR 0113 §6, as amended 2026-11-21: com.degeneratedevelopment.kafka's SASL logins, PLAIN,
 // SCRAM-SHA-256 and SCRAM-SHA-512, against a real Kafka 4.0 broker with a
 // SASL_PLAINTEXT listener, for the producer and the consumer.
 // FIIG_KAFKA_SASL_BOOTSTRAP is that listener's host:port and

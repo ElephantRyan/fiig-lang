@@ -12,7 +12,7 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
             state,
             send: <<>>,
             failed: db.DatabaseError.Protocol(
-                reason: "the server asks for MD5 password authentication, which fiig.postgres doesn't support (ADR 0085 §6); set the role's password with SCRAM-SHA-256"
+                reason: "the server asks for MD5 password authentication, which com.degeneratedevelopment.postgres doesn't support (ADR 0085 §6); set the role's password with SCRAM-SHA-256"
             )
         );
     }
@@ -23,7 +23,7 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                 state,
                 send: <<>>,
                 failed: db.DatabaseError.Protocol(
-                    reason: "the server asks for the password in clear text, which fiig.postgres sends only over TLS (ADR 0085 §6)"
+                    reason: "the server asks for the password in clear text, which com.degeneratedevelopment.postgres sends only over TLS (ADR 0085 §6)"
                 )
             );
         }
@@ -51,7 +51,7 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
                 state,
                 send: <<>>,
                 failed: db.DatabaseError.Protocol(
-                    reason: "the server offers no SASL mechanism fiig.postgres supports; it needs SCRAM-SHA-256"
+                    reason: "the server offers no SASL mechanism com.degeneratedevelopment.postgres supports; it needs SCRAM-SHA-256"
                 )
             );
         }
@@ -162,7 +162,7 @@ conversion authStep(state: Handshake, code: int, data: bytes) -> Handshake {
         state,
         send: <<>>,
         failed: db.DatabaseError.Protocol(
-            reason: "the server asks for authentication method ${code}, which fiig.postgres doesn't support"
+            reason: "the server asks for authentication method ${code}, which com.degeneratedevelopment.postgres doesn't support"
         )
     );
 }

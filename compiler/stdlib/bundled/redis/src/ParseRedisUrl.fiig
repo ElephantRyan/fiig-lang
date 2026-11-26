@@ -13,7 +13,11 @@ conversion parseRedisUrl(url: string) -> Result<RedisTarget, RedisError> {
     }
 
     if (rest.contains("?") || rest.contains("#")) {
-        return Err(invalid("it has a query or a fragment, which fiig.redis doesn't read"));
+        return Err(
+            invalid(
+                "it has a query or a fragment, which com.degeneratedevelopment.redis doesn't read"
+            )
+        );
     }
 
     pieces = rest.split("/");

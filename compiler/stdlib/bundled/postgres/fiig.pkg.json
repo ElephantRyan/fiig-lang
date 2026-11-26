@@ -1,0 +1,12 @@
+{
+    "path": "com.degeneratedevelopment.postgres",
+    "kind": "library",
+    "version": "1.0.0",
+    "origin": "https://github.com/ElephantRyan/fiig-lang/tree/main/compiler/stdlib/bundled/postgres (maintained by degeneratedevelopment.com; bundled with the toolchain, ADR 0152)",
+    "dependencies": {
+        "fiig.sql": "1.0.0"
+    },
+    "capabilities": [
+        "Socket"
+    ]
+}

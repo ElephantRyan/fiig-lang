@@ -6,7 +6,9 @@ package stdlib
 
 import "embed"
 
-// FS holds one directory per package, each with its own fiig.pkg.json.
+// FS holds one directory per package, each with its own fiig.pkg.json:
+// the standard library at the top, and under bundled/ the packages that
+// ship with the toolchain but aren't part of the language (ADR 0152).
 //
-//go:embed http jwt kafka postgres redis s3 schedule session smtp sql sqllock stream time
+//go:embed bundled http jwt schedule session smtp sql sqllock stream time
 var FS embed.FS

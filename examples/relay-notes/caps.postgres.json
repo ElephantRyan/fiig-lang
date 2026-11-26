@@ -1,4 +1,4 @@
-{"Database": {"type": "driver", "driver": "fiig.postgres",
+{"Database": {"type": "driver", "driver": "com.degeneratedevelopment.postgres",
               "settings": {"host": "${PGHOST}", "port": "${PGPORT}", "user": "${PGUSER}",
                            "password": "${PGPASSWORD}", "database": "${PGDATABASE}",
                            "sslmode": "${PGSSLMODE}"},

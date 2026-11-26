@@ -1020,7 +1020,7 @@ func (p *Parser) parseCapabilityDecl() *syntax.CapabilityDecl {
 // groupHelperHint is the error for a private block in or after a
 // capability group: what a group's gateways share instead (abs-recommendations
 // GAPS G8).
-const groupHelperHint = "a capability group may not have a private block; to share steps between its gateways, put them in a conversion that turns a result into the group's error, and call it with `?`, as fiig.postgres does: `connection = connectionOr(Socket.connect(host, port))?` (docs/writing-a-client.md)"
+const groupHelperHint = "a capability group may not have a private block; to share steps between its gateways, put them in a conversion that turns a result into the group's error, and call it with `?`, as com.degeneratedevelopment.postgres does: `connection = connectionOr(Socket.connect(host, port))?` (docs/writing-a-client.md)"
 
 // skipToGroupMember skips what isn't a gateway in a capability group, up
 // to the next `gateway` or the group's closing brace, so one wrong member

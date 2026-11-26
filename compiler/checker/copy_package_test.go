@@ -10,7 +10,7 @@ import (
 
 // copy(...) of another package's model resolves the overridden field's
 // type in that package, as reading the field does (resolveDeclType):
-// fiig.postgres copying fiig.sql's SqlConnection with statements:
+// com.degeneratedevelopment.postgres copying fiig.sql's SqlConnection with statements:
 // List<SqlStatement> found no SqlStatement in its own names.
 func TestCopyOfAnotherPackagesModelResolvesItsFieldThere(t *testing.T) {
 	var files []*syntax.File

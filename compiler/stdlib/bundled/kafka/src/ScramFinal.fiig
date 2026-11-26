@@ -1,5 +1,5 @@
 // SCRAM's last client message, and the signature the broker must answer
-// with to prove it knows the password (RFC 5802 §3), as fiig.postgres
+// with to prove it knows the password (RFC 5802 §3), as com.degeneratedevelopment.postgres
 // keeps it (ADR 0085 §6).
 model ScramFinal {
     message: string;

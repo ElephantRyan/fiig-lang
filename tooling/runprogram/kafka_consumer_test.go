@@ -18,7 +18,7 @@ import (
 	"fiig-lang/internal/fixture"
 )
 
-// ADR 0117: a stream adapter reading Kafka through fiig.kafka's KIP-848
+// ADR 0117: a stream adapter reading Kafka through com.degeneratedevelopment.kafka's KIP-848
 // consumer, against a real Kafka 4.0 broker, since the group protocol is
 // the broker's. FIIG_KAFKA_BOOTSTRAP is its host:port and
 // FIIG_KAFKA_CONTAINER the docker container it runs in, for creating
@@ -30,7 +30,7 @@ func consumerProgram(topic string) map[string]string {
     "path": "consumertest.orders",
     "kind": "application",
     "version": "1.0.0",
-    "dependencies": { "fiig.kafka": "1.0.0", "fiig.redis": "1.0.0" },
+    "dependencies": { "com.degeneratedevelopment.kafka": "1.0.0", "com.degeneratedevelopment.redis": "1.0.0" },
     "capabilities": ["Socket", "Session"]
 }`,
 		"order_placed.fiig": `model OrderPlaced {
@@ -42,7 +42,7 @@ func consumerProgram(topic string) map[string]string {
     Invalid(reason: string),
     Unrecorded(reason: string)
 }`,
-		"mark_handled.fiig": `use fiig.redis.Redis;
+		"mark_handled.fiig": `use com.degeneratedevelopment.redis.Redis;
 
 gateway markHandled(orderId: string) -> Result<None, OrderError>
     requires Redis
@@ -69,8 +69,8 @@ gateway markHandled(orderId: string) -> Result<None, OrderError>
     }
     return Ok(None);
 }`,
-		"publish.fiig": `use fiig.kafka;
-use fiig.kafka.Kafka;
+		"publish.fiig": `use com.degeneratedevelopment.kafka;
+use com.degeneratedevelopment.kafka.Kafka;
 
 activity publish(topic: string, values: List<string>) -> Result<List<kafka.Sent>, kafka.KafkaError> {
     records: List<kafka.KafkaRecord> = [];
@@ -114,7 +114,7 @@ func startConsumer(t *testing.T, root, bootstrap string, redis *fakeRedis, extra
 	}
 	u, _ := types.BuildUniverse(files)
 	caps := runtime.NewCapabilityRegistry()
-	source, err := runtime.SourceFactory(map[string]any{"type": "source", "source": "fiig.kafka"})
+	source, err := runtime.SourceFactory(map[string]any{"type": "source", "source": "com.degeneratedevelopment.kafka"})
 	if err != nil {
 		t.Fatal(err)
 	}

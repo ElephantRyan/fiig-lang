@@ -405,7 +405,7 @@ as Kafka writes it) and `zstd(data)` return `bytes`. `gunzip`, `unsnappy`,
 DecompressError>`: `Err(TooLarge(maxSize))` for more than `maxSize`
 bytes, found without producing the rest, and `Err(Corrupt(reason))` for
 data that isn't the format; a negative `maxSize` faults. Every member is
-pure. Attested: `compiler/stdlib/kafka` (`RecordBatch.fiig`,
+pure. Attested: `compiler/stdlib/bundled/kafka` (`RecordBatch.fiig`,
 `UnpackedRecords.fiig`).
 
 `interface-decl` and `capability-decl` are ADR 0043's. An interface lists the

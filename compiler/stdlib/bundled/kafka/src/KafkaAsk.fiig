@@ -1,4 +1,4 @@
-// What the consumer's gateways ask of a fiig.kafka session (ADR 0117 §3-§5),
+// What the consumer's gateways ask of a com.degeneratedevelopment.kafka session (ADR 0117 §3-§5),
 // as JSON. Request is a whole Kafka request, answered by its response with
 // the request's own correlation id. The rest are a group session's: Poll
 // waits for partitions to fetch, Advance records how far a fetch got (-1:

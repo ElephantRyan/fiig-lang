@@ -117,7 +117,7 @@ func StartupRunners(adapters []Served, u *types.Universe, in *runtime.Interp, ho
 				bound, ok := in.Capabilities.LookupFor(pkgPath, runtime.ScheduleLockCapability)
 				l, isLock := bound.(runtime.ScheduleLock)
 				if !ok || !isLock {
-					return nil, fmt.Errorf(`adapter %s has a startup route that says once, but the capabilities file binds no ScheduleLock to claim it with; add {"ScheduleLock": {"type": "lock", "lock": "fiig.redis"}}, or {"ScheduleLock": {"type": "local"}} when one process runs it (ADR 0124 §6)`, a.Name())
+					return nil, fmt.Errorf(`adapter %s has a startup route that says once, but the capabilities file binds no ScheduleLock to claim it with; add {"ScheduleLock": {"type": "lock", "lock": "com.degeneratedevelopment.redis"}}, or {"ScheduleLock": {"type": "local"}} when one process runs it (ADR 0124 §6)`, a.Name())
 				}
 				if p, isFiig := l.(*runtime.LockProvider); isFiig {
 					if _, _, f := p.Resolve(); f != nil {

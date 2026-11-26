@@ -11,11 +11,11 @@ conversion sessionAsked(state: bytes, message: bytes, now: int) -> session.Step 
     decodedState: Result<KafkaSessionState, JsonError> = json.decode(state);
     decodedAsk: Result<KafkaAsk, JsonError> = json.decode(message);
     return match (decodedState) {
-        Err(_) -> failedStep("fiig.kafka's session state doesn't decode"),
+        Err(_) -> failedStep("com.degeneratedevelopment.kafka's session state doesn't decode"),
         Ok(s) -> {
             return match (decodedAsk) {
                 Err(_) -> failedStep(
-                    "a fiig.kafka session was asked something that isn't a KafkaAsk"
+                    "a com.degeneratedevelopment.kafka session was asked something that isn't a KafkaAsk"
                 ),
                 Ok(ask) -> askedOf(s, ask, now)
             }
@@ -62,7 +62,7 @@ private {
                     },
 
                     _ -> failedStep(
-                        "a fiig.kafka session was asked to send a request shorter than its header"
+                        "a com.degeneratedevelopment.kafka session was asked to send a request shorter than its header"
                     )
                 }
             },

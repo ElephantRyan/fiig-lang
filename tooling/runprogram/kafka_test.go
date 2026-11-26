@@ -22,7 +22,7 @@ import (
 	"fiig-lang/internal/fixture"
 )
 
-// ADR 0113: fiig.kafka against a broker in memory that answers
+// ADR 0113: com.degeneratedevelopment.kafka against a broker in memory that answers
 // ApiVersions v0, Metadata v12, and Produce v9 (the flexible versions, as
 // amended 2026-11-21), and checks every record batch's CRC-32C with Go's
 // hash/crc32, independently of crypto.crc32c.
@@ -222,11 +222,11 @@ var kafkaProgram = map[string]string{
     "path": "kafkatest.app",
     "kind": "application",
     "version": "1.0.0",
-    "dependencies": { "fiig.kafka": "1.0.0" },
+    "dependencies": { "com.degeneratedevelopment.kafka": "1.0.0" },
     "capabilities": ["Socket", "Session"]
 }`,
-	"src/orders/Publish.fiig": `use fiig.kafka;
-use fiig.kafka.Kafka;
+	"src/orders/Publish.fiig": `use com.degeneratedevelopment.kafka;
+use com.degeneratedevelopment.kafka.Kafka;
 
 gateway publish(topic: string) -> Result<List<kafka.Sent>, kafka.KafkaError>
     requires Kafka

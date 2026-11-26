@@ -1,0 +1,17 @@
+{
+    "path": "com.degeneratedevelopment.kafka",
+    "kind": "library",
+    "version": "1.0.0",
+    "origin": "https://github.com/ElephantRyan/fiig-lang/tree/main/compiler/stdlib/bundled/kafka (maintained by degeneratedevelopment.com; bundled with the toolchain, ADR 0152)",
+    "dependencies": {
+        "fiig.session": "1.0.0",
+        "fiig.stream": "1.0.0"
+    },
+    "provides": {
+        "fiig.session.SessionProtocol": "KafkaSession",
+        "fiig.stream.StreamSource": "KafkaSource"
+    },
+    "capabilities": [
+        "Session"
+    ]
+}

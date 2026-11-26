@@ -17,7 +17,7 @@ import (
 	"fiig-lang/internal/fixture"
 )
 
-// ADR 0111: a stream adapter reading Redis Streams through fiig.redis
+// ADR 0111: a stream adapter reading Redis Streams through com.degeneratedevelopment.redis
 // (ADR 0110), against an in-memory Redis.
 
 var streamProgram = map[string]string{
@@ -25,7 +25,7 @@ var streamProgram = map[string]string{
     "path": "streamtest.orders",
     "kind": "application",
     "version": "1.0.0",
-    "dependencies": { "fiig.redis": "1.0.0" },
+    "dependencies": { "com.degeneratedevelopment.redis": "1.0.0" },
     "capabilities": ["Socket"]
 }`,
 	"order_placed.fiig": `model OrderPlaced {
@@ -37,7 +37,7 @@ var streamProgram = map[string]string{
     Invalid(reason: string),
     Unrecorded(reason: string)
 }`,
-	"mark_processed.fiig": `use fiig.redis.Redis;
+	"mark_processed.fiig": `use com.degeneratedevelopment.redis.Redis;
 
 gateway markProcessed(orderId: string) -> Result<None, OrderError>
     requires Redis
@@ -73,7 +73,7 @@ gateway markProcessed(orderId: string) -> Result<None, OrderError>
 }`,
 }
 
-// streamRunner loads streamProgram with fiig.redis from the toolchain and
+// streamRunner loads streamProgram with com.degeneratedevelopment.redis from the toolchain and
 // returns the runner for OrderIntake, reading from redis.
 func streamRunner(t *testing.T, redis *fakeRedis) *adapter.StreamRunner {
 	t.Helper()
@@ -117,7 +117,7 @@ func streamRunnerWith(t *testing.T, redis *fakeRedis, program map[string]string,
 	}
 	u, _ := types.BuildUniverse(files)
 	caps := runtime.NewCapabilityRegistry()
-	source, err := runtime.SourceFactory(map[string]any{"type": "source", "source": "fiig.redis"})
+	source, err := runtime.SourceFactory(map[string]any{"type": "source", "source": "com.degeneratedevelopment.redis"})
 	if err != nil {
 		t.Fatal(err)
 	}

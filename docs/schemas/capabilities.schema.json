@@ -49,23 +49,23 @@
       }
     },
     "source": {
-      "description": "A stream source written in fiig, bound as StreamSource, that stream adapters read from (ADR 0111), such as fiig.redis. The source reads its own settings from the environment.",
+      "description": "A stream source written in fiig, bound as StreamSource, that stream adapters read from (ADR 0111), such as com.degeneratedevelopment.redis. The source reads its own settings from the environment.",
       "type": "object",
       "required": ["type", "source"],
       "additionalProperties": false,
       "properties": {
         "type": { "const": "source" },
-        "source": { "description": "The source package's path, e.g. fiig.redis.", "type": "string" }
+        "source": { "description": "The source package's path, e.g. com.degeneratedevelopment.redis.", "type": "string" }
       }
     },
     "lock": {
-      "description": "A schedule lock written in fiig, bound as ScheduleLock, so one replica runs each firing of a schedule adapter's jobs (ADR 0112 §4), such as fiig.redis. The lock reads its own settings from the environment.",
+      "description": "A schedule lock written in fiig, bound as ScheduleLock, so one replica runs each firing of a schedule adapter's jobs (ADR 0112 §4), such as com.degeneratedevelopment.redis. The lock reads its own settings from the environment.",
       "type": "object",
       "required": ["type", "lock"],
       "additionalProperties": false,
       "properties": {
         "type": { "const": "lock" },
-        "lock": { "description": "The lock package's path, e.g. fiig.redis.", "type": "string" }
+        "lock": { "description": "The lock package's path, e.g. com.degeneratedevelopment.redis.", "type": "string" }
       }
     },
     "local": {
@@ -78,15 +78,15 @@
       }
     },
     "driver": {
-      "description": "A database driver written in fiig, pooled by the runtime (ADR 0084), such as fiig.postgres (ADR 0085).",
+      "description": "A database driver written in fiig, pooled by the runtime (ADR 0084), such as com.degeneratedevelopment.postgres (ADR 0085).",
       "type": "object",
       "required": ["type", "driver"],
       "additionalProperties": false,
       "properties": {
         "type": { "const": "driver" },
-        "driver": { "description": "The driver package's path, e.g. fiig.postgres.", "type": "string" },
+        "driver": { "description": "The driver package's path, e.g. com.degeneratedevelopment.postgres.", "type": "string" },
         "settings": {
-          "description": "Handed to the driver's connect as strings. fiig.postgres reads host, port, user, password, database, sslmode, and applicationName.",
+          "description": "Handed to the driver's connect as strings. com.degeneratedevelopment.postgres reads host, port, user, password, database, sslmode, and applicationName.",
           "type": "object",
           "additionalProperties": { "type": "string" }
         },

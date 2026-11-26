@@ -1,8 +1,8 @@
 // ADR 0113, as amended 2026-11-21: SCRAM-SHA-256's or SCRAM-SHA-512's
 // client proof (RFC 5802 §3, RFC 7677), from the broker's first message:
 // the nonce it extended, the salt, and the iteration count, which Kafka
-// keeps at 4096 or more and fiig allows up to 1,000,000, as fiig.postgres
-// does (ADR 0085 §6). The same steps as fiig.postgres's, with the hash
+// keeps at 4096 or more and fiig allows up to 1,000,000, as com.degeneratedevelopment.postgres
+// does (ADR 0085 §6). The same steps as com.degeneratedevelopment.postgres's, with the hash
 // the mechanism names.
 conversion computeScramFinal(
     mechanism: SaslMechanism,
@@ -38,7 +38,9 @@ conversion computeScramFinal(
                 }
             }
         } else if (part.startsWith("m=")) {
-            return Err("the broker asks for a SCRAM extension fiig.kafka doesn't know");
+            return Err(
+                "the broker asks for a SCRAM extension com.degeneratedevelopment.kafka doesn't know"
+            );
         }
     }
 
@@ -52,7 +54,7 @@ conversion computeScramFinal(
 
     if (iterations < 4096 || iterations > 1000000) {
         return Err(
-            "the broker asks for ${iterations} SCRAM iterations; fiig.kafka allows 4096 to 1000000"
+            "the broker asks for ${iterations} SCRAM iterations; com.degeneratedevelopment.kafka allows 4096 to 1000000"
         );
     }
 

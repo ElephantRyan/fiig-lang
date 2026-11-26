@@ -1,6 +1,6 @@
 package runprogram
 
-// Generated from a SigV4 reference that shares no code with fiig.s3 (see
+// Generated from a SigV4 reference that shares no code with com.degeneratedevelopment.s3 (see
 // ADR 0121): every request's bytes, signature included, are what the
 // reference signs for the same inputs.
 
@@ -19,7 +19,7 @@ import (
 	"fiig-lang/internal/fixture"
 )
 
-// ADR 0121: fiig.s3, the package built into the toolchain, signs and sends
+// ADR 0121: com.degeneratedevelopment.s3, the package built into the toolchain, signs and sends
 // requests through fiig.http to scripted servers.
 
 var s3Program = map[string]string{
@@ -27,91 +27,91 @@ var s3Program = map[string]string{
     "path": "s3test.app",
     "kind": "application",
     "version": "1.0.0",
-    "dependencies": { "fiig.s3": "1.0.0" },
+    "dependencies": { "com.degeneratedevelopment.s3": "1.0.0" },
     "capabilities": ["Socket", "HttpClient"]
 }`,
-	"upload.fiig": `use fiig.s3;
-use fiig.s3.S3;
+	"upload.fiig": `use com.degeneratedevelopment.s3;
+use com.degeneratedevelopment.s3.S3;
 
 gateway upload(bucket: string, key: string, text: string) -> Result<None, s3.S3Error>
     requires S3
 {
     return S3.put(bucket, key, text.utf8(), "text/plain");
 }`,
-	"download.fiig": `use fiig.s3;
-use fiig.s3.S3;
+	"download.fiig": `use com.degeneratedevelopment.s3;
+use com.degeneratedevelopment.s3.S3;
 
 gateway download(bucket: string, key: string) -> Result<bytes, s3.S3Error>
     requires S3
 {
     return S3.get(bucket, key);
 }`,
-	"inspect.fiig": `use fiig.s3;
-use fiig.s3.S3;
+	"inspect.fiig": `use com.degeneratedevelopment.s3;
+use com.degeneratedevelopment.s3.S3;
 
 gateway inspect(bucket: string, key: string) -> Result<s3.ObjectInfo, s3.S3Error>
     requires S3
 {
     return S3.head(bucket, key);
 }`,
-	"remove.fiig": `use fiig.s3;
-use fiig.s3.S3;
+	"remove.fiig": `use com.degeneratedevelopment.s3;
+use com.degeneratedevelopment.s3.S3;
 
 gateway remove(bucket: string, key: string) -> Result<None, s3.S3Error>
     requires S3
 {
     return S3.delete(bucket, key);
 }`,
-	"tagged.fiig": `use fiig.s3;
-use fiig.s3.S3;
+	"tagged.fiig": `use com.degeneratedevelopment.s3;
+use com.degeneratedevelopment.s3.S3;
 
 gateway tagged(bucket: string, key: string, text: string) -> Result<None, s3.S3Error>
     requires S3
 {
     return S3.putWithMetadata(bucket, key, text.utf8(), "text/plain", ["run": "7", "Author": "Ada"]);
 }`,
-	"mistagged.fiig": `use fiig.s3;
-use fiig.s3.S3;
+	"mistagged.fiig": `use com.degeneratedevelopment.s3;
+use com.degeneratedevelopment.s3.S3;
 
 gateway mistagged(bucket: string, key: string) -> Result<None, s3.S3Error>
     requires S3
 {
     return S3.putWithMetadata(bucket, key, <<>>, "", ["note": "one\r\nx-amz-acl: public-read"]);
 }`,
-	"fetch.fiig": `use fiig.s3;
-use fiig.s3.S3;
+	"fetch.fiig": `use com.degeneratedevelopment.s3;
+use com.degeneratedevelopment.s3.S3;
 
 gateway fetch(bucket: string, key: string) -> Result<s3.S3Object, s3.S3Error>
     requires S3
 {
     return S3.getObject(bucket, key);
 }`,
-	"middle.fiig": `use fiig.s3;
-use fiig.s3.S3;
+	"middle.fiig": `use com.degeneratedevelopment.s3;
+use com.degeneratedevelopment.s3.S3;
 
 gateway middle(bucket: string, key: string) -> Result<bytes, s3.S3Error>
     requires S3
 {
     return S3.getRange(bucket, key, 1, 3);
 }`,
-	"rest.fiig": `use fiig.s3;
-use fiig.s3.S3;
+	"rest.fiig": `use com.degeneratedevelopment.s3;
+use com.degeneratedevelopment.s3.S3;
 
 gateway rest(bucket: string, key: string) -> Result<bytes, s3.S3Error>
     requires S3
 {
     return S3.getRange(bucket, key, 2, None);
 }`,
-	"archive.fiig": `use fiig.s3;
-use fiig.s3.S3;
+	"archive.fiig": `use com.degeneratedevelopment.s3;
+use com.degeneratedevelopment.s3.S3;
 
 gateway archive(bucket: string, key: string) -> Result<None, s3.S3Error>
     requires S3
 {
     return S3.copy(bucket, key, "archive", "2026/${key}");
 }`,
-	"share.fiig": `use fiig.s3;
-use fiig.s3.S3;
+	"share.fiig": `use com.degeneratedevelopment.s3;
+use com.degeneratedevelopment.s3.S3;
 
 gateway share(bucket: string, key: string, seconds: int) -> Result<string, s3.S3Error>
     requires S3

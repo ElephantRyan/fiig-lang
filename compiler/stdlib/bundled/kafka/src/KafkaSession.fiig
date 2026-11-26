@@ -1,6 +1,6 @@
 use fiig.session;
 
-// ADR 0117 §2-§3: fiig.kafka's session protocol, which the consumer's
+// ADR 0117 §2-§3: com.degeneratedevelopment.kafka's session protocol, which the consumer's
 // gateways reach through Session.call. Each operation is a conversion
 // over the state, so the runtime half only carries bytes. opened and
 // received read the SASL login from KafkaServer (ADR 0113 §6, as amended

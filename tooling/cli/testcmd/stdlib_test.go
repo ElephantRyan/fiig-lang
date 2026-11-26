@@ -12,27 +12,44 @@ import (
 	"fiig-lang/compiler/stdlib"
 )
 
-// Every package the toolchain ships passes its own fiig tests. A package
-// path under fiig. is reserved for the toolchain, so each runs as a copy
-// under another path, allowed the primitives the packages use, with its
-// imports of itself following it.
+// Every package the toolchain ships passes its own fiig tests: the
+// standard library, and the packages bundled with it (ADR 0152). A
+// standard library path under fiig. is reserved for the toolchain, and a
+// bundled one is already taken by the embedded copy, so each runs as a
+// copy under another path, allowed the primitives the packages use, with
+// its imports of itself following it.
 func TestTheStandardLibraryPassesItsTests(t *testing.T) {
-	dirs, err := fs.ReadDir(stdlib.FS, ".")
+	var dirs []string
+	err := fs.WalkDir(stdlib.FS, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || !d.IsDir() {
+			return err
+		}
+		if _, err := fs.Stat(stdlib.FS, path.Join(p, "fiig.pkg.json")); err != nil {
+			return nil
+		}
+		if _, err := fs.Stat(stdlib.FS, path.Join(p, "test")); err == nil {
+			dirs = append(dirs, p)
+		}
+		return fs.SkipDir
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, d := range dirs {
-		if !d.IsDir() {
-			continue
-		}
-		if _, err := fs.Stat(stdlib.FS, path.Join(d.Name(), "test")); err != nil {
-			continue
-		}
-		t.Run(d.Name(), func(t *testing.T) {
+	for _, dir := range dirs {
+		t.Run(dir, func(t *testing.T) {
 			root := t.TempDir()
-			copyPath := "stdlibtest." + d.Name()
-			ownImport := regexp.MustCompile(`(?m)^use fiig\.` + regexp.QuoteMeta(d.Name()) + `([.\s]|$)`)
-			err := fs.WalkDir(stdlib.FS, d.Name(), func(p string, e fs.DirEntry, err error) error {
+			raw, err := fs.ReadFile(stdlib.FS, path.Join(dir, "fiig.pkg.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var m map[string]any
+			if err := json.Unmarshal(raw, &m); err != nil {
+				t.Fatal(err)
+			}
+			own, _ := m["path"].(string)
+			copyPath := "stdlibtest." + path.Base(dir)
+			ownImport := regexp.MustCompile(`(?m)^use ` + regexp.QuoteMeta(own) + `([.\s]|$)`)
+			err = fs.WalkDir(stdlib.FS, dir, func(p string, e fs.DirEntry, err error) error {
 				if err != nil || e.IsDir() {
 					return err
 				}
@@ -40,7 +57,7 @@ func TestTheStandardLibraryPassesItsTests(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				dest := filepath.Join(root, filepath.FromSlash(p[len(d.Name()):]))
+				dest := filepath.Join(root, filepath.FromSlash(p[len(dir):]))
 				if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 					return err
 				}
@@ -53,14 +70,6 @@ func TestTheStandardLibraryPassesItsTests(t *testing.T) {
 				t.Fatal(err)
 			}
 			manifestPath := filepath.Join(root, "fiig.pkg.json")
-			raw, err := os.ReadFile(manifestPath)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var m map[string]any
-			if err := json.Unmarshal(raw, &m); err != nil {
-				t.Fatal(err)
-			}
 			m["path"] = copyPath
 			m["capabilities"] = []string{"Socket", "Session"}
 			out, _ := json.Marshal(m)

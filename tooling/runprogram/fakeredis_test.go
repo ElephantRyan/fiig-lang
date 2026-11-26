@@ -15,7 +15,7 @@ import (
 )
 
 // fakeRedis is a Redis server in memory speaking RESP2, with the commands
-// fiig.redis's client and stream source send (ADRs 0110, 0111): AUTH,
+// com.degeneratedevelopment.redis's client and stream source send (ADRs 0110, 0111): AUTH,
 // SELECT, INCR, GET, the consumer-group stream commands, and XRANGE and
 // XLEN. Pipelined commands are answered in order, as Redis does.
 type fakeRedis struct {

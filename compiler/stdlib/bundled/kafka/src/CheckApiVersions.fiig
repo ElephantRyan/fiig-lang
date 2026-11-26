@@ -29,7 +29,7 @@ conversion checkApiVersions(frame: bytes, correlation: int) -> Result<None, Kafk
             if (!metadata || !produce) {
                 return Err(
                     KafkaError.Unsupported(
-                        reason: "the broker doesn't take Metadata v12 and Produce v9, which fiig.kafka sends (ADR 0113 §4)"
+                        reason: "the broker doesn't take Metadata v12 and Produce v9, which com.degeneratedevelopment.kafka sends (ADR 0113 §4)"
                     )
                 );
             }

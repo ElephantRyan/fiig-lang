@@ -472,7 +472,7 @@ func TestStartupIgnoreOnceRunsWithoutClaiming(t *testing.T) {
 }
 
 // seededRunner plans the Seeded adapter of scheduleProgram for one replica of
-// a deploy, with fiig.redis's lock bound and redis as its server.
+// a deploy, with com.degeneratedevelopment.redis's lock bound and redis as its server.
 func seededRunner(t *testing.T, redis *fakeRedis, holder string, deploy int64) *adapter.StartupRunner {
 	t.Helper()
 	root := t.TempDir()
@@ -494,7 +494,7 @@ func seededRunner(t *testing.T, redis *fakeRedis, holder string, deploy int64) *
 		t.Fatal(diags)
 	}
 	u, _ := types.BuildUniverse(files)
-	lock, err := runtime.LockFactory(map[string]any{"type": "lock", "lock": "fiig.redis"})
+	lock, err := runtime.LockFactory(map[string]any{"type": "lock", "lock": "com.degeneratedevelopment.redis"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -522,7 +522,7 @@ func seededRunner(t *testing.T, redis *fakeRedis, holder string, deploy int64) *
 	return runners[0]
 }
 
-// §6, through fiig.redis's own lock: of two replicas of one deploy, one runs
+// §6, through com.degeneratedevelopment.redis's own lock: of two replicas of one deploy, one runs
 // the route and the other finds it done and does not; a new deploy runs it
 // again.
 func TestStartupOncePerDeployThroughRedis(t *testing.T) {

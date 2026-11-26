@@ -1,4 +1,4 @@
-// A fiig.kafka session's state (ADR 0117 §3), kept by the runtime as JSON
+// A com.degeneratedevelopment.kafka session's state (ADR 0117 §3), kept by the runtime as JSON
 // between operations (ADR 0114 §4). role is "broker" or "group"; a group
 // session's phase is "finding" its coordinator, then "member", and a
 // broker session's "opening" until ApiVersions answers, then "broker".

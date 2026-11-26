@@ -102,9 +102,9 @@ func BenchmarkRecords(b *testing.B) {
 	benchCall(b, in, "records", map[string]Value{"n": Int(10_000)})
 }
 
-// murmur2: fiig.kafka's partitioner (ADR 0113 §3), over 10,000 keys.
+// murmur2: com.degeneratedevelopment.kafka's partitioner (ADR 0113 §3), over 10,000 keys.
 func BenchmarkMurmur2(b *testing.B) {
-	src, err := os.ReadFile("../stdlib/kafka/src/Murmur2.fiig")
+	src, err := os.ReadFile("../stdlib/bundled/kafka/src/Murmur2.fiig")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -146,7 +146,7 @@ private {
 }
 
 // parse: decoding 10,000 Postgres DataRow messages of three columns with
-// binary patterns, the way fiig.postgres reads a result.
+// binary patterns, the way com.degeneratedevelopment.postgres reads a result.
 func BenchmarkParse(b *testing.B) {
 	var stream []byte
 	for i := range 10_000 {

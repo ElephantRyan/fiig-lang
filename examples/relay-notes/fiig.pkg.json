@@ -4,7 +4,7 @@
     "version": "1.0.0",
     "dependencies": {
         "examples.sqlrelay": "1.0.0",
-        "fiig.postgres": "1.0.0"
+        "com.degeneratedevelopment.postgres": "1.0.0"
     },
     "capabilities": [
         "Database",
