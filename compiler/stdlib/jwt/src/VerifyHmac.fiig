@@ -1,0 +1,22 @@
+// ADR 0146 §4: a token signed with a secret this program shares, checked
+// as verify checks one. Only an HS alg is accepted, so a token can't make
+// a secret stand in for a public key, or the other way round.
+conversion verifyHmac(token: string, key: Secret, expect: Expect, now: int)
+        -> Result<Verified, JwtError> {
+    parts = tokenOf(token)?;
+    headerChecked(parts, expect)?;
+    mac = match (parts.algorithm) {
+        Algorithm.HS256 -> crypto.hmacSha256(key, parts.signingInput),
+        Algorithm.HS384 -> crypto.hmacSha384(key, parts.signingInput),
+        Algorithm.HS512 -> crypto.hmacSha512(key, parts.signingInput),
+        _ -> {
+            return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(parts.algorithm)));
+        }
+    }
+
+    if (!crypto.equal(mac, parts.signature)) {
+        return Err(JwtError.BadSignature);
+    }
+
+    return claimsChecked(parts, expect, now);
+}

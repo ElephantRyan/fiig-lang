@@ -1,0 +1,224 @@
+// ADR 0146 §4, §7: tokens Go's crypto signed, verified by fiig.jwt, and
+// each way a token is refused. The keys were made for these tests and
+// sign nothing else; signing and HMAC tokens are tested in Go
+// (tooling/runprogram/jwt_test.go), since only a gateway makes a Secret.
+test aTokenSignedWithEachKindOfKeyVerifies {
+    for (token in [rs256(), rs512(), ps256(), es256(), edDsa(), rsa2()]) {
+        expect verify(token, keys(), expectAll(), now()) is Ok(verified);
+        expect verified.issuer == "https://issuer.example";
+        expect verified.subject == "user-1";
+        expect verified.audience == ["app"];
+        expect verified.expiresAt == 1800000000000;
+    }
+}
+
+test theKeyIdIsReadAndReported {
+    expect verify(es256(), keys(), expectAll(), now()) is Ok(verified);
+    expect verified.keyId == "ec-1";
+    expect keyIdOf(es256()) == "ec-1";
+    expect keyIdOf(noKid()) == None;
+    expect keyIdOf("not a token") == None;
+}
+
+test aChangedPayloadIsABadSignature {
+    expect verify(tampered(), keys(), expectAll(), now()) is Err(JwtError.BadSignature);
+}
+
+test theHeaderCantChooseAnAlgorithmTheProgramDidntName {
+    expect verify(rs256(), keys(), expectOnly([Algorithm.ES256]), now()) is Err(JwtError.AlgorithmRefused("RS256"));
+    // An empty list is the program forgetting to say, and refuses all.
+    expect verify(rs256(), keys(), expectOnly([]), now()) is Err(JwtError.AlgorithmRefused("RS256"));
+    // alg none isn't an Algorithm, so an unsigned token never verifies.
+    expect verify(unsigned(), keys(), expectAll(), now()) is Err(JwtError.AlgorithmRefused("none"));
+}
+
+// CVE-2015-9235: HS256 with the RSA public key's PEM as the secret. verify
+// refuses every HS alg, so a public key is never used as a secret.
+test anHmacTokenIsNeverCheckedAgainstAPublicKey {
+    both = expectOnly([Algorithm.HS256, Algorithm.RS256]);
+    expect verify(hmacOverPublicKey(), keys(), both, now()) is Err(JwtError.AlgorithmRefused("HS256"));
+}
+
+test theKeyIsChosenByKid {
+    // Signed by rsa-2 but naming rsa-1: rsa-1's key doesn't verify it.
+    expect verify(rsa2NamingRsa1(), keys(), expectAll(), now()) is Err(JwtError.BadSignature);
+    expect verify(unknownKid(), keys(), expectAll(), now()) is Err(JwtError.NoKey("unknown"));
+    // No kid, and two RSA keys fit: which one the issuer meant is unknown.
+    expect verify(noKid(), keys(), expectAll(), now()) is Err(JwtError.NoKey(None));
+    expect verify(noKid(), [keys().first()], expectAll(), now()) is Ok(_);
+}
+
+test aKeyThatStatesAnotherAlgIsNotUsed {
+    pinned = copy(keys().first(), algorithm: "RS256");
+    expect verify(rs512(), [pinned], expectAll(), now()) is Err(JwtError.NoKey("rsa-1"));
+    expect verify(rs256(), [pinned], expectAll(), now()) is Ok(_);
+}
+
+test theClaimsAreChecked {
+    expect verify(wrongIssuer(), keys(), expectAll(), now()) is Err(JwtError.WrongIssuer("https://other.example"));
+    expect verify(wrongAudiences(), keys(), expectAll(), now()) is Err(JwtError.WrongAudience(found));
+    expect found == ["web", "cli"];
+    expect verify(audiences(), keys(), expectAll(), now()) is Ok(_);
+    expect verify(noExp(), keys(), expectAll(), now()) is Err(JwtError.MissingClaim("exp"));
+    expect verify(noAud(), keys(), expectAll(), now()) is Err(JwtError.MissingClaim("aud"));
+    expect verify(noIss(), keys(), expectAll(), now()) is Err(JwtError.MissingClaim("iss"));
+    expect verify(textExp(), keys(), expectAll(), now()) is Err(JwtError.Malformed(_));
+}
+
+test expiryAndNotBeforeAllowTheLeeway {
+    // Expired at exp plus 60 seconds, read to the millisecond.
+    expect verify(timed(), keys(), expectAll(), 1800000060249) is Ok(verified);
+    expect verified.expiresAt == 1800000000250;
+    expect verified.issuedAt == 1799990000000;
+    expect verify(timed(), keys(), expectAll(), 1800000060250) is Err(JwtError.Expired(1800000000250));
+    expect verify(timed(), keys(), expectAll(), 1799989940000) is Ok(_);
+    expect verify(timed(), keys(), expectAll(), 1799989939999) is Err(JwtError.NotYetValid(1799990000000));
+    strict = copy(expectAll(), leewaySeconds: 0);
+    expect verify(timed(), keys(), strict, 1800000000250) is Err(JwtError.Expired(_));
+}
+
+test theHeaderIsReadStrictly {
+    expect verify(crit(), keys(), expectAll(), now()) is Err(JwtError.Malformed(reason));
+    expect reason.contains("crit");
+    // A duplicate member could mean one thing to fiig and another to the
+    // issuer (RFC 7515 §5.2).
+    expect verify(duplicateAlg(), keys(), expectAll(), now()) is Err(JwtError.Malformed(_));
+    expect verify("a.b", keys(), expectAll(), now()) is Err(JwtError.Malformed(_));
+    expect verify("a".repeat(16385), keys(), expectAll(), now()) is Err(JwtError.TooLarge);
+}
+
+test theTypeIsCheckedWhenAsked {
+    expect verify(rs256(), keys(), copy(expectAll(), tokenType: "jwt"), now()) is Ok(_);
+    expect verify(rs256(), keys(), copy(expectAll(), tokenType: "application/JWT"), now()) is Ok(_);
+    expect verify(rs256(), keys(), copy(expectAll(), tokenType: "at+jwt"), now()) is Err(JwtError.WrongType("JWT"));
+    expect verify(accessToken(), keys(), copy(expectAll(), tokenType: "at+jwt"), now()) is Ok(_);
+}
+
+test aTokenCanBeReadWithoutVerifying {
+    expect decodeUnverified(es256()) is Ok(unverified);
+    expect unverified.header == JsonValue.Object(members: ["alg": JsonValue.Text(value: "ES256"), "kid": JsonValue.Text(value: "ec-1"), "typ": JsonValue.Text(value: "JWT")]);
+}
+
+private {
+    now() -> int {
+        return 1799999000000;
+    }
+
+    expectAll() -> Expect {
+        algorithms = [
+            Algorithm.RS256,
+            Algorithm.RS512,
+            Algorithm.PS256,
+            Algorithm.ES256,
+            Algorithm.EdDSA
+        ];
+        return expectOnly(algorithms);
+    }
+
+    expectOnly(algorithms: List<Algorithm>) -> Expect {
+        return Expect(issuer: "https://issuer.example", audience: "app", algorithms: algorithms);
+    }
+
+    keys() -> List<Jwk> {
+        return match (keysFromJwks(jwks())) {
+            Ok(given) -> given,
+            Err(_) -> []
+        }
+    }
+
+    jwks() -> bytes {
+        return "{\"keys\": [{\"kty\": \"RSA\", \"kid\": \"rsa-1\", \"use\": \"sig\", \"n\": \"vXiykN3vAglGMgLkN1DCi0VLjKFcjxnHvkN1tlejd1t1j8o47rCRP3Ih1RpqrvOcmzSdLOjd5mMqd3id4ORPRHRFR7sQ4i_HFSOSgF90zxBM2DE9Bs1nGJ0iDxXgb9FRQ3_TvBE_vX4d30rVGgkQI21eC4lAu74LbGGIw0Bk4c3kLny3QX7X6TCKppfGw3834w-DFrAlL3bhJ8a2LP8LEHPsNFft2XKpAijI5vgO6GO6_KDanudEbbVp1nUvWz2HLmrTdZw7JJRkvKd55tgl2SVaQL9p9xPtj-ADsWLJFsh8ch22v_RymBo72h-c1gRRSvWFOkazog6-aB3tMSTm1w\", \"e\": \"AQAB\"}, {\"kty\": \"RSA\", \"kid\": \"rsa-2\", \"n\": \"nKCDjSTbesF9h0swHpLUlaY99-oWh-iwX133riDd0QWSLSjxfQCng_71LS_CsKeNp5AUluLfy-tsAtW0fsYgoh7FSznBjJ_IflpUmo9BUdqyb7p46W5OcdrOSKKP06_8mIGuVh7Icc_gufVSp9wXCGe-p8nmSuw-LK4_CJrF6qMUFq3c9MEVH7zYkfUUfcVQA23GD8L1DGuKND104jY2d0TYVqe0ma6YY0zGpTd3i7zGaif1QnWq2MIpo3iLDBG6oWJFLkk91X_TKMqmfE108riWfufXsETMY2Ynmx2LBK7sx_FS3_ZaUeSO5qRJsT9-s_1MgWqFzR7SbkthpQMmhQ\", \"e\": \"AQAB\"}, {\"kty\": \"EC\", \"kid\": \"ec-1\", \"crv\": \"P-256\", \"x\": \"-8lq0afEc1ky3DKTHdEn5r-ZTZ_9AwJtsldNEzeGlU0\", \"y\": \"xiXk8xHfDXq6RADYyOJXUf11MiRWqcuAwX5GaHxDUNI\"}, {\"kty\": \"OKP\", \"kid\": \"ed-1\", \"crv\": \"Ed25519\", \"x\": \"Pu3Gf0WYH4R0sduLuQlxhdiEYpiS8OiIm32D3j3tIi8\"}]}".utf8();
+    }
+
+    rs256() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.nQsDe59RlNis-sMQ4hCKoSytJy6kQulb9ex4dA52cs7FMNKTKe0uxRxYWn4MzUFtEnJJSMcEeocOiWdmLRvGN8TYHNLuNS5Duns9FsBzKUFDGGlVSAsaPHsbhLQQp6kIPczXYADyQh0CzFjNoQuCsarEPdICCjwo28-kIj2az68wEwNbVYl5IlK4-nwVMHCpFWGq8vH6Yzr2JKCBmk_7ufX_Qc1VagfYfSUsIBCHz3XA-OyKWMXqQon1783pUMEtQgnK1de7KcvmBGxkYZ6Wi5N5THq0V2ytJkYe4SNOgd2kQCfPR45AZmQW315e7hODr-iFJ4i9NrMPlshyB8-sGg";
+    }
+
+    rs512() -> string {
+        return "eyJhbGciOiJSUzUxMiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.PYSNLmm1egR7-nT-NjYEqsrwlTFh-gnrAz0Rmg5wO7aHr6yPS5K01Hi4ww7g1lp8K916EmXsT-5gTBp5I6RHZo9OW-7t7r6fNezibSSHjDu-7bAvMEJXAQsdeM75C0xqmL5JRV3hkn8mC1057qXLQTtgoI7S-zQD9J09RaU_kB0qRrFLgALoE9Uo1NzFGfCBYyZMuuNr2rgNhRGqhDO1w3Jm1IIjORMck6lVuoWb4R7zytgydkMc6q-zD7AAfS85SJ83XrMNArsATuefGO0A1C1aNt_pjV2nN-dBzbcT9HUw3sAkDOu9FuYvOfpBMLL2R0iuRybHeHZ7T4XoRjoIfQ";
+    }
+
+    ps256() -> string {
+        return "eyJhbGciOiJQUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.ZYSyXSsBES96dquaZwLE6ueAIhCofx3sHkfLCzPy48U5Sw-gIq8jcuI2FEk2FG-KzPc4HYNKx9iW9RlmdSxHQAQbFp_8tUA3bAYakfzF9W2VdoGAOvueaW07DTU5nINjRE433yzjz7HuHMqBLHnXaLrq1P_xkBvWnndGV1X2Xrktp-TKOiMBIlDNoJwykGwsKBz2IF79nFro2ozWQRYrP42ejLJv4OOpTwK4LBu1Hp9IoxfEuiN6gONXm_9nfdskJUZ5qKiXWGa4g9eq199zYQRZ45wjkjlqzX7RY8H04YokccCYlFtL61Xcaftdx3bjGpMmxDfIJDTcliUaro_zZg";
+    }
+
+    es256() -> string {
+        return "eyJhbGciOiJFUzI1NiIsImtpZCI6ImVjLTEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.6aKHXM5ShQtQwLgDPG8OkAOfS35-z2YkxhwrtBKNykpc4NIC75X55LcnndtSnXtQNivFTI6S9Uw44bTM9Jbbtw";
+    }
+
+    edDsa() -> string {
+        return "eyJhbGciOiJFZERTQSIsImtpZCI6ImVkLTEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.BtBT_71nd34QwugN84bZj2bDRSnNHyYNzXgfW-rXLqfctvYYLVKlR2iXAQhwkCslczKEhI6OGIEvzWgqcD7IBw";
+    }
+
+    rsa2() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0yIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.D1IOnn0YKxUte_pGph3GNNxefn91Ak9YpG_04sZl3ebW_KhXJn8lmlVG6a8qpMoZO8YM2NF0JzpQleQo0D1Ss_AB_RPhBNqCvgMLIvwxPXtPdsJlpyFgL59Uuu0M686KBtTNT2QuWX--xZn6N05VoE__FtZ1ylH21WgodZ5gbrSACPdypU5XktFRDvuKNevWr6NEnzW3uPGMWqyH9K60sRqB9Mfx5T4hrY-NNNkdOIFnKKCZEzNcc0AxOlLpp39GJuQhFYTtEhxj-koDiWgT1Bb2WUCpBqS-Awm8MVdjELX8YptTyDI55rIJLz7zFyMdLHJYMrSTFqog08MYCkKtLg";
+    }
+
+    rsa2NamingRsa1() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.JeNCnCdzCYefiXYC3tJWvTcsC4UJ24mX8W2RXAFcPET3GAeaq6sUCRzRLY7FkdSxa2UsTRBUKst7fdkFNw74ynvFoFraOnDAbqT3zNRMtlPjNCVqUW7e6pnmDJgom9HGyIkRXIT6S9U45C5j7CNaS9gtobk6oYDca54pfvP4GdIUGxk9u_WImrW25oueaNw89bMRCIP0e9HQ6gbVHmHtNqWZta-b_Nst865uMduBHPEyeOo5vRfQhSRIxGRruFxHT7tuvDv-NrHncAi6IewiOI-IIX6iLCUkxn_xnc2KGmrCG_BZp-aIBhR8zPoRqx7SWyIwlotVHKBytAD4h5Zzgg";
+    }
+
+    unknownKid() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InVua25vd24iLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.bGbOqd19SnxG8Rm5hJ-gwM9cKc2pvUg9D7wlkpCejD-wBakbAL4zHmufH2PQr1yJlSeOX0Ues0SPc3NE1xrm1n0ph3cyHZHjtHKmDwbu0odHUu9kiy8KPOSW1mqKlhhk8yfTEyybgMzscxhknO0EQ0N8Igq3IFQHYZtGKFyao-dI59mrMLddd3QjFx81GfyPL83fYcT-oX9RsEWoqjWqUTb3mLfs2YeVqvwicWAt6KPUAFkT0CrWxJdic28ZvdxoQoKTqBAGBS_PzBrIoMOdn6FKnFWlxu0W_LGzbuthuSzZu1vhSCwdsIqIbU3DX0Fjr6QvThS7F_o3wbd8bm35Nw";
+    }
+
+    noKid() -> string {
+        return "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.M4M5Vb634KaF9Foedm_sFdE5cMLo8S7MtGMg-ObB8lYXbNa_TnlsSMEhgq7x6BN2qDDdBhxXRSNmZ9-WXdTXxhohw58QgqATw2380fDN1QLrcUY_Qh3u8HVuSy5_pcDZK9-tOmCZtRqEK8qHKMRJR59pOvQeWjw0JVnhzdUqiE8M3GRqk4N24SG_SrwZMDEijaIFgy7lWwvHjT-A1Sk5YESSJTobWt440vbICl0NErqaXec4rCG5xZ8cD4_HNjB06AHAZCTuyXbigWW2LdxiO38u1QZu1pLnELHA1pvdP3G4CZ2Mkl1VcXff1mYdBwUOOmOZ_pErS6K0i_PNJY097Q";
+    }
+
+    accessToken() -> string {
+        return "eyJhbGciOiAiUlMyNTYiLCAidHlwIjogImF0K2p3dCIsICJraWQiOiAicnNhLTEifQ.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.R7LY18AVItkDTDFTCg4j8uih9a44NAHV-Lojfm29C_YJQDU2NLhz8JULy6WZZkPvZL4DDFfPAHucvVkOzFQ1co3s4XFzyIOoOaA1eh3mrVbWyFLq89LH7E__vAUJCHup4DrBpoYWV75Nu9tgwfdFQYSaDsSwFx5Rz2GKcS9KyunHm4kEXgjALpAvTuMCa18T9sOaeKjynOSe00IoAiWy-duJAb_3JonmINEO_MxEiqAvmx-WL5QyTnIf6eRdOEXiMKOxTfXDHF_L1aGy_ISrWi4uvzLvUbFGQBN5DgiWI9uyIuzV-imzpTtOva6KaREOUwbmLyie4PCh-3MGP9dqqg";
+    }
+
+    wrongIssuer() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9vdGhlci5leGFtcGxlIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.boBJ0nNoA4BDZ-Bs9oZ0Kmk5P02lFupiS_uVEUHC91JOevfTg47aEYf9p0V71QQ3Zwl2Mqz5-Ak_7ENqP5YW4CDVgpLJaNNNEdh-ZmvSYXoyDdxzbaEaGd0oKZANclUg8heWrWPSMuKlMxNbYlzBr_MFzERaKrDjW4YMXvFFQaY7W_0mql9r31fkbhLMUNtItWY4P6VRDkhgZfvXoTe5NiTWNDA4Z84iy4edHABqojdUR9HTQ6Xc8GsiUw6jIJXVh1qMNy4S0MdJKzkiTrXQhKdwYowwmGUv_Xpm4NjY6uBfOaax-gcU5s3Ua2avYrS1PUZ045OTEXR1iQFQ-GYfhw";
+    }
+
+    wrongAudiences() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJhdWQiOiBbIndlYiIsICJjbGkiXSwgImV4cCI6IDE4MDAwMDAwMDB9.rDu0nT8W_i2GjHbHm7hEKtYPoWQJNrFudj5GXFvraU0GaYnMI8BeXO19OqEpuJDV7cpB_5FojCQQs0oke_q1YUlP6TmbcNKLl4TK6YCBm5YEFPIWoVF-ouWQjo4PVIl6wk_mkPMKFEWGp1kpL9LXtBn9f_qcqSXOqbUZvteSYrETrh_a-_jhcNvznw4RVvcQymH4iyo3dGB2aVaYgkOUR4kO9IbtT_eoyJPaKffHdki2y_0mqY-CTKL2ZjH5Tjw-h61PaqYoixLJ2B1CwFxKJXmsNg_X5F16BT35tCcT7smCc4hVoHtHabM3NCCQqcFqUuXsWcMzN0X5yuyQ_dqddg";
+    }
+
+    audiences() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJhdWQiOiBbIndlYiIsICJhcHAiXSwgImV4cCI6IDE4MDAwMDAwMDB9.GfNwPeW6-JAAEFRmy64fRyvtgBD2KUrlxfX8FGEaWDhz8D-ZSW2LlYKM1IwwlaQcoKtwnez26K3w6PR845FN4mkT6-V2H6l20XnWW_z1R9peKlkn4pcHqwmolV47A7t7-r1cVdFoxRjH0myR5KhZF2_Sz_tKajhw9X2kKyHsZjcR4P2dsJUeoZ8IHiaD6tpUHj8zjTSZYa_Q6pF1P3uFPBkxiehKu_Bp8Kj9smqN7P_Bfdped4tbAf4w9XbJw4kxgU3kn3afZ0ULIh1hGoVRbXFrru792gYYph26EBw_f9OxAv4dbEdioKU0jdTW9vIypDTeTvBcWMZzfCMlQ6UPtA";
+    }
+
+    noExp() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJhdWQiOiAiYXBwIn0.b4cwVCQ1LLj-5LHScMnrX_e3OqbMMwQFe1offabbRiUVpf4B8hxaOPIEDhlAaWLRbQYeKDPRdEOSVCw1CJ9UPrBDD6hjJburqVhGvuJ2V6Oy_fR3WYYPAWzXUr-FyNZMMzYDjV4CdLh6xbEzBlLB4UqCjai6coLXlhXOE0di143dWQklgLils1dcQUhU3yC8qYdO7wel1vdFgVSkfIsMVh8hSbpMwD2uHDeLdB7iXq_haDGoAPaZDjDsV95J0XWwHeDT6vISQ_FWQgO-qzM8194VZddAwInW3-J9RpIjDlUqSc9dWqeWU8DgyYLRag4buQztJmlWeAcKmcVERnPT0Q";
+    }
+
+    noAud() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJleHAiOiAxODAwMDAwMDAwfQ.PPx21jg-TJ92ukp-k_TMpxdjDnjZ0xoVUWcaMrYDeAUZ9YyIiCSdYO-4XCD85uICSf4F8H4U-jWixHAqD5duC5zRnOxBBCW1VoplZe0f92bdUVgxpw5s4A3G4eDq599WR2Dm6jMgJ3VWadAWk9iChPnGZd1VWY3j4PWlpL2SLRL3OpuBp8u8fKaZp_oduHvs9uAndRMCm3MBQ4B1Ra0sDca9d8cNPHfvXaS4IrtnBE4Qq8Y9LhsOykhT8RlApmp4gs466M8OCk1RaGJ9hhzg0NzfXQb6LNRbZXEQ59in6IlK9d75ndEwkReSG9oU3SNePRMU4HgO-lZMOFmgwOqh-w";
+    }
+
+    noIss() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJhdWQiOiAiYXBwIiwgImV4cCI6IDE4MDAwMDAwMDB9.lIjotSB52sVT5UUGhB9P21yCHLC4gfT0bhXqd2ecmzhLB6uvwM6DEXqqI7pUowOHia3T_Q8MNH5EOIclY6kQ86U_cjZk3pmPTXge4e5Qv-D8cEqxGHgeCvHHiDL9cHkBKUg7bFtV7ZTLGp0ZqYsvYKciO4Y4nLA-v4hDKPjG1MestFdz9DtxglEea66ae3A-eqXxyTcpaRegHfYJGDtpUJspU02DGi2ihVXPaDiy0yMshpoH_WwjXlDh4vZfpRtPgu5dHepYVhYVZ0a8BNdJ0fsKJVCSPZYCDkqAxtnex-8wv80SHMTqbMmX86OIWSLVFX_MX-7FPCR92mk1jRmdmA";
+    }
+
+    textExp() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJhdWQiOiAiYXBwIiwgImV4cCI6ICJzb29uIn0.SmDQO1Z4DFSWDLxUpRizhId3g8wDxrW7VZHmz1WQ5M-5IGP8P8mGHHW_O6Z8-xSr8L8f8rqfFXpqJTo1CHK4fOQ9qiWLHNRm1iX0PVJiT65AkaknxS7YzhdW__0JMXafBveb-OA5Vrr0BbhKydentIMsxU1fS_yS-G-LpqWJ_bkv3rfAG5bdhnJoWXj2bp1dYdrkW2WpuTgzH19lK3-9U1Eagmm2YY1BvPsia3iCsM_tkQwqSEYbyPUArqYTXclfAmWNoTKDW4NomdWpmfekh6iBPWMblnHJanL8PciUQZgT4yjIhxLkl3w3HXBGul7lTDy2rrHeApVsE04xcsgpQg";
+    }
+
+    timed() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJhdWQiOiAiYXBwIiwgImV4cCI6IDE4MDAwMDAwMDAuMjUsICJuYmYiOiAxNzk5OTkwMDAwLCAiaWF0IjogMTc5OTk5MDAwMH0.Iwinefkj75hwygKPFBY6Sg99mSxNOzyquoiQ2ElNeZ8PDj6Eu0ay0z_cwLBXEyuuMoMJXO-oKKLPenvA4ff0Dbq8zMovbS1lQT91TJV5t9ydNP7zMFCEI3Uyk0enO134B-M0738Xl0ydXH69y1S0yN1bKWIdMgVODygGluxDPQsxXHgKzmIec-xn_uPjaIyVoT_omO4g3sELS5zJ5XHbLh5WgnclwdHnd55lPKp3AIcYoUZDjyNxDolGkC2Jfadys-ZQb3kKci4Sx9A1fjijloWTIRtfgCCA1O-4O3uQXXN3FQxkfyJa1XrGoWH6X9XswZyr2So38O1HCxvUnXNEZw";
+    }
+
+    crit() -> string {
+        return "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogInJzYS0xIiwgImNyaXQiOiBbImI2NCJdfQ.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.P-eIBUiNGHQy8kA7WKcT_6Thmh7PwObjS_EkBlb9Y2xiGeOB21IHdTkrWHSeBRHJY4htj3Gj5Ja1GNEcHRPo6Fs4RFh23IAgfd6iX2ezwt9QWZGB34-ypB6zL6twDVMKLFx5tODcVdm3di87du30z-Ekf-gIzLOQcxq3hjBmTqXXPT6EKISBdTCG3aEScKjfrKUowZjtmF0PMWtDw-TdNh9XqGVySaODIZ44Yr6iSVFE25YCyoNlyaqSf-LECquvoS5DOFtsp2cyNTDpVfrysRwmsgnV1cuvP5BMg5u_TDpv840eR40LRh3awaLpFX-Ke4udpdqrRnl8G-SGXZhn3w";
+    }
+
+    duplicateAlg() -> string {
+        return "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogInJzYS0xIiwgImFsZyI6ICJIUzI1NiJ9.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.rqp5WUPoV3j-WGlyWGpzsr-9I7GHNfH5WsTwdd35XbvBwagfMrmEWI4msxKGiU00_HLJy09nyU4OjYeRzqFrkAxwtXn2DJtKAuZ1YoJjY0SOahnUGV3U20sUx8ONh2aBf4OBy1EdLBZ56X-8_xBYxofTBwz_1vGiIG5BZPcm1NUMYNkgrONMX5lDNfEyIXAEgqNZfnH_n9Ki-UZopAEwys9Srn4t89M72pFZ7rQZd0g1JqYuPVV48WGnaY-TV4MZGxUBSFcrDyvtNNuWu_CeH-5yyE4vdW201KvC4oax7lNSSFUkbS7TRwTqG3Dq5wG1Mo7Cz6k7TUJhJ_pzOSYSbw";
+    }
+
+    hmacOverPublicKey() -> string {
+        return "eyJhbGciOiJIUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.wOursIq3T8TQfnksES7diOqD7fTVYtKk7dEfiVDGydE";
+    }
+
+    unsigned() -> string {
+        return "eyJhbGciOiAibm9uZSJ9.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0xIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.";
+    }
+
+    tampered() -> string {
+        return "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiAiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZSIsICJzdWIiOiAidXNlci0yIiwgImF1ZCI6ICJhcHAiLCAiZXhwIjogMTgwMDAwMDAwMH0.nQsDe59RlNis-sMQ4hCKoSytJy6kQulb9ex4dA52cs7FMNKTKe0uxRxYWn4MzUFtEnJJSMcEeocOiWdmLRvGN8TYHNLuNS5Duns9FsBzKUFDGGlVSAsaPHsbhLQQp6kIPczXYADyQh0CzFjNoQuCsarEPdICCjwo28-kIj2az68wEwNbVYl5IlK4-nwVMHCpFWGq8vH6Yzr2JKCBmk_7ufX_Qc1VagfYfSUsIBCHz3XA-OyKWMXqQon1783pUMEtQgnK1de7KcvmBGxkYZ6Wi5N5THq0V2ytJkYe4SNOgd2kQCfPR45AZmQW315e7hODr-iFJ4i9NrMPlshyB8-sGg";
+    }
+}

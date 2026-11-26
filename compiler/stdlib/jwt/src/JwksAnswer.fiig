@@ -1,0 +1,7 @@
+// What a key session answers: the keys it has, a discovery document's
+// jwks_uri, or why it has neither.
+model JwksAnswer {
+    keys: List<Jwk>;
+    jwksUri: string | None;
+    failure: string | None;
+}

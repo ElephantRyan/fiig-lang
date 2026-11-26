@@ -1,0 +1,17 @@
+// A key session's state (ADR 0146 §5): the URL it fetches and the GET it
+// writes, what the last good fetch gave and when, the fetch under way, and
+// the asks waiting for it. Times are Unix milliseconds.
+model JwksState {
+    url: string;
+    issuer: string | None;
+    request: bytes;
+    keys: List<Jwk>;
+    jwksUri: string | None;
+    fetchedAt: int | None;
+    triedAt: int | None;
+    fetching: bool;
+    reply: bytes;
+    failure: string | None;
+    nextKey: int;
+    waiting: List<JwksWaiting>;
+}

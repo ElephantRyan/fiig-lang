@@ -1,0 +1,13 @@
+// ADR 0146 §4: what this program accepts. issuer and audience are
+// required, so leaving their checks out can't be written by leaving out an
+// option; algorithms is the program's policy, and an empty one refuses
+// every token. tokenType is the header's typ when one is wanted, such as
+// "at+jwt" (RFC 9068), and leewaySeconds the clock skew allowed, 60 when
+// left out.
+model Expect {
+    issuer: string;
+    audience: string;
+    algorithms: List<Algorithm>;
+    tokenType: string | None;
+    leewaySeconds: int | None;
+}

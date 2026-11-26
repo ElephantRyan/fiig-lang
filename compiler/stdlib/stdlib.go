@@ -8,5 +8,5 @@ import "embed"
 
 // FS holds one directory per package, each with its own fiig.pkg.json.
 //
-//go:embed http kafka postgres redis s3 schedule session smtp sql sqllock stream time
+//go:embed http jwt kafka postgres redis s3 schedule session smtp sql sqllock stream time
 var FS embed.FS

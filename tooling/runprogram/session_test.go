@@ -124,6 +124,12 @@ capability LineSession provides session.SessionProtocol {
     {
         return lineStep(state, "BYE\n".utf8(), None, [], None);
     }
+
+    gateway ended(state: bytes, reason: string, now: int) -> session.Step
+        requires Session
+    {
+        return lineStep(state, <<>>, None, [], None);
+    }
 }`,
 	"line_step.fiig": `use fiig.session;
 

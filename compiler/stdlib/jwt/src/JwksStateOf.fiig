@@ -1,0 +1,25 @@
+// A key session's state from its bytes. Only jwksStep writes them, so
+// bytes that don't decode are a defect, answered as a session with
+// nothing fetched that says so.
+conversion jwksStateOf(state: bytes) -> JwksState {
+    decoded: Result<JwksState, JsonError> = json.decode(state);
+    keys: List<Jwk> = [];
+    waiting: List<JwksWaiting> = [];
+    return match (decoded) {
+        Ok(given) -> given,
+        Err(_) -> JwksState(
+            url: "",
+            issuer: None,
+            request: <<>>,
+            keys: keys,
+            jwksUri: None,
+            fetchedAt: None,
+            triedAt: None,
+            fetching: false,
+            reply: <<>>,
+            failure: "the key session's state was lost",
+            nextKey: 1,
+            waiting: waiting
+        )
+    }
+}

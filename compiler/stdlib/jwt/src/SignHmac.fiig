@@ -1,0 +1,17 @@
+// ADR 0146 §7: a token signed with a secret, for a program issuing tokens
+// to itself, with a Secret its instances share. Only an HS algorithm.
+conversion signHmac(claims: JsonValue, key: Secret, algorithm: Algorithm)
+        -> Result<string, JwtError> {
+    input = signingInputOf(claims, algorithm, None);
+    data = input.utf8();
+    mac = match (algorithm) {
+        Algorithm.HS256 -> crypto.hmacSha256(key, data),
+        Algorithm.HS384 -> crypto.hmacSha384(key, data),
+        Algorithm.HS512 -> crypto.hmacSha512(key, data),
+        _ -> {
+            return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(algorithm)));
+        }
+    }
+
+    return Ok("${input}.${mac.toBase64Url()}");
+}

@@ -93,6 +93,8 @@ var cryptoFormulas = map[string]cryptoFunc{
 		return Bytes{B: sum[:]}, nil
 	},
 	"hmacSha512": hmacWith("hmacSha512", sha512.New),
+	// ADR 0146 §4: for a JWT's HS384.
+	"hmacSha384": hmacWith("hmacSha384", sha512.New384),
 	// ADR 0075 §6 (amended 2026-11-21): RFC 5869 HKDF-SHA-256, extract
 	// then expand, `length` bytes out.
 	"hkdfSha256": func(_ context.Context, _ *Interp, args []Value) (Value, *Fault) {
@@ -234,6 +236,27 @@ func cryptoArgFits(v Value, t types.Type) bool {
 	case types.Opaque:
 		_, ok := v.(Secret)
 		return ok && t == types.SecretType
+	case types.Named:
+		// ADR 0146: PublicKey or SignatureAlgorithm, a variant its
+		// declaration has. Every field either has is bytes.
+		e, ok := v.(EnumValue)
+		if !ok || e.TypeName != t.Name {
+			return false
+		}
+		decl, ok := t.Decl.(*syntax.EnumDecl)
+		if !ok {
+			return false
+		}
+		variant, ok := decl.Variant(e.Variant)
+		if !ok || len(variant.Fields) != len(e.Fields) {
+			return false
+		}
+		for _, f := range e.Fields {
+			if _, ok := f.(Bytes); !ok {
+				return false
+			}
+		}
+		return true
 	case types.Primitive:
 		switch t.Name {
 		case "bytes":

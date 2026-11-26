@@ -52,4 +52,17 @@ capability KafkaSession provides session.SessionProtocol {
     gateway closing(state: bytes, now: int) -> session.Step requires Session {
         return sessionClosing(state, now);
     }
+
+    // Never called: a Kafka session's state ends with its connection
+    // (ADR 0146 §5a), since it holds that connection's login and epoch.
+    gateway ended(state: bytes, reason: string, now: int) -> session.Step requires Session {
+        return session.Step(
+            state: state,
+            write: <<>>,
+            accepted: None,
+            replies: [],
+            nextTickAt: None,
+            close: None
+        );
+    }
 }

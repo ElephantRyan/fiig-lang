@@ -1,0 +1,10 @@
+// A compact JWS (RFC 7515 §7.1) taken apart, before anything in it is
+// trusted: tokenOf makes it, and verify and verifyHmac check it.
+model TokenParts {
+    header: Map<string, JsonValue>;
+    payload: Map<string, JsonValue>;
+    signingInput: bytes;
+    signature: bytes;
+    algorithm: Algorithm;
+    keyId: string | None;
+}

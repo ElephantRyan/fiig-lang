@@ -1,0 +1,31 @@
+// ADR 0146 §7: a token signed with a private key held as PEM in a Secret.
+// sign writes the header itself (alg, typ "JWT", and kid when given), so
+// no caller can put alg none in it. An algorithm crypto.sign doesn't sign
+// is AlgorithmRefused: an HS one, which is signHmac's, or a PSS one, which
+// needs a random salt. A key that can't be read faults in crypto.sign,
+// since it is the program's own configuration.
+conversion sign(claims: JsonValue, key: Secret, algorithm: Algorithm, keyId: string | None)
+        -> Result<string, JwtError> {
+    signing = match (signatureAlgorithmOf(algorithm)) {
+        None -> {
+            return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(algorithm)));
+        },
+
+        SignatureAlgorithm.RsaPssSha256 -> {
+            return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(algorithm)));
+        },
+
+        SignatureAlgorithm.RsaPssSha384 -> {
+            return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(algorithm)));
+        },
+
+        SignatureAlgorithm.RsaPssSha512 -> {
+            return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(algorithm)));
+        },
+
+        given -> given
+    }
+
+    input = signingInputOf(claims, algorithm, keyId);
+    return Ok("${input}.${crypto.sign(key, signing, input.utf8()).toBase64Url()}");
+}

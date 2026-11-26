@@ -86,13 +86,14 @@ doesn't have to discover them.
 - **One content type per route**, and no `Accept` negotiation (ADR 0069
   open question 4). A non-JSON body is a `string` or `bytes` the program
   parses or writes itself; there's no XML library (open question 5).
-- **No encryption and no public-key signatures** (ADR 0075 §6): `crypto`
-  has SHA-1, SHA-256 and SHA-512 with their HMACs, and HKDF-SHA-256, but
-  no encryption (AES-GCM) and no public-key signatures (Ed25519, RSA, so
-  no RS256 JWTs). SHA-1 is only for checking signatures a third party
-  already makes with it, such as Twilio's. A `Secret` can't be read as
-  base64 or hex outside a gateway, as Standard Webhooks' `whsec_` secrets
-  need.
+- **No encryption** (ADR 0075 §6): `crypto` has SHA-1, SHA-256 and
+  SHA-512 with their HMACs, HKDF-SHA-256, and public-key signatures
+  (Ed25519, ECDSA P-256 and P-384, RSA PKCS #1 v1.5 and PSS; ADR 0146),
+  which `fiig.jwt` uses for JWTs. There is no encryption (AES-GCM), so no
+  JWE, and no ES512, ES256K, PSS signing or DER ECDSA signatures (ADR 0146
+  §8). SHA-1 is only for checking signatures a third party already makes
+  with it, such as Twilio's. A `Secret` can't be read as base64 or hex
+  outside a gateway, as Standard Webhooks' `whsec_` secrets need.
 - **`crypto.equal` isn't enforced:** comparing a signature with `==` checks
   clean and leaks timing (ADR 0075 §3).
 - **Two models, or `int | decimal`, in one union** decode by the order

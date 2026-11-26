@@ -94,3 +94,35 @@ func TestCryptoRefusals(t *testing.T) {
     return a;
 }`), "K2", "the prelude crypto group")
 }
+
+// ADR 0146 §1-§3: public-key signatures are pure, so a rule verifies, and a
+// public key and a Secret can't stand in for each other.
+func TestSignatureMembersCheck(t *testing.T) {
+	diags := checkSrc(t, `rule valid(key: PublicKey, data: bytes, sig: bytes) -> bool {
+    return crypto.verify(key, SignatureAlgorithm.RsaPkcs1Sha256, data, sig);
+}`, `conversion readKey(text: string) -> Result<PublicKey, KeyError> {
+    key = crypto.publicKeyFromPem(text)?;
+    crypto.checkPublicKey(key)?;
+    return Ok(key);
+}`, `conversion built(x: bytes, y: bytes) -> PublicKey {
+    return PublicKey.EcP256(x: x, y: y);
+}`, `rule signed(key: Secret, data: bytes) -> bytes {
+    return crypto.sign(key, SignatureAlgorithm.Ed25519, data);
+}`)
+	if len(diags) > 0 {
+		t.Fatalf("diags = %v", diags)
+	}
+	for _, c := range []struct{ name, src, fragment string }{
+		{"a Secret verifies", `rule r(key: Secret, d: bytes) -> bool {
+    return crypto.verify(key, SignatureAlgorithm.RsaPkcs1Sha256, d, d);
+}`, "expected PublicKey"},
+		{"a public key signs", `rule r(key: PublicKey, d: bytes) -> bytes {
+    return crypto.sign(key, SignatureAlgorithm.Ed25519, d);
+}`, "expected Secret"},
+		{"an algorithm by name", `rule r(key: PublicKey, d: bytes) -> bool {
+    return crypto.verify(key, "RS256", d, d);
+}`, "expected SignatureAlgorithm"},
+	} {
+		wantDiag(t, checkSrc(t, c.src), "A1", c.fragment)
+	}
+}

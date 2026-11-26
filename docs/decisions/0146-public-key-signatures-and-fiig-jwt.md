@@ -2,7 +2,8 @@
 
 Status: Accepted (2026-11-25, by the owner), as written: `exp` required
 with no switch, signing in this ADR, and keys kept by a session that
-connects only to write (§5a). Not yet implemented.
+connects only to write (§5a). Implemented the same day (see Implementation
+notes).
 Date: 2026-11-23 (revised 2026-11-25: §5 keys are kept by a session that
 connects only to write, which amends ADR 0117 §2)
 Related: ADR 0042 (the socket floor), ADR 0049 (prelude groups), ADR 0071
@@ -224,8 +225,8 @@ model Expect {
     issuer: string;
     audience: string;
     algorithms: List<Algorithm>;          // what this program accepts; never empty
-    type: string | None = None;           // the header's typ, e.g. "at+jwt" (RFC 9068)
-    leewaySeconds: int = 60;
+    tokenType: string | None;             // the header's typ, e.g. "at+jwt" (RFC 9068)
+    leewaySeconds: int | None;            // None is 60
 }
 
 enum Algorithm {                          // the JOSE names, by ADR 0080's text form
@@ -258,11 +259,11 @@ The checks, in order, each a `JwtError` variant:
    (`AlgorithmRefused` otherwise, naming it). `none` isn't an `Algorithm`,
    so it is always refused. `verify` refuses the HS variants and
    `verifyHmac` refuses everything else, so a public key is never used as
-   an HMAC secret (the CVE-2015-9235 shape). An empty `algorithms` is a
-   fault: the program forgot to say.
+   an HMAC secret (the CVE-2015-9235 shape). An empty `algorithms` refuses
+   every token: the program forgot to say.
 4. **Header extensions.** A `crit` header (RFC 7515 §4.1.11) is refused,
    since `fiig.jwt` understands no extensions and the RFC requires
-   refusing what isn't understood. `expect.type`, when given, must match
+   refusing what isn't understood. `expect.tokenType`, when given, must match
    `typ` ignoring case and an `application/` prefix (RFC 8725 §3.11).
 5. **Key.** By the header's `kid`: the key with that `kid` whose type
    fits `alg`, and whose own `alg`, if the JWK states one, is the same.
@@ -430,13 +431,18 @@ connection only while it has something to send or a reply to read:
    ended(state: bytes, reason: string, now: int) -> Step;
    ```
 
-   Its step's state is kept. Asks still waiting that the step doesn't
-   answer get `SessionError.Broken`, as today. A `write` in it opens a
-   new connection, so a protocol that wants to retry can.
+   Its step's state is kept. A `write` in it opens a new connection, so
+   a protocol that wants to retry can, and the asks still waiting stay
+   waiting for it. With no write, the asks the step doesn't answer get
+   `SessionError.Broken`, as today. A connection that ends six times in a
+   row with nothing received on any, or a defect in the protocol (an
+   operation that faults), ends the session as ADR 0117 §2 has it: the
+   state goes, and the next ask starts it again.
 4. **Ticking** runs whether or not there is a connection, so a refresh
    can be scheduled while idle.
-5. **`MoveTo`** works as today. **`closing`** runs at shutdown, and its
-   `write` is sent only if a connection is open.
+5. **`MoveTo`** points the next connection at the new place and asks
+   every waiting message again, which opens it. **`closing`** runs at
+   shutdown, and its `write` is sent only if a connection is open.
 
 A session without the setting is unchanged: it connects on its first
 ask, `opened` runs on each connection, and its state ends with the
@@ -504,8 +510,8 @@ test "an expired token is refused" {
 ### 7. Issuing and inspecting
 
 ```fiig
-conversion sign(claims: JsonValue, key: Secret, algorithm: Algorithm, keyId: string | None) -> string;
-conversion signHmac(claims: JsonValue, key: Secret, algorithm: Algorithm) -> string;
+conversion sign(claims: JsonValue, key: Secret, algorithm: Algorithm, keyId: string | None) -> Result<string, JwtError>;
+conversion signHmac(claims: JsonValue, key: Secret, algorithm: Algorithm) -> Result<string, JwtError>;
 conversion keyIdOf(token: string) -> string | None;
 conversion decodeUnverified(token: string) -> Result<Unverified, JwtError>;
 ```
@@ -514,7 +520,8 @@ conversion decodeUnverified(token: string) -> Result<Unverified, JwtError>;
   given), so the caller can't put `alg: none` in it. It covers the
   Context's signing callers: a GitHub App's RS256 JWT, a Google service
   account's assertion, an APNs ES256 token. An algorithm `crypto.sign`
-  doesn't sign (PSS) is a fault.
+  doesn't sign (an HS one, which is `signHmac`'s, or PSS) is
+  `AlgorithmRefused`; a key that can't be read faults in `crypto.sign`.
 - `signHmac` is for a program issuing its own tokens to itself, with a
   `Secret` shared by its instances.
 - `keyIdOf` reads the `kid` to choose keys before verifying. It reads
@@ -656,3 +663,43 @@ write. Alternatives J and K are the other answers considered.)*
 5. Pre-fetching keys at startup (ADR 0124) so the first request doesn't
    wait for discovery and the JWKS, and so a wrong issuer URL stops the
    program from starting instead of refusing every request.
+
+## Implementation notes (2026-11-25)
+
+- **Sessions that connect only to write** (§5a): `compiler/runtime/session.go`
+  (`start`, `connectToWrite`, `ended`, `reset`, `moveToWrite`).
+  `SessionProtocol` gained `ended`, and `fiig.kafka`'s returns its state
+  unchanged. Tested in `tooling/runprogram`'s `session_on_write_test.go`: an
+  answer from state opens no connection, a write opens one, a dropped
+  connection runs `ended` and keeps the state, and a server that can't be
+  reached is an `ended` too.
+- **`crypto`** (§1-§3): `verify`, `sign`, `checkPublicKey` and
+  `publicKeyFromPem` in `compiler/runtime/signature.go`, all of it Go's
+  standard library and `x/crypto/cryptobyte`, which the module already
+  had. `hmacSha384` joined the group for HS384. The prelude gained
+  `SignatureAlgorithm`, `PublicKey` and `KeyError`. Tested against keys
+  and signatures Go makes, including r = s = 0 (CVE-2022-21449), a point
+  off the curve and a 1024-bit RSA key, and HMAC-SHA-384 against RFC
+  4231's test case 2.
+- **`fiig.jwt`** (§4-§7): `compiler/stdlib/jwt`, in fiig. Its own tests
+  check tokens Go's crypto signed, every refusal in §4, key sets, and the
+  key session's time rules with the clock in the test's hands.
+  `tooling/runprogram/jwt_test.go` checks what fiig signs with Go's crypto,
+  HMAC tokens both ways, and `JwtKeys` against a local server: one fetch
+  for many verifications, none after the server closes the connection,
+  the 30-second cooldown on unknown kids, discovery, a discovery document
+  naming another issuer, a 503, and an `http` URL refused.
+- **Where the build differs from the text above,** each corrected in
+  place:
+  - Model fields have no defaults, so `Expect`'s are `tokenType: string |
+    None` (`type` reads as a type name) and `leewaySeconds: int | None`,
+    `None` being 60.
+  - fiig code has no way to fault, so an empty `algorithms` refuses every
+    token instead of faulting, which fails closed the same way, and
+    `sign` and `signHmac` return `Result<string, JwtError>`, with
+    `AlgorithmRefused` for an algorithm they don't sign.
+  - §5a's waiting asks stay waiting when `ended` writes, and a session
+    whose connection keeps ending with nothing received is reset after
+    six times.
+- **Not done:** pre-fetching keys at startup (open question 5), and a
+  Hearsay change to verify its id token.

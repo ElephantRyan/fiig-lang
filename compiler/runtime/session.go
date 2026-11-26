@@ -27,6 +27,12 @@ import (
 // ADR 0117 §2, as amended 2026-11-21: the settings may name "alternates",
 // "host:port,host:port", tried in order when host and port can't be
 // reached; an IPv6 host is written in brackets, "[::1]:9092".
+//
+// ADR 0146 §5a: a session whose settings say "connect": "onWrite" keeps
+// its state from its first ask until the process stops, and has a
+// connection only while a step has something to send: opened runs once,
+// with no connection; a write with none opens one; and when a connection
+// ends, ended runs and the state is kept.
 
 const (
 	// SessionProtocolInterface is the interface a protocol package provides.
@@ -201,7 +207,7 @@ func (p *SessionProvider) session(proto *sessionProtocol, settings map[string]st
 		own[k] = v
 	}
 	s := &session{
-		p: p, proto: proto, settings: own,
+		p: p, proto: proto, settings: own, lazy: settings["connect"] == "onWrite",
 		asks: make(chan *sessionAsk), stop: make(chan chan struct{}), quit: make(chan struct{}),
 		events: make(chan sessionEvent),
 	}
@@ -314,6 +320,16 @@ type session struct {
 	held    []*sessionAsk
 	timer   *time.Timer
 	moves   int
+
+	// ADR 0146 §5a: lazy is "connect": "onWrite". started is whether
+	// opened has run; target is where the next connection goes, the
+	// settings' host and port until a MoveTo; ends counts the connections
+	// that ended in a row with nothing received on any, so a protocol
+	// whose ended keeps writing to a server that won't answer stops.
+	lazy    bool
+	started bool
+	target  *sessionTarget
+	ends    int
 }
 
 // call asks the session and waits for the reply's parts, until until.
@@ -354,7 +370,11 @@ func (s *session) loop() {
 	for {
 		select {
 		case a := <-s.asks:
-			if s.conn == nil {
+			if s.lazy {
+				if !s.started {
+					s.start()
+				}
+			} else if s.conn == nil {
 				s.moves = 0
 				if reason, ok := s.open(); !ok {
 					a.finish(sessionResult{failure: &sessionFailure{variant: "Broken", reason: reason}})
@@ -370,9 +390,10 @@ func (s *session) loop() {
 				s.broken("the connection broke: " + ev.err.Error())
 				continue
 			}
+			s.ends = 0
 			s.run("received", Bytes{B: s.state}, Bytes{B: ev.data}, s.now())
 		case <-s.timer.C:
-			if s.conn != nil {
+			if s.conn != nil || (s.lazy && s.started) {
 				s.run("tick", Bytes{B: s.state}, s.now())
 			}
 		case done := <-s.stop:
@@ -385,6 +406,46 @@ func (s *session) loop() {
 }
 
 func (s *session) now() Value { return Int(time.Now().UnixMilli()) }
+
+// start runs opened with no connection, for a session that connects only
+// to write (ADR 0146 §5a). Its state is the session's from then on.
+func (s *session) start() {
+	s.started = true
+	settings := Map{}
+	for k, v := range s.settings {
+		settings = settings.Put(Str(k), Str(v))
+	}
+	s.run("opened", settings, s.now())
+}
+
+// connectToWrite opens the connection a lazy session's step needs to
+// write on: the MoveTo target if there is one, else the settings' host and
+// port, then each alternate. It runs no operation: the state is already
+// the session's.
+func (s *session) connectToWrite() bool {
+	targets := []sessionTarget{{s.settings["host"], s.settings["port"]}}
+	if s.target != nil {
+		targets = []sessionTarget{*s.target}
+	} else {
+		alternates, _ := alternatesOf(s.settings["alternates"]) // checked when the session started
+		targets = append(targets, alternates...)
+	}
+	var failures []string
+	for _, target := range targets {
+		port, _ := strconv.Atoi(target.port)
+		t, err := s.dial(target.host, port)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v", addrOf(target.host, port), err))
+			continue
+		}
+		s.gen++
+		s.conn = t
+		go s.read(s.gen, t)
+		return true
+	}
+	s.broken("can't connect to " + strings.Join(failures, "; nor to "))
+	return false
+}
 
 // open connects to the settings' host and port, else to each of their
 // alternates in order, and runs opened on the first it reaches. When it
@@ -525,13 +586,13 @@ func (s *session) ask(a *sessionAsk) {
 
 // askHeld asks again each held ask, after a step that may have made room.
 func (s *session) askHeld() {
-	if s.conn == nil || len(s.held) == 0 {
+	if (s.conn == nil && !s.lazy) || len(s.held) == 0 {
 		return
 	}
 	held := s.held
 	s.held = nil
 	for i, a := range held {
-		if s.conn == nil {
+		if s.conn == nil && !s.lazy {
 			s.held = append(s.held, held[i:]...)
 			return
 		}
@@ -592,7 +653,7 @@ func (s *session) op(name string, args ...Value) (sessionStep, bool) {
 
 func (s *session) defect(op, why string) {
 	Log.Logf(logging.Error, logging.EventRuntime, nil, "fiig: Session: %s's %s.%s failed, a defect in %s: %s", s.proto.path, s.proto.group.Name, op, s.proto.path, why)
-	s.broken(fmt.Sprintf("%s.%s failed: %s", s.proto.group.Name, op, why))
+	s.reset(fmt.Sprintf("%s.%s failed: %s", s.proto.group.Name, op, why))
 }
 
 func stepOf(v Value) (sessionStep, error) {
@@ -635,6 +696,9 @@ func stepOf(v Value) (sessionStep, error) {
 // apply does what a step says: write, deliver replies, set the tick, close.
 func (s *session) apply(st sessionStep) {
 	s.state = st.state
+	if len(st.write) > 0 && s.conn == nil && s.lazy && !s.connectToWrite() {
+		return
+	}
 	if len(st.write) > 0 && s.conn != nil {
 		_ = s.conn.SetDeadline(time.Now().Add(sessionWriteTimeout))
 		_, err := s.conn.Write(st.write)
@@ -694,6 +758,10 @@ func (s *session) forget(key int64) {
 // moveTo reconnects at host and port and asks it every waiting message
 // again, in the order they were first accepted (§2).
 func (s *session) moveTo(host string, port int) {
+	if s.lazy {
+		s.moveToWrite(host, port)
+		return
+	}
 	var again []*sessionAsk
 	for _, k := range s.order {
 		if a := s.waiting[k]; a != nil && !a.isGone() {
@@ -722,6 +790,41 @@ func (s *session) moveTo(host string, port int) {
 	}
 }
 
+// moveToWrite is MoveTo for a lazy session (ADR 0146 §5a): the next
+// connection goes to host and port, and every waiting message is asked
+// again, which opens it.
+func (s *session) moveToWrite(host string, port int) {
+	var again []*sessionAsk
+	for _, k := range s.order {
+		if a := s.waiting[k]; a != nil && !a.isGone() {
+			a.parts = nil
+			again = append(again, a)
+		}
+	}
+	again = append(again, s.held...)
+	s.waiting, s.order, s.held = map[int64]*sessionAsk{}, nil, nil
+	s.hangUp()
+	s.moves++
+	if s.moves > sessionMoves {
+		s.fail(again, fmt.Sprintf("moved more than %d times without settling on a server", sessionMoves))
+		return
+	}
+	s.target = &sessionTarget{host, strconv.Itoa(port)}
+	for _, a := range again {
+		s.ask(a)
+	}
+}
+
+// hangUp closes the connection, if there is one, and ignores anything
+// still arriving on it. The state stays.
+func (s *session) hangUp() {
+	if s.conn != nil {
+		_ = s.conn.Close()
+		s.conn = nil
+	}
+	s.gen++
+}
+
 // drop closes the connection without failing anyone.
 func (s *session) drop() {
 	if s.conn != nil {
@@ -734,8 +837,50 @@ func (s *session) drop() {
 }
 
 // broken closes the connection and fails every waiting call; the next
-// call opens another.
+// call opens another. A lazy session keeps its state and is told, by
+// ended (ADR 0146 §5a).
 func (s *session) broken(reason string) {
+	if s.lazy {
+		s.ended(reason)
+		return
+	}
+	s.reset(reason)
+}
+
+// ended is the end of a lazy session's connection (ADR 0146 §5a): ended
+// runs over the state the session keeps. Asks still waiting stay waiting
+// when its step writes, which opens a connection to answer them; when it
+// doesn't, those it didn't answer fail.
+func (s *session) ended(reason string) {
+	s.hangUp()
+	s.ends++
+	if s.ends > sessionMoves {
+		s.reset(fmt.Sprintf("%s; its connection ended %d times in a row with nothing received", reason, sessionMoves+1))
+		return
+	}
+	st, ok := s.op("ended", Bytes{B: s.state}, Str(reason), s.now())
+	if !ok {
+		return
+	}
+	s.apply(st)
+	if s.conn == nil {
+		waiting := make([]*sessionAsk, 0, len(s.order))
+		for _, k := range s.order {
+			waiting = append(waiting, s.waiting[k])
+		}
+		s.waiting, s.order = map[int64]*sessionAsk{}, nil
+		s.fail(waiting, reason)
+	}
+}
+
+// reset is the session's end as ADR 0117 §2 has it: the connection
+// closes, every waiting call fails, and the state goes, so the next call
+// starts the session again. A lazy session ends this way only on a
+// defect in its protocol, or a connection that won't stay up.
+func (s *session) reset(reason string) {
+	s.started = false
+	s.target = nil
+	s.ends = 0
 	waiting := make([]*sessionAsk, 0, len(s.order)+len(s.held))
 	for _, k := range s.order {
 		waiting = append(waiting, s.waiting[k])
@@ -754,7 +899,7 @@ func (s *session) fail(asks []*sessionAsk, reason string) {
 
 // closing runs the protocol's closing, lets its write drain, and closes.
 func (s *session) closing() {
-	if s.conn != nil {
+	if s.conn != nil || (s.lazy && s.started) {
 		if st, ok := s.op("closing", Bytes{B: s.state}, s.now()); ok && len(st.write) > 0 && s.conn != nil {
 			_ = s.conn.SetDeadline(time.Now().Add(sessionGrace))
 			if _, err := s.conn.Write(st.write); err == nil {
@@ -774,5 +919,5 @@ func (s *session) closing() {
 			}
 		}
 	}
-	s.broken("the process is stopping")
+	s.reset("the process is stopping")
 }

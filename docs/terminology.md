@@ -98,9 +98,10 @@ gateways; only applications define workflows and adapters.
 
   <!-- prelude-types: kept in step with types.PreludeTypeNames by a test -->
   `BatchResult`, `Connection`, `Cookie`, `DatabaseConflict`,
-  `DecompressError`, `HttpResponse`, `JsonError`, `JsonValue`, `List`, `Map`,
-  `None`, `Result`, `Rounding`, `SameSite`, `Secret`, `SessionError`,
-  `SettingError`, `SettingSource`, `SocketError`.
+  `DecompressError`, `HttpResponse`, `JsonError`, `JsonValue`, `KeyError`,
+  `List`, `Map`, `None`, `PublicKey`, `Result`, `Rounding`, `SameSite`,
+  `Secret`, `SessionError`, `SettingError`, `SettingSource`,
+  `SignatureAlgorithm`, `SocketError`.
   <!-- /prelude-types -->
 
 ## Concurrency

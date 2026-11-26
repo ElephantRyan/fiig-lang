@@ -110,6 +110,14 @@ was the other way, and is a grammar change for one interface.)* A
 session has one connection; ADR 0114's open question 4 (more than one)
 stays open.
 
+*(Amended 2026-11-25 by ADR 0146 §5a: a session whose settings say
+`"connect": "onWrite"` keeps its state for the life of the process and
+has a connection only while a step has something to send. `opened` runs
+once, with no connection, and a sixth operation, `ended(state, reason,
+now) -> Step`, runs when a connection ends. Every protocol writes
+`ended`; a session without the setting, as `fiig.kafka`'s are, never
+calls it and is unchanged.)*
+
 ### 3. Two kinds of session
 
 `fiig.kafka`'s protocol plays one of two roles, by the settings' `"role"`:

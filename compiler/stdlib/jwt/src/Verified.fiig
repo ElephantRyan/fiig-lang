@@ -1,0 +1,13 @@
+// ADR 0146 §4: a token whose signature and claims passed. The times are
+// Unix milliseconds, as Clock.now() gives them; claims is the whole
+// payload, for json.decode into the program's own model.
+model Verified {
+    issuer: string;
+    subject: string | None;
+    audience: List<string>;
+    expiresAt: int;
+    issuedAt: int | None;
+    id: string | None;
+    keyId: string | None;
+    claims: JsonValue;
+}

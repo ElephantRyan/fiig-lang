@@ -1,0 +1,7 @@
+// ADR 0146 §4-§5: one key of a JSON Web Key Set (RFC 7517), as fiig.jwt
+// uses it: its kid, the alg it states if it states one, and the key.
+model Jwk {
+    keyId: string | None;
+    algorithm: string | None;
+    key: PublicKey;
+}

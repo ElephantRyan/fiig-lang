@@ -1,0 +1,39 @@
+use fiig.http;
+
+// ADR 0146 §5: an issuer's signing keys, kept by sessions that connect
+// only to write (§5a), so a verification costs in-process calls almost
+// always, not a network round trip. One session per URL: an issuer's
+// discovery document (OpenID Connect Discovery §4) names its jwks_uri, and
+// that URL's session keeps the keys.
+capability JwtKeys {
+    gateway forIssuer(issuer: string, keyId: string | None) -> Result<List<Jwk>, JwtError>
+            requires Session {
+        discovery = jwksSettings(
+            "${issuer.removeSuffix("/")}/.well-known/openid-configuration",
+            issuer
+        )?;
+        until = Clock.now() + 15000;
+        ask = json.encode(JwksAsk(keyId: None));
+        found = mapErr(e in Session.call(discovery, ask, deadline: until)):
+                JwtError.KeysUnavailable(reason: "the issuer's discovery document: ${e}")?;
+        discovered = jwksAnswerOf(found)?;
+        keys = jwksSettings(discovered.jwksUri ?? "", None)?;
+        forKey = json.encode(JwksAsk(keyId: keyId));
+        parts = mapErr(e in Session.call(keys, forKey, deadline: until)):
+                JwtError.KeysUnavailable(reason: "the issuer's key set: ${e}")?;
+        answer = jwksAnswerOf(parts)?;
+        return Ok(answer.keys);
+    }
+
+    // A JWKS URL given directly, for an issuer without discovery.
+    gateway fromUrl(url: string, keyId: string | None) -> Result<List<Jwk>, JwtError>
+            requires Session {
+        keys = jwksSettings(url, None)?;
+        until = Clock.now() + 15000;
+        forKey = json.encode(JwksAsk(keyId: keyId));
+        parts = mapErr(e in Session.call(keys, forKey, deadline: until)):
+                JwtError.KeysUnavailable(reason: "the key set: ${e}")?;
+        answer = jwksAnswerOf(parts)?;
+        return Ok(answer.keys);
+    }
+}

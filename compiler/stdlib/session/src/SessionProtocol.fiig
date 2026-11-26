@@ -5,10 +5,16 @@
 // other system. A package's manifest names the group that fulfils it:
 // "provides": {"fiig.session.SessionProtocol": "KafkaSession"}, and
 // Session.call from that package's gateways runs it.
+//
+// ADR 0146 §5a: a session whose settings say "connect": "onWrite" runs
+// opened once, with no connection, and keeps its state until the process
+// stops. A connection opens when a step has something to write, and when
+// one ends, ended runs with why. Any other session never calls ended.
 interface SessionProtocol {
     opened(settings: Map<string, string>, now: int) -> Step;
     received(state: bytes, data: bytes, now: int) -> Step;
     asked(state: bytes, message: bytes, now: int) -> Step;
     tick(state: bytes, now: int) -> Step;
     closing(state: bytes, now: int) -> Step;
+    ended(state: bytes, reason: string, now: int) -> Step;
 }

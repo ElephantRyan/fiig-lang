@@ -1,0 +1,16 @@
+// ADR 0146 §4: why a token wasn't accepted. None of them quotes the token,
+// since a token in a log is a working credential.
+enum JwtError {
+    TooLarge,
+    Malformed(reason: string),
+    AlgorithmRefused(algorithm: string),
+    NoKey(keyId: string | None),
+    BadSignature,
+    WrongType(found: string | None),
+    WrongIssuer(found: string),
+    WrongAudience(found: List<string>),
+    MissingClaim(name: string),
+    Expired(at: int),
+    NotYetValid(at: int),
+    KeysUnavailable(reason: string)
+}

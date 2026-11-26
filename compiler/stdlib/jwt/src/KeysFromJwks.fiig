@@ -1,0 +1,116 @@
+// ADR 0146 §5: the keys of a JSON Web Key Set (RFC 7517 §5), as a JWKS
+// URL serves it or a program configures it. Strict about the document,
+// lenient about its keys: a key for encryption (use "enc"), of a kind
+// fiig.jwt doesn't verify, or one crypto.checkPublicKey refuses is left
+// out, since providers publish keys for other uses beside signing ones.
+conversion keysFromJwks(document: bytes) -> Result<List<Jwk>, JwtError> {
+    keys: List<Jwk> = [];
+    for (entry in entriesOf(document)?) {
+        match (entry) {
+            JsonValue.Object(members) -> {
+                match (jwkOf(members)) {
+                    None -> None,
+                    jwk -> {
+                        keys = append(keys, jwk);
+                    }
+                }
+            },
+
+            _ -> None
+        }
+    }
+
+    return Ok(keys);
+}
+
+private {
+    entriesOf(document: bytes) -> Result<List<JsonValue>, JwtError> {
+        decoded: Result<JsonValue, JsonError> = json.decode(document);
+        members = match (decoded) {
+            Ok(JsonValue.Object(given)) -> given,
+            Ok(_) -> {
+                return Err(JwtError.KeysUnavailable(reason: "the key set isn't a JSON object"));
+            },
+
+            Err(_) -> {
+                return Err(JwtError.KeysUnavailable(reason: "the key set isn't JSON"));
+            }
+        }
+
+        return match (members.atOrNone("keys")) {
+            JsonValue.Array(items) -> Ok(items),
+            _ -> Err(JwtError.KeysUnavailable(reason: "the key set has no keys list"))
+        }
+    }
+
+    jwkOf(members: Map<string, JsonValue>) -> Jwk | None {
+        if ((textMember(members, "use") ?? "sig") != "sig") {
+            return None;
+        }
+
+        key = match (textMember(members, "kty") ?? "") {
+            "RSA" -> rsaKey(members),
+            "EC" -> ecKey(members),
+            "OKP" -> okpKey(members),
+            _ -> None
+        }
+
+        return match (key) {
+            None -> None,
+            given -> usable(given, members)
+        }
+    }
+
+    usable(key: PublicKey, members: Map<string, JsonValue>) -> Jwk | None {
+        return match (crypto.checkPublicKey(key)) {
+            Ok(_) -> Jwk(
+                keyId: textMember(members, "kid"),
+                algorithm: textMember(members, "alg"),
+                key: key
+            ),
+            Err(_) -> None
+        }
+    }
+
+    rsaKey(members: Map<string, JsonValue>) -> PublicKey | None {
+        modulus = decoded(members, "n");
+        exponent = decoded(members, "e");
+        if (modulus == None || exponent == None) {
+            return None;
+        }
+
+        return PublicKey.Rsa(modulus: modulus ?? <<>>, exponent: exponent ?? <<>>);
+    }
+
+    ecKey(members: Map<string, JsonValue>) -> PublicKey | None {
+        x = decoded(members, "x");
+        y = decoded(members, "y");
+        if (x == None || y == None) {
+            return None;
+        }
+
+        return match (textMember(members, "crv") ?? "") {
+            "P-256" -> PublicKey.EcP256(x: x ?? <<>>, y: y ?? <<>>),
+            "P-384" -> PublicKey.EcP384(x: x ?? <<>>, y: y ?? <<>>),
+            _ -> None
+        }
+    }
+
+    okpKey(members: Map<string, JsonValue>) -> PublicKey | None {
+        if ((textMember(members, "crv") ?? "") != "Ed25519") {
+            return None;
+        }
+
+        return match (decoded(members, "x")) {
+            None -> None,
+            x -> PublicKey.Ed25519(key: x)
+        }
+    }
+
+    decoded(members: Map<string, JsonValue>, name: string) -> bytes | None {
+        return match (textMember(members, name)) {
+            None -> None,
+            text -> text.fromBase64Url()
+        }
+    }
+}

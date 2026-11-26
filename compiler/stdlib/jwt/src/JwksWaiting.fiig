@@ -1,0 +1,4 @@
+// An ask a key session will answer when its fetch is done.
+model JwksWaiting {
+    key: int;
+}

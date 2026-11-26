@@ -1,0 +1,5 @@
+// What JwtKeys asks a key session: the kid a token names, if any, so a
+// kid the set doesn't have fetches it again (ADR 0146 §5).
+model JwksAsk {
+    keyId: string | None;
+}

@@ -134,6 +134,10 @@ SQL unchecked, with a note. C2 is not started.
 | D1 | **More `crypto`, then `fiig.jwt`.** HMAC with SHA-1 and SHA-512 (ADR 0075 open question 1), then RSA, ECDSA and Ed25519 verification, AES-GCM and HKDF, as members of the prelude group, in Go. A `fiig.jwt` library in fiig over them and `fiig.http`, with a JWKS fetch, would verify an OIDC id token. | L | ADR |
 | D2 | **A typed digest that refuses `==`**, so ADR 0075 §3's timing rule is a check (open question 2). | M | ADR |
 
+**Status (2026-11-25): D1 is done but for AES-GCM** (ADR 0146): HMAC-SHA-1,
+-384 and -512, HKDF, public-key signatures in `crypto`, and `fiig.jwt` with
+keys from a JWKS URL or an issuer's discovery document. D2 is not started.
+
 ### E. Delivery and reach
 
 | # | Idea | Size | Needs |

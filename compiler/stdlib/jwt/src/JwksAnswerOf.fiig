@@ -1,0 +1,21 @@
+// A key session's reply as JwtKeys returns it: its keys or jwks_uri, or
+// KeysUnavailable with why. Verification fails closed: no keys is never
+// "check nothing".
+conversion jwksAnswerOf(parts: List<bytes>) -> Result<JwksAnswer, JwtError> {
+    decoded: Result<JwksAnswer, JsonError> = json.decode(parts.first());
+    answer = match (decoded) {
+        Ok(given) -> given,
+        Err(_) -> {
+            return Err(
+                JwtError.KeysUnavailable(
+                    reason: "the key session answered something that isn't an answer"
+                )
+            );
+        }
+    }
+
+    return match (answer.failure) {
+        None -> Ok(answer),
+        reason -> Err(JwtError.KeysUnavailable(reason: reason))
+    }
+}

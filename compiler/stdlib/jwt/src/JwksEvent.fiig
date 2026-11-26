@@ -1,0 +1,8 @@
+// What a key session's protocol was called for (ADR 0117 §2, ADR 0146
+// §5a), so all of its rules are one conversion, jwksStep.
+enum JwksEvent {
+    Asked(message: bytes),
+    Received(data: bytes),
+    Tick,
+    Ended(reason: string)
+}

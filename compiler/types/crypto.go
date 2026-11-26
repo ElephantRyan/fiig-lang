@@ -1,6 +1,10 @@
 package types
 
-import "sort"
+import (
+	"sort"
+
+	"fiig-lang/compiler/syntax"
+)
 
 // ADR 0075: the prelude crypto group.
 
@@ -13,6 +17,17 @@ const CryptoGroup = "crypto"
 // comes from the program's Random provider, so it is a local effect like
 // Random (ADR 0075 §5).
 const HashPasswordFormula = "hashPassword"
+
+// ADR 0146 §1-§2: the prelude types public-key signatures work in.
+var (
+	SignatureAlgorithmDecl = preludeDecls["SignatureAlgorithm"].(*syntax.EnumDecl)
+	PublicKeyDecl          = preludeDecls["PublicKey"].(*syntax.EnumDecl)
+	KeyErrorDecl           = preludeDecls["KeyError"].(*syntax.EnumDecl)
+
+	SignatureAlgorithmType = Named{Name: "SignatureAlgorithm", Decl: SignatureAlgorithmDecl}
+	PublicKeyType          = Named{Name: "PublicKey", Decl: PublicKeyDecl}
+	KeyErrorType           = Named{Name: "KeyError", Decl: KeyErrorDecl}
+)
 
 // cryptoFormulas is the crypto group's table. The checker types a
 // `crypto.member(...)` call against it and the runtime dispatches through
@@ -28,6 +43,8 @@ var cryptoFormulas = map[string]Method{
 	"hmacSha1":   {[]Param{p("key", Union{Members: []Type{SecretType, bytesType}}), p("data", bytesType)}, bytesType},
 	"sha512":     {[]Param{p("data", bytesType)}, bytesType},
 	"hmacSha512": {[]Param{p("key", Union{Members: []Type{SecretType, bytesType}}), p("data", bytesType)}, bytesType},
+	// ADR 0146 §4: HMAC-SHA-384, for a JWT's HS384.
+	"hmacSha384": {[]Param{p("key", Union{Members: []Type{SecretType, bytesType}}), p("data", bytesType)}, bytesType},
 	// ADR 0075 §6 (amended 2026-11-21): RFC 5869 HKDF-SHA-256, `length`
 	// bytes out.
 	"hkdfSha256": {[]Param{p("key", Union{Members: []Type{SecretType, bytesType}}), p("salt", bytesType), p("info", bytesType), p("length", intType)}, bytesType},
@@ -40,6 +57,14 @@ var cryptoFormulas = map[string]Method{
 	// carry. A checksum for catching corruption, not a cryptographic hash:
 	// anyone can make data with any CRC.
 	"crc32c": {[]Param{p("data", bytesType)}, intType},
+
+	// ADR 0146 §1-§3: public-key signatures. The algorithm is always an
+	// argument, and a public key and a Secret can't stand in for each
+	// other, so the JWT algorithm confusion can't be written.
+	"verify":           {[]Param{p("key", PublicKeyType), p("algorithm", SignatureAlgorithmType), p("data", bytesType), p("signature", bytesType)}, boolType},
+	"checkPublicKey":   {[]Param{p("key", PublicKeyType)}, Generic{Name: "Result", Args: []Type{NoneType{}, KeyErrorType}}},
+	"publicKeyFromPem": {[]Param{p("pem", stringType)}, Generic{Name: "Result", Args: []Type{PublicKeyType, KeyErrorType}}},
+	"sign":             {[]Param{p("key", SecretType), p("algorithm", SignatureAlgorithmType), p("data", bytesType)}, bytesType},
 
 	HashPasswordFormula: {[]Param{p("password", stringType)}, stringType},
 	"passwordMatches":   {[]Param{p("password", stringType), p("stored", stringType)}, boolType},

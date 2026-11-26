@@ -1,0 +1,9 @@
+// ADR 0146 §7: a token's kid, to choose keys before verifying, or None.
+// It reads only the header, and trusts nothing in it but the choice of
+// key: verify checks everything else.
+conversion keyIdOf(token: string) -> string | None {
+    return match (tokenOf(token)) {
+        Ok(parts) -> parts.keyId,
+        Err(_) -> None
+    }
+}

@@ -1,0 +1,6 @@
+// ADR 0146 §7: a token's header and payload, NOT checked. It shares no
+// field with Verified, so one can't be passed where the other is wanted.
+model Unverified {
+    header: JsonValue;
+    payload: JsonValue;
+}

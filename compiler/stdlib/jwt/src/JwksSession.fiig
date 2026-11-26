@@ -1,0 +1,36 @@
+use fiig.session;
+
+// ADR 0146 §5: fiig.jwt's session protocol, for sessions that connect only
+// to write (§5a). Each operation is jwksStep over the state.
+capability JwksSession provides session.SessionProtocol {
+    gateway opened(settings: Map<string, string>, now: int) -> session.Step requires Session {
+        return jwksStep(jwksStarted(settings), JwksEvent.Tick, now);
+    }
+
+    gateway received(state: bytes, data: bytes, now: int) -> session.Step requires Session {
+        return jwksStep(jwksStateOf(state), JwksEvent.Received(data: data), now);
+    }
+
+    gateway asked(state: bytes, message: bytes, now: int) -> session.Step requires Session {
+        return jwksStep(jwksStateOf(state), JwksEvent.Asked(message: message), now);
+    }
+
+    gateway tick(state: bytes, now: int) -> session.Step requires Session {
+        return jwksStep(jwksStateOf(state), JwksEvent.Tick, now);
+    }
+
+    gateway closing(state: bytes, now: int) -> session.Step requires Session {
+        return session.Step(
+            state: state,
+            write: <<>>,
+            accepted: None,
+            replies: [],
+            nextTickAt: None,
+            close: None
+        );
+    }
+
+    gateway ended(state: bytes, reason: string, now: int) -> session.Step requires Session {
+        return jwksStep(jwksStateOf(state), JwksEvent.Ended(reason: reason), now);
+    }
+}

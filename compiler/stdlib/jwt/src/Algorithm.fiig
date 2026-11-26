@@ -1,0 +1,17 @@
+// ADR 0146 §4: the JOSE algorithm names (RFC 7518 §3.1) fiig.jwt knows,
+// spelled as a token's header writes them. `none` isn't one, so a token
+// whose header says it is never verifies.
+enum Algorithm {
+    RS256,
+    RS384,
+    RS512,
+    PS256,
+    PS384,
+    PS512,
+    ES256,
+    ES384,
+    EdDSA,
+    HS256,
+    HS384,
+    HS512
+}

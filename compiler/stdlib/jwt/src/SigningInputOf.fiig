@@ -1,0 +1,15 @@
+// A token's first two segments, which its signature covers: the header
+// sign and signHmac write, and the claims.
+conversion signingInputOf(claims: JsonValue, algorithm: Algorithm, keyId: string | None) -> string {
+    alg = JsonValue.Text(value: algorithmName(algorithm));
+    header: Map<string, JsonValue> = ["alg": alg, "typ": JsonValue.Text(value: "JWT")];
+    match (keyId) {
+        None -> None,
+        given -> {
+            header = header.put("kid", JsonValue.Text(value: given));
+        }
+    }
+
+    encodedHeader = json.encode(JsonValue.Object(members: header)).toBase64Url();
+    return "${encodedHeader}.${json.encode(claims).toBase64Url()}";
+}

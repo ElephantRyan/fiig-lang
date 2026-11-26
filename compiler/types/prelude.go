@@ -75,6 +75,27 @@ var preludeSources = []string{`enum SocketError {
     Lax,
     AnySite
 }
+`, `enum SignatureAlgorithm {
+    Ed25519,
+    EcdsaP256Sha256,
+    EcdsaP384Sha384,
+    RsaPkcs1Sha256,
+    RsaPkcs1Sha384,
+    RsaPkcs1Sha512,
+    RsaPssSha256,
+    RsaPssSha384,
+    RsaPssSha512
+}
+`, `enum PublicKey {
+    Rsa(modulus: bytes, exponent: bytes),
+    EcP256(x: bytes, y: bytes),
+    EcP384(x: bytes, y: bytes),
+    Ed25519(key: bytes)
+}
+`, `enum KeyError {
+    Malformed(reason: string),
+    Unsupported(reason: string)
+}
 `, `enum DecompressError {
     Corrupt(reason: string),
     TooLarge(maxSize: int)

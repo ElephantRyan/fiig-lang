@@ -1,0 +1,151 @@
+use fiig.session;
+
+// ADR 0146 §5: a key session's rules, with the clock in the test's hands.
+test aFirstAskFetchesAndTheReplyAnswersIt {
+    first = jwksStep(jwksStarted(settings()), JwksEvent.Asked(message: ask(None)), 1000);
+    expect (first.write.utf8() ?? "") == "GET /jwks.json HTTP/1.1\r\nHost: keys.example\r\nAccept: application/json\r\nUser-Agent: fiig-http/1\r\n\r\n";
+    expect first.accepted == 1;
+    expect first.replies.length() == 0;
+    expect first.nextTickAt == 11000;
+    fetched = jwksStep(
+        jwksStateOf(first.state),
+        JwksEvent.Received(data: reply(200, keySet())),
+        1100
+    );
+    expect keysIn(fetched) == 1;
+    expect fetched.nextTickAt == 601100;
+    // Asked again, it answers from its state and writes nothing.
+    again = jwksStep(jwksStateOf(fetched.state), JwksEvent.Asked(message: ask(None)), 2000);
+    expect again.write.length() == 0;
+    expect keysIn(again) == 1;
+}
+
+test asksDuringAFetchWaitForIt {
+    first = jwksStep(jwksStarted(settings()), JwksEvent.Asked(message: ask(None)), 1000);
+    second = jwksStep(jwksStateOf(first.state), JwksEvent.Asked(message: ask(None)), 1001);
+    expect second.write.length() == 0;
+    expect second.accepted == 2;
+    expect second.replies.length() == 0;
+    fetched = jwksStep(
+        jwksStateOf(second.state),
+        JwksEvent.Received(data: reply(200, keySet())),
+        1100
+    );
+    expect fetched.replies.length() == 2;
+}
+
+test aNewKidFetchesAgainOnlyAfterTheCooldown {
+    fetched = fetchedAt(1000);
+    soon = jwksStep(jwksStateOf(fetched.state), JwksEvent.Asked(message: ask("rotated")), 30999);
+    expect soon.write.length() == 0;
+    expect keysIn(soon) == 1;
+    later = jwksStep(jwksStateOf(fetched.state), JwksEvent.Asked(message: ask("rotated")), 31000);
+    expect later.write.length() > 0;
+    // A kid the set has needs nothing.
+    known = jwksStep(jwksStateOf(fetched.state), JwksEvent.Asked(message: ask("ed-1")), 31000);
+    expect known.write.length() == 0;
+}
+
+test aSetIsRefreshedAfterTenMinutesAndKeptWhenTheRefreshFails {
+    fetched = fetchedAt(1000);
+    early = jwksStep(jwksStateOf(fetched.state), JwksEvent.Tick, 600999);
+    expect early.write.length() == 0;
+    refresh = jwksStep(jwksStateOf(fetched.state), JwksEvent.Tick, 601100);
+    expect refresh.write.length() > 0;
+    failed = jwksStep(jwksStateOf(refresh.state), JwksEvent.Received(data: reply(503, "")), 601200);
+    // A whole HTTP/1.1 reply leaves the connection to keep.
+    expect failed.close == None;
+    // The next try waits out the cooldown.
+    expect failed.nextTickAt == 631100;
+    kept = jwksStep(jwksStateOf(failed.state), JwksEvent.Asked(message: ask(None)), 700000);
+    expect keysIn(kept) == 1;
+}
+
+test aSetTooOldIsDroppedAndAsksFailClosed {
+    fetched = fetchedAt(1000);
+    stale = jwksStep(jwksStateOf(fetched.state), JwksEvent.Asked(message: ask(None)), 4201000);
+    expect stale.write.length() > 0;
+    failed = jwksStep(jwksStateOf(stale.state), JwksEvent.Received(data: reply(503, "")), 4201100);
+    expect answerOf(failed).failure == "the server answered 503";
+    expect answerOf(failed).keys.length() == 0;
+}
+
+test aFetchWithNoReplyTimesOut {
+    first = jwksStep(jwksStarted(settings()), JwksEvent.Asked(message: ask(None)), 1000);
+    waiting = jwksStep(jwksStateOf(first.state), JwksEvent.Tick, 10999);
+    expect waiting.replies.length() == 0;
+    timedOut = jwksStep(jwksStateOf(first.state), JwksEvent.Tick, 11000);
+    expect answerOf(timedOut).failure == "no reply in 10 seconds";
+    expect timedOut.close != None;
+}
+
+test aConnectionThatEndsEndsTheFetch {
+    first = jwksStep(jwksStarted(settings()), JwksEvent.Asked(message: ask(None)), 1000);
+    partial = jwksStep(
+        jwksStateOf(first.state),
+        JwksEvent.Received(data: "HTTP/1.1 200 OK\r\n".utf8()),
+        1100
+    );
+    ended = jwksStep(jwksStateOf(partial.state), JwksEvent.Ended(reason: "reset"), 1200);
+    expect answerOf(ended).failure == "the connection ended before the reply did: reset";
+    // A body that runs until the server closes is whole when it does.
+    body = keySet();
+    untilClose = "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n${body}".utf8();
+    read = jwksStep(jwksStateOf(first.state), JwksEvent.Received(data: untilClose), 1100);
+    expect read.replies.length() == 0;
+    closed = jwksStep(jwksStateOf(read.state), JwksEvent.Ended(reason: "closed"), 1200);
+    expect keysIn(closed) == 1;
+}
+
+test aDiscoveryDocumentMustNameTheIssuerAsked {
+    discovery = settings().put("issuer", "https://issuer.example");
+    first = jwksStep(jwksStarted(discovery), JwksEvent.Asked(message: ask(None)), 1000);
+    named = "{\"issuer\": \"https://issuer.example\", \"jwks_uri\": \"https://keys.example/jwks.json\"}";
+    found = jwksStep(jwksStateOf(first.state), JwksEvent.Received(data: reply(200, named)), 1100);
+    expect answerOf(found).jwksUri == "https://keys.example/jwks.json";
+    other = "{\"issuer\": \"https://other.example\", \"jwks_uri\": \"https://keys.example/jwks.json\"}";
+    refused = jwksStep(jwksStateOf(first.state), JwksEvent.Received(data: reply(200, other)), 1100);
+    expect answerOf(refused).failure == "the discovery document names another issuer";
+}
+
+private {
+    settings() -> Map<string, string> {
+        settings: Map<string, string> = ["url": "https://keys.example/jwks.json"];
+        return settings;
+    }
+
+    ask(keyId: string | None) -> bytes {
+        return json.encode(JwksAsk(keyId: keyId));
+    }
+
+    keySet() -> string {
+        return "{\"keys\": [{\"kty\": \"OKP\", \"kid\": \"ed-1\", \"crv\": \"Ed25519\", \"x\": \"Pu3Gf0WYH4R0sduLuQlxhdiEYpiS8OiIm32D3j3tIi8\"}]}";
+    }
+
+    reply(status: int, body: string) -> bytes {
+        return "HTTP/1.1 ${status} OK\r\nContent-Length: ${body.utf8().length()}\r\n\r\n${body}".utf8();
+    }
+
+    // A session that fetched the key set at the time given.
+    fetchedAt(at: int) -> session.Step {
+        first = jwksStep(jwksStarted(settings()), JwksEvent.Asked(message: ask(None)), at);
+        return jwksStep(
+            jwksStateOf(first.state),
+            JwksEvent.Received(data: reply(200, keySet())),
+            at
+        );
+    }
+
+    answerOf(step: session.Step) -> JwksAnswer {
+        decoded: Result<JwksAnswer, JsonError> = json.decode(step.replies.first().message);
+        keys: List<Jwk> = [];
+        return match (decoded) {
+            Ok(given) -> given,
+            Err(_) -> JwksAnswer(keys: keys, jwksUri: None, failure: "no answer")
+        }
+    }
+
+    keysIn(step: session.Step) -> int {
+        return answerOf(step).keys.length();
+    }
+}

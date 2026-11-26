@@ -1,0 +1,38 @@
+// ADR 0146 §4 checks 3-4: the header's alg is one this program accepts,
+// it names no extension fiig.jwt would have to understand (crit, RFC 7515
+// §4.1.11), and its typ is the one asked for, ignoring case and an
+// "application/" prefix (RFC 8725 §3.11).
+conversion headerChecked(parts: TokenParts, expect: Expect) -> Result<None, JwtError> {
+    if (!expect.algorithms.contains(parts.algorithm)) {
+        return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(parts.algorithm)));
+    }
+
+    if (parts.header.containsKey("crit")) {
+        return Err(
+            JwtError.Malformed(
+                reason: "the header names extensions (crit) fiig.jwt doesn't understand"
+            )
+        );
+    }
+
+    match (expect.tokenType) {
+        None -> None,
+        wanted -> {
+            found = textMember(parts.header, "typ");
+            match (found) {
+                None -> {
+                    return Err(JwtError.WrongType(found: None));
+                },
+
+                given -> {
+                    got = given.removePrefix("application/");
+                    if (!got.equalsIgnoringCase(wanted.removePrefix("application/"))) {
+                        return Err(JwtError.WrongType(found: given));
+                    }
+                }
+            }
+        }
+    }
+
+    return Ok(None);
+}
