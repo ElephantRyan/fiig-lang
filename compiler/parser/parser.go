@@ -373,11 +373,12 @@ func (p *Parser) parseFilePrivateBlock(f *syntax.File) {
 		p.errorf(start, "a private block must follow the file's public declaration (ADR 0054)")
 	default:
 		switch d := f.Decls[0].(type) {
-		case *syntax.RuleDecl, *syntax.ConversionDecl, *syntax.ActivityDecl, *syntax.GatewayDecl, *syntax.WorkflowDecl, *syntax.TestDecl:
+		// ADR 0151 §6: a formulas group's members may share private helpers.
+		case *syntax.RuleDecl, *syntax.ConversionDecl, *syntax.ActivityDecl, *syntax.GatewayDecl, *syntax.WorkflowDecl, *syntax.TestDecl, *syntax.FormulasDecl:
 		case *syntax.CapabilityDecl:
 			p.errorf(start, "%s", groupHelperHint)
 		default:
-			p.errorf(start, "%s %q may not have a private block; only a rule, conversion, activity, gateway, workflow, or test holds code a helper could serve (ADR 0054)", syntax.DeclKindName(d), syntax.DeclName(d))
+			p.errorf(start, "%s %q may not have a private block; only a rule, conversion, activity, gateway, workflow, test, or formulas group holds code a helper could serve (ADR 0054, ADR 0151)", syntax.DeclKindName(d), syntax.DeclName(d))
 		}
 	}
 	f.Private = block

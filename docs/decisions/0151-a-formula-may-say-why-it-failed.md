@@ -180,6 +180,24 @@ return its domain's errors (`OrderError`, `AdminError`) rather than a
 format's (`DateError`, `PgError`), the convention isn't holding, and this
 ADR is reopened for a checkable fence (open question 1).
 
+### 6. A formulas group's private helpers are built
+
+*Added 2026-11-25, when the standard library's move began.* ADR 0054 §1
+already accepted this on 2026-10-17 and left it unbuilt until the formula
+tier existed; it was never picked up. A formulas file may hold a
+`private { }` block, as a rule's file may. Its
+helpers are called by the group's members, and nothing outside the file
+can call one: `pad.zeroPad(...)` from another file is "formulas group pad
+has no formula zeroPad". A helper takes its file's kind, as every helper
+does, so it calls only formulas (B11).
+
+Without this, a moved helper's pieces (`http.formEncode`'s byte escaping,
+`fiig.time`'s days-in-month) would become public members, in the catalog
+and callable by anyone, only because the code moved kinds. One part of ADR 0054
+§1 changes with this ADR: it said a group's helpers carry the formula
+restrictions, "no `Result`" among them, and §1 of this ADR lifts that one
+for helpers as for members.
+
 ## Alternatives considered
 
 **A. Keep the ban.** Parsers and decoders stay conversions, out of a rule's
@@ -224,9 +242,12 @@ migration in §Consequences leaves the line between them unclear.
 - ADR 0049 §2.2's restriction 3 and its Rationale paragraph ("Why `Result`
   is the load-bearing restriction") point here.
 - **The standard library's misfiled helpers move, as a follow-up, not in
-  this ADR:** `http.formEncode` first (G18), then the protocol decoders in
-  `fiig.postgres`, `fiig.kafka` and `fiig.redis` that are domain-free and
-  call only what can also move. A public conversion that moves is a
+  this ADR:** `fiig.http`'s text helpers and `fiig.time`'s calendar first
+  (G18), then each driver's protocol code (`fiig.postgres`, `fiig.kafka`,
+  `fiig.redis`, `fiig.s3`, `fiig.smtp`, `fiig.jwt`). The owner's call
+  (2026-11-25): a driver's protocol code is general computation in a
+  library, not an application reshaping its own data, so it is a formula
+  too, grouped by subject within each package. A public conversion that moves is a
   breaking change for its callers: a call into an imported `formulas`
   group is spelled through the group (ADR 0050 §2.6), so
   `http.formEncode(...)` changes at every call site, and its catalog kind

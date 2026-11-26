@@ -111,3 +111,25 @@ func TestAFormulasErrReachesItsCaller(t *testing.T) {
 		t.Errorf("dueQuarter(13) = %v, %v; want Err(InvoiceError.BadDate(...))", bad, fault)
 	}
 }
+
+// ADR 0151 §6: a formula runs its group's private helper.
+func TestAFormulaRunsItsPrivateHelper(t *testing.T) {
+	u := universeFromSource(t, `formulas pad {
+    formula two(n: int) -> string {
+        return zeroPad(n);
+    }
+}
+
+private {
+    zeroPad(n: int) -> string {
+        if (n < 10) {
+            return "0${n}";
+        }
+        return "${n}";
+    }
+}`, "use geo.pad;\n\nrule label(n: int) -> string {\n    return pad.two(n);\n}")
+	in := newTestInterp(u, nil)
+	if got, fault := in.Call(context.Background(), "label", map[string]Value{"n": Int(7)}); fault != nil || got != Str("07") {
+		t.Errorf("label(7) = %v, %v; want \"07\"", got, fault)
+	}
+}

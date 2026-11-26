@@ -731,6 +731,25 @@ private {
 	}
 }
 
+// ADR 0151 §6: a formulas group may hold a private block.
+func TestAFormulasGroupMayHoldAPrivateBlock(t *testing.T) {
+	f, errs := Parse(`formulas g {
+    formula f() -> int {
+        return h();
+    }
+}
+
+private {
+    h() -> int {
+        return 1;
+    }
+}
+`)
+	if len(errs) != 0 || f.Private == nil || len(f.Private.Members) != 1 {
+		t.Fatalf("errs = %v, private = %+v", errs, f.Private)
+	}
+}
+
 func TestSyntaxErrorIsReported(t *testing.T) {
 	_, errs := Parse(`model {`)
 	if len(errs) == 0 {

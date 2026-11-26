@@ -225,3 +225,46 @@ func countMessages(diags []Diagnostic, substr string) int {
 	}
 	return n
 }
+
+// ADR 0151 §6: a formulas group may keep private helpers. A member calls
+// one, nothing outside the file can, and a helper calls only formulas.
+func TestAFormulasGroupKeepsPrivateHelpers(t *testing.T) {
+	group := `formulas pad {
+	formula two(n: int) -> string {
+		return zeroPad(n);
+	}
+}
+
+private {
+	zeroPad(n: int) -> string {
+		if (n < 10) {
+			return "0${n}";
+		}
+		return "${n}";
+	}
+}`
+	if diags := checkGeo(t, group, "use geo.pad;\n\nrule label(n: int) -> string {\n\treturn pad.two(n);\n}"); len(diags) != 0 {
+		t.Errorf("diags = %+v, want none", diags)
+	}
+	diags := checkGeo(t, group, "use geo.pad;\n\nrule leak(n: int) -> string {\n\treturn pad.zeroPad(n);\n}")
+	if len(diags) != 1 || !strings.Contains(diags[0].Msg, `has no formula "zeroPad"`) {
+		t.Errorf("a helper called from outside = %+v", diags)
+	}
+	diags = checkGeo(t, "rule positive(n: int) -> bool {\n\treturn n > 0;\n}", `formulas leaky {
+	formula sign(n: int) -> int {
+		return helper(n);
+	}
+}
+
+private {
+	helper(n: int) -> int {
+		if (positive(n)) {
+			return 1;
+		}
+		return 0;
+	}
+}`)
+	if got := rules(diags); got["B11"] != 1 {
+		t.Errorf("a helper calling a rule = %+v, want one B11", diags)
+	}
+}

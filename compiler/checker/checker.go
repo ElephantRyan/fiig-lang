@@ -546,6 +546,11 @@ func checkFileIndexed(file *syntax.File, universe *types.Universe, packages, sib
 func (c *checker) checkPrivateBlock(entry syntax.Decl, block *syntax.PrivateBlock, universe *types.Universe) {
 	c.universe = universe.ScopeOf(entry)
 	kind, _ := kindOf(entry)
+	if _, isGroup := entry.(*syntax.FormulasDecl); isGroup {
+		// ADR 0151 §6: a formulas group's helper is a formula's helper, so
+		// it calls only formulas, as its members do.
+		kind = kindFormula
+	}
 	for _, m := range block.Members {
 		c.preludeNameTaken(m)
 		if h, ok := m.(*syntax.HelperDecl); ok {

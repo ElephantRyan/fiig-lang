@@ -90,7 +90,7 @@ have to:
   `formula` inside it stays public as `group.member`. The `private` block
   holds helpers that every member of the group can call but no other file
   can. By §5, those helpers carry the formula restrictions: no capabilities,
-  calls only to formulas, no `Result`.
+  calls only to formulas, no `Result` (the last lifted by ADR 0151).
 
 **Why a labeled block.** Three other shapes were considered:
 
@@ -344,6 +344,9 @@ Implemented 2026-10-17. Calls made beyond the text above:
 - **Not implemented:** private blocks on `formulas` groups, because ADR
   0049's formula tier itself isn't built yet. The parser accepts a private
   block only after a rule, conversion, activity, gateway, or workflow.
+  *Built 2026-11-25 with ADR 0151 §6: the parser accepts one after a
+  `formulas` group, members resolve in the file's scope, and a helper is
+  checked as a formula.*
 - **Found while dogfooding:** the parser built `BinaryExpr` and `TryExpr`
   nodes with no span, so a trailing comment on `return n > 0` was moved to
   the end of the file by the formatter, and any diagnostic on one landed at

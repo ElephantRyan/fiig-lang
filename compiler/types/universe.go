@@ -150,6 +150,13 @@ func (u *Universe) addFileScope(f *syntax.File) []Conflict {
 	entry := f.Decls[0]
 	fs := &Universe{Decls: map[string]syntax.Decl{}, Ambiguous: map[string]bool{}, Parent: u}
 	u.scopes[entry] = fs
+	// ADR 0151 §6: a formulas group's members resolve in its file scope,
+	// where its private helpers are.
+	if g, ok := entry.(*syntax.FormulasDecl); ok {
+		for _, m := range g.Members {
+			u.scopes[m] = fs
+		}
+	}
 	// ADR 0102 §2: a test file's tests share its private block.
 	for _, d := range f.Decls[1:] {
 		if _, ok := d.(*syntax.TestDecl); ok {
