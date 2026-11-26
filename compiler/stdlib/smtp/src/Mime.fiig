@@ -1,51 +1,315 @@
-// The bytes after DATA (RFC 5321 §4.5.2): the headers, a blank line, the
-// body, and a line holding only a dot. Lines end in CRLF and a body line that
-// starts with a dot gets another (so the end marker is unmistakable). A body
-// of plain ASCII goes as it is (7bit); anything else, and any line over the
-// 998 bytes SMTP allows, goes as base64 (ADR 0120 §2). A subject that isn't
-// plain ASCII is written as RFC 2047 encoded words, and so is a display name;
-// Bcc is never written (§2a). A mail with HTML or attachments is multipart
-// (§2b), its boundaries made from the Message-ID's random token.
-conversion mailData(mail: Mail, date: string, messageId: string) -> bytes {
-    names: Map<string, string> = [:];
-    match (mail.names) {
-        None -> None,
-        given -> {
-            names = given;
+// A mail as RFC 5322 and MIME write it: checking it can be sent, its
+// recipients, its Message-ID, and the DATA that carries it (ADR 0122).
+formulas mime {
+    // A mail that can be sent as written (ADR 0120 §2, §2a). Addresses go into
+    // protocol lines and headers, so a line break or a space in one could write
+    // a command or a header of the caller's choosing; they're refused instead,
+    // and so is a display name with a line break, and an attachment whose name
+    // or type could end a header (§2b). The reasons say which address or
+    // attachment, never what it said.
+    formula checkMail(mail: Mail) -> Result<None, SmtpError> {
+        if (!validAddress(mail.from)) {
+            return Err(
+                SmtpError.InvalidMail(
+                    reason: "the sender isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"
+                )
+            );
         }
-    }
 
-    headers: List<string> = [addressHeader("From", [mail.from], names)];
-    if (mail.to.length() > 0) {
-        headers = append(headers, addressHeader("To", mail.to, names));
-    }
+        cc = listOf(mail.cc);
+        bcc = listOf(mail.bcc);
+        count = mail.to.length() + cc.length() + bcc.length();
+        if (count == 0) {
+            return Err(
+                SmtpError.InvalidMail(
+                    reason: "a mail has at least one recipient, in to, cc, or bcc"
+                )
+            );
+        }
 
-    match (mail.cc) {
-        None -> None,
-        cc -> {
-            if (cc.length() > 0) {
-                headers = append(headers, addressHeader("Cc", cc, names));
+        if (count > 100) {
+            return Err(
+                SmtpError.InvalidMail(
+                    reason: "a mail has at most 100 recipients, to, cc, and bcc together"
+                )
+            );
+        }
+
+        checkList(mail.to, "recipient")?;
+        checkList(cc, "cc recipient")?;
+        checkList(bcc, "bcc recipient")?;
+        // Every address the mail has, which are the ones a display name may be
+        // given for (a Bcc recipient's is allowed, and never written).
+        known: List<string> = append(recipientsOf(mail), mail.from);
+        match (mail.replyTo) {
+            None -> None,
+            address -> {
+                if (!validAddress(address)) {
+                    return Err(
+                        SmtpError.InvalidMail(
+                            reason: "the reply-to address isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"
+                        )
+                    );
+                }
+
+                known = append(known, address);
             }
         }
-    }
 
-    match (mail.replyTo) {
-        None -> None,
-        address -> {
-            headers = append(headers, addressHeader("Reply-To", [address], names));
+        match (mail.names) {
+            None -> None,
+            names -> {
+                for (address in names.keys()) {
+                    if (!known.contains(address)) {
+                        return Err(
+                            SmtpError.InvalidMail(
+                                reason: "a display name is given for an address the mail doesn't have"
+                            )
+                        );
+                    }
+
+                    checkName(names.at(address))?;
+                }
+            }
         }
+
+        if (mail.subject.contains("\r") || mail.subject.contains("\n")) {
+            return Err(SmtpError.InvalidMail(reason: "the subject has a line break"));
+        }
+
+        if (mail.subject.utf8().length() > 900) {
+            return Err(SmtpError.InvalidMail(reason: "the subject is longer than 900 bytes"));
+        }
+
+        match (mail.attachments) {
+            None -> None,
+            attachments -> {
+                number: int = 1;
+                for (attachment in attachments) {
+                    checkAttachment(attachment, number)?;
+                    number = number + 1;
+                }
+            }
+        }
+
+        return Ok(None);
     }
 
-    headers = append(headers, "Subject: ${subjectHeader(mail.subject)}");
-    headers = append(headers, "Date: ${date}");
-    headers = append(headers, "Message-ID: <${messageId}>");
-    headers = append(headers, "MIME-Version: 1.0");
-    head = headers.join("\r\n");
-    text = "${head}\r\n${entityOf(mail, messageId)}.\r\n";
-    return text.utf8();
+    // The bytes after DATA (RFC 5321 §4.5.2): the headers, a blank line, the
+    // body, and a line holding only a dot. Lines end in CRLF and a body line that
+    // starts with a dot gets another (so the end marker is unmistakable). A body
+    // of plain ASCII goes as it is (7bit); anything else, and any line over the
+    // 998 bytes SMTP allows, goes as base64 (ADR 0120 §2). A subject that isn't
+    // plain ASCII is written as RFC 2047 encoded words, and so is a display name;
+    // Bcc is never written (§2a). A mail with HTML or attachments is multipart
+    // (§2b), its boundaries made from the Message-ID's random token.
+    formula mailData(mail: Mail, date: string, messageId: string) -> bytes {
+        names: Map<string, string> = [:];
+        match (mail.names) {
+            None -> None,
+            given -> {
+                names = given;
+            }
+        }
+
+        headers: List<string> = [addressHeader("From", [mail.from], names)];
+        if (mail.to.length() > 0) {
+            headers = append(headers, addressHeader("To", mail.to, names));
+        }
+
+        match (mail.cc) {
+            None -> None,
+            cc -> {
+                if (cc.length() > 0) {
+                    headers = append(headers, addressHeader("Cc", cc, names));
+                }
+            }
+        }
+
+        match (mail.replyTo) {
+            None -> None,
+            address -> {
+                headers = append(headers, addressHeader("Reply-To", [address], names));
+            }
+        }
+
+        headers = append(headers, "Subject: ${subjectHeader(mail.subject)}");
+        headers = append(headers, "Date: ${date}");
+        headers = append(headers, "Message-ID: <${messageId}>");
+        headers = append(headers, "MIME-Version: 1.0");
+        head = headers.join("\r\n");
+        text = "${head}\r\n${entityOf(mail, messageId)}.\r\n";
+        return text.utf8();
+    }
+
+    // A Message-ID's inside, unique by its random token and scoped to the
+    // sender's domain (RFC 5322 §3.6.4): token@domain.
+    formula messageIdFor(mail: Mail, token: string) -> string {
+        domain = mail.from.split("@").last();
+        return "${token}@${domain}";
+    }
+
+    // Everyone a mail is sent to, a RCPT TO each (ADR 0120 §2a): to, then cc,
+    // then bcc, each address once however many lists it is in.
+    formula recipientsOf(mail: Mail) -> List<string> {
+        all: List<string> = [];
+        for (address in mail.to) {
+            if (!all.contains(address)) {
+                all = append(all, address);
+            }
+        }
+
+        for (address in listOf(mail.cc)) {
+            if (!all.contains(address)) {
+                all = append(all, address);
+            }
+        }
+
+        for (address in listOf(mail.bcc)) {
+            if (!all.contains(address)) {
+                all = append(all, address);
+            }
+        }
+
+        return all;
+    }
 }
 
 private {
+    // An attachment's name and type go into its part's headers (§2b): a name
+    // is any text but a control character, of at most 200 bytes, and a type
+    // is type/subtype in MIME's token characters, with no parameters, so
+    // neither can end a header line or add one.
+    checkAttachment(attachment: Attachment, number: int) -> Result<None, SmtpError> {
+        raw = attachment.name.utf8();
+        if (raw.length() == 0 || raw.length() > 200) {
+            return Err(
+                SmtpError.InvalidMail(
+                    reason: "attachment ${number}'s name is empty or longer than 200 bytes"
+                )
+            );
+        }
+
+        for (b in raw) {
+            if (b < 32 || b == 127) {
+                return Err(
+                    SmtpError.InvalidMail(
+                        reason: "attachment ${number}'s name has a line break or another control character"
+                    )
+                );
+            }
+        }
+
+        halves = attachment.contentType.split("/");
+        if (halves.length() != 2 || !mimeToken(halves.first()) || !mimeToken(halves.last())) {
+            return Err(
+                SmtpError.InvalidMail(
+                    reason: "attachment ${number}'s content type isn't type/subtype, such as application/pdf"
+                )
+            );
+        }
+
+        return Ok(None);
+    }
+
+    // RFC 2045 §5.1's token: printable ASCII but space and ( ) < > @ , ; : \ " / [ ] ? =.
+    mimeToken(text: string) -> bool {
+        raw = text.utf8();
+        if (raw.length() == 0 || raw.length() > 127) {
+            return false;
+        }
+
+        for (b in raw) {
+            if (b <= 32 || b >= 127) {
+                return false;
+            }
+
+            if (b == 34 || b == 40 || b == 41 || b == 44 || b == 47 || b == 58 || b == 59 || b == 60 || b == 61 || b == 62 || b == 63 || b == 64 || b == 91 || b == 92 || b == 93) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    listOf(addresses: List<string> | None) -> List<string> {
+        return match (addresses) {
+            None -> [],
+            given -> given
+        }
+    }
+
+    // Each address in a list, named by its kind and its position from 1.
+    checkList(addresses: List<string>, kind: string) -> Result<None, SmtpError> {
+        number: int = 1;
+        for (address in addresses) {
+            if (!validAddress(address)) {
+                return Err(
+                    SmtpError.InvalidMail(
+                        reason: "${kind} ${number} isn't an address: one @, no spaces, no quotes, angle brackets, or non-ASCII"
+                    )
+                );
+            }
+
+            number = number + 1;
+        }
+
+        return Ok(None);
+    }
+
+    // A display name is any text but a control character, a line break
+    // among them; MailData quotes or encodes the rest.
+    checkName(name: string) -> Result<None, SmtpError> {
+        raw = name.utf8();
+        if (raw.length() > 200) {
+            return Err(SmtpError.InvalidMail(reason: "a display name is longer than 200 bytes"));
+        }
+
+        for (b in raw) {
+            if (b < 32 || b == 127) {
+                return Err(
+                    SmtpError.InvalidMail(
+                        reason: "a display name has a line break or another control character"
+                    )
+                );
+            }
+        }
+
+        return Ok(None);
+    }
+
+    // local@domain in plain ASCII: exactly one @ with something on each
+    // side, and none of the characters that end or quote an address.
+    validAddress(text: string) -> bool {
+        raw = text.utf8();
+        if (raw.length() < 3 || raw.length() > 254) {
+            return false;
+        }
+
+        ats: int = 0;
+        at: int = -1;
+        i: int = 0;
+        while (i < raw.length()) {
+            b = raw.at(i);
+            if (b <= 32 || b >= 127) {
+                return false;
+            }
+
+            if (b == 34 || b == 40 || b == 41 || b == 44 || b == 58 || b == 59 || b == 60 || b == 62 || b == 91 || b == 92 || b == 93) {
+                return false;
+            }
+
+            if (b == 64) {
+                ats = ats + 1;
+                at = i;
+            }
+
+            i = i + 1;
+        }
+
+        return ats == 1 && at > 0 && at < raw.length() - 1;
+    }
+
     // The body as MIME writes it: its Content-Type and encoding header
     // lines, a blank line, and the content, every line ending in CRLF. Plain
     // text alone is one text/plain part; HTML makes it multipart/alternative,

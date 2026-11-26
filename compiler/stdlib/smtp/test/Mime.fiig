@@ -1,3 +1,176 @@
+use fiig.smtp.mime;
+
+test aWellFormedMailPasses {
+    expect mime.checkMail(mailTo(["b@y.org", "c@y.org"])) is Ok(_);
+}
+
+test aMailWithNoRecipientIsRefused {
+    expect mime.checkMail(mailTo([])) is Err(SmtpError.InvalidMail(reason));
+}
+
+test moreThan100RecipientsAreRefused {
+    many: List<string> = [];
+    n: int = 0;
+    while (n < 101) {
+        many = append(many, "r${n}@y.org");
+        n = n + 1;
+    }
+
+    expect mime.checkMail(mailTo(many)) is Err(SmtpError.InvalidMail(reason));
+}
+
+test anAddressIsOneAtWithSomethingEachSide {
+    for (bad in ["nobody", "@y.org", "b@", "a@b@c.org", "", "ab"]) {
+        expect mime.checkMail(mailTo([bad])) is Err(SmtpError.InvalidMail(reason));
+    }
+}
+
+test anAddressCantCarryAProtocolLine {
+    // Each of these, written into RCPT TO:<...> or a To: header, would
+    // end the line and start another of the caller's choosing.
+    for (bad in ["b@y.org\r\nRCPT TO:<z@z.org>", "b@y.org>\r\nDATA", "b @y.org", "<b@y.org>", "\"b\"@y.org", "b@y.org,c@y.org", "b@yé.org"]) {
+        expect mime.checkMail(mailTo([bad])) is Err(SmtpError.InvalidMail(reason));
+    }
+}
+
+test theSenderIsCheckedToo {
+    mail = Mail(from: "a@x.org\r\nBcc: z@z.org", to: ["b@y.org"], subject: "s", body: "x");
+    expect mime.checkMail(mail) is Err(SmtpError.InvalidMail(reason));
+}
+
+test aSubjectCantHaveALineBreak {
+    mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "hi\r\nBcc: z@z.org", body: "x");
+    expect mime.checkMail(mail) is Err(SmtpError.InvalidMail(reason));
+    other = Mail(from: "a@x.org", to: ["b@y.org"], subject: "hi\nthere", body: "x");
+    expect mime.checkMail(other) is Err(SmtpError.InvalidMail(reason2));
+}
+
+test aReasonNamesTheAddressByPositionNotText {
+    expect mime.checkMail(mailTo(["b@y.org", "evil\r\naddress"])) is Err(SmtpError.InvalidMail(reason));
+    expect reason.contains("recipient 2");
+    expect !reason.contains("evil");
+}
+
+test ccBccAndReplyToAreCheckedToo {
+    good = Mail(
+        from: "a@x.org",
+        to: [],
+        subject: "s",
+        body: "x",
+        cc: ["c@y.org"],
+        bcc: ["d@y.org"],
+        replyTo: "e@x.org"
+    );
+    expect mime.checkMail(good) is Ok(_);
+    badCc = Mail(
+        from: "a@x.org",
+        to: ["b@y.org"],
+        subject: "s",
+        body: "x",
+        cc: ["c@y.org", "c@y.org>\r\nDATA"]
+    );
+    expect mime.checkMail(badCc) is Err(SmtpError.InvalidMail(reason));
+    expect reason.contains("cc recipient 2");
+    badBcc = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "x", bcc: ["nobody"]);
+    expect mime.checkMail(badBcc) is Err(SmtpError.InvalidMail(reason2));
+    expect reason2.contains("bcc recipient 1");
+    badReplyTo = Mail(
+        from: "a@x.org",
+        to: ["b@y.org"],
+        subject: "s",
+        body: "x",
+        replyTo: "x@y.org\r\nBcc: z@z.org"
+    );
+    expect mime.checkMail(badReplyTo) is Err(SmtpError.InvalidMail(reason3));
+    expect reason3.contains("reply-to");
+}
+
+test recipientsAreCountedAcrossToCcAndBcc {
+    expect mime.checkMail(Mail(from: "a@x.org", to: [], subject: "s", body: "x", cc: [], bcc: [])) is Err(SmtpError.InvalidMail(reason));
+    many: List<string> = [];
+    n: int = 0;
+    while (n < 50) {
+        many = append(many, "r${n}@y.org");
+        n = n + 1;
+    }
+
+    expect mime.checkMail(Mail(from: "a@x.org", to: many, subject: "s", body: "x", bcc: many)) is Ok(_);
+    expect mime.checkMail(Mail(from: "a@x.org", to: many, subject: "s", body: "x", cc: many, bcc: ["one@more.org"])) is Err(SmtpError.InvalidMail(reason2));
+    expect reason2.contains("100");
+}
+
+test aDisplayNameIsForAnAddressTheMailHas {
+    names: Map<string, string> = ["a@x.org": "Shop", "b@y.org": "Ann", "e@x.org": "Help", "d@y.org": "Hidden"];
+    ok = Mail(
+        from: "a@x.org",
+        to: ["b@y.org"],
+        subject: "s",
+        body: "x",
+        bcc: ["d@y.org"],
+        replyTo: "e@x.org",
+        names: names
+    );
+    expect mime.checkMail(ok) is Ok(_);
+    stray = Mail(
+        from: "a@x.org",
+        to: ["b@y.org"],
+        subject: "s",
+        body: "x",
+        names: ["z@y.org": "Zed"]
+    );
+    expect mime.checkMail(stray) is Err(SmtpError.InvalidMail(reason));
+    expect reason.contains("display name");
+}
+
+test aDisplayNameCantCarryAHeader {
+    for (bad in ["Ann\r\nBcc: z@z.org", "Ann\nX", "Ann\rX"]) {
+        mail = Mail(
+            from: "a@x.org",
+            to: ["b@y.org"],
+            subject: "s",
+            body: "x",
+            names: ["b@y.org": bad]
+        );
+        expect mime.checkMail(mail) is Err(SmtpError.InvalidMail(reason));
+        expect !reason.contains("Ann");
+    }
+}
+
+test anAttachmentWithANameAndATypePasses {
+    for (media in ["application/pdf", "image/svg+xml", "application/vnd.ms-excel", "text/csv"]) {
+        expect mime.checkMail(withFile("Résumé (final).pdf", media)) is Ok(_);
+    }
+}
+
+test anAttachmentsTypeCantCarryAHeader {
+    for (bad in ["text/plain\r\nBcc: z@z.org", "text/plain; charset=utf-8", "textplain", "text/", "/plain", "a/b/c", "", "text/pla in"]) {
+        expect mime.checkMail(withFile("a.txt", bad)) is Err(SmtpError.InvalidMail(reason));
+        expect reason.contains("attachment 1");
+        expect !reason.contains("plain");
+    }
+}
+
+test anAttachmentsNameCantCarryAHeader {
+    for (bad in ["", "a\r\nBcc: z@z.org", "a\tb", repeatedA(201)]) {
+        expect mime.checkMail(withFile(bad, "text/plain")) is Err(SmtpError.InvalidMail(reason));
+        expect reason.contains("attachment 1");
+    }
+}
+
+test theRefusedAttachmentIsNamedByPosition {
+    good = Attachment(name: "a.txt", contentType: "text/plain", data: <<>>);
+    bad = Attachment(name: "b.txt", contentType: "text", data: <<>>);
+    mail = Mail(
+        from: "a@x.org",
+        to: ["b@y.org"],
+        subject: "s",
+        body: "x",
+        attachments: [good, bad]
+    );
+    expect mime.checkMail(mail) is Err(SmtpError.InvalidMail(reason));
+    expect reason.contains("attachment 2");
+}
+
 test aPlainMailGoesAs7bit {
     mail = Mail(
         from: "a@x.org",
@@ -7,24 +180,24 @@ test aPlainMailGoesAs7bit {
     );
     head = "From: a@x.org\r\nTo: b@y.org, c@y.org\r\nSubject: Hello\r\nDate: D\r\nMessage-ID: <t@x.org>\r\n";
     head2 = "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n";
-    expect textOf(mailData(mail, "D", "t@x.org")) == "${head}${head2}\r\nHi\r\n..a dot line\r\nbye\r\n.\r\n";
+    expect textOf(mime.mailData(mail, "D", "t@x.org")) == "${head}${head2}\r\nHi\r\n..a dot line\r\nbye\r\n.\r\n";
 }
 
 test lineEndingsAreAllCrlf {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "one\ntwo\rthree\r\nfour\n");
-    expect textOf(mailData(mail, "D", "t@x.org")).endsWith(
+    expect textOf(mime.mailData(mail, "D", "t@x.org")).endsWith(
         "\r\none\r\ntwo\r\nthree\r\nfour\r\n.\r\n"
     );
 }
 
 test anEmptyBodyIsOneEmptyLine {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "");
-    expect textOf(mailData(mail, "D", "t@x.org")).endsWith("\r\n\r\n\r\n.\r\n");
+    expect textOf(mime.mailData(mail, "D", "t@x.org")).endsWith("\r\n\r\n\r\n.\r\n");
 }
 
 test aBodyWithNonAsciiGoesAsBase64 {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "héllo");
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     expect text.contains("Content-Transfer-Encoding: base64\r\n");
     // "héllo" and a CRLF, in base64.
     expect text.endsWith("\r\n\r\naMOpbGxvDQo=\r\n.\r\n");
@@ -33,28 +206,32 @@ test aBodyWithNonAsciiGoesAsBase64 {
 test aLongBase64BodyIsWrappedAt76 {
     long = repeated("é", 100);
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: long);
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     expect longestLine(text) <= 76;
 }
 
 test aLineOverTheSmtpLimitGoesAsBase64 {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: repeated("a", 1000));
-    expect textOf(mailData(mail, "D", "t@x.org")).contains("Content-Transfer-Encoding: base64\r\n");
+    expect textOf(mime.mailData(mail, "D", "t@x.org")).contains(
+        "Content-Transfer-Encoding: base64\r\n"
+    );
 }
 
 test anAsciiSubjectIsWrittenAsItIs {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "Order 42: shipped", body: "x");
-    expect textOf(mailData(mail, "D", "t@x.org")).contains("Subject: Order 42: shipped\r\n");
+    expect textOf(mime.mailData(mail, "D", "t@x.org")).contains("Subject: Order 42: shipped\r\n");
 }
 
 test aSubjectWithNonAsciiIsAnEncodedWord {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "Grüße", body: "x");
-    expect textOf(mailData(mail, "D", "t@x.org")).contains("Subject: =?UTF-8?B?R3LDvMOfZQ==?=\r\n");
+    expect textOf(mime.mailData(mail, "D", "t@x.org")).contains(
+        "Subject: =?UTF-8?B?R3LDvMOfZQ==?=\r\n"
+    );
 }
 
 test aLongSubjectIsCutBetweenCharacters {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: repeated("é", 30), body: "x");
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     // 60 bytes: a word of 42 (21 whole characters), then the other 18.
     expect text.contains("?=\r\n =?UTF-8?B?");
     expect longestLine(text) <= 78;
@@ -63,7 +240,7 @@ test aLongSubjectIsCutBetweenCharacters {
 test aCharacterAcrossTheCutIsKeptWhole {
     // 41 ASCII bytes then é (2 bytes): the word ends after the é, not in it.
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "${repeated("a", 41)}é", body: "x");
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     expect !text.contains("?=\r\n =?UTF-8?B?");
 }
 
@@ -77,7 +254,7 @@ test ccAndReplyToAreWrittenAndBccIsNot {
         bcc: ["secret@z.org"],
         replyTo: "help@x.org"
     );
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     expect text.startsWith(
         "From: a@x.org\r\nTo: b@y.org\r\nCc: c@y.org, d@y.org\r\nReply-To: help@x.org\r\nSubject: s\r\n"
     );
@@ -87,7 +264,7 @@ test ccAndReplyToAreWrittenAndBccIsNot {
 
 test aMailToBccAloneHasNoToHeader {
     mail = Mail(from: "a@x.org", to: [], subject: "s", body: "x", bcc: ["b@y.org"]);
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     expect text.startsWith("From: a@x.org\r\nSubject: s\r\n");
 }
 
@@ -101,7 +278,7 @@ test displayNamesArePlainQuotedOrEncoded {
         cc: ["c@y.org", "d@y.org", "e@y.org", "f@y.org"],
         names: names
     );
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     expect text.startsWith("From: Shop Team <a@x.org>\r\nTo: \"Smith, Ann\" <b@y.org>\r\n");
     // "Zoë Ünal" in UTF-8 and base64.
     expect text.contains("Cc: =?UTF-8?B?Wm/DqyDDnG5hbA==?= <c@y.org>,");
@@ -120,7 +297,7 @@ test aLongAddressListIsFolded {
     }
 
     mail = Mail(from: "a@x.org", to: many, subject: "s", body: "x");
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     expect longestLine(text) <= 78;
     expect text.contains(",\r\n recipient");
     expect text.contains("recipient19@example.org\r\nSubject: s");
@@ -139,7 +316,7 @@ test htmlMakesTheMailMultipartAlternative {
     text = "--=_a.t\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\nHi\r\n";
     // The HTML's line starting with a dot is stuffed like any other.
     html = "--=_a.t\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\n<p>Hi</p>\r\n..end\r\n";
-    expect textOf(mailData(mail, "D", "t@x.org")) == "${head}${top}${text}${html}--=_a.t--\r\n.\r\n";
+    expect textOf(mime.mailData(mail, "D", "t@x.org")) == "${head}${top}${text}${html}--=_a.t--\r\n.\r\n";
 }
 
 test attachmentsWrapTheBodyInMultipartMixed {
@@ -159,13 +336,13 @@ test attachmentsWrapTheBodyInMultipartMixed {
     text = "--=_a.t\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\nHi\r\n";
     html = "--=_a.t\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\n<p>Hi</p>\r\n--=_a.t--\r\n";
     file = "--=_m.t\r\nContent-Type: text/plain;\r\n name=\"a \\\"1\\\".txt\"\r\nContent-Disposition: attachment;\r\n filename=\"a \\\"1\\\".txt\"\r\nContent-Transfer-Encoding: base64\r\n\r\nYWJj\r\n";
-    expect textOf(mailData(mail, "D", "t@x.org")) == "${head}${top}${alternative}${text}${html}${file}--=_m.t--\r\n.\r\n";
+    expect textOf(mime.mailData(mail, "D", "t@x.org")) == "${head}${top}${alternative}${text}${html}${file}--=_m.t--\r\n.\r\n";
 }
 
 test attachmentsWithoutHtmlHoldTheTextPartAlone {
     file = Attachment(name: "empty.bin", contentType: "application/octet-stream", data: <<>>);
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "Hi", attachments: [file]);
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     expect text.contains(
         "MIME-Version: 1.0\r\nContent-Type: multipart/mixed;\r\n boundary=\"=_m.t\"\r\n\r\n--=_m.t\r\nContent-Type: text/plain; charset=utf-8\r\n"
     );
@@ -176,7 +353,7 @@ test attachmentsWithoutHtmlHoldTheTextPartAlone {
 
 test noAttachmentsAndNoHtmlIsPlainText {
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "Hi", attachments: []);
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     expect text.endsWith(
         "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\nHi\r\n.\r\n"
     );
@@ -190,7 +367,7 @@ test aTextPartHoldingABoundaryGoesAsBase64 {
         body: "Hi\n--=_a.t",
         html: "<p>Hi</p>"
     );
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     // "Hi", CRLF, "--=_a.t", CRLF, in base64.
     expect text.contains(
         "Content-Transfer-Encoding: base64\r\n\r\nSGkNCi0tPV9hLnQNCg==\r\n--=_a.t\r\n"
@@ -201,7 +378,7 @@ test aTextPartHoldingABoundaryGoesAsBase64 {
 test aNonAsciiFileNameIsEncodedBothWays {
     file = Attachment(name: "Grüße.pdf", contentType: "application/pdf", data: "x".utf8());
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "Hi", attachments: [file]);
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     // RFC 2047 for readers that look at name, RFC 2231 for the rest.
     expect text.contains(
         "Content-Type: application/pdf;\r\n name=\"=?UTF-8?B?R3LDvMOfZS5wZGY=?=\"\r\n"
@@ -221,7 +398,7 @@ test aLargeAttachmentIsWrappedAt76 {
 
     file = Attachment(name: "data.bin", contentType: "application/octet-stream", data: big);
     mail = Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "Hi", attachments: [file]);
-    text = textOf(mailData(mail, "D", "t@x.org"));
+    text = textOf(mime.mailData(mail, "D", "t@x.org"));
     expect longestLine(text) <= 78;
     lines = text.split("\r\n\r\n").last().split("\r\n");
     expect lines.first().length() == 76;
@@ -229,6 +406,26 @@ test aLargeAttachmentIsWrappedAt76 {
 }
 
 private {
+    withFile(name: string, media: string) -> Mail {
+        file = Attachment(name: name, contentType: media, data: "x".utf8());
+        return Mail(from: "a@x.org", to: ["b@y.org"], subject: "s", body: "x", attachments: [file]);
+    }
+
+    repeatedA(times: int) -> string {
+        out: string = "";
+        n: int = 0;
+        while (n < times) {
+            out = "${out}a";
+            n = n + 1;
+        }
+
+        return out;
+    }
+
+    mailTo(to: List<string>) -> Mail {
+        return Mail(from: "a@x.org", to: to, subject: "Hello", body: "Hi");
+    }
+
     textOf(data: bytes) -> string {
         return match (data.utf8()) {
             None -> "",

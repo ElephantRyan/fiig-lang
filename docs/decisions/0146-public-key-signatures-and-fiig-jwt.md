@@ -3,7 +3,9 @@
 Status: Accepted (2026-11-25, by the owner), as written: `exp` required
 with no switch, signing in this ADR, and keys kept by a session that
 connects only to write (§5a). Implemented the same day (see Implementation
-notes).
+notes). Amended by ADR 0151 (2026-11-26): `sign`, `verify` and the other
+token functions are formulas in the `tokens` group (`use fiig.jwt.tokens;`,
+`tokens.verify(...)`); the key-set code is the `jwks` group.
 Date: 2026-11-23 (revised 2026-11-25: §5 keys are kept by a session that
 connects only to write, which amends ADR 0117 §2)
 Related: ADR 0042 (the socket floor), ADR 0049 (prelude groups), ADR 0071

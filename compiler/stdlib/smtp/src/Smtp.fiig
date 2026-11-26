@@ -1,4 +1,6 @@
 use fiig.time.calendar;
+use fiig.smtp.conversation;
+use fiig.smtp.mime;
 
 // ADR 0120: sending mail by SMTP, written in fiig over Socket. A mail goes
 // out on a connection an earlier one kept for the same server and login
@@ -10,7 +12,7 @@ use fiig.time.calendar;
 // advance); this gateway only writes the bytes and reads the replies.
 capability Smtp {
     gateway send(mail: Mail) -> Result<None, SmtpError> requires Socket {
-        checkMail(mail)?;
+        mime.checkMail(mail)?;
         token: string | None = None;
         match (SmtpServer.oauthToken) {
             None -> None,
@@ -19,14 +21,18 @@ capability Smtp {
             }
         }
 
-        target = withLogin(parseSmtpUrl(SmtpServer.url.reveal())?, SmtpServer.auth, token)?;
+        target = conversation.withLogin(
+            conversation.parseSmtpUrl(SmtpServer.url.reveal())?,
+            SmtpServer.auth,
+            token
+        )?;
         now = Clock.now();
         unique = Random.bytes(12).toHex();
         date = mapErr(e in calendar.formatRfc5322(now)):
                 SmtpError.Protocol(reason: "the clock reads a year outside 0000 to 9999")?;
-        data = mailData(mail, date, messageIdFor(mail, unique));
+        data = mime.mailData(mail, date, mime.messageIdFor(mail, unique));
         until: int = now + SmtpServer.timeoutMillis;
-        session = sessionFor(target);
+        session = conversation.sessionFor(target);
         reused: Connection | None = Socket.reuse(
             target.host,
             target.port,
@@ -61,9 +67,14 @@ capability Smtp {
 
             reused = None;
             connection: Connection = mapErr(e in opened): SmtpError.Socket(failure: e)?;
-            dialogue: Dialogue = startDialogue(target, mail, SmtpServer.helloName, data);
+            dialogue: Dialogue = conversation.startDialogue(
+                target,
+                mail,
+                SmtpServer.helloName,
+                data
+            );
             if (kept) {
-                dialogue = resumeDialogue(target, mail, SmtpServer.helloName, data);
+                dialogue = conversation.resumeDialogue(target, mail, SmtpServer.helloName, data);
             }
 
             buffer: bytes = <<>>;
@@ -71,7 +82,7 @@ capability Smtp {
             failure: SmtpError = SmtpError.Protocol(reason: "");
             sent: bool = false;
             while (!failed && !sent) {
-                match (nextStep(dialogue)) {
+                match (conversation.nextStep(dialogue)) {
                     SmtpStep.Listen -> None,
                     SmtpStep.Send(out) -> {
                         match (Socket.write(connection, out, deadline: until)) {
@@ -114,7 +125,7 @@ capability Smtp {
                             }
                         }
 
-                        dialogue = afterUpgrade(dialogue);
+                        dialogue = conversation.afterUpgrade(dialogue);
                         continue;
                     }
                 }
@@ -122,7 +133,7 @@ capability Smtp {
                 reply: SmtpReply = SmtpReply(code: 0, lines: []);
                 reading: bool = true;
                 while (reading) {
-                    match (readSmtpReply(buffer)) {
+                    match (conversation.readSmtpReply(buffer)) {
                         SmtpReplyRead.Done(found, rest) -> {
                             reply = found;
                             buffer = rest;
@@ -155,7 +166,7 @@ capability Smtp {
                     continue;
                 }
 
-                match (advance(dialogue, reply)) {
+                match (conversation.advance(dialogue, reply)) {
                     Ok(next) -> {
                         dialogue = next;
                     },
@@ -180,7 +191,7 @@ capability Smtp {
             }
 
             Socket.close(connection);
-            if (!kept || !resendOnNewConnection(dialogue, failure)) {
+            if (!kept || !conversation.resendOnNewConnection(dialogue, failure)) {
                 return Err(failure);
             }
         }

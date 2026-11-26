@@ -44,6 +44,7 @@ var jwtApp = map[string]string{
     "capabilities": ["Session", "Socket"]
 }`,
 	"signed.fiig": `use fiig.jwt;
+use fiig.jwt.tokens;
 
 activity signed(claims: string, key: Secret, algorithm: string, keyId: string | None) -> Result<string, jwt.JwtError> {
     decoded: Result<JsonValue, JsonError> = json.decode(claims);
@@ -51,9 +52,10 @@ activity signed(claims: string, key: Secret, algorithm: string, keyId: string | 
         Ok(given) -> given,
         Err(_) -> JsonValue.Null
     };
-    return jwt.sign(value, key, jwt.algorithmNamed(algorithm) ?? jwt.Algorithm.RS256, keyId);
+    return tokens.sign(value, key, tokens.algorithmNamed(algorithm) ?? jwt.Algorithm.RS256, keyId);
 }`,
 	"hmac_signed.fiig": `use fiig.jwt;
+use fiig.jwt.tokens;
 
 activity hmacSigned(claims: string, key: Secret, algorithm: string) -> Result<string, jwt.JwtError> {
     decoded: Result<JsonValue, JsonError> = json.decode(claims);
@@ -61,30 +63,32 @@ activity hmacSigned(claims: string, key: Secret, algorithm: string) -> Result<st
         Ok(given) -> given,
         Err(_) -> JsonValue.Null
     };
-    return jwt.signHmac(value, key, jwt.algorithmNamed(algorithm) ?? jwt.Algorithm.HS256);
+    return tokens.signHmac(value, key, tokens.algorithmNamed(algorithm) ?? jwt.Algorithm.HS256);
 }`,
 	"hmac_verified.fiig": `use fiig.jwt;
+use fiig.jwt.tokens;
 
 activity hmacVerified(token: string, key: Secret, now: int) -> Result<string, jwt.JwtError> {
     hmac = [jwt.Algorithm.HS256, jwt.Algorithm.HS384, jwt.Algorithm.HS512];
     expect = jwt.Expect(issuer: "https://issuer.example", audience: "app", algorithms: hmac);
-    verified = jwt.verifyHmac(token, key, expect, now)?;
+    verified = tokens.verifyHmac(token, key, expect, now)?;
     return Ok(verified.subject ?? "");
 }`,
 	"verified_from.fiig": `use fiig.jwt;
+use fiig.jwt.tokens;
 use fiig.jwt.JwtKeys;
 
 activity verifiedFrom(token: string, url: string, issuer: string, discover: bool) -> Result<string, jwt.JwtError> {
     keys: List<jwt.Jwk> = [];
     if (discover) {
-        keys = JwtKeys.forIssuer(issuer, jwt.keyIdOf(token))?;
+        keys = JwtKeys.forIssuer(issuer, tokens.keyIdOf(token))?;
     } else {
-        keys = JwtKeys.fromUrl(url, jwt.keyIdOf(token))?;
+        keys = JwtKeys.fromUrl(url, tokens.keyIdOf(token))?;
     }
 
     algorithms = [jwt.Algorithm.RS256, jwt.Algorithm.ES256];
     expect = jwt.Expect(issuer: issuer, audience: "app", algorithms: algorithms);
-    verified = jwt.verify(token, keys, expect, Clock.now())?;
+    verified = tokens.verify(token, keys, expect, Clock.now())?;
     return Ok(verified.subject ?? "");
 }`,
 }

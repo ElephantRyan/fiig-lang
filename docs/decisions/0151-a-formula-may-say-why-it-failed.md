@@ -311,7 +311,68 @@ migration in §Consequences leaves the line between them unclear.
   The types (`time.DateTime`, `time.TimeError`, `http.Header`) don't move,
   so a file that also names one keeps its `use fiig.time;` or
   `use fiig.http;`.
-- **Not done yet**: each driver's protocol code (`fiig.http`'s HTTP/1.1
-  internals, `fiig.postgres`, `fiig.kafka`, `fiig.redis`, `fiig.s3`,
-  `fiig.smtp`, `fiig.jwt`), grouped by subject; and Hearsay's own
-  candidates.
+- **Phase 2 (2026-11-26): every protocol's code is in groups**, named for
+  its subject alone (ADR 0152 §2a). The drivers are bundled
+  `com.degeneratedevelopment.*` packages by then (ADR 0152):
+
+  | Package | Groups |
+  | --- | --- |
+  | `fiig.http` | `http1` (writing a request, reading a reply, resending), with `syntax` from phase 1 |
+  | `fiig.smtp` | `mime` (the mail and its DATA), `conversation` (the SMTP dialogue) |
+  | `fiig.jwt` | `tokens` (sign, verify, read), `jwks` (key sets and their session) |
+  | `…postgres` | `wire`, `startup`, `statements` |
+  | `…redis` | `resp`, `handshake`, `consumerGroup` |
+  | `…s3` | `sigV4`, `objects` |
+  | `…kafka` | `codec`, `cluster`, `produce`, `fetch`, `consumerGroup`, `sasl`, `dialogue` |
+
+  How it was done, and what it found:
+  - **Scripted:** `scratchpad/regroup.py`, not kept in the repo. A
+    conversion becomes a private helper when nothing outside its group
+    calls it, nothing in `test/` does, and it isn't public API (about a
+    third of them). The rest are members.
+  - **`test/` follows `src/`** (ADR 0102 §3): each group's test file holds
+    the tests of the files merged into it, test helpers included.
+  - **A private helper reaches its own group's members qualified**
+    (`startup.computeScramFinal(...)`, with the file importing its own
+    group). ADR 0049 §2.1 makes a member unqualified only inside its
+    group's block, and the private block is outside it. This works
+    already, and the tool writes it.
+  - **Names a variable already uses** were refused by G4, as §2a expects:
+    - `text` for `httpText`;
+    - `setup` and `streams` in Redis;
+    - `codec`, `cluster` and `produce` in Kafka, where the locals were
+      renamed (`compression`, `clusterId`, `produceOk`, `produceBody`);
+    - `session` everywhere, because of `fiig.session`, so Kafka's state
+      machine is `dialogue`;
+    - `dialogue` in SMTP, where a `Dialogue` model holds the file name, so
+      its group is `conversation`.
+  - **Same-named helpers that differed** were renamed by what they read:
+    - Kafka's `textAt` for compact strings is `compactTextAt`;
+    - each reply's `short`, `need` and `textOf` are named for the reply
+      (`fetchEndsEarly`, `heartbeatNumber`, `offsetFetchText`, …).
+  - **Four Postgres tests moved from Go to fiig**
+    (`test/Startup.fiig`, `Statements.fiig` and `Wire.fiig`):
+    - SCRAM's RFC 7677 vector and its refusals, placeholder numbering,
+      and column decoding;
+    - they called the conversions through `Interp.Call`, which finds only
+      a package's top-level declarations;
+    - `computeScramFinal`, `numberPlaceholders` and `columnValue` stay
+      public for them.
+  - **`BenchmarkMurmur2`** reads `murmur2` and its helpers out of
+    `Codec.fiig`.
+  - **Verified** against the dogfood Postgres 17, Redis, and Kafka 4.0
+    brokers (plain and SASL), with no live test skipped. The fiig test
+    counts are unchanged for every package except Postgres, which gained
+    the 14 moved from Go.
+- **Breaking, for the release notes (phase 2):**
+
+  | Was | Is |
+  | --- | --- |
+  | `use fiig.jwt;` `jwt.sign`, `jwt.signHmac`, `jwt.verify`, `jwt.verifyHmac`, `jwt.decodeUnverified`, `jwt.keyIdOf`, `jwt.algorithmNamed` | `use fiig.jwt.tokens;` `tokens.verify(...)`, and the same names |
+  | `http.outgoingRequest`, `http.readReply` | `use fiig.http.http1;` `http1.outgoingRequest(...)`; internal, but public |
+
+  Nothing a driver's user calls moved: an application reaches a driver
+  through its capability (`Postgres`, `Kafka`, `Redis`, `S3`, `Smtp`), and
+  those didn't change. The types (`jwt.Expect`, `jwt.Algorithm`) don't
+  move either.
+- **Not done yet:** Hearsay's own candidates.

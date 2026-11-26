@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"fiig-lang/compiler/checker"
@@ -104,11 +105,25 @@ func BenchmarkRecords(b *testing.B) {
 
 // murmur2: com.degeneratedevelopment.kafka's partitioner (ADR 0113 §3), over 10,000 keys.
 func BenchmarkMurmur2(b *testing.B) {
-	src, err := os.ReadFile("../stdlib/bundled/kafka/src/Murmur2.fiig")
+	data, err := os.ReadFile("../stdlib/bundled/kafka/src/Codec.fiig")
 	if err != nil {
 		b.Fatal(err)
 	}
-	in := benchInterp(b, string(src), `activity hashAll(keys: List<bytes>) -> int {
+	// The codec group's murmur2 and its two helpers, as one conversion
+	// and its private block, so the benchmark needs nothing else of the
+	// package.
+	src := string(data)
+	block := func(start string) string {
+		i := strings.Index(src, start)
+		if i < 0 {
+			b.Fatalf("Codec.fiig has no %q", start)
+		}
+		return src[i : i+strings.Index(src[i:], "\n    }\n")+7]
+	}
+	murmur := "conversion " + strings.TrimPrefix(block("    formula murmur2("), "    formula ")
+	murmur = strings.ReplaceAll(murmur, "\n    ", "\n")
+	helpers := "private {\n" + block("    mul32(") + "\n" + block("    xor32(") + "}\n"
+	in := benchInterp(b, murmur+"\n"+helpers, `activity hashAll(keys: List<bytes>) -> int {
     total: int = 0;
     for (key in keys) {
         total = (total + murmur2(key)) % 1000000007;

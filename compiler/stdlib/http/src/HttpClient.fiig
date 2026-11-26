@@ -1,3 +1,5 @@
+use fiig.http.http1;
+
 // ADR 0074: an HTTP/1.1 client written in fiig over Socket. A connection
 // kept by an earlier request to the same host is used first, and kept
 // again when the reply allows (ADR 0109 §6); redirects come back as
@@ -6,7 +8,7 @@
 // it is read (§7a).
 capability HttpClient {
     gateway send(request: Request) -> Result<Reply, HttpError> requires Socket {
-        outgoing = outgoingRequest(request)?;
+        outgoing = http1.outgoingRequest(request)?;
         maxBytes = HttpClientSettings.maxReplyBytes;
         if (maxBytes <= 0) {
             return Err(
@@ -41,7 +43,7 @@ capability HttpClient {
 
                 kept -> {
                     opened = Ok(kept);
-                    resend = safeToResend(request.method);
+                    resend = http1.safeToResend(request.method);
                 }
             }
 
@@ -66,7 +68,7 @@ capability HttpClient {
             buffer: bytes = <<>>;
             closed: bool = false;
             while (!stale) {
-                match (readReply(buffer, request.method, closed, maxBytes)) {
+                match (http1.readReply(buffer, request.method, closed, maxBytes)) {
                     ReplyRead.Done(reply, keep) -> {
                         if (keep) {
                             Socket.keep(connection, session: "");
@@ -96,7 +98,7 @@ capability HttpClient {
                             },
 
                             Err(failure) -> {
-                                if (resend && buffer.length() == 0 && closedByServer(failure)) {
+                                if (resend && buffer.length() == 0 && http1.closedByServer(failure)) {
                                     Socket.close(connection);
                                     stale = true;
                                 } else {

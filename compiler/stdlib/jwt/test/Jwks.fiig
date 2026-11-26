@@ -1,0 +1,225 @@
+use fiig.session;
+use fiig.jwt.jwks;
+
+// ADR 0146 §5: a key session's rules, with the clock in the test's hands.
+test aFirstAskFetchesAndTheReplyAnswersIt {
+    first = jwks.jwksStep(jwks.jwksStarted(settings()), JwksEvent.Asked(message: ask(None)), 1000);
+    expect (first.write.utf8() ?? "") == "GET /jwks.json HTTP/1.1\r\nHost: keys.example\r\nAccept: application/json\r\nUser-Agent: fiig-http/1\r\n\r\n";
+    expect first.accepted == 1;
+    expect first.replies.length() == 0;
+    expect first.nextTickAt == 11000;
+    fetched = jwks.jwksStep(
+        jwks.jwksStateOf(first.state),
+        JwksEvent.Received(data: reply(200, keySet())),
+        1100
+    );
+    expect keysIn(fetched) == 1;
+    expect fetched.nextTickAt == 601100;
+    // Asked again, it answers from its state and writes nothing.
+    again = jwks.jwksStep(
+        jwks.jwksStateOf(fetched.state),
+        JwksEvent.Asked(message: ask(None)),
+        2000
+    );
+    expect again.write.length() == 0;
+    expect keysIn(again) == 1;
+}
+
+test asksDuringAFetchWaitForIt {
+    first = jwks.jwksStep(jwks.jwksStarted(settings()), JwksEvent.Asked(message: ask(None)), 1000);
+    second = jwks.jwksStep(
+        jwks.jwksStateOf(first.state),
+        JwksEvent.Asked(message: ask(None)),
+        1001
+    );
+    expect second.write.length() == 0;
+    expect second.accepted == 2;
+    expect second.replies.length() == 0;
+    fetched = jwks.jwksStep(
+        jwks.jwksStateOf(second.state),
+        JwksEvent.Received(data: reply(200, keySet())),
+        1100
+    );
+    expect fetched.replies.length() == 2;
+}
+
+test aNewKidFetchesAgainOnlyAfterTheCooldown {
+    fetched = fetchedAt(1000);
+    soon = jwks.jwksStep(
+        jwks.jwksStateOf(fetched.state),
+        JwksEvent.Asked(message: ask("rotated")),
+        30999
+    );
+    expect soon.write.length() == 0;
+    expect keysIn(soon) == 1;
+    later = jwks.jwksStep(
+        jwks.jwksStateOf(fetched.state),
+        JwksEvent.Asked(message: ask("rotated")),
+        31000
+    );
+    expect later.write.length() > 0;
+    // A kid the set has needs nothing.
+    known = jwks.jwksStep(
+        jwks.jwksStateOf(fetched.state),
+        JwksEvent.Asked(message: ask("ed-1")),
+        31000
+    );
+    expect known.write.length() == 0;
+}
+
+test aSetIsRefreshedAfterTenMinutesAndKeptWhenTheRefreshFails {
+    fetched = fetchedAt(1000);
+    early = jwks.jwksStep(jwks.jwksStateOf(fetched.state), JwksEvent.Tick, 600999);
+    expect early.write.length() == 0;
+    refresh = jwks.jwksStep(jwks.jwksStateOf(fetched.state), JwksEvent.Tick, 601100);
+    expect refresh.write.length() > 0;
+    failed = jwks.jwksStep(
+        jwks.jwksStateOf(refresh.state),
+        JwksEvent.Received(data: reply(503, "")),
+        601200
+    );
+    // A whole HTTP/1.1 reply leaves the connection to keep.
+    expect failed.close == None;
+    // The next try waits out the cooldown.
+    expect failed.nextTickAt == 631100;
+    kept = jwks.jwksStep(
+        jwks.jwksStateOf(failed.state),
+        JwksEvent.Asked(message: ask(None)),
+        700000
+    );
+    expect keysIn(kept) == 1;
+}
+
+test aSetTooOldIsDroppedAndAsksFailClosed {
+    fetched = fetchedAt(1000);
+    stale = jwks.jwksStep(
+        jwks.jwksStateOf(fetched.state),
+        JwksEvent.Asked(message: ask(None)),
+        4201000
+    );
+    expect stale.write.length() > 0;
+    failed = jwks.jwksStep(
+        jwks.jwksStateOf(stale.state),
+        JwksEvent.Received(data: reply(503, "")),
+        4201100
+    );
+    expect answerOf(failed).failure == "the server answered 503";
+    expect answerOf(failed).keys.length() == 0;
+}
+
+test aFetchWithNoReplyTimesOut {
+    first = jwks.jwksStep(jwks.jwksStarted(settings()), JwksEvent.Asked(message: ask(None)), 1000);
+    waiting = jwks.jwksStep(jwks.jwksStateOf(first.state), JwksEvent.Tick, 10999);
+    expect waiting.replies.length() == 0;
+    timedOut = jwks.jwksStep(jwks.jwksStateOf(first.state), JwksEvent.Tick, 11000);
+    expect answerOf(timedOut).failure == "no reply in 10 seconds";
+    expect timedOut.close != None;
+}
+
+test aConnectionThatEndsEndsTheFetch {
+    first = jwks.jwksStep(jwks.jwksStarted(settings()), JwksEvent.Asked(message: ask(None)), 1000);
+    partial = jwks.jwksStep(
+        jwks.jwksStateOf(first.state),
+        JwksEvent.Received(data: "HTTP/1.1 200 OK\r\n".utf8()),
+        1100
+    );
+    ended = jwks.jwksStep(jwks.jwksStateOf(partial.state), JwksEvent.Ended(reason: "reset"), 1200);
+    expect answerOf(ended).failure == "the connection ended before the reply did: reset";
+    // A body that runs until the server closes is whole when it does.
+    body = keySet();
+    untilClose = "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n${body}".utf8();
+    read = jwks.jwksStep(jwks.jwksStateOf(first.state), JwksEvent.Received(data: untilClose), 1100);
+    expect read.replies.length() == 0;
+    closed = jwks.jwksStep(jwks.jwksStateOf(read.state), JwksEvent.Ended(reason: "closed"), 1200);
+    expect keysIn(closed) == 1;
+}
+
+test aDiscoveryDocumentMustNameTheIssuerAsked {
+    discovery = settings().put("issuer", "https://issuer.example");
+    first = jwks.jwksStep(jwks.jwksStarted(discovery), JwksEvent.Asked(message: ask(None)), 1000);
+    named = "{\"issuer\": \"https://issuer.example\", \"jwks_uri\": \"https://keys.example/jwks.json\"}";
+    found = jwks.jwksStep(
+        jwks.jwksStateOf(first.state),
+        JwksEvent.Received(data: reply(200, named)),
+        1100
+    );
+    expect answerOf(found).jwksUri == "https://keys.example/jwks.json";
+    other = "{\"issuer\": \"https://other.example\", \"jwks_uri\": \"https://keys.example/jwks.json\"}";
+    refused = jwks.jwksStep(
+        jwks.jwksStateOf(first.state),
+        JwksEvent.Received(data: reply(200, other)),
+        1100
+    );
+    expect answerOf(refused).failure == "the discovery document names another issuer";
+}
+
+// ADR 0146 §5: a key set is read strictly, and its keys leniently.
+test aKeySetsSigningKeysAreRead {
+    expect jwks.keysFromJwks(set("{\"kty\": \"RSA\", \"kid\": \"a\", \"alg\": \"RS256\", \"n\": \"zNKpvWEH90P5C1qYY-Q5GvloSLmdudWsm3FPOKr3dNnB0DVAA0lnjxt5dRp3KaWqt5JgloNBD743c-rREHrIhacPUHvtXrQeOUChRqXxpHjiyLRsYjOglxhf8jHM5ziDZkRcWgz3NGzzOL77-q1rbN3EdFbgsOjLtXFkw-KpkuRQxazTIllgiBsOI-s94pV6FzJoHy7kR1VRnb6IyEH8VMw1WmI0e_BuBALmESmdZHmnsXi4Q664UoL2Glwjm1kQCI-5uJI3UNo0RZ5YnrnxgtdZNbF-SKhxcQQMpLGyUONB8KHbvkD_SaGqbluJWJWBwhil7dJ2J0Cd3rVo3EdSOw\", \"e\": \"AQAB\"}, {\"kty\": \"EC\", \"crv\": \"P-256\", \"x\": \"Ocb512iD0Hf-MJFMsfDVVgxtMt6wzjchnsTpht8Awjk\", \"y\": \"EPwkxZK61Ox5egOQAwfoUuL1hTxZ5jKC0tmeep1EDYA\"}")) is Ok(keys);
+    expect keys.length() == 2;
+    expect keys.first().keyId == "a";
+    expect keys.first().algorithm == "RS256";
+    expect keys.last().keyId == None;
+}
+
+test keysForOtherUsesAreLeftOut {
+    expect jwks.keysFromJwks(set("{\"kty\": \"RSA\", \"use\": \"enc\", \"n\": \"zNKpvWEH90P5C1qYY-Q5GvloSLmdudWsm3FPOKr3dNnB0DVAA0lnjxt5dRp3KaWqt5JgloNBD743c-rREHrIhacPUHvtXrQeOUChRqXxpHjiyLRsYjOglxhf8jHM5ziDZkRcWgz3NGzzOL77-q1rbN3EdFbgsOjLtXFkw-KpkuRQxazTIllgiBsOI-s94pV6FzJoHy7kR1VRnb6IyEH8VMw1WmI0e_BuBALmESmdZHmnsXi4Q664UoL2Glwjm1kQCI-5uJI3UNo0RZ5YnrnxgtdZNbF-SKhxcQQMpLGyUONB8KHbvkD_SaGqbluJWJWBwhil7dJ2J0Cd3rVo3EdSOw\", \"e\": \"AQAB\"}, {\"kty\": \"oct\", \"k\": \"c2VjcmV0\"}, {\"kty\": \"RSA\", \"n\": \"t-IiQ_cTZ9U83Cdb8no7e6FMJSmPxQz69Xn4JRLAAXRrleUhH9rvO0zmhfS4RmHFLwo_qyJeVKGdcu--2OSI4wscZxmdVA-YgL8tnrAGbTFsfNJHqvIr_YSPY0G_ViIFGQ3WcY9sYK7-FVO0gqP5fU0TSV5irQs9G_DVjKP4QNk\", \"e\": \"AQAB\"}, {\"kty\": \"EC\", \"crv\": \"P-521\", \"x\": \"Ocb512iD0Hf-MJFMsfDVVgxtMt6wzjchnsTpht8Awjk\", \"y\": \"EPwkxZK61Ox5egOQAwfoUuL1hTxZ5jKC0tmeep1EDYA\"}, {\"kty\": \"EC\", \"crv\": \"P-256\", \"x\": \"EPwkxZK61Ox5egOQAwfoUuL1hTxZ5jKC0tmeep1EDYA\", \"y\": \"EPwkxZK61Ox5egOQAwfoUuL1hTxZ5jKC0tmeep1EDYA\"}, {\"kty\": \"OKP\", \"crv\": \"Ed25519\", \"x\": \"wR_GYmAZb60GXIGb9eNTibKmZDGI9PuLynDBxVnrBB0\"}, \"not a key\"")) is Ok(keys);
+    expect keys.length() == 1;
+    expect keys.first().key == PublicKey.Ed25519(key: "wR_GYmAZb60GXIGb9eNTibKmZDGI9PuLynDBxVnrBB0".fromBase64Url() ?? <<>>);
+}
+
+test aDocumentThatIsntAKeySetIsRefused {
+    expect jwks.keysFromJwks("{}".utf8()) is Err(JwtError.KeysUnavailable("the key set has no keys list"));
+    expect jwks.keysFromJwks("[]".utf8()) is Err(JwtError.KeysUnavailable("the key set isn't a JSON object"));
+    expect jwks.keysFromJwks("{".utf8()) is Err(JwtError.KeysUnavailable("the key set isn't JSON"));
+}
+
+private {
+    settings() -> Map<string, string> {
+        settings: Map<string, string> = ["url": "https://keys.example/jwks.json"];
+        return settings;
+    }
+
+    ask(keyId: string | None) -> bytes {
+        return json.encode(JwksAsk(keyId: keyId));
+    }
+
+    keySet() -> string {
+        return "{\"keys\": [{\"kty\": \"OKP\", \"kid\": \"ed-1\", \"crv\": \"Ed25519\", \"x\": \"Pu3Gf0WYH4R0sduLuQlxhdiEYpiS8OiIm32D3j3tIi8\"}]}";
+    }
+
+    reply(status: int, body: string) -> bytes {
+        return "HTTP/1.1 ${status} OK\r\nContent-Length: ${body.utf8().length()}\r\n\r\n${body}".utf8();
+    }
+
+    // A session that fetched the key set at the time given.
+    fetchedAt(at: int) -> session.Step {
+        first = jwks.jwksStep(
+            jwks.jwksStarted(settings()),
+            JwksEvent.Asked(message: ask(None)),
+            at
+        );
+        return jwks.jwksStep(
+            jwks.jwksStateOf(first.state),
+            JwksEvent.Received(data: reply(200, keySet())),
+            at
+        );
+    }
+
+    answerOf(step: session.Step) -> JwksAnswer {
+        decoded: Result<JwksAnswer, JsonError> = json.decode(step.replies.first().message);
+        keys: List<Jwk> = [];
+        return match (decoded) {
+            Ok(given) -> given,
+            Err(_) -> JwksAnswer(keys: keys, jwksUri: None, failure: "no answer")
+        }
+    }
+
+    keysIn(step: session.Step) -> int {
+        return answerOf(step).keys.length();
+    }
+
+    set(keys: string) -> bytes {
+        return "{\"keys\": [${keys}]}".utf8();
+    }
+}

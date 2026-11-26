@@ -1,0 +1,529 @@
+use fiig.http;
+use fiig.session;
+use fiig.jwt.jwks;
+use fiig.jwt.tokens;
+use fiig.http.http1;
+
+// JSON Web Key Sets (RFC 7517): reading a set's usable keys, and the
+// fiig.session protocol that fetches and refreshes one (ADR 0146 Â§5).
+formulas jwks {
+    // A key session's reply as JwtKeys returns it: its keys or jwks_uri, or
+    // KeysUnavailable with why. Verification fails closed: no keys is never
+    // "check nothing".
+    formula jwksAnswerOf(parts: List<bytes>) -> Result<JwksAnswer, JwtError> {
+        decoded: Result<JwksAnswer, JsonError> = json.decode(parts.first());
+        answer = match (decoded) {
+            Ok(given) -> given,
+            Err(_) -> {
+                return Err(
+                    JwtError.KeysUnavailable(
+                        reason: "the key session answered something that isn't an answer"
+                    )
+                );
+            }
+        }
+
+        return match (answer.failure) {
+            None -> Ok(answer),
+            reason -> Err(JwtError.KeysUnavailable(reason: reason))
+        }
+    }
+
+    // The session for one URL (ADR 0146 §5): https only, with http allowed
+    // for a loopback host so a test can serve keys locally. issuer is given
+    // for a discovery document, whose issuer must be the same.
+    formula jwksSettings(url: string, issuer: string | None)
+            -> Result<Map<string, string>, JwtError> {
+        loopback: bool = false;
+        for (local in ["http://127.0.0.1:", "http://localhost:", "http://[::1]:"]) {
+            if (url.startsWith(local)) {
+                loopback = true;
+            }
+        }
+
+        if (!url.startsWith("https://") && !loopback) {
+            return Err(JwtError.KeysUnavailable(reason: "a key URL must be https: ${url}"));
+        }
+
+        outgoing = mapErr(e in http1.outgoingRequest(http.Request(method: http.Method.Get, url: url))):
+                JwtError.KeysUnavailable(reason: "the key URL can't be fetched: ${e}")?;
+        settings: Map<string, string> = ["host": outgoing.host, "port": "${outgoing.port}"];
+        settings = settings.put("tls", "${outgoing.secure}").put("connect", "onWrite").put(
+            "url",
+            url
+        );
+        return match (issuer) {
+            None -> Ok(settings),
+            given -> Ok(settings.put("issuer", given))
+        }
+    }
+
+    // A key session's first state, from its settings: nothing fetched yet.
+    formula jwksStarted(settings: Map<string, string>) -> JwksState {
+        url = settings.atOr("url", "");
+        accept: List<http.Header> = [http.Header(name: "Accept", value: "application/json")];
+        get = http.Request(method: http.Method.Get, url: url, headers: accept);
+        request = match (http1.outgoingRequest(get)) {
+            Ok(outgoing) -> outgoing.data,
+            Err(_) -> <<>>
+        }
+
+        keys: List<Jwk> = [];
+        waiting: List<JwksWaiting> = [];
+        return JwksState(
+            url: url,
+            issuer: settings.atOrNone("issuer"),
+            request: request,
+            keys: keys,
+            jwksUri: None,
+            fetchedAt: None,
+            triedAt: None,
+            fetching: false,
+            reply: <<>>,
+            failure: None,
+            nextKey: 1,
+            waiting: waiting
+        );
+    }
+
+    // A key session's state from its bytes. Only jwksStep writes them, so
+    // bytes that don't decode are a defect, answered as a session with
+    // nothing fetched that says so.
+    formula jwksStateOf(state: bytes) -> JwksState {
+        decoded: Result<JwksState, JsonError> = json.decode(state);
+        keys: List<Jwk> = [];
+        waiting: List<JwksWaiting> = [];
+        return match (decoded) {
+            Ok(given) -> given,
+            Err(_) -> JwksState(
+                url: "",
+                issuer: None,
+                request: <<>>,
+                keys: keys,
+                jwksUri: None,
+                fetchedAt: None,
+                triedAt: None,
+                fetching: false,
+                reply: <<>>,
+                failure: "the key session's state was lost",
+                nextKey: 1,
+                waiting: waiting
+            )
+        }
+    }
+
+    // ADR 0146 §5: every rule of a key session, with jose's numbers. A set
+    // is refreshed by tick once it is 10 minutes old; an ask for a kid the set
+    // lacks fetches it again at once, unless the last fetch was under 30
+    // seconds ago; a fetch that fails keeps the old set for up to an hour past
+    // its 10 minutes, and then it is dropped and asks fail closed. One fetch
+    // is under way at a time: asks that arrive meanwhile wait for it.
+    formula jwksStep(state: JwksState, event: JwksEvent, now: int) -> session.Step {
+        s = aged(state, now);
+        return match (event) {
+            JwksEvent.Asked(message) -> asked(s, message, now),
+            JwksEvent.Received(data) -> received(s, data, now),
+            JwksEvent.Tick -> ticked(s, now),
+            JwksEvent.Ended(reason) -> ended(s, reason, now)
+        }
+    }
+
+    // ADR 0146 §5: the keys of a JSON Web Key Set (RFC 7517 §5), as a JWKS
+    // URL serves it or a program configures it. Strict about the document,
+    // lenient about its keys: a key for encryption (use "enc"), of a kind
+    // fiig.jwt doesn't verify, or one crypto.checkPublicKey refuses is left
+    // out, since providers publish keys for other uses beside signing ones.
+    formula keysFromJwks(document: bytes) -> Result<List<Jwk>, JwtError> {
+        keys: List<Jwk> = [];
+        for (entry in entriesOf(document)?) {
+            match (entry) {
+                JsonValue.Object(members) -> {
+                    match (jwkOf(members)) {
+                        None -> None,
+                        jwk -> {
+                            keys = append(keys, jwk);
+                        }
+                    }
+                },
+
+                _ -> None
+            }
+        }
+
+        return Ok(keys);
+    }
+}
+
+private {
+    // A set this old is refreshed before anyone waits for it.
+    maxAge() -> int {
+        return 600000;
+    }
+
+    // At most one fetch per this long when it is asked for.
+    cooldown() -> int {
+        return 30000;
+    }
+
+    // A set kept this long past maxAge while its fetches fail.
+    staleFor() -> int {
+        return 3600000;
+    }
+
+    // A fetch with no full reply by then has failed.
+    fetchTimeout() -> int {
+        return 10000;
+    }
+
+    // The most a reply may be, headers and body (ADR 0074 §7a).
+    maxReply() -> int {
+        return 262144;
+    }
+
+    // The state without a set older than staleFor past maxAge.
+    aged(s: JwksState, now: int) -> JwksState {
+        return match (s.fetchedAt) {
+            None -> s,
+            at -> {
+                if (now - at < maxAge() + staleFor()) {
+                    return s;
+                }
+
+                keys: List<Jwk> = [];
+                return copy(s, keys: keys, jwksUri: None, fetchedAt: None);
+            }
+        }
+    }
+
+    asked(state: JwksState, message: bytes, now: int) -> session.Step {
+        key = state.nextKey;
+        s = copy(state, nextKey: key + 1);
+        decoded: Result<JwksAsk, JsonError> = json.decode(message);
+        keyId = match (decoded) {
+            Ok(ask) -> ask.keyId,
+            Err(_) -> None
+        }
+
+        if (!wantsFetch(s, keyId)) {
+            return step(s, <<>>, key, [reply(key, answerOf(s))], None, now);
+        }
+
+        waiting = copy(s, waiting: append(s.waiting, JwksWaiting(key: key)));
+        if (s.fetching) {
+            return step(waiting, <<>>, key, [], None, now);
+        }
+
+        if (mayFetch(s, now)) {
+            return fetched(waiting, key, now);
+        }
+
+        return step(s, <<>>, key, [reply(key, answerOf(s))], None, now);
+    }
+
+    // Whether an ask needs a fetch: nothing usable yet, or a kid the set
+    // doesn't have. A discovery document's answer has no kid to miss.
+    wantsFetch(s: JwksState, keyId: string | None) -> bool {
+        if (s.fetchedAt == None) {
+            return true;
+        }
+
+        return match (keyId) {
+            None -> false,
+            wanted -> s.issuer == None && !hasKey(s.keys, wanted)
+        }
+    }
+
+    hasKey(keys: List<Jwk>, keyId: string) -> bool {
+        for (jwk in keys) {
+            if (jwk.keyId == keyId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    mayFetch(s: JwksState, now: int) -> bool {
+        if (s.request.length() == 0) {
+            return false;
+        }
+
+        return match (s.triedAt) {
+            None -> true,
+            at -> now - at >= cooldown()
+        }
+    }
+
+    // A fetch starts: the GET is written, which opens the connection.
+    fetched(s: JwksState, key: int | None, now: int) -> session.Step {
+        started = copy(s, fetching: true, triedAt: now, reply: <<>>);
+        return step(started, s.request, key, [], None, now);
+    }
+
+    received(s: JwksState, data: bytes, now: int) -> session.Step {
+        if (!s.fetching) {
+            return step(s, <<>>, None, [], None, now);
+        }
+
+        buffer = <<s.reply: bytes, data: bytes>>;
+        return match (http1.readReply(buffer, http.Method.Get, false, maxReply())) {
+            http.ReplyRead.NeedMore -> step(copy(s, reply: buffer), <<>>, None, [], None, now),
+            http.ReplyRead.Done(r, keep) -> finished(s, r, keep, now),
+            http.ReplyRead.Malformed(reason) -> failed(
+                s,
+                "the reply is malformed: ${reason}",
+                now,
+                true
+            ),
+            http.ReplyRead.TooLarge -> failed(s, "the reply is over 256 KiB", now, true)
+        }
+    }
+
+    ended(s: JwksState, reason: string, now: int) -> session.Step {
+        if (!s.fetching) {
+            return step(s, <<>>, None, [], None, now);
+        }
+
+        return match (http1.readReply(s.reply, http.Method.Get, true, maxReply())) {
+            http.ReplyRead.Done(r, _) -> finished(s, r, false, now),
+            _ -> failed(s, "the connection ended before the reply did: ${reason}", now, false)
+        }
+    }
+
+    ticked(s: JwksState, now: int) -> session.Step {
+        if (s.fetching) {
+            return match (s.triedAt) {
+                None -> step(s, <<>>, None, [], None, now),
+                at -> {
+                    if (now - at >= fetchTimeout()) {
+                        return failed(s, "no reply in 10 seconds", now, true);
+                    }
+
+                    return step(s, <<>>, None, [], None, now);
+                }
+            }
+        }
+
+        refresh = match (s.fetchedAt) {
+            None -> false,
+            at -> now - at >= maxAge()
+        }
+
+        if (refresh && mayFetch(s, now)) {
+            return fetched(s, None, now);
+        }
+
+        return step(s, <<>>, None, [], None, now);
+    }
+
+    // A whole reply: a 200 with a document this session can read is the
+    // new answer, and anything else fails the fetch. A redirect is not
+    // followed: a key URL that moves is a configuration change.
+    finished(s: JwksState, r: http.Reply, keep: bool, now: int) -> session.Step {
+        if (r.status != 200) {
+            return failed(s, "the server answered ${r.status}", now, !keep);
+        }
+
+        return match (s.issuer) {
+            None -> keysRead(s, r.body, now, !keep),
+            issuer -> discovered(s, issuer, r.body, now, !keep)
+        }
+    }
+
+    keysRead(s: JwksState, body: bytes, now: int, close: bool) -> session.Step {
+        return match (jwks.keysFromJwks(body)) {
+            Ok(keys) -> done(copy(s, keys: keys, fetchedAt: now, failure: None), now, close),
+            Err(JwtError.KeysUnavailable(reason)) -> failed(s, reason, now, close),
+            Err(_) -> failed(s, "the key set can't be read", now, close)
+        }
+    }
+
+    // OpenID Connect Discovery §4.3: the document's issuer must be the one
+    // asked, or this issuer would be handed another's keys.
+    discovered(s: JwksState, issuer: string, body: bytes, now: int, close: bool) -> session.Step {
+        decoded: Result<JsonValue, JsonError> = json.decode(body);
+        members = match (decoded) {
+            Ok(JsonValue.Object(given)) -> given,
+            _ -> {
+                return failed(s, "the discovery document isn't a JSON object", now, close);
+            }
+        }
+
+        if (tokens.textMember(members, "issuer") != issuer) {
+            return failed(s, "the discovery document names another issuer", now, close);
+        }
+
+        return match (tokens.textMember(members, "jwks_uri")) {
+            None -> failed(s, "the discovery document has no jwks_uri", now, close),
+            uri -> done(copy(s, jwksUri: uri, fetchedAt: now, failure: None), now, close)
+        }
+    }
+
+    done(s: JwksState, now: int, close: bool) -> session.Step {
+        return answered(copy(s, fetching: false, reply: <<>>), now, close);
+    }
+
+    // A failed fetch keeps whatever set the session had (aged drops it
+    // once it is too old), and says why.
+    failed(s: JwksState, reason: string, now: int, close: bool) -> session.Step {
+        return answered(copy(s, fetching: false, reply: <<>>, failure: reason), now, close);
+    }
+
+    // Every waiting ask gets the session's answer now.
+    answered(s: JwksState, now: int, close: bool) -> session.Step {
+        replies: List<session.SessionReply> = [];
+        for (w in s.waiting) {
+            replies = append(replies, reply(w.key, answerOf(s)));
+        }
+
+        waiting: List<JwksWaiting> = [];
+        closing: session.SessionClose | None = None;
+        if (close) {
+            closing = session.SessionClose.Done(reason: "the fetch is over");
+        }
+
+        return step(copy(s, waiting: waiting), <<>>, None, replies, closing, now);
+    }
+
+    answerOf(s: JwksState) -> JwksAnswer {
+        if (s.fetchedAt != None) {
+            return JwksAnswer(keys: s.keys, jwksUri: s.jwksUri, failure: None);
+        }
+
+        keys: List<Jwk> = [];
+        return JwksAnswer(keys: keys, jwksUri: None, failure: s.failure ?? "no keys fetched yet");
+    }
+
+    reply(key: int, answer: JwksAnswer) -> session.SessionReply {
+        return session.SessionReply(key: key, message: json.encode(answer), last: true);
+    }
+
+    // The step, with the next tick: when a fetch under way times out, or
+    // when the set is due a refresh (or, after a failed fetch, when the
+    // cooldown allows another).
+    step(
+        s: JwksState,
+        write: bytes,
+        accepted: int | None,
+        replies: List<session.SessionReply>,
+        close: session.SessionClose | None,
+        now: int)
+            -> session.Step {
+        tick: int | None = None;
+        if (s.fetching) {
+            tick = (s.triedAt ?? now) + fetchTimeout();
+        } else {
+            match (s.fetchedAt) {
+                None -> None,
+                at -> {
+                    due: int = at + maxAge();
+                    again = (s.triedAt ?? at) + cooldown();
+                    if (again > due) {
+                        due = again;
+                    }
+
+                    tick = due;
+                }
+            }
+        }
+
+        return session.Step(
+            state: json.encode(s),
+            write: write,
+            accepted: accepted,
+            replies: replies,
+            nextTickAt: tick,
+            close: close
+        );
+    }
+
+    entriesOf(document: bytes) -> Result<List<JsonValue>, JwtError> {
+        decoded: Result<JsonValue, JsonError> = json.decode(document);
+        members = match (decoded) {
+            Ok(JsonValue.Object(given)) -> given,
+            Ok(_) -> {
+                return Err(JwtError.KeysUnavailable(reason: "the key set isn't a JSON object"));
+            },
+
+            Err(_) -> {
+                return Err(JwtError.KeysUnavailable(reason: "the key set isn't JSON"));
+            }
+        }
+
+        return match (members.atOrNone("keys")) {
+            JsonValue.Array(items) -> Ok(items),
+            _ -> Err(JwtError.KeysUnavailable(reason: "the key set has no keys list"))
+        }
+    }
+
+    jwkOf(members: Map<string, JsonValue>) -> Jwk | None {
+        if ((tokens.textMember(members, "use") ?? "sig") != "sig") {
+            return None;
+        }
+
+        key = match (tokens.textMember(members, "kty") ?? "") {
+            "RSA" -> rsaKey(members),
+            "EC" -> ecKey(members),
+            "OKP" -> okpKey(members),
+            _ -> None
+        }
+
+        return match (key) {
+            None -> None,
+            given -> usable(given, members)
+        }
+    }
+
+    usable(key: PublicKey, members: Map<string, JsonValue>) -> Jwk | None {
+        return match (crypto.checkPublicKey(key)) {
+            Ok(_) -> Jwk(
+                keyId: tokens.textMember(members, "kid"),
+                algorithm: tokens.textMember(members, "alg"),
+                key: key
+            ),
+            Err(_) -> None
+        }
+    }
+
+    rsaKey(members: Map<string, JsonValue>) -> PublicKey | None {
+        modulus = decoded(members, "n");
+        exponent = decoded(members, "e");
+        if (modulus == None || exponent == None) {
+            return None;
+        }
+
+        return PublicKey.Rsa(modulus: modulus ?? <<>>, exponent: exponent ?? <<>>);
+    }
+
+    ecKey(members: Map<string, JsonValue>) -> PublicKey | None {
+        x = decoded(members, "x");
+        y = decoded(members, "y");
+        if (x == None || y == None) {
+            return None;
+        }
+
+        return match (tokens.textMember(members, "crv") ?? "") {
+            "P-256" -> PublicKey.EcP256(x: x ?? <<>>, y: y ?? <<>>),
+            "P-384" -> PublicKey.EcP384(x: x ?? <<>>, y: y ?? <<>>),
+            _ -> None
+        }
+    }
+
+    okpKey(members: Map<string, JsonValue>) -> PublicKey | None {
+        if ((tokens.textMember(members, "crv") ?? "") != "Ed25519") {
+            return None;
+        }
+
+        return match (decoded(members, "x")) {
+            None -> None,
+            x -> PublicKey.Ed25519(key: x)
+        }
+    }
+
+    decoded(members: Map<string, JsonValue>, name: string) -> bytes | None {
+        return match (tokens.textMember(members, name)) {
+            None -> None,
+            text -> text.fromBase64Url()
+        }
+    }
+}

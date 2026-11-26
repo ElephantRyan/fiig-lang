@@ -1,6 +1,0 @@
-// A Message-ID's inside, unique by its random token and scoped to the
-// sender's domain (RFC 5322 §3.6.4): token@domain.
-conversion messageIdFor(mail: Mail, token: string) -> string {
-    domain = mail.from.split("@").last();
-    return "${token}@${domain}";
-}

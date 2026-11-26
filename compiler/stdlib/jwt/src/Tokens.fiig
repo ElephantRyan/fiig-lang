@@ -1,0 +1,522 @@
+use fiig.jwt.tokens;
+
+// JSON Web Tokens (RFC 7519): signing one, verifying one against keys and
+// the claims a caller expects, and reading a token's parts before it is
+// verified (ADR 0146).
+formulas tokens {
+    // ADR 0146 §7: a token signed with a private key held as PEM in a Secret.
+    // sign writes the header itself (alg, typ "JWT", and kid when given), so
+    // no caller can put alg none in it. An algorithm crypto.sign doesn't sign
+    // is AlgorithmRefused: an HS one, which is signHmac's, or a PSS one, which
+    // needs a random salt. A key that can't be read faults in crypto.sign,
+    // since it is the program's own configuration.
+    formula sign(claims: JsonValue, key: Secret, algorithm: Algorithm, keyId: string | None)
+            -> Result<string, JwtError> {
+        signing = match (signatureAlgorithmOf(algorithm)) {
+            None -> {
+                return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(algorithm)));
+            },
+
+            SignatureAlgorithm.RsaPssSha256 -> {
+                return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(algorithm)));
+            },
+
+            SignatureAlgorithm.RsaPssSha384 -> {
+                return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(algorithm)));
+            },
+
+            SignatureAlgorithm.RsaPssSha512 -> {
+                return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(algorithm)));
+            },
+
+            given -> given
+        }
+
+        input = signingInputOf(claims, algorithm, keyId);
+        return Ok("${input}.${crypto.sign(key, signing, input.utf8()).toBase64Url()}");
+    }
+
+    // ADR 0146 §7: a token signed with a secret, for a program issuing tokens
+    // to itself, with a Secret its instances share. Only an HS algorithm.
+    formula signHmac(claims: JsonValue, key: Secret, algorithm: Algorithm)
+            -> Result<string, JwtError> {
+        input = signingInputOf(claims, algorithm, None);
+        data = input.utf8();
+        mac = match (algorithm) {
+            Algorithm.HS256 -> crypto.hmacSha256(key, data),
+            Algorithm.HS384 -> crypto.hmacSha384(key, data),
+            Algorithm.HS512 -> crypto.hmacSha512(key, data),
+            _ -> {
+                return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(algorithm)));
+            }
+        }
+
+        return Ok("${input}.${mac.toBase64Url()}");
+    }
+
+    // ADR 0146 §4: a token signed with a public key, checked against keys
+    // (a JWKS's, from JwtKeys or configured) and what this program accepts.
+    // The checks run in order and each failure is its own JwtError: size and
+    // shape, the algorithm, the header, the key, the signature, the claims. An
+    // HMAC alg is refused here, so a public key is never used as an HMAC
+    // secret (CVE-2015-9235).
+    formula verify(token: string, keys: List<Jwk>, expect: Expect, now: int)
+            -> Result<Verified, JwtError> {
+        parts = tokenOf(token)?;
+        headerChecked(parts, expect)?;
+        algorithm = match (signatureAlgorithmOf(parts.algorithm)) {
+            None -> {
+                return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(parts.algorithm)));
+            },
+
+            given -> given
+        }
+
+        key = keyFor(parts, keys)?;
+        if (!crypto.verify(key, algorithm, parts.signingInput, parts.signature)) {
+            return Err(JwtError.BadSignature);
+        }
+
+        return claimsChecked(parts, expect, now);
+    }
+
+    // ADR 0146 §4: a token signed with a secret this program shares, checked
+    // as verify checks one. Only an HS alg is accepted, so a token can't make
+    // a secret stand in for a public key, or the other way round.
+    formula verifyHmac(token: string, key: Secret, expect: Expect, now: int)
+            -> Result<Verified, JwtError> {
+        parts = tokenOf(token)?;
+        headerChecked(parts, expect)?;
+        mac = match (parts.algorithm) {
+            Algorithm.HS256 -> crypto.hmacSha256(key, parts.signingInput),
+            Algorithm.HS384 -> crypto.hmacSha384(key, parts.signingInput),
+            Algorithm.HS512 -> crypto.hmacSha512(key, parts.signingInput),
+            _ -> {
+                return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(parts.algorithm)));
+            }
+        }
+
+        if (!crypto.equal(mac, parts.signature)) {
+            return Err(JwtError.BadSignature);
+        }
+
+        return claimsChecked(parts, expect, now);
+    }
+
+    // ADR 0146 §7: a token's header and payload, NOT verified: for debugging
+    // tools, and the rare program that reads one before it knows which issuer
+    // to check it against. Nothing in it is trusted.
+    formula decodeUnverified(token: string) -> Result<Unverified, JwtError> {
+        parts = tokenOf(token)?;
+        return Ok(
+            Unverified(
+                header: JsonValue.Object(members: parts.header),
+                payload: JsonValue.Object(members: parts.payload)
+            )
+        );
+    }
+
+    // ADR 0146 §7: a token's kid, to choose keys before verifying, or None.
+    // It reads only the header, and trusts nothing in it but the choice of
+    // key: verify checks everything else.
+    formula keyIdOf(token: string) -> string | None {
+        return match (tokenOf(token)) {
+            Ok(parts) -> parts.keyId,
+            Err(_) -> None
+        }
+    }
+
+    // A header's or a key's `alg` as an Algorithm, or None for a name fiig.jwt
+    // doesn't know, `none` included.
+    formula algorithmNamed(name: string) -> Algorithm | None {
+        return match (name) {
+            "RS256" -> Algorithm.RS256,
+            "RS384" -> Algorithm.RS384,
+            "RS512" -> Algorithm.RS512,
+            "PS256" -> Algorithm.PS256,
+            "PS384" -> Algorithm.PS384,
+            "PS512" -> Algorithm.PS512,
+            "ES256" -> Algorithm.ES256,
+            "ES384" -> Algorithm.ES384,
+            "EdDSA" -> Algorithm.EdDSA,
+            "HS256" -> Algorithm.HS256,
+            "HS384" -> Algorithm.HS384,
+            "HS512" -> Algorithm.HS512,
+            _ -> None
+        }
+    }
+
+    // A JSON object's member as text, or None when it is missing or isn't a
+    // string.
+    formula textMember(members: Map<string, JsonValue>, name: string) -> string | None {
+        return match (members.atOrNone(name)) {
+            JsonValue.Text(value) -> value,
+            _ -> None
+        }
+    }
+}
+
+private {
+    // By kid, the key with it that fits the algorithm, and whose own alg,
+    // if it states one, is the same. With no kid, the one key that fits:
+    // more than one is NoKey, since trying each hides which key the issuer
+    // meant.
+    keyFor(parts: TokenParts, keys: List<Jwk>) -> Result<PublicKey, JwtError> {
+        name = algorithmName(parts.algorithm);
+        fitting: List<Jwk> = [];
+        for (jwk in keys) {
+            if (keyFits(jwk.key, parts.algorithm) && (jwk.algorithm ?? name) == name) {
+                match (parts.keyId) {
+                    None -> {
+                        fitting = append(fitting, jwk);
+                    },
+
+                    wanted -> {
+                        if (jwk.keyId == wanted) {
+                            fitting = append(fitting, jwk);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (fitting.length() == 0 || (parts.keyId == None && fitting.length() > 1)) {
+            return Err(JwtError.NoKey(keyId: parts.keyId));
+        }
+
+        return Ok(fitting.first().key);
+    }
+
+    rsaAlgorithms() -> List<Algorithm> {
+        return [
+            Algorithm.RS256,
+            Algorithm.RS384,
+            Algorithm.RS512,
+            Algorithm.PS256,
+            Algorithm.PS384,
+            Algorithm.PS512
+        ];
+    }
+
+    keyFits(key: PublicKey, algorithm: Algorithm) -> bool {
+        return match (key) {
+            PublicKey.Rsa(_, _) -> rsaAlgorithms().contains(algorithm),
+            PublicKey.EcP256(_, _) -> algorithm == Algorithm.ES256,
+            PublicKey.EcP384(_, _) -> algorithm == Algorithm.ES384,
+            PublicKey.Ed25519(_) -> algorithm == Algorithm.EdDSA
+        }
+    }
+
+    // An Algorithm as a header's `alg` writes it.
+    algorithmName(algorithm: Algorithm) -> string {
+        return match (algorithm) {
+            Algorithm.RS256 -> "RS256",
+            Algorithm.RS384 -> "RS384",
+            Algorithm.RS512 -> "RS512",
+            Algorithm.PS256 -> "PS256",
+            Algorithm.PS384 -> "PS384",
+            Algorithm.PS512 -> "PS512",
+            Algorithm.ES256 -> "ES256",
+            Algorithm.ES384 -> "ES384",
+            Algorithm.EdDSA -> "EdDSA",
+            Algorithm.HS256 -> "HS256",
+            Algorithm.HS384 -> "HS384",
+            Algorithm.HS512 -> "HS512"
+        }
+    }
+
+    // ADR 0146 §4 check 7: iss is the issuer, aud (a string or a list, RFC
+    // 7519 §4.1.3) holds the audience, exp is required and not past, and nbf
+    // and iat aren't in the future, each with the leeway.
+    claimsChecked(parts: TokenParts, expect: Expect, now: int) -> Result<Verified, JwtError> {
+        claims = parts.payload;
+        leeway = (expect.leewaySeconds ?? 60) * 1000;
+        issuer = match (tokens.textMember(claims, "iss")) {
+            None -> {
+                return Err(JwtError.MissingClaim(name: "iss"));
+            },
+
+            given -> given
+        }
+
+        if (issuer != expect.issuer) {
+            return Err(JwtError.WrongIssuer(found: issuer));
+        }
+
+        audience = audienceOf(claims)?;
+        if (!audience.contains(expect.audience)) {
+            return Err(JwtError.WrongAudience(found: audience));
+        }
+
+        expiresAt = match (dateMember(claims, "exp")?) {
+            None -> {
+                return Err(JwtError.MissingClaim(name: "exp"));
+            },
+
+            given -> given
+        }
+
+        if (now >= expiresAt + leeway) {
+            return Err(JwtError.Expired(at: expiresAt));
+        }
+
+        match (dateMember(claims, "nbf")?) {
+            None -> None,
+            notBefore -> {
+                if (now + leeway < notBefore) {
+                    return Err(JwtError.NotYetValid(at: notBefore));
+                }
+            }
+        }
+
+        issuedAt = dateMember(claims, "iat")?;
+        match (issuedAt) {
+            None -> None,
+            at -> {
+                if (now + leeway < at) {
+                    return Err(JwtError.NotYetValid(at: at));
+                }
+            }
+        }
+
+        return Ok(
+            Verified(
+                issuer: issuer,
+                subject: tokens.textMember(claims, "sub"),
+                audience: audience,
+                expiresAt: expiresAt,
+                issuedAt: issuedAt,
+                id: tokens.textMember(claims, "jti"),
+                keyId: parts.keyId,
+                claims: JsonValue.Object(members: claims)
+            )
+        );
+    }
+
+    audienceOf(claims: Map<string, JsonValue>) -> Result<List<string>, JwtError> {
+        return match (claims.atOrNone("aud")) {
+            None -> Err(JwtError.MissingClaim(name: "aud")),
+            JsonValue.Text(one) -> Ok([one]),
+            JsonValue.Array(items) -> textsOf(items),
+            _ -> Err(JwtError.Malformed(reason: "the aud claim isn't a string or a list of them"))
+        }
+    }
+
+    textsOf(items: List<JsonValue>) -> Result<List<string>, JwtError> {
+        texts: List<string> = [];
+        for (item in items) {
+            match (item) {
+                JsonValue.Text(value) -> {
+                    texts = append(texts, value);
+                },
+
+                _ -> {
+                    return Err(
+                        JwtError.Malformed(
+                            reason: "the aud claim isn't a string or a list of them"
+                        )
+                    );
+                }
+            }
+        }
+
+        return Ok(texts);
+    }
+
+    // A NumericDate claim (RFC 7519 §2) in Unix milliseconds: seconds,
+    // perhaps with a fraction, read to the millisecond. None when the claim is
+    // missing; Malformed when it is there and isn't a number of seconds from
+    // the year 1970 to 9999.
+    dateMember(members: Map<string, JsonValue>, name: string) -> Result<int | None, JwtError> {
+        return match (members.atOrNone(name)) {
+            None -> Ok(None),
+            JsonValue.Number(text) -> millisOf(name, text),
+            _ -> Err(JwtError.Malformed(reason: "the ${name} claim isn't a number"))
+        }
+    }
+
+    millisOf(name: string, text: string) -> Result<int | None, JwtError> {
+        bad = JwtError.Malformed(
+            reason: "the ${name} claim isn't a number of seconds from 1970 to 9999"
+        );
+        parts = text.split(".");
+        if (parts.length() > 2) {
+            return Err(bad);
+        }
+
+        return match (parts.first().toIntOrNone()) {
+            None -> Err(bad),
+            seconds -> {
+                if (seconds < 0 || seconds > 253402300799) {
+                    return Err(bad);
+                }
+
+                fraction: int = 0;
+                if (parts.length() == 2) {
+                    digits = parts.last();
+                    match ("${digits}000".slice(0, 3).toIntOrNone()) {
+                        None -> {
+                            return Err(bad);
+                        },
+
+                        given -> {
+                            signed = digits.startsWith("-") || digits.startsWith("+");
+                            if (digits.length() == 0 || signed) {
+                                return Err(bad);
+                            }
+
+                            fraction = given;
+                        }
+                    }
+                }
+
+                return Ok(seconds * 1000 + fraction);
+            }
+        }
+    }
+
+    // ADR 0146 §4 checks 3-4: the header's alg is one this program accepts,
+    // it names no extension fiig.jwt would have to understand (crit, RFC 7515
+    // §4.1.11), and its typ is the one asked for, ignoring case and an
+    // "application/" prefix (RFC 8725 §3.11).
+    headerChecked(parts: TokenParts, expect: Expect) -> Result<None, JwtError> {
+        if (!expect.algorithms.contains(parts.algorithm)) {
+            return Err(JwtError.AlgorithmRefused(algorithm: algorithmName(parts.algorithm)));
+        }
+
+        if (parts.header.containsKey("crit")) {
+            return Err(
+                JwtError.Malformed(
+                    reason: "the header names extensions (crit) fiig.jwt doesn't understand"
+                )
+            );
+        }
+
+        match (expect.tokenType) {
+            None -> None,
+            wanted -> {
+                found = tokens.textMember(parts.header, "typ");
+                match (found) {
+                    None -> {
+                        return Err(JwtError.WrongType(found: None));
+                    },
+
+                    given -> {
+                        got = given.removePrefix("application/");
+                        if (!got.equalsIgnoringCase(wanted.removePrefix("application/"))) {
+                            return Err(JwtError.WrongType(found: given));
+                        }
+                    }
+                }
+            }
+        }
+
+        return Ok(None);
+    }
+
+    // The crypto algorithm behind a public-key JOSE algorithm (ADR 0146 §1),
+    // or None for an HMAC one, which no public key verifies.
+    signatureAlgorithmOf(algorithm: Algorithm) -> SignatureAlgorithm | None {
+        return match (algorithm) {
+            Algorithm.RS256 -> SignatureAlgorithm.RsaPkcs1Sha256,
+            Algorithm.RS384 -> SignatureAlgorithm.RsaPkcs1Sha384,
+            Algorithm.RS512 -> SignatureAlgorithm.RsaPkcs1Sha512,
+            Algorithm.PS256 -> SignatureAlgorithm.RsaPssSha256,
+            Algorithm.PS384 -> SignatureAlgorithm.RsaPssSha384,
+            Algorithm.PS512 -> SignatureAlgorithm.RsaPssSha512,
+            Algorithm.ES256 -> SignatureAlgorithm.EcdsaP256Sha256,
+            Algorithm.ES384 -> SignatureAlgorithm.EcdsaP384Sha384,
+            Algorithm.EdDSA -> SignatureAlgorithm.Ed25519,
+            _ -> None
+        }
+    }
+
+    // A token's first two segments, which its signature covers: the header
+    // sign and signHmac write, and the claims.
+    signingInputOf(claims: JsonValue, algorithm: Algorithm, keyId: string | None) -> string {
+        alg = JsonValue.Text(value: algorithmName(algorithm));
+        header: Map<string, JsonValue> = ["alg": alg, "typ": JsonValue.Text(value: "JWT")];
+        match (keyId) {
+            None -> None,
+            given -> {
+                header = header.put("kid", JsonValue.Text(value: given));
+            }
+        }
+
+        encodedHeader = json.encode(JsonValue.Object(members: header)).toBase64Url();
+        return "${encodedHeader}.${json.encode(claims).toBase64Url()}";
+    }
+
+    // ADR 0146 §4 checks 1-2: a token's size and shape, and its header's
+    // alg and kid, before anything in it is trusted. A header or payload with
+    // a duplicate member is Malformed (json.decode refuses one, ADR 0073 §3),
+    // which closes the parser-differential attack RFC 7515 §5.2 warns about.
+    tokenOf(token: string) -> Result<TokenParts, JwtError> {
+        if (token.utf8().length() > 16384) {
+            return Err(JwtError.TooLarge);
+        }
+
+        segments = token.split(".");
+        if (segments.length() != 3) {
+            return Err(
+                JwtError.Malformed(
+                    reason: "a JWT has three segments, and this has ${segments.length()}"
+                )
+            );
+        }
+
+        header = objectOf("header", segments.at(0))?;
+        payload = objectOf("payload", segments.at(1))?;
+        signature = match (segments.at(2).fromBase64Url()) {
+            None -> {
+                return Err(JwtError.Malformed(reason: "the signature isn't base64url"));
+            },
+
+            given -> given
+        }
+
+        name = match (tokens.textMember(header, "alg")) {
+            None -> {
+                return Err(JwtError.Malformed(reason: "the header has no alg"));
+            },
+
+            given -> given
+        }
+
+        algorithm = match (tokens.algorithmNamed(name)) {
+            None -> {
+                return Err(JwtError.AlgorithmRefused(algorithm: name));
+            },
+
+            known -> known
+        }
+
+        return Ok(
+            TokenParts(
+                header: header,
+                payload: payload,
+                signingInput: "${segments.at(0)}.${segments.at(1)}".utf8(),
+                signature: signature,
+                algorithm: algorithm,
+                keyId: tokens.textMember(header, "kid")
+            )
+        );
+    }
+
+    objectOf(part: string, segment: string) -> Result<Map<string, JsonValue>, JwtError> {
+        data = match (segment.fromBase64Url()) {
+            None -> {
+                return Err(JwtError.Malformed(reason: "the ${part} isn't base64url"));
+            },
+
+            given -> given
+        }
+
+        decoded: Result<JsonValue, JsonError> = json.decode(data);
+        return match (decoded) {
+            Ok(JsonValue.Object(members)) -> Ok(members),
+            Ok(_) -> Err(JwtError.Malformed(reason: "the ${part} isn't a JSON object")),
+            Err(_) -> Err(JwtError.Malformed(reason: "the ${part} isn't JSON"))
+        }
+    }
+}

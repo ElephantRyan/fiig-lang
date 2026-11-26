@@ -1,0 +1,761 @@
+use fiig.smtp.mime;
+
+// The SMTP conversation (RFC 5321): the SMTP_URL it reads, each reply
+// and the next command, STARTTLS and AUTH, and when a mail may be sent
+// again on a new connection (ADR 0122).
+formulas conversation {
+    // What the server's reply means for the dialogue (ADR 0120 §3): the next
+    // phase, or the reason the send ends. A reply that isn't the code the phase
+    // expects is the server refusing, whatever its text.
+    formula advance(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError> {
+        return match (d.phase) {
+            SmtpPhase.Greeting -> expecting(d, reply, 220, SmtpPhase.Hello),
+            SmtpPhase.Hello -> afterHello(d, reply),
+            SmtpPhase.SecureHello -> afterHello(d, reply),
+            SmtpPhase.StartTls -> expecting(d, reply, 220, SmtpPhase.Upgrading),
+            SmtpPhase.Upgrading -> Err(
+                SmtpError.Protocol(
+                    reason: "the server spoke while the connection was upgrading to TLS"
+                )
+            ),
+            SmtpPhase.Auth -> expecting(d, reply, 235, SmtpPhase.MailFrom),
+            SmtpPhase.AuthLogin -> expecting(d, reply, 334, SmtpPhase.LoginUser),
+            SmtpPhase.LoginUser -> expecting(d, reply, 334, SmtpPhase.LoginPassword),
+            SmtpPhase.LoginPassword -> expecting(d, reply, 235, SmtpPhase.MailFrom),
+            SmtpPhase.XOAuth2 -> afterXOAuth2(d, reply),
+            SmtpPhase.XOAuth2Refused -> Err(refused(reply, "the XOAUTH2 token${d.oauthFailure}: ")),
+            SmtpPhase.Reset -> expecting(d, reply, 250, SmtpPhase.MailFrom),
+            SmtpPhase.MailFrom -> expectingStart(d, reply),
+            SmtpPhase.Rcpt -> afterRecipient(d, reply),
+            SmtpPhase.Data -> expecting(d, reply, 354, SmtpPhase.Body),
+            SmtpPhase.Body -> expecting(d, reply, 250, SmtpPhase.Sent),
+            SmtpPhase.Sent -> Ok(d)
+        }
+    }
+
+    // The handshake is done: everything the server said before it is forgotten
+    // (RFC 3207 §4.2), so the conversation starts again with EHLO.
+    formula afterUpgrade(d: Dialogue) -> Dialogue {
+        return copy(
+            d,
+            phase: SmtpPhase.SecureHello,
+            secure: true,
+            startTls: false,
+            authPlain: false,
+            authLogin: false,
+            authXOAuth2: false,
+            sizeLimit: 0
+        );
+    }
+
+    // What to do in the dialogue's phase (ADR 0120 §3). Each command is a line
+    // ending in CRLF.
+    formula nextStep(d: Dialogue) -> SmtpStep {
+        return match (d.phase) {
+            SmtpPhase.Greeting -> SmtpStep.Listen,
+            SmtpPhase.Hello -> SmtpStep.Send(data: crlfLine("EHLO ${d.hello}")),
+            SmtpPhase.StartTls -> SmtpStep.Send(data: crlfLine("STARTTLS")),
+            SmtpPhase.Upgrading -> SmtpStep.Upgrade,
+            SmtpPhase.SecureHello -> SmtpStep.Send(data: crlfLine("EHLO ${d.hello}")),
+            SmtpPhase.Auth -> SmtpStep.Send(data: crlfLine("AUTH PLAIN ${plainLogin(d.target)}")),
+            SmtpPhase.AuthLogin -> SmtpStep.Send(data: crlfLine("AUTH LOGIN")),
+            SmtpPhase.LoginUser -> SmtpStep.Send(
+                data: crlfLine(userOf(d.target).utf8().toBase64())
+            ),
+            SmtpPhase.LoginPassword -> SmtpStep.Send(
+                data: crlfLine(passwordOf(d.target).utf8().toBase64())
+            ),
+            SmtpPhase.XOAuth2 -> SmtpStep.Send(
+                data: crlfLine("AUTH XOAUTH2 ${oauthLogin(d.target)}")
+            ),
+            SmtpPhase.XOAuth2Refused -> SmtpStep.Send(data: crlfLine("")),
+            SmtpPhase.Reset -> SmtpStep.Send(data: crlfLine("RSET")),
+            SmtpPhase.MailFrom -> SmtpStep.Send(data: crlfLine("MAIL FROM:<${d.mail.from}>")),
+            SmtpPhase.Rcpt -> SmtpStep.Send(
+                data: crlfLine("RCPT TO:<${d.recipients.at(d.recipient)}>")
+            ),
+            SmtpPhase.Data -> SmtpStep.Send(data: crlfLine("DATA")),
+            SmtpPhase.Body -> SmtpStep.Send(data: d.data),
+            SmtpPhase.Sent -> SmtpStep.Finish
+        }
+    }
+
+    // A reply from the bytes read so far (RFC 5321 §4.2). Each line is a
+    // three-digit code, then a space (the last line) or a hyphen (more follow),
+    // then text, ending in CRLF. Nothing is consumed until the last line has
+    // arrived, so a caller reads more and asks again.
+    formula readSmtpReply(buffer: bytes) -> SmtpReplyRead {
+        lines: List<string> = [];
+        code: int = 0;
+        rest: bytes = buffer;
+        while (true) {
+            end = lineEnd(rest);
+            if (end < 0) {
+                if (rest.length() > 4096) {
+                    return SmtpReplyRead.Malformed(
+                        reason: "a reply line is longer than 4096 bytes"
+                    );
+                }
+
+                return SmtpReplyRead.NeedMore;
+            }
+
+            line = rest.slice(0, end);
+            rest = rest.slice(end + 2, rest.length());
+            if (line.length() < 3) {
+                return SmtpReplyRead.Malformed(
+                    reason: "a reply line is shorter than its three-digit code"
+                );
+            }
+
+            number = codeOf(line);
+            if (number < 0) {
+                return SmtpReplyRead.Malformed(
+                    reason: "a reply line doesn't start with a three-digit code"
+                );
+            }
+
+            last: bool = true;
+            if (line.length() > 3) {
+                mark = line.at(3);
+                if (mark == 45) {
+                    last = false;
+                } else if (mark != 32) {
+                    return SmtpReplyRead.Malformed(
+                        reason: "a reply's code is followed by neither a space nor a hyphen"
+                    );
+                }
+            }
+
+            text: string = "";
+            if (line.length() > 4) {
+                match (line.slice(4, line.length()).utf8()) {
+                    None -> {
+                        return SmtpReplyRead.Malformed(reason: "a reply line isn't UTF-8");
+                    },
+
+                    decoded -> {
+                        text = decoded;
+                    }
+                }
+            }
+
+            if (lines.length() == 0) {
+                code = number;
+            } else if (number != code) {
+                return SmtpReplyRead.Malformed(reason: "a reply of several lines changes its code");
+            }
+
+            lines = append(lines, text);
+            if (last) {
+                return SmtpReplyRead.Done(reply: SmtpReply(code: code, lines: lines), rest: rest);
+            }
+
+            if (lines.length() >= 100) {
+                return SmtpReplyRead.Malformed(reason: "a reply has more than 100 lines");
+            }
+        }
+    }
+
+    // Whether a send that failed on a kept connection goes again, once, on a new
+    // one (ADR 0120 §3a): when the connection turned out dead (a socket failure,
+    // or 421, the server closing it) before any of the message was written. Once
+    // the body has gone the server may have accepted it, whatever came back, and
+    // sending it again could deliver it twice.
+    formula resendOnNewConnection(d: Dialogue, failure: SmtpError) -> bool {
+        return match (d.phase) {
+            SmtpPhase.Reset -> deadConnection(failure),
+            SmtpPhase.MailFrom -> deadConnection(failure),
+            SmtpPhase.Rcpt -> deadConnection(failure),
+            SmtpPhase.Data -> deadConnection(failure),
+            _ -> false
+        }
+    }
+
+    // A send on a connection an earlier one kept (ADR 0120 §3a). It is past the
+    // greeting, EHLO, TLS and the login, so it starts with RSET, which clears
+    // whatever the last mail left; what the server offered was asked before and
+    // isn't asked again.
+    formula resumeDialogue(target: SmtpTarget, mail: Mail, hello: string, data: bytes) -> Dialogue {
+        return copy(
+            startDialogue(target, mail, hello, data),
+            phase: SmtpPhase.Reset,
+            secure: target.security != SmtpSecurity.Plain
+        );
+    }
+
+    // What the login leaves on a connection, which a kept one must match to
+    // send a mail (ADR 0109 §2, ADR 0120 §3a): a connection logged in as one
+    // user never sends as another.
+    formula sessionFor(target: SmtpTarget) -> string {
+        return match (target.user) {
+            None -> "no login",
+            name -> "user=${name}"
+        }
+    }
+
+    // A send that has connected. A connection that is TLS from its first byte
+    // (smtps://) is secure already.
+    formula startDialogue(target: SmtpTarget, mail: Mail, hello: string, data: bytes) -> Dialogue {
+        return Dialogue(
+            target: target,
+            mail: mail,
+            hello: hello,
+            data: data,
+            phase: SmtpPhase.Greeting,
+            secure: target.security == SmtpSecurity.Implicit,
+            recipients: mime.recipientsOf(mail),
+            recipient: 0,
+            startTls: false,
+            authPlain: false,
+            authLogin: false,
+            authXOAuth2: false,
+            oauthFailure: "",
+            sizeLimit: 0
+        );
+    }
+
+    // The target with SMTP_AUTH and SMTP_OAUTH_TOKEN (ADR 0120 §3b), checked
+    // before anything is sent: a chosen mechanism, or a token, needs a user in
+    // the URL to log in as; xoauth2 needs a token; and a token is printable
+    // ASCII without spaces, so it can't break XOAUTH2's framing. A reason never
+    // repeats the token.
+    formula withLogin(target: SmtpTarget, auth: SmtpAuth | None, token: string | None)
+            -> Result<SmtpTarget, SmtpError> {
+        chosen: SmtpAuth = SmtpAuth.Auto;
+        match (auth) {
+            None -> None,
+            given -> {
+                chosen = given;
+            }
+        }
+
+        match (token) {
+            None -> {
+                if (chosen == SmtpAuth.XOAuth2) {
+                    return Err(
+                        SmtpError.Protocol(
+                            reason: "SMTP_AUTH is xoauth2, and SMTP_OAUTH_TOKEN, the token it logs in with, isn't set"
+                        )
+                    );
+                }
+            },
+
+            given -> {
+                if (given == "") {
+                    return Err(SmtpError.Protocol(reason: "SMTP_OAUTH_TOKEN is empty"));
+                }
+
+                for (b in given.utf8()) {
+                    if (b <= 32 || b >= 127) {
+                        return Err(
+                            SmtpError.Protocol(
+                                reason: "SMTP_OAUTH_TOKEN isn't a bearer token: it has a space, a control character, or non-ASCII"
+                            )
+                        );
+                    }
+                }
+            }
+        }
+
+        if (target.user == None && (token != None || chosen != SmtpAuth.Auto)) {
+            return Err(
+                SmtpError.Protocol(
+                    reason: "SMTP_URL has no user, which SMTP_AUTH and SMTP_OAUTH_TOKEN log in as"
+                )
+            );
+        }
+
+        return Ok(copy(target, auth: auth, token: token));
+    }
+
+    // ADR 0120 §2: SMTP_URL read into a target. smtp:// starts plain and must
+    // upgrade with STARTTLS (port 587), smtps:// is TLS from the first byte (465),
+    // and smtp+plain:// never uses TLS (25). A reason never repeats the URL,
+    // which usually holds a password.
+    formula parseSmtpUrl(url: string) -> Result<SmtpTarget, SmtpError> {
+        security: SmtpSecurity = SmtpSecurity.StartTls;
+        port: int = 587;
+        rest: string = "";
+        if (url.startsWith("smtps://")) {
+            security = SmtpSecurity.Implicit;
+            port = 465;
+            rest = url.removePrefix("smtps://");
+        } else if (url.startsWith("smtp+plain://")) {
+            security = SmtpSecurity.Plain;
+            port = 25;
+            rest = url.removePrefix("smtp+plain://");
+        } else if (url.startsWith("smtp://")) {
+            rest = url.removePrefix("smtp://");
+        } else {
+            return Err(invalid("it must start with smtp://, smtps://, or smtp+plain://"));
+        }
+
+        if (rest.contains("?") || rest.contains("#")) {
+            return Err(invalid("it has a query or a fragment, which fiig.smtp doesn't read"));
+        }
+
+        pieces = rest.split("/");
+        if (pieces.length() > 2 || pieces.length() == 2 && pieces.last() != "") {
+            return Err(invalid("it has a path, which SMTP has no use for"));
+        }
+
+        authority = pieces.first();
+        hostPort: string = authority;
+        user: string | None = None;
+        password: string | None = None;
+        signs = authority.split("@");
+        if (signs.length() > 1) {
+            hostPort = signs.last();
+            parts = signs.slice(0, signs.length() - 1).join("@").split(":");
+            if (parts.first() != "") {
+                user = percentDecoded(parts.first())?;
+            }
+
+            if (parts.length() > 1) {
+                password = percentDecoded(parts.slice(1, parts.length()).join(":"))?;
+            }
+        }
+
+        host: string = hostPort;
+        portText: string = "";
+        if (hostPort.startsWith("[")) {
+            bracket = hostPort.split("]");
+            if (bracket.length() != 2) {
+                return Err(invalid("its IPv6 host opens [ and never closes it"));
+            }
+
+            host = bracket.first().removePrefix("[");
+            if (bracket.last() != "") {
+                if (!bracket.last().startsWith(":")) {
+                    return Err(invalid("something other than a port follows its IPv6 host"));
+                }
+
+                portText = bracket.last().removePrefix(":");
+            }
+        } else {
+            colons = hostPort.split(":");
+            if (colons.length() > 2) {
+                return Err(
+                    invalid("its host has more than one colon; write an IPv6 host in brackets")
+                );
+            }
+
+            host = colons.first();
+            if (colons.length() == 2) {
+                portText = colons.last();
+            }
+        }
+
+        if (host == "") {
+            return Err(invalid("it has no host"));
+        }
+
+        if (portText != "") {
+            match (portText.toIntOrNone()) {
+                None -> {
+                    return Err(invalid("its port isn't a number"));
+                },
+
+                number -> {
+                    if (number < 1 || number > 65535) {
+                        return Err(invalid("its port is outside 1 to 65535"));
+                    }
+
+                    port = number;
+                }
+            }
+        }
+
+        if (password != None && user == None) {
+            return Err(invalid("it has a password but no user"));
+        }
+
+        return Ok(
+            SmtpTarget(host: host, port: port, security: security, user: user, password: password)
+        );
+    }
+}
+
+private {
+    expecting(d: Dialogue, reply: SmtpReply, code: int, next: SmtpPhase)
+            -> Result<Dialogue, SmtpError> {
+        if (reply.code == code) {
+            return Ok(copy(d, phase: next));
+        }
+
+        return Err(refused(reply, ""));
+    }
+
+    // MAIL FROM is accepted: the first recipient is next.
+    expectingStart(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError> {
+        if (reply.code == 250) {
+            return Ok(copy(d, phase: SmtpPhase.Rcpt, recipient: 0));
+        }
+
+        return Err(refused(reply, "the sender ${d.mail.from}: "));
+    }
+
+    // One recipient is accepted (250 or 251): the next, or the message. Any
+    // refused recipient ends the send, so a mail never goes to only some of
+    // the people it is addressed to.
+    afterRecipient(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError> {
+        if (reply.code != 250 && reply.code != 251) {
+            return Err(refused(reply, "the recipient ${d.recipients.at(d.recipient)}: "));
+        }
+
+        if (d.recipient + 1 < d.recipients.length()) {
+            return Ok(copy(d, phase: SmtpPhase.Rcpt, recipient: d.recipient + 1));
+        }
+
+        return Ok(copy(d, phase: SmtpPhase.Data));
+    }
+
+    // XOAUTH2 accepted the token (235), or refused it: a 334 whose text is a
+    // base64 JSON object saying why, which the client answers with an empty
+    // line before the server's final refusal (§3b).
+    afterXOAuth2(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError> {
+        if (reply.code == 235) {
+            return Ok(copy(d, phase: SmtpPhase.MailFrom));
+        }
+
+        if (reply.code == 334) {
+            return Ok(copy(d, phase: SmtpPhase.XOAuth2Refused, oauthFailure: oauthStatus(reply)));
+        }
+
+        return Err(refused(reply, "the XOAUTH2 token: "));
+    }
+
+    // " (status 401)" from the challenge's JSON, or nothing when it can't be
+    // read: the refusal that follows says the rest.
+    oauthStatus(reply: SmtpReply) -> string {
+        return match (reply.lines.join("").trim().fromBase64()) {
+            None -> "",
+            raw -> {
+                decoded: Result<XOAuth2Failure, JsonError> = json.decode(raw);
+                return match (decoded) {
+                    Err(_) -> "",
+                    Ok(failure) -> {
+                        return match (failure.status) {
+                            None -> "",
+                            status -> " (status ${status})"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // EHLO's reply lists what the server offers, a keyword a line after the
+    // first. STARTTLS is required of smtp:// before anything is sent, and a
+    // login before MAIL FROM when the URL has one (loginPhase).
+    afterHello(d: Dialogue, reply: SmtpReply) -> Result<Dialogue, SmtpError> {
+        if (reply.code != 250) {
+            return Err(refused(reply, ""));
+        }
+
+        offers: List<string> = [];
+        for (line in reply.lines.slice(1, reply.lines.length())) {
+            offers = append(offers, line.uppercase());
+        }
+
+        size = sizeOffered(offers);
+        if (size > 0 && d.data.length() > size) {
+            return Err(
+                SmtpError.InvalidMail(
+                    reason: "the message is ${d.data.length()} bytes, over the server's limit of ${size}"
+                )
+            );
+        }
+
+        learned = copy(
+            d,
+            startTls: offers.contains("STARTTLS"),
+            authPlain: offersAuth(offers, "PLAIN"),
+            authLogin: offersAuth(offers, "LOGIN"),
+            authXOAuth2: offersAuth(offers, "XOAUTH2"),
+            sizeLimit: size
+        );
+        if (!d.secure && d.target.security == SmtpSecurity.StartTls) {
+            if (learned.startTls) {
+                return Ok(copy(learned, phase: SmtpPhase.StartTls));
+            }
+
+            return Err(
+                SmtpError.Protocol(
+                    reason: "the server doesn't offer STARTTLS, and smtp:// sends neither mail nor a password without TLS; use smtps://, or smtp+plain:// to send without it"
+                )
+            );
+        }
+
+        return match (d.target.user) {
+            None -> Ok(copy(learned, phase: SmtpPhase.MailFrom)),
+            _ -> loginPhase(learned)
+        }
+    }
+
+    // The login SMTP_AUTH chooses among what the server offers. Auto takes
+    // XOAUTH2 when there is a token and the server offers it, else AUTH
+    // PLAIN, else AUTH LOGIN, which older Exchange servers offer alone; a
+    // token is never sent where a password would go.
+    loginPhase(d: Dialogue) -> Result<Dialogue, SmtpError> {
+        chosen: SmtpAuth = SmtpAuth.Auto;
+        match (d.target.auth) {
+            None -> None,
+            given -> {
+                chosen = given;
+            }
+        }
+
+        match (chosen) {
+            SmtpAuth.XOAuth2 -> {
+                if (d.authXOAuth2) {
+                    return Ok(copy(d, phase: SmtpPhase.XOAuth2));
+                }
+
+                return Err(
+                    notOffered("SMTP_AUTH is xoauth2, and the server doesn't offer AUTH XOAUTH2")
+                );
+            },
+
+            SmtpAuth.Plain -> {
+                if (d.authPlain) {
+                    return Ok(copy(d, phase: SmtpPhase.Auth));
+                }
+
+                return Err(
+                    notOffered("SMTP_AUTH is plain, and the server doesn't offer AUTH PLAIN")
+                );
+            },
+
+            SmtpAuth.Login -> {
+                if (d.authLogin) {
+                    return Ok(copy(d, phase: SmtpPhase.AuthLogin));
+                }
+
+                return Err(
+                    notOffered("SMTP_AUTH is login, and the server doesn't offer AUTH LOGIN")
+                );
+            },
+
+            SmtpAuth.Auto -> None
+        }
+
+        if (d.target.token != None) {
+            if (d.authXOAuth2) {
+                return Ok(copy(d, phase: SmtpPhase.XOAuth2));
+            }
+
+            if (d.target.password == None) {
+                return Err(
+                    notOffered(
+                        "the server doesn't offer AUTH XOAUTH2, and SMTP_URL has no password to log in with instead"
+                    )
+                );
+            }
+        }
+
+        if (d.authPlain) {
+            return Ok(copy(d, phase: SmtpPhase.Auth));
+        }
+
+        if (d.authLogin) {
+            return Ok(copy(d, phase: SmtpPhase.AuthLogin));
+        }
+
+        return Err(
+            notOffered(
+                "the server offers neither AUTH PLAIN nor AUTH LOGIN, which are what fiig.smtp logs in with"
+            )
+        );
+    }
+
+    notOffered(reason: string) -> SmtpError {
+        return SmtpError.Protocol(reason: reason);
+    }
+
+    // SIZE n, the largest message in bytes, or 0 when it isn't offered.
+    sizeOffered(offers: List<string>) -> int {
+        for (offer in offers) {
+            if (offer.startsWith("SIZE ")) {
+                match (offer.removePrefix("SIZE ").trim().toIntOrNone()) {
+                    None -> None,
+                    size -> {
+                        return size;
+                    }
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    // Whether AUTH PLAIN LOGIN, or the older AUTH=PLAIN LOGIN, names the
+    // mechanism.
+    offersAuth(offers: List<string>, mechanism: string) -> bool {
+        for (offer in offers) {
+            if (offer.startsWith("AUTH ") || offer.startsWith("AUTH=")) {
+                for (word in offer.removePrefix("AUTH").replaceAll("=", " ").split(" ")) {
+                    if (word == mechanism) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    refused(reply: SmtpReply, about: string) -> SmtpError {
+        return SmtpError.Refused(code: reply.code, message: "${about}${reply.lines.join(" ")}");
+    }
+
+    crlfLine(line: string) -> bytes {
+        return <<line: utf8, 13: u8, 10: u8>>;
+    }
+
+    // RFC 4616: an empty authorization identity, the user, and the password,
+    // each ended by a zero byte but the last, in base64.
+    plainLogin(target: SmtpTarget) -> string {
+        user = userOf(target);
+        password = passwordOf(target);
+        login: bytes = <<0: u8, user: utf8, 0: u8, password: utf8>>;
+        return login.toBase64();
+    }
+
+    // XOAUTH2 (Google's and Microsoft's): user= and the user, a 0x01 byte,
+    // auth=Bearer and the token, and two 0x01 bytes, in base64 as AUTH's
+    // initial response, so the login is one round trip.
+    oauthLogin(target: SmtpTarget) -> string {
+        user = userOf(target);
+        token: string = "";
+        match (target.token) {
+            None -> None,
+            given -> {
+                token = given;
+            }
+        }
+
+        prefix = "user=";
+        bearer = "auth=Bearer ${token}";
+        login: bytes = <<prefix: utf8, user: utf8, 1: u8, bearer: utf8, 1: u8, 1: u8>>;
+        return login.toBase64();
+    }
+
+    // AUTH LOGIN (draft-murchison-sasl-login) answers the server's two 334
+    // prompts, Username: and Password:, with each in base64 on its own line.
+    userOf(target: SmtpTarget) -> string {
+        return match (target.user) {
+            None -> "",
+            name -> name
+        }
+    }
+
+    passwordOf(target: SmtpTarget) -> string {
+        return match (target.password) {
+            None -> "",
+            secret -> secret
+        }
+    }
+
+    // Where the first CRLF starts, or -1.
+    lineEnd(data: bytes) -> int {
+        i: int = 0;
+        while (i + 1 < data.length()) {
+            if (data.at(i) == 13 && data.at(i + 1) == 10) {
+                return i;
+            }
+
+            i = i + 1;
+        }
+
+        return -1;
+    }
+
+    // The three digits at the start of a line as a number from 200 to 599,
+    // or -1: SMTP has no other codes.
+    codeOf(line: bytes) -> int {
+        value: int = 0;
+        i: int = 0;
+        while (i < 3) {
+            b = line.at(i);
+            if (b < 48 || b > 57) {
+                return -1;
+            }
+
+            value = value * 10 + b - 48;
+            i = i + 1;
+        }
+
+        if (value < 200 || value > 599) {
+            return -1;
+        }
+
+        return value;
+    }
+
+    deadConnection(failure: SmtpError) -> bool {
+        return match (failure) {
+            SmtpError.Socket(_) -> true,
+            SmtpError.Refused(code, _) -> code == 421,
+            _ -> false
+        }
+    }
+
+    invalid(why: string) -> SmtpError {
+        return SmtpError.InvalidUrl(reason: "SMTP_URL can't be read: ${why}");
+    }
+
+    // A user or password as a URL writes it, with %XX for each byte that
+    // would otherwise end it, such as %40 for @.
+    percentDecoded(text: string) -> Result<string, SmtpError> {
+        raw = text.utf8();
+        out: bytes = <<>>;
+        i: int = 0;
+        while (i < raw.length()) {
+            b = raw.at(i);
+            if (b == 37) {
+                if (i + 2 >= raw.length()) {
+                    return Err(
+                        invalid("a % in its user or password isn't followed by two hex digits")
+                    );
+                }
+
+                high = hexValue(raw.at(i + 1));
+                low = hexValue(raw.at(i + 2));
+                if (high < 0 || low < 0) {
+                    return Err(
+                        invalid("a % in its user or password isn't followed by two hex digits")
+                    );
+                }
+
+                out = <<out: bytes, high * 16 + low: u8>>;
+                i = i + 3;
+            } else {
+                out = <<out: bytes, b: u8>>;
+                i = i + 1;
+            }
+        }
+
+        return match (out.utf8()) {
+            None -> Err(invalid("its user or password isn't UTF-8 once decoded")),
+            decoded -> Ok(decoded)
+        }
+    }
+
+    hexValue(b: int) -> int {
+        if (b >= 48 && b <= 57) {
+            return b - 48;
+        }
+
+        if (b >= 65 && b <= 70) {
+            return b - 55;
+        }
+
+        if (b >= 97 && b <= 102) {
+            return b - 87;
+        }
+
+        return -1;
+    }
+}

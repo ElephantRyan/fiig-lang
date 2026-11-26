@@ -1,0 +1,707 @@
+use fiig.http.syntax;
+
+// HTTP/1.1 on the wire (RFC 9112): writing a request, reading a reply's
+// head and body however it is framed, and whether a request may be sent
+// again on a new connection (ADR 0074).
+formulas http1 {
+    // ADR 0074 §6: the HTTP/1.1 request's bytes and where to send them, or
+    // InvalidRequest for a request send refuses before connecting. send owns
+    // Host, Content-Length, Transfer-Encoding, and Connection; User-Agent is
+    // fiig-http/1 unless the request sets its own.
+    formula outgoingRequest(request: Request) -> Result<Outgoing, HttpError> {
+        url = parseUrl(request.url)?;
+        head: string = "${methodName(request.method)} ${url.target} HTTP/1.1\r\nHost: ${url.authority}\r\n";
+        named: bool = false;
+        for (header in headersOf(request)) {
+            checkHeader(header)?;
+            if (header.name.equalsIgnoringCase("User-Agent")) {
+                named = true;
+            }
+
+            head = "${head}${header.name}: ${header.value}\r\n";
+        }
+
+        if (!named) {
+            head = "${head}User-Agent: fiig-http/1\r\n";
+        }
+
+        body = bodyOf(request);
+        if (body.length() > 0 || sendsLength(request)) {
+            head = "${head}Content-Length: ${body.length()}\r\n";
+        }
+
+        // No Connection header: HTTP/1.1 keeps the connection open, and send
+        // keeps it for the next request when the reply allows (ADR 0109 §6).
+        head = "${head}\r\n";
+        timeout = timeoutOf(request);
+        if (timeout <= 0) {
+            return Err(
+                HttpError.InvalidRequest(
+                    reason: "timeoutMillis is ${timeout}; it must be more than 0"
+                )
+            );
+        }
+
+        return Ok(
+            Outgoing(
+                host: url.host,
+                port: url.port,
+                secure: url.secure,
+                data: <<head: utf8, body: bytes>>,
+                timeoutMillis: timeout
+            )
+        );
+    }
+
+    // ADR 0074 §7: a reply from the bytes read so far. closed says the server
+    // has hung up, which ends a body that runs until close and makes any other
+    // unfinished reply Malformed, so with closed true this never answers
+    // NeedMore. A 1xx interim reply is skipped, and the body's length follows
+    // RFC 9112 §6.3: none for HEAD, 204, and 304; chunked; Content-Length; or
+    // until the server closes. maxBytes is the most the reply may be, headers,
+    // framing, and body as read (§7a): past it, or with a Content-Length or a
+    // chunk's size that would take it past, this answers TooLarge without
+    // waiting for the bytes.
+    formula readReply(buffer: bytes, method: Method, closed: bool, maxBytes: int) -> ReplyRead {
+        if (buffer.length() > maxBytes) {
+            return ReplyRead.TooLarge;
+        }
+
+        rest: bytes = buffer;
+        while (true) {
+            end = headEnd(rest);
+            if (end < 0) {
+                if (rest.length() > 1048576) {
+                    return ReplyRead.Malformed(reason: "the reply's headers are longer than 1 MiB");
+                }
+
+                if (closed && rest.length() == 0) {
+                    return ReplyRead.Malformed(
+                        reason: "the server closed the connection without replying"
+                    );
+                }
+
+                return waiting(closed, "inside the reply's headers");
+            }
+
+            match (parseHead(rest.slice(0, end))) {
+                Err(reason) -> {
+                    return ReplyRead.Malformed(reason: reason);
+                },
+
+                Ok(head) -> {
+                    body = rest.slice(end + 4, rest.length());
+                    if (head.status >= 200 || head.status == 101) {
+                        // The bytes before the body count toward maxBytes too.
+                        room = maxBytes - (buffer.length() - body.length());
+                        return readBody(head, body, method, closed, room);
+                    }
+
+                    rest = body;
+                }
+            }
+        }
+    }
+
+    // The server closed or reset the connection: what a kept connection that
+    // went stale while idle looks like (ADR 0109 §6).
+    formula closedByServer(failure: SocketError) -> bool {
+        return match (failure) {
+            SocketError.Closed -> true,
+            SocketError.Reset -> true,
+            _ -> false
+        }
+    }
+
+    // RFC 9110 §9.2.2's idempotent methods, and QUERY, which its draft defines
+    // as safe: RFC 9112 §9.3.1 lets a client send these again on a new
+    // connection when a kept one fails (ADR 0109 §6).
+    formula safeToResend(method: Method) -> bool {
+        return match (method) {
+            Method.Post -> false,
+            Method.Patch -> false,
+            _ -> true
+        }
+    }
+}
+
+private {
+    // A URL split for sending: host and port to connect to, authority for
+    // the Host header as written, and target for the request line.
+    model Url {
+        host: string;
+        port: int;
+        secure: bool;
+        authority: string;
+        target: string;
+    }
+
+    parseUrl(url: string) -> Result<Url, HttpError> {
+        if (!plainAscii(url.utf8())) {
+            return Err(
+                HttpError.InvalidRequest(
+                    reason: "the URL \"${url}\" has a space, a control character, or a character outside ASCII"
+                )
+            );
+        }
+
+        lower = url.lowercase();
+        secure: bool = false;
+        rest: string = "";
+        if (lower.startsWith("https://")) {
+            secure = true;
+            rest = url.slice(8, url.length());
+        } else if (lower.startsWith("http://")) {
+            rest = url.slice(7, url.length());
+        } else {
+            return Err(
+                HttpError.InvalidRequest(
+                    reason: "the URL \"${url}\" must start with http:// or https://"
+                )
+            );
+        }
+
+        end = firstOf(rest, "/?#");
+        authority = rest.slice(0, end);
+        path = rest.slice(end, rest.length());
+        target: string = path.slice(0, firstOf(path, "#"));
+        if (!target.startsWith("/")) {
+            target = "/${target}";
+        }
+
+        if (authority.contains("@")) {
+            return Err(
+                HttpError.InvalidRequest(
+                    reason: "the URL \"${url}\" has user information; send an Authorization header instead"
+                )
+            );
+        }
+
+        host: string = authority;
+        portText: string = "";
+        if (authority.startsWith("[")) {
+            close = firstOf(authority, "]");
+            if (close == authority.length()) {
+                return Err(
+                    HttpError.InvalidRequest(
+                        reason: "the URL \"${url}\" opens an IPv6 address with [ and never closes it"
+                    )
+                );
+            }
+
+            host = authority.slice(1, close);
+            after = authority.slice(close + 1, authority.length());
+            if (after != "" && !after.startsWith(":")) {
+                return Err(
+                    HttpError.InvalidRequest(
+                        reason: "the URL \"${url}\" has \"${after}\" after its IPv6 address"
+                    )
+                );
+            }
+
+            portText = after.removePrefix(":");
+        } else {
+            colon = firstOf(authority, ":");
+            host = authority.slice(0, colon);
+            portText = authority.slice(colon, authority.length()).removePrefix(":");
+        }
+
+        if (host == "") {
+            return Err(HttpError.InvalidRequest(reason: "the URL \"${url}\" has no host"));
+        }
+
+        port: int = 80;
+        if (secure) {
+            port = 443;
+        }
+
+        if (portText != "") {
+            port = digitsValue(portText);
+            if (port < 1 || port > 65535) {
+                return Err(
+                    HttpError.InvalidRequest(
+                        reason: "the URL \"${url}\" has port \"${portText}\"; a port is 1 to 65535"
+                    )
+                );
+            }
+        }
+
+        return Ok(
+            Url(host: host, port: port, secure: secure, authority: authority, target: target)
+        );
+    }
+
+    // Where the first of stops is in text, by byte; text.length() when
+    // none is there. Only for ASCII text, where a byte is a grapheme.
+    firstOf(text: string, stops: string) -> int {
+        raw = text.utf8();
+        marks = stops.utf8();
+        i: int = 0;
+        while (i < raw.length()) {
+            j: int = 0;
+            while (j < marks.length()) {
+                if (raw.at(i) == marks.at(j)) {
+                    return i;
+                }
+
+                j = j + 1;
+            }
+
+            i = i + 1;
+        }
+
+        return raw.length();
+    }
+
+    // Printable ASCII only: no space, no control character, nothing above
+    // 126 (fiig doesn't encode international host names yet).
+    plainAscii(raw: bytes) -> bool {
+        for (b in raw) {
+            if (b < 33 || b > 126) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // ADR 0069 §6's rule on the server, applied to what fiig sends.
+    checkHeader(header: Header) -> Result<None, HttpError> {
+        if (!syntax.isToken(header.name)) {
+            return Err(
+                HttpError.InvalidRequest(
+                    reason: "the header name \"${header.name}\" isn't an HTTP token"
+                )
+            );
+        }
+
+        for (owned in ["Host", "Content-Length", "Transfer-Encoding", "Connection"]) {
+            if (header.name.equalsIgnoringCase(owned)) {
+                return Err(
+                    HttpError.InvalidRequest(
+                        reason: "send writes the ${owned} header itself, so a request may not set it"
+                    )
+                );
+            }
+        }
+
+        for (b in header.value.utf8()) {
+            if (b == 13 || b == 10 || b == 0) {
+                return Err(
+                    HttpError.InvalidRequest(
+                        reason: "the value of header ${header.name} has a CR, LF, or NUL, which would end the header early"
+                    )
+                );
+            }
+        }
+
+        return Ok(None);
+    }
+
+    headersOf(request: Request) -> List<Header> {
+        return match (request.headers) {
+            None -> [],
+            given -> given
+        }
+    }
+
+    bodyOf(request: Request) -> bytes {
+        return match (request.body) {
+            None -> <<>>,
+            given -> given
+        }
+    }
+
+    timeoutOf(request: Request) -> int {
+        return match (request.timeoutMillis) {
+            None -> 30000,
+            given -> given
+        }
+    }
+
+    // A POST, PUT, or PATCH without a body still says Content-Length: 0,
+    // which some servers require.
+    sendsLength(request: Request) -> bool {
+        return match (request.method) {
+            Method.Post -> true,
+            Method.Put -> true,
+            Method.Patch -> true,
+            Method.Get -> false,
+            Method.Head -> false,
+            Method.Delete -> false,
+            Method.Options -> false,
+            Method.Query -> false
+        }
+    }
+
+    methodName(method: Method) -> string {
+        return match (method) {
+            Method.Get -> "GET",
+            Method.Head -> "HEAD",
+            Method.Post -> "POST",
+            Method.Put -> "PUT",
+            Method.Patch -> "PATCH",
+            Method.Delete -> "DELETE",
+            Method.Options -> "OPTIONS",
+            Method.Query -> "QUERY"
+        }
+    }
+
+    model Head {
+        status: int;
+        headers: List<Header>;
+        // HTTP/1.0 closes after each reply unless asked not to, so only an
+        // HTTP/1.1 reply leaves a connection to keep.
+        http11: bool;
+    }
+
+    // Where the blank line ending the headers starts, or -1.
+    headEnd(data: bytes) -> int {
+        i: int = 0;
+        while (i + 3 < data.length()) {
+            if (data.at(i) == 13 && data.at(i + 1) == 10 && data.at(i + 2) == 13 && data.at(i + 3) == 10) {
+                return i;
+            }
+
+            i = i + 1;
+        }
+
+        return -1;
+    }
+
+    // Where the next CRLF at or after from starts, or -1.
+    lineEnd(data: bytes, from: int) -> int {
+        i: int = from;
+        while (i + 1 < data.length()) {
+            if (data.at(i) == 13 && data.at(i + 1) == 10) {
+                return i;
+            }
+
+            i = i + 1;
+        }
+
+        return -1;
+    }
+
+    waiting(closed: bool, where: string) -> ReplyRead {
+        if (closed) {
+            return ReplyRead.Malformed(reason: "the server closed the connection ${where}");
+        }
+
+        return ReplyRead.NeedMore;
+    }
+
+    parseHead(head: bytes) -> Result<Head, string> {
+        return match (head.utf8()) {
+            None -> Err("the reply's headers aren't UTF-8"),
+            text -> parseHeadText(text)
+        }
+    }
+
+    // The status line, then one header per line. A line starting with a
+    // space or tab continues the one before (obsolete folding, RFC 9112
+    // §5.2), joined with a space.
+    parseHeadText(text: string) -> Result<Head, string> {
+        lines = text.split("\r\n");
+        status = statusOf(lines.first());
+        if (status < 0) {
+            return Err(
+                "the status line \"${lines.first()}\" isn't HTTP/1.1 and a three-digit status"
+            );
+        }
+
+        headers: List<Header> = [];
+        i: int = 1;
+        while (i < lines.length()) {
+            line = lines.at(i);
+            if (line.startsWith(" ") || line.startsWith("\t")) {
+                if (headers.length() == 0) {
+                    return Err("the first header line starts with a space");
+                }
+
+                last = headers.last();
+                headers = append(
+                    headers.slice(0, headers.length() - 1),
+                    Header(name: last.name, value: "${last.value} ${line.trim()}")
+                );
+            } else {
+                parts = line.split(":");
+                if (parts.length() < 2) {
+                    return Err("the header line \"${line}\" has no colon");
+                }
+
+                name = parts.first();
+                if (!syntax.isToken(name)) {
+                    return Err("the header name \"${name}\" isn't an HTTP token");
+                }
+
+                headers = append(
+                    headers,
+                    Header(name: name, value: parts.slice(1, parts.length()).join(":").trim())
+                );
+            }
+
+            i = i + 1;
+        }
+
+        return Ok(
+            Head(status: status, headers: headers, http11: lines.first().startsWith("HTTP/1.1 "))
+        );
+    }
+
+    // HTTP/1.1 or HTTP/1.0, a space, three digits; the reason phrase is
+    // ignored. -1 for anything else.
+    statusOf(line: string) -> int {
+        parts = line.split(" ");
+        if (parts.length() < 2) {
+            return -1;
+        }
+
+        if (parts.first() != "HTTP/1.1" && parts.first() != "HTTP/1.0") {
+            return -1;
+        }
+
+        code = parts.at(1);
+        if (code.length() != 3) {
+            return -1;
+        }
+
+        status = digitsValue(code);
+        if (status < 100) {
+            return -1;
+        }
+
+        return status;
+    }
+
+    // room is how many of maxBytes are left for the body.
+    readBody(head: Head, rest: bytes, method: Method, closed: bool, room: int) -> ReplyRead {
+        if (method == Method.Head || head.status == 204 || head.status == 304 || head.status == 101) {
+            return done(head, <<>>, rest.length() == 0 && head.status != 101);
+        }
+
+        coding = lastCoding(head.headers);
+        if (coding == "chunked") {
+            return readChunked(head, rest, closed, room);
+        }
+
+        if (coding != "") {
+            return untilClose(head, rest, closed);
+        }
+
+        length = contentLength(head.headers);
+        if (length == -2) {
+            return ReplyRead.Malformed(
+                reason: "the reply's Content-Length headers disagree, or one isn't a number"
+            );
+        }
+
+        if (length < 0) {
+            return untilClose(head, rest, closed);
+        }
+
+        // Refused on its word, before the body is read (§7a).
+        if (length > room) {
+            return ReplyRead.TooLarge;
+        }
+
+        if (rest.length() >= length) {
+            return done(head, rest.slice(0, length), rest.length() == length);
+        }
+
+        if (closed) {
+            return ReplyRead.Malformed(
+                reason: "the server closed the connection after ${rest.length()} of the ${length} bytes its Content-Length promised"
+            );
+        }
+
+        return ReplyRead.NeedMore;
+    }
+
+    untilClose(head: Head, rest: bytes, closed: bool) -> ReplyRead {
+        if (closed) {
+            return done(head, rest, false);
+        }
+
+        return ReplyRead.NeedMore;
+    }
+
+    // framed says the reply ended where its own length said, with nothing
+    // after it: not at the server closing.
+    done(head: Head, body: bytes, framed: bool) -> ReplyRead {
+        return ReplyRead.Done(
+            reply: Reply(status: head.status, headers: head.headers, body: body),
+            keep: framed && head.http11 && !asksToClose(head.headers)
+        );
+    }
+
+    // A Connection header naming close (RFC 9112 §9.6).
+    asksToClose(headers: List<Header>) -> bool {
+        for (header in headers) {
+            if (header.name.equalsIgnoringCase("Connection")) {
+                for (option in header.value.split(",")) {
+                    if (option.trim().equalsIgnoringCase("close")) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // The last transfer coding named across every Transfer-Encoding
+    // header, lowercased; "" when there is none.
+    lastCoding(headers: List<Header>) -> string {
+        coding: string = "";
+        for (header in headers) {
+            if (header.name.equalsIgnoringCase("Transfer-Encoding")) {
+                for (part in header.value.split(",")) {
+                    if (!part.isBlank()) {
+                        coding = part.trim().lowercase();
+                    }
+                }
+            }
+        }
+
+        return coding;
+    }
+
+    // The Content-Length every such header agrees on; -1 when there is
+    // none, -2 when they disagree or one isn't a number (RFC 9112 §6.3).
+    contentLength(headers: List<Header>) -> int {
+        length: int = -1;
+        for (header in headers) {
+            if (header.name.equalsIgnoringCase("Content-Length")) {
+                for (part in header.value.split(",")) {
+                    value = digitsValue(part.trim());
+                    if (value < 0 || (length >= 0 && value != length)) {
+                        return -2;
+                    }
+
+                    length = value;
+                }
+            }
+        }
+
+        return length;
+    }
+
+    // RFC 9112 §7.1: size in hex, optional extensions after ;, CRLF, the
+    // data, CRLF; a zero size, then trailers, which are dropped, and a
+    // blank line. A chunk whose size would end it past room is TooLarge
+    // before its data is read (§7a).
+    readChunked(head: Head, rest: bytes, closed: bool, room: int) -> ReplyRead {
+        body: bytes = <<>>;
+        pos: int = 0;
+        while (true) {
+            end = lineEnd(rest, pos);
+            if (end < 0) {
+                return waiting(closed, "inside a chunk's size line");
+            }
+
+            size = chunkSize(rest.slice(pos, end));
+            if (size < 0) {
+                return ReplyRead.Malformed(reason: "a chunk's size isn't hexadecimal");
+            }
+
+            pos = end + 2;
+            if (pos + size > room) {
+                return ReplyRead.TooLarge;
+            }
+
+            if (size == 0) {
+                while (true) {
+                    trailer = lineEnd(rest, pos);
+                    if (trailer < 0) {
+                        return waiting(closed, "inside the chunked body's trailers");
+                    }
+
+                    if (trailer == pos) {
+                        return done(head, body, trailer + 2 == rest.length());
+                    }
+
+                    pos = trailer + 2;
+                }
+            }
+
+            if (rest.length() < pos + size + 2) {
+                return waiting(closed, "inside a chunk");
+            }
+
+            if (rest.at(pos + size) != 13 || rest.at(pos + size + 1) != 10) {
+                return ReplyRead.Malformed(reason: "a chunk doesn't end with CRLF");
+            }
+
+            body = <<body: bytes, rest.slice(pos, pos + size): bytes>>;
+            pos = pos + size + 2;
+        }
+    }
+
+    // A chunk-size line's hex number, up to any ; and trailing spaces or
+    // tabs; -1 when it isn't one, or has more than 15 digits.
+    chunkSize(line: bytes) -> int {
+        size: int = 0;
+        count: int = 0;
+        for (b in line) {
+            if (b == 59) {
+                break;
+            }
+
+            digit = hexValue(b);
+            if (digit < 0) {
+                if (b == 32 || b == 9) {
+                    break;
+                }
+
+                return -1;
+            }
+
+            size = size * 16 + digit;
+            count = count + 1;
+        }
+
+        if (count == 0 || count > 15) {
+            return -1;
+        }
+
+        return size;
+    }
+
+    hexValue(b: int) -> int {
+        if (b >= 48 && b <= 57) {
+            return b - 48;
+        }
+
+        if (b >= 65 && b <= 70) {
+            return b - 55;
+        }
+
+        if (b >= 97 && b <= 102) {
+            return b - 87;
+        }
+
+        return -1;
+    }
+
+    // The value of 1 to 18 ASCII digits, or -1 for anything else: no sign, no
+    // spaces, nothing toIntOrNone's wider grammar accepts (ADR 0067 §7). A
+    // port, a status, and a Content-Length are written this way.
+    digitsValue(text: string) -> int {
+        raw = text.utf8();
+        if (raw.length() == 0 || raw.length() > 18) {
+            return -1;
+        }
+
+        value: int = 0;
+        for (b in raw) {
+            if (b < 48 || b > 57) {
+                return -1;
+            }
+
+            value = value * 10 + b - 48;
+        }
+
+        return value;
+    }
+}

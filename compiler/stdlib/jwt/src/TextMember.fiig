@@ -1,8 +1,0 @@
-// A JSON object's member as text, or None when it is missing or isn't a
-// string.
-conversion textMember(members: Map<string, JsonValue>, name: string) -> string | None {
-    return match (members.atOrNone(name)) {
-        JsonValue.Text(value) -> value,
-        _ -> None
-    }
-}

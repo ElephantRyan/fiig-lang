@@ -1,10 +1,13 @@
+use fiig.jwt.jwks;
+use fiig.jwt.tokens;
+
 // ADR 0146 §4, §7: tokens Go's crypto signed, verified by fiig.jwt, and
 // each way a token is refused. The keys were made for these tests and
 // sign nothing else; signing and HMAC tokens are tested in Go
 // (tooling/runprogram/jwt_test.go), since only a gateway makes a Secret.
 test aTokenSignedWithEachKindOfKeyVerifies {
     for (token in [rs256(), rs512(), ps256(), es256(), edDsa(), rsa2()]) {
-        expect verify(token, keys(), expectAll(), now()) is Ok(verified);
+        expect tokens.verify(token, keys(), expectAll(), now()) is Ok(verified);
         expect verified.issuer == "https://issuer.example";
         expect verified.subject == "user-1";
         expect verified.audience == ["app"];
@@ -13,89 +16,89 @@ test aTokenSignedWithEachKindOfKeyVerifies {
 }
 
 test theKeyIdIsReadAndReported {
-    expect verify(es256(), keys(), expectAll(), now()) is Ok(verified);
+    expect tokens.verify(es256(), keys(), expectAll(), now()) is Ok(verified);
     expect verified.keyId == "ec-1";
-    expect keyIdOf(es256()) == "ec-1";
-    expect keyIdOf(noKid()) == None;
-    expect keyIdOf("not a token") == None;
+    expect tokens.keyIdOf(es256()) == "ec-1";
+    expect tokens.keyIdOf(noKid()) == None;
+    expect tokens.keyIdOf("not a token") == None;
 }
 
 test aChangedPayloadIsABadSignature {
-    expect verify(tampered(), keys(), expectAll(), now()) is Err(JwtError.BadSignature);
+    expect tokens.verify(tampered(), keys(), expectAll(), now()) is Err(JwtError.BadSignature);
 }
 
 test theHeaderCantChooseAnAlgorithmTheProgramDidntName {
-    expect verify(rs256(), keys(), expectOnly([Algorithm.ES256]), now()) is Err(JwtError.AlgorithmRefused("RS256"));
+    expect tokens.verify(rs256(), keys(), expectOnly([Algorithm.ES256]), now()) is Err(JwtError.AlgorithmRefused("RS256"));
     // An empty list is the program forgetting to say, and refuses all.
-    expect verify(rs256(), keys(), expectOnly([]), now()) is Err(JwtError.AlgorithmRefused("RS256"));
+    expect tokens.verify(rs256(), keys(), expectOnly([]), now()) is Err(JwtError.AlgorithmRefused("RS256"));
     // alg none isn't an Algorithm, so an unsigned token never verifies.
-    expect verify(unsigned(), keys(), expectAll(), now()) is Err(JwtError.AlgorithmRefused("none"));
+    expect tokens.verify(unsigned(), keys(), expectAll(), now()) is Err(JwtError.AlgorithmRefused("none"));
 }
 
 // CVE-2015-9235: HS256 with the RSA public key's PEM as the secret. verify
 // refuses every HS alg, so a public key is never used as a secret.
 test anHmacTokenIsNeverCheckedAgainstAPublicKey {
     both = expectOnly([Algorithm.HS256, Algorithm.RS256]);
-    expect verify(hmacOverPublicKey(), keys(), both, now()) is Err(JwtError.AlgorithmRefused("HS256"));
+    expect tokens.verify(hmacOverPublicKey(), keys(), both, now()) is Err(JwtError.AlgorithmRefused("HS256"));
 }
 
 test theKeyIsChosenByKid {
     // Signed by rsa-2 but naming rsa-1: rsa-1's key doesn't verify it.
-    expect verify(rsa2NamingRsa1(), keys(), expectAll(), now()) is Err(JwtError.BadSignature);
-    expect verify(unknownKid(), keys(), expectAll(), now()) is Err(JwtError.NoKey("unknown"));
+    expect tokens.verify(rsa2NamingRsa1(), keys(), expectAll(), now()) is Err(JwtError.BadSignature);
+    expect tokens.verify(unknownKid(), keys(), expectAll(), now()) is Err(JwtError.NoKey("unknown"));
     // No kid, and two RSA keys fit: which one the issuer meant is unknown.
-    expect verify(noKid(), keys(), expectAll(), now()) is Err(JwtError.NoKey(None));
-    expect verify(noKid(), [keys().first()], expectAll(), now()) is Ok(_);
+    expect tokens.verify(noKid(), keys(), expectAll(), now()) is Err(JwtError.NoKey(None));
+    expect tokens.verify(noKid(), [keys().first()], expectAll(), now()) is Ok(_);
 }
 
 test aKeyThatStatesAnotherAlgIsNotUsed {
     pinned = copy(keys().first(), algorithm: "RS256");
-    expect verify(rs512(), [pinned], expectAll(), now()) is Err(JwtError.NoKey("rsa-1"));
-    expect verify(rs256(), [pinned], expectAll(), now()) is Ok(_);
+    expect tokens.verify(rs512(), [pinned], expectAll(), now()) is Err(JwtError.NoKey("rsa-1"));
+    expect tokens.verify(rs256(), [pinned], expectAll(), now()) is Ok(_);
 }
 
 test theClaimsAreChecked {
-    expect verify(wrongIssuer(), keys(), expectAll(), now()) is Err(JwtError.WrongIssuer("https://other.example"));
-    expect verify(wrongAudiences(), keys(), expectAll(), now()) is Err(JwtError.WrongAudience(found));
+    expect tokens.verify(wrongIssuer(), keys(), expectAll(), now()) is Err(JwtError.WrongIssuer("https://other.example"));
+    expect tokens.verify(wrongAudiences(), keys(), expectAll(), now()) is Err(JwtError.WrongAudience(found));
     expect found == ["web", "cli"];
-    expect verify(audiences(), keys(), expectAll(), now()) is Ok(_);
-    expect verify(noExp(), keys(), expectAll(), now()) is Err(JwtError.MissingClaim("exp"));
-    expect verify(noAud(), keys(), expectAll(), now()) is Err(JwtError.MissingClaim("aud"));
-    expect verify(noIss(), keys(), expectAll(), now()) is Err(JwtError.MissingClaim("iss"));
-    expect verify(textExp(), keys(), expectAll(), now()) is Err(JwtError.Malformed(_));
+    expect tokens.verify(audiences(), keys(), expectAll(), now()) is Ok(_);
+    expect tokens.verify(noExp(), keys(), expectAll(), now()) is Err(JwtError.MissingClaim("exp"));
+    expect tokens.verify(noAud(), keys(), expectAll(), now()) is Err(JwtError.MissingClaim("aud"));
+    expect tokens.verify(noIss(), keys(), expectAll(), now()) is Err(JwtError.MissingClaim("iss"));
+    expect tokens.verify(textExp(), keys(), expectAll(), now()) is Err(JwtError.Malformed(_));
 }
 
 test expiryAndNotBeforeAllowTheLeeway {
     // Expired at exp plus 60 seconds, read to the millisecond.
-    expect verify(timed(), keys(), expectAll(), 1800000060249) is Ok(verified);
+    expect tokens.verify(timed(), keys(), expectAll(), 1800000060249) is Ok(verified);
     expect verified.expiresAt == 1800000000250;
     expect verified.issuedAt == 1799990000000;
-    expect verify(timed(), keys(), expectAll(), 1800000060250) is Err(JwtError.Expired(1800000000250));
-    expect verify(timed(), keys(), expectAll(), 1799989940000) is Ok(_);
-    expect verify(timed(), keys(), expectAll(), 1799989939999) is Err(JwtError.NotYetValid(1799990000000));
+    expect tokens.verify(timed(), keys(), expectAll(), 1800000060250) is Err(JwtError.Expired(1800000000250));
+    expect tokens.verify(timed(), keys(), expectAll(), 1799989940000) is Ok(_);
+    expect tokens.verify(timed(), keys(), expectAll(), 1799989939999) is Err(JwtError.NotYetValid(1799990000000));
     strict = copy(expectAll(), leewaySeconds: 0);
-    expect verify(timed(), keys(), strict, 1800000000250) is Err(JwtError.Expired(_));
+    expect tokens.verify(timed(), keys(), strict, 1800000000250) is Err(JwtError.Expired(_));
 }
 
 test theHeaderIsReadStrictly {
-    expect verify(crit(), keys(), expectAll(), now()) is Err(JwtError.Malformed(reason));
+    expect tokens.verify(crit(), keys(), expectAll(), now()) is Err(JwtError.Malformed(reason));
     expect reason.contains("crit");
     // A duplicate member could mean one thing to fiig and another to the
     // issuer (RFC 7515 §5.2).
-    expect verify(duplicateAlg(), keys(), expectAll(), now()) is Err(JwtError.Malformed(_));
-    expect verify("a.b", keys(), expectAll(), now()) is Err(JwtError.Malformed(_));
-    expect verify("a".repeat(16385), keys(), expectAll(), now()) is Err(JwtError.TooLarge);
+    expect tokens.verify(duplicateAlg(), keys(), expectAll(), now()) is Err(JwtError.Malformed(_));
+    expect tokens.verify("a.b", keys(), expectAll(), now()) is Err(JwtError.Malformed(_));
+    expect tokens.verify("a".repeat(16385), keys(), expectAll(), now()) is Err(JwtError.TooLarge);
 }
 
 test theTypeIsCheckedWhenAsked {
-    expect verify(rs256(), keys(), copy(expectAll(), tokenType: "jwt"), now()) is Ok(_);
-    expect verify(rs256(), keys(), copy(expectAll(), tokenType: "application/JWT"), now()) is Ok(_);
-    expect verify(rs256(), keys(), copy(expectAll(), tokenType: "at+jwt"), now()) is Err(JwtError.WrongType("JWT"));
-    expect verify(accessToken(), keys(), copy(expectAll(), tokenType: "at+jwt"), now()) is Ok(_);
+    expect tokens.verify(rs256(), keys(), copy(expectAll(), tokenType: "jwt"), now()) is Ok(_);
+    expect tokens.verify(rs256(), keys(), copy(expectAll(), tokenType: "application/JWT"), now()) is Ok(_);
+    expect tokens.verify(rs256(), keys(), copy(expectAll(), tokenType: "at+jwt"), now()) is Err(JwtError.WrongType("JWT"));
+    expect tokens.verify(accessToken(), keys(), copy(expectAll(), tokenType: "at+jwt"), now()) is Ok(_);
 }
 
 test aTokenCanBeReadWithoutVerifying {
-    expect decodeUnverified(es256()) is Ok(unverified);
+    expect tokens.decodeUnverified(es256()) is Ok(unverified);
     expect unverified.header == JsonValue.Object(members: ["alg": JsonValue.Text(value: "ES256"), "kid": JsonValue.Text(value: "ec-1"), "typ": JsonValue.Text(value: "JWT")]);
 }
 
@@ -120,13 +123,13 @@ private {
     }
 
     keys() -> List<Jwk> {
-        return match (keysFromJwks(jwks())) {
+        return match (jwks.keysFromJwks(testKeySet())) {
             Ok(given) -> given,
             Err(_) -> []
         }
     }
 
-    jwks() -> bytes {
+    testKeySet() -> bytes {
         return "{\"keys\": [{\"kty\": \"RSA\", \"kid\": \"rsa-1\", \"use\": \"sig\", \"n\": \"vXiykN3vAglGMgLkN1DCi0VLjKFcjxnHvkN1tlejd1t1j8o47rCRP3Ih1RpqrvOcmzSdLOjd5mMqd3id4ORPRHRFR7sQ4i_HFSOSgF90zxBM2DE9Bs1nGJ0iDxXgb9FRQ3_TvBE_vX4d30rVGgkQI21eC4lAu74LbGGIw0Bk4c3kLny3QX7X6TCKppfGw3834w-DFrAlL3bhJ8a2LP8LEHPsNFft2XKpAijI5vgO6GO6_KDanudEbbVp1nUvWz2HLmrTdZw7JJRkvKd55tgl2SVaQL9p9xPtj-ADsWLJFsh8ch22v_RymBo72h-c1gRRSvWFOkazog6-aB3tMSTm1w\", \"e\": \"AQAB\"}, {\"kty\": \"RSA\", \"kid\": \"rsa-2\", \"n\": \"nKCDjSTbesF9h0swHpLUlaY99-oWh-iwX133riDd0QWSLSjxfQCng_71LS_CsKeNp5AUluLfy-tsAtW0fsYgoh7FSznBjJ_IflpUmo9BUdqyb7p46W5OcdrOSKKP06_8mIGuVh7Icc_gufVSp9wXCGe-p8nmSuw-LK4_CJrF6qMUFq3c9MEVH7zYkfUUfcVQA23GD8L1DGuKND104jY2d0TYVqe0ma6YY0zGpTd3i7zGaif1QnWq2MIpo3iLDBG6oWJFLkk91X_TKMqmfE108riWfufXsETMY2Ynmx2LBK7sx_FS3_ZaUeSO5qRJsT9-s_1MgWqFzR7SbkthpQMmhQ\", \"e\": \"AQAB\"}, {\"kty\": \"EC\", \"kid\": \"ec-1\", \"crv\": \"P-256\", \"x\": \"-8lq0afEc1ky3DKTHdEn5r-ZTZ_9AwJtsldNEzeGlU0\", \"y\": \"xiXk8xHfDXq6RADYyOJXUf11MiRWqcuAwX5GaHxDUNI\"}, {\"kty\": \"OKP\", \"kid\": \"ed-1\", \"crv\": \"Ed25519\", \"x\": \"Pu3Gf0WYH4R0sduLuQlxhdiEYpiS8OiIm32D3j3tIi8\"}]}".utf8();
     }
 

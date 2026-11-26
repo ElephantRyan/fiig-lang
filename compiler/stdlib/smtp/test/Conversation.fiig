@@ -1,3 +1,6 @@
+use fiig.smtp.conversation;
+use fiig.smtp.mime;
+
 test aStartTlsSendFromGreetingToQuit {
     d0 = begin(startTls("user", "pass"), ["b@y.org", "c@y.org"]);
     expect sent(d0) == "listen";
@@ -8,7 +11,7 @@ test aStartTlsSendFromGreetingToQuit {
     d3 = go(d2, 220, ["Ready to start TLS"]);
     expect sent(d3) == "upgrade";
     // The handshake forgets what the server said, so it is asked again.
-    d4 = afterUpgrade(d3);
+    d4 = conversation.afterUpgrade(d3);
     expect d4.secure;
     expect sent(d4) == "EHLO client.test\r\n";
     d5 = go(d4, 250, ["mail.example Hello", "AUTH PLAIN LOGIN"]);
@@ -29,7 +32,7 @@ test aStartTlsSendFromGreetingToQuit {
 }
 
 test aKeptConnectionStartsWithRset {
-    d0 = resumeDialogue(
+    d0 = conversation.resumeDialogue(
         startTls("user", "pass"),
         mail(["b@y.org"]),
         "client.test",
@@ -42,43 +45,51 @@ test aKeptConnectionStartsWithRset {
 }
 
 test aRefusedRsetEndsTheSend {
-    d = resumeDialogue(plain(None, None), mail(["b@y.org"]), "client.test", "the message".utf8());
+    d = conversation.resumeDialogue(
+        plain(None, None),
+        mail(["b@y.org"]),
+        "client.test",
+        "the message".utf8()
+    );
     expect !d.secure;
-    expect advance(d, reply(421, ["4.4.2 Timeout"])) is Err(SmtpError.Refused(code, message));
+    expect conversation.advance(d, reply(421, ["4.4.2 Timeout"])) is Err(SmtpError.Refused(code, message));
     expect code == 421;
 }
 
 test aKeptConnectionIsOnlyForTheSameLogin {
-    expect sessionFor(startTls("ann", "pass")) == "user=ann";
-    expect sessionFor(startTls("bob", "pass")) == "user=bob";
-    expect sessionFor(plain(None, None)) == "no login";
+    expect conversation.sessionFor(startTls("ann", "pass")) == "user=ann";
+    expect conversation.sessionFor(startTls("bob", "pass")) == "user=bob";
+    expect conversation.sessionFor(plain(None, None)) == "no login";
 }
 
 test aDeadKeptConnectionIsTriedAgainOnlyBeforeTheBody {
-    kept = resumeDialogue(
+    kept = conversation.resumeDialogue(
         plain(None, None),
         mail(["b@y.org"]),
         "client.test",
         "the message".utf8()
     );
     closed = SmtpError.Socket(failure: SocketError.Closed);
-    expect resendOnNewConnection(kept, closed);
-    expect resendOnNewConnection(kept, SmtpError.Refused(code: 421, message: "closing"));
-    expect !resendOnNewConnection(kept, SmtpError.Refused(code: 550, message: "no"));
-    expect !resendOnNewConnection(kept, SmtpError.Protocol(reason: "malformed"));
+    expect conversation.resendOnNewConnection(kept, closed);
+    expect conversation.resendOnNewConnection(
+        kept,
+        SmtpError.Refused(code: 421, message: "closing")
+    );
+    expect !conversation.resendOnNewConnection(kept, SmtpError.Refused(code: 550, message: "no"));
+    expect !conversation.resendOnNewConnection(kept, SmtpError.Protocol(reason: "malformed"));
     for (phase in [SmtpPhase.MailFrom, SmtpPhase.Rcpt, SmtpPhase.Data]) {
-        expect resendOnNewConnection(copy(kept, phase: phase), closed);
+        expect conversation.resendOnNewConnection(copy(kept, phase: phase), closed);
     }
 
     // Once the message has been written the server may have it.
-    expect !resendOnNewConnection(copy(kept, phase: SmtpPhase.Body), closed);
-    expect !resendOnNewConnection(copy(kept, phase: SmtpPhase.Sent), closed);
+    expect !conversation.resendOnNewConnection(copy(kept, phase: SmtpPhase.Body), closed);
+    expect !conversation.resendOnNewConnection(copy(kept, phase: SmtpPhase.Sent), closed);
 }
 
 test smtpWithoutStartTlsIsRefusedBeforeAnythingIsSent {
     hello = go(begin(startTls("user", "pass"), ["b@y.org"]), 220, ["hi"]);
     expect sent(hello) == "EHLO client.test\r\n";
-    expect advance(hello, reply(250, ["mail.example Hello", "AUTH PLAIN"])) is Err(SmtpError.Protocol(reason));
+    expect conversation.advance(hello, reply(250, ["mail.example Hello", "AUTH PLAIN"])) is Err(SmtpError.Protocol(reason));
     expect reason.contains("STARTTLS");
 }
 
@@ -98,10 +109,10 @@ test plainWithNoLoginGoesStraightToMail {
 }
 
 test aLoginNeedsAuthPlainOrAuthLogin {
-    after = advance(afterGreeting(), reply(250, ["mail.example Hello", "STARTTLS"]));
+    after = conversation.advance(afterGreeting(), reply(250, ["mail.example Hello", "STARTTLS"]));
     expect after is Ok(next);
-    secured = afterUpgrade(next);
-    expect advance(copy(secured, phase: SmtpPhase.SecureHello), reply(250, ["mail.example Hello", "AUTH XOAUTH2 CRAM-MD5"])) is Err(SmtpError.Protocol(reason));
+    secured = conversation.afterUpgrade(next);
+    expect conversation.advance(copy(secured, phase: SmtpPhase.SecureHello), reply(250, ["mail.example Hello", "AUTH XOAUTH2 CRAM-MD5"])) is Err(SmtpError.Protocol(reason));
     expect reason.contains("AUTH PLAIN");
     expect reason.contains("AUTH LOGIN");
 }
@@ -137,7 +148,7 @@ test aRefusedAuthLoginPasswordEndsTheSend {
         ["UGFzc3dvcmQ6"]
     );
     expect sent(d) == "cGFzcw==\r\n";
-    expect advance(d, reply(535, ["5.7.8 Authentication credentials invalid"])) is Err(SmtpError.Refused(code, message));
+    expect conversation.advance(d, reply(535, ["5.7.8 Authentication credentials invalid"])) is Err(SmtpError.Refused(code, message));
     expect code == 535;
 }
 
@@ -186,7 +197,7 @@ test aRefusedTokenIsAnsweredAndItsStatusReported {
     );
     // The challenge is answered with an empty line; the server then refuses.
     expect sent(challenge) == "\r\n";
-    expect advance(challenge, reply(535, ["5.7.8 Username and Password not accepted"])) is Err(SmtpError.Refused(code, message));
+    expect conversation.advance(challenge, reply(535, ["5.7.8 Username and Password not accepted"])) is Err(SmtpError.Refused(code, message));
     expect code == 535;
     expect message == "the XOAUTH2 token (status 401): 5.7.8 Username and Password not accepted";
 }
@@ -199,7 +210,7 @@ test aChallengeThatIsntJsonStillEndsInTheRefusal {
     );
     challenge = go(d, 334, ["not base64!"]);
     expect sent(challenge) == "\r\n";
-    expect advance(challenge, reply(535, ["no"])) is Err(SmtpError.Refused(code, message));
+    expect conversation.advance(challenge, reply(535, ["no"])) is Err(SmtpError.Refused(code, message));
     expect message == "the XOAUTH2 token: no";
 }
 
@@ -212,7 +223,7 @@ test aTokenWithoutXOAuth2FallsBackToThePassword {
     expect sent(d) == "AUTH PLAIN AGFubkBnbWFpbC5jb20AcGFzcw==\r\n";
     // With no password, there is nothing else to log in with.
     tokenOnly = go(begin(oauth(SmtpAuth.Auto, ""), ["b@y.org"]), 220, ["hi"]);
-    expect advance(tokenOnly, reply(250, ["Hello", "AUTH PLAIN"])) is Err(SmtpError.Protocol(reason));
+    expect conversation.advance(tokenOnly, reply(250, ["Hello", "AUTH PLAIN"])) is Err(SmtpError.Protocol(reason));
     expect reason.contains("XOAUTH2");
 }
 
@@ -222,7 +233,7 @@ test smtpAuthTakesOnlyTheMechanismItNames {
     plainOnly = copy(greeted, target: copy(greeted.target, auth: SmtpAuth.Plain));
     expect sent(go(plainOnly, 250, ["Hello", "AUTH PLAIN LOGIN XOAUTH2"])) == "AUTH PLAIN AGFubkBnbWFpbC5jb20AcGFzcw==\r\n";
     oauthOnly = copy(greeted, target: copy(greeted.target, auth: SmtpAuth.XOAuth2));
-    expect advance(oauthOnly, reply(250, ["Hello", "AUTH PLAIN LOGIN"])) is Err(SmtpError.Protocol(reason));
+    expect conversation.advance(oauthOnly, reply(250, ["Hello", "AUTH PLAIN LOGIN"])) is Err(SmtpError.Protocol(reason));
     expect reason.contains("xoauth2");
 }
 
@@ -237,7 +248,7 @@ test aRefusedRecipientEndsTheSend {
         ["OK"]
     );
     expect sent(d) == "RCPT TO:<c@y.org>\r\n";
-    expect advance(d, reply(550, ["No such user here"])) is Err(SmtpError.Refused(code, message));
+    expect conversation.advance(d, reply(550, ["No such user here"])) is Err(SmtpError.Refused(code, message));
     expect code == 550;
     expect message.contains("c@y.org");
     expect message.contains("No such user");
@@ -252,11 +263,16 @@ test everyRecipientInToCcAndBccIsSentToOnce {
         cc: ["c@y.org", "b@y.org"],
         bcc: ["d@y.org"]
     );
-    expect recipientsOf(m) == ["b@y.org", "c@y.org", "d@y.org"];
+    expect mime.recipientsOf(m) == ["b@y.org", "c@y.org", "d@y.org"];
     d = go(
         go(
             go(
-                startDialogue(plain(None, None), m, "client.test", "the message".utf8()),
+                conversation.startDialogue(
+                    plain(None, None),
+                    m,
+                    "client.test",
+                    "the message".utf8()
+                ),
                 220,
                 ["hi"]
             ),
@@ -271,13 +287,13 @@ test everyRecipientInToCcAndBccIsSentToOnce {
     // A refused Bcc recipient ends the send like any other.
     last = go(go(d, 250, ["OK"]), 250, ["OK"]);
     expect sent(last) == "RCPT TO:<d@y.org>\r\n";
-    expect advance(last, reply(550, ["No such user"])) is Err(SmtpError.Refused(code, message));
+    expect conversation.advance(last, reply(550, ["No such user"])) is Err(SmtpError.Refused(code, message));
     expect sent(go(last, 250, ["OK"])) == "DATA\r\n";
 }
 
 test aTemporaryRefusalKeepsItsCode {
     greeting = begin(plain(None, None), ["b@y.org"]);
-    expect advance(greeting, reply(421, ["Service not available"])) is Err(SmtpError.Refused(code, message));
+    expect conversation.advance(greeting, reply(421, ["Service not available"])) is Err(SmtpError.Refused(code, message));
     expect code == 421;
     expect message == "Service not available";
 }
@@ -285,14 +301,14 @@ test aTemporaryRefusalKeepsItsCode {
 test aRefusedSenderIsNamed {
     mailFrom = go(go(begin(plain(None, None), ["b@y.org"]), 220, ["hi"]), 250, ["Hello"]);
     expect sent(mailFrom) == "MAIL FROM:<a@x.org>\r\n";
-    expect advance(mailFrom, reply(553, ["Sender rejected"])) is Err(SmtpError.Refused(code, message));
+    expect conversation.advance(mailFrom, reply(553, ["Sender rejected"])) is Err(SmtpError.Refused(code, message));
     expect code == 553;
     expect message.contains("a@x.org");
 }
 
 test aMessageOverTheServersSizeIsRefusedBeforeItIsSent {
     greeted = go(begin(plain(None, None), ["b@y.org"]), 220, ["hi"]);
-    expect advance(greeted, reply(250, ["Hello", "SIZE 10"])) is Err(SmtpError.InvalidMail(reason));
+    expect conversation.advance(greeted, reply(250, ["Hello", "SIZE 10"])) is Err(SmtpError.InvalidMail(reason));
     expect reason.contains("limit");
 }
 
@@ -311,8 +327,159 @@ test aServerThatSaysNoToTheBodyRefuses {
         ["go ahead"]
     );
     expect sent(d) == "the message";
-    expect advance(d, reply(552, ["Message size exceeds limit"])) is Err(SmtpError.Refused(code, message));
+    expect conversation.advance(d, reply(552, ["Message size exceeds limit"])) is Err(SmtpError.Refused(code, message));
     expect code == 552;
+}
+
+test aOneLineReply {
+    expect conversation.readSmtpReply(wire("220 mail.example ESMTP ready\r\n")) is SmtpReplyRead.Done(reply, rest);
+    expect reply == SmtpReply(code: 220, lines: ["mail.example ESMTP ready"]);
+    expect rest.length() == 0;
+}
+
+test aReplyOfSeveralLines {
+    expect conversation.readSmtpReply(wire("250-mail.example Hello\r\n250-STARTTLS\r\n250 SIZE 1000\r\n")) is SmtpReplyRead.Done(reply, rest);
+    expect reply == SmtpReply(code: 250, lines: ["mail.example Hello", "STARTTLS", "SIZE 1000"]);
+}
+
+test aBareCodeHasNoText {
+    expect conversation.readSmtpReply(wire("250\r\n")) is SmtpReplyRead.Done(reply, rest);
+    expect reply == SmtpReply(code: 250, lines: [""]);
+}
+
+test whatFollowsTheReplyIsLeftAlone {
+    expect conversation.readSmtpReply(wire("250 ok\r\n221 bye\r\n")) is SmtpReplyRead.Done(first, rest);
+    expect first.code == 250;
+    expect conversation.readSmtpReply(rest) is SmtpReplyRead.Done(second, rest2);
+    expect second.code == 221;
+}
+
+test everyPartialReplyAsksForMore {
+    whole = "250-a\r\n250-b\r\n250 c\r\n";
+    cut: int = 0;
+    while (cut < whole.length()) {
+        expect conversation.readSmtpReply(wire(whole.slice(0, cut))) is SmtpReplyRead.NeedMore;
+        cut = cut + 1;
+    }
+
+    expect conversation.readSmtpReply(wire(whole)) is SmtpReplyRead.Done(reply, rest);
+}
+
+test aBareLfDoesNotEndALine {
+    expect conversation.readSmtpReply(wire("220 hello\n")) is SmtpReplyRead.NeedMore;
+}
+
+test malformedRepliesAreRefused {
+    for (bad in ["ABC hello\r\n", "22 short\r\n", "220hello\r\n", "999 out of range\r\n", "100 too low\r\n", "250-a\r\n251 changed\r\n"]) {
+        expect conversation.readSmtpReply(wire(bad)) is SmtpReplyRead.Malformed(reason);
+    }
+}
+
+test aLineThatNeverEndsIsRefused {
+    long = "220 ${repeated("x", 5000)}";
+    expect conversation.readSmtpReply(wire(long)) is SmtpReplyRead.Malformed(reason);
+}
+
+test aReplyThatNeverEndsIsRefused {
+    many: string = "";
+    n: int = 0;
+    while (n < 101) {
+        many = "${many}250-line\r\n";
+        n = n + 1;
+    }
+
+    expect conversation.readSmtpReply(wire(many)) is SmtpReplyRead.Malformed(reason);
+}
+
+test noSettingsLeaveTheTargetAsItWas {
+    expect conversation.withLogin(target("ann"), None, None) is Ok(t);
+    expect t == target("ann");
+}
+
+test aTokenIsKeptForXOAuth2 {
+    expect conversation.withLogin(target("ann@gmail.com"), None, "ya29.a0Af-_~+/=") is Ok(t);
+    expect t.token == "ya29.a0Af-_~+/=";
+    expect conversation.withLogin(target("ann@gmail.com"), SmtpAuth.XOAuth2, "tok") is Ok(chosen);
+    expect chosen.auth == SmtpAuth.XOAuth2;
+}
+
+test xoauth2NeedsAToken {
+    expect conversation.withLogin(target("ann"), SmtpAuth.XOAuth2, None) is Err(SmtpError.Protocol(reason));
+    expect reason.contains("SMTP_OAUTH_TOKEN");
+}
+
+test aTokenCantBreakTheFraming {
+    for (bad in ["", "zq9 x", "zq9\tauth=Bearer x", "zq9\r\n", "zqé9"]) {
+        expect conversation.withLogin(target("ann"), None, bad) is Err(SmtpError.Protocol(reason));
+        expect !reason.contains("zq");
+    }
+}
+
+test aLoginSettingNeedsAUser {
+    noUser = SmtpTarget(
+        host: "mail.example",
+        port: 587,
+        security: SmtpSecurity.StartTls,
+        user: None,
+        password: None
+    );
+    expect conversation.withLogin(noUser, None, "tok") is Err(SmtpError.Protocol(reason));
+    expect conversation.withLogin(noUser, SmtpAuth.Plain, None) is Err(SmtpError.Protocol(why));
+    expect conversation.withLogin(noUser, SmtpAuth.Auto, None) is Ok(_);
+}
+
+test smtpStartsPlainAndUpgrades {
+    expect conversation.parseSmtpUrl("smtp://mail.example") is Ok(target);
+    expect target == SmtpTarget(host: "mail.example", port: 587, security: SmtpSecurity.StartTls, user: None, password: None);
+}
+
+test smtpsIsTlsFromTheFirstByte {
+    expect conversation.parseSmtpUrl("smtps://mail.example") is Ok(target);
+    expect target.security == SmtpSecurity.Implicit;
+    expect target.port == 465;
+}
+
+test plainIsForALocalServer {
+    expect conversation.parseSmtpUrl("smtp+plain://localhost:1025") is Ok(target);
+    expect target.security == SmtpSecurity.Plain;
+    expect target.port == 1025;
+}
+
+test aLoginAndAPort {
+    expect conversation.parseSmtpUrl("smtp://apikey:s3cret@smtp.example.com:2525") is Ok(target);
+    expect target.host == "smtp.example.com";
+    expect target.port == 2525;
+    expect orEmpty(target.user) == "apikey";
+}
+
+test aLoginIsPercentDecoded {
+    // user@example, and a password with an @ and a colon.
+    expect conversation.parseSmtpUrl("smtp://user%40example:p%40ss%3Aword@mail.example") is Ok(target);
+    expect orEmpty(target.user) == "user@example";
+    expect orEmpty(target.password) == "p@ss:word";
+}
+
+test anIpv6HostIsInBrackets {
+    expect conversation.parseSmtpUrl("smtps://[::1]:465") is Ok(target);
+    expect target.host == "::1";
+    expect target.port == 465;
+}
+
+test aTrailingSlashIsFine {
+    expect conversation.parseSmtpUrl("smtp://mail.example/") is Ok(target);
+    expect target.host == "mail.example";
+}
+
+test whatCantBeReadIsRefused {
+    for (bad in ["mail.example", "http://mail.example", "smtp://", "smtp://mail.example:0", "smtp://mail.example:99999", "smtp://mail.example:abc", "smtp://a:b:c:d", "smtp://[::1", "smtp://mail.example/inbox", "smtp://mail.example?x=1", "smtp://:pw@mail.example", "smtp://u%2@mail.example"]) {
+        expect conversation.parseSmtpUrl(bad) is Err(SmtpError.InvalidUrl(reason));
+    }
+}
+
+test aReasonNeverRepeatsThePassword {
+    expect conversation.parseSmtpUrl("smtp://user:hunter2@mail.example:abc") is Err(SmtpError.InvalidUrl(reason));
+    expect !reason.contains("hunter2");
+    expect !reason.contains("user");
 }
 
 private {
@@ -370,7 +537,7 @@ private {
     }
 
     begin(target: SmtpTarget, to: List<string>) -> Dialogue {
-        return startDialogue(target, mail(to), "client.test", "the message".utf8());
+        return conversation.startDialogue(target, mail(to), "client.test", "the message".utf8());
     }
 
     afterGreeting() -> Dialogue {
@@ -384,7 +551,7 @@ private {
     // The dialogue after the server's reply, or the same one when advance
     // refuses it, so a test that expected progress sees none.
     go(d: Dialogue, code: int, lines: List<string>) -> Dialogue {
-        return match (advance(d, reply(code, lines))) {
+        return match (conversation.advance(d, reply(code, lines))) {
             Ok(next) -> next,
             Err(_) -> d
         }
@@ -392,7 +559,7 @@ private {
 
     // What the gateway does at this phase, as text.
     sent(d: Dialogue) -> string {
-        return match (nextStep(d)) {
+        return match (conversation.nextStep(d)) {
             SmtpStep.Listen -> "listen",
             SmtpStep.Upgrade -> "upgrade",
             SmtpStep.Send(data) -> textOf(data),
@@ -404,6 +571,38 @@ private {
         return match (data.utf8()) {
             None -> "",
             text -> text
+        }
+    }
+
+    wire(text: string) -> bytes {
+        return text.utf8();
+    }
+
+    repeated(piece: string, times: int) -> string {
+        out: string = "";
+        n: int = 0;
+        while (n < times) {
+            out = "${out}${piece}";
+            n = n + 1;
+        }
+
+        return out;
+    }
+
+    target(user: string) -> SmtpTarget {
+        return SmtpTarget(
+            host: "mail.example",
+            port: 587,
+            security: SmtpSecurity.StartTls,
+            user: user,
+            password: None
+        );
+    }
+
+    orEmpty(text: string | None) -> string {
+        return match (text) {
+            None -> "",
+            value -> value
         }
     }
 }
