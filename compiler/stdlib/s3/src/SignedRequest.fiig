@@ -1,5 +1,5 @@
 use fiig.http;
-use fiig.time;
+use fiig.time.calendar;
 
 // An operation as a signed HTTP request (ADR 0121 §3): AWS Signature
 // Version 4 over the headers host, x-amz-content-sha256 and x-amz-date (and
@@ -11,7 +11,7 @@ conversion signedRequest(call: S3Call, account: S3Account, millis: int)
     verb = verbOf(call.method)?;
     endpoint = parseS3Endpoint(account.endpoint)?;
     target = objectTarget(endpoint, call.bucket, call.key, account.pathStyle)?;
-    stamp = mapErr(e in time.formatBasic(millis)):
+    stamp = mapErr(e in calendar.formatBasic(millis)):
             S3Error.InvalidRequest(reason: "the signing time is outside the years 0000 to 9999")?;
     day = stamp.slice(0, 8);
     payload = crypto.sha256(call.body).toHex();

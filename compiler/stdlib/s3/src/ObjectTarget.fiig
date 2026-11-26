@@ -1,4 +1,4 @@
-use fiig.http;
+use fiig.http.httpText;
 
 // The URL of a key in a bucket (ADR 0121 §2). Path style puts the bucket
 // in the path (host/bucket/key), which every S3-compatible server takes;
@@ -36,7 +36,7 @@ conversion objectTarget(endpoint: S3Endpoint, bucket: string, key: string, pathS
         if (segment == "") {
             segments = append(segments, "");
         } else {
-            match (http.pathSegment(segment)) {
+            match (httpText.pathSegment(segment)) {
                 None -> {
                     return Err(
                         S3Error.InvalidRequest(reason: "a key can't have a . or .. segment")

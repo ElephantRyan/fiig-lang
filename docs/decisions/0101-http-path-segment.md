@@ -1,6 +1,8 @@
 # ADR 0101: `http.pathSegment`, Building a URL Path From Untrusted Text
 
-Status: Accepted (2026-11-20). Implemented 2026-11-20.
+Status: Accepted (2026-11-20). Implemented 2026-11-20. Amended by ADR 0151
+(2026-11-25): `pathSegment` is a formula in the `httpText` group
+(`httpText.pathSegment(...)`).
 Date: 2026-11-20
 Amends: ADR 0074 (fiig.http gains a conversion).
 Related: ADR 0082 §3 (SQL text is a literal, values are bound), docs

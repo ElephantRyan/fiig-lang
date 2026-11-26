@@ -290,6 +290,27 @@ migration in §Consequences leaves the line between them unclear.
   reserved; `grammar.md`'s formula paragraph; ADR 0049 §2.2 and its
   Rationale, and ADR 0139 §2, point here; `docs/layers.md` gains "A rule or
   a formula".
-- **Not done here**, as §Consequences says: moving `http.formEncode` and
-  the domain-free decoders of the standard library into `formulas` groups,
-  and Hearsay's own candidates.
+- **Standard library, phase 1 (2026-11-25)**: `fiig.time`'s nine
+  conversions are the `calendar` group (`src/Calendar.fiig`), with
+  `zeroPad`, `daysInMonth` and `number` its private helpers, and its tests
+  in `test/Calendar.fiig` (a test file mirrors a source file, ADR 0102 §3),
+  plus one for a four-digit early year now that `zeroPad` can't be called
+  from a test. `fiig.http`'s `formEncode`, `pathSegment`, `isToken` and
+  `headerValue` are the `httpText` group (`src/HttpText.fiig`). Their
+  callers in `fiig.http`, `fiig.s3` and `fiig.smtp`, the Go test fixtures,
+  and `docs/writing-a-client.md` call through the groups.
+- **Breaking, for the release notes:**
+
+  | Was | Is |
+  | --- | --- |
+  | `use fiig.time;` `time.formatIso(m)`, and `formatBasic`, `formatHttp`, `formatRfc5322`, `parseIso`, `toDateTime`, `toMillis`, `weekday` | `use fiig.time.calendar;` `calendar.formatIso(m)`, and the same names |
+  | `time.zeroPad(n, w)` | private to `calendar`; no replacement |
+  | `use fiig.http;` `http.formEncode(fields)`, and `pathSegment`, `isToken`, `headerValue` | `use fiig.http.httpText;` `httpText.formEncode(fields)`, and the same names |
+
+  The types (`time.DateTime`, `time.TimeError`, `http.Header`) don't move,
+  so a file that also names one keeps its `use fiig.time;` or
+  `use fiig.http;`.
+- **Not done yet**: each driver's protocol code (`fiig.http`'s HTTP/1.1
+  internals, `fiig.postgres`, `fiig.kafka`, `fiig.redis`, `fiig.s3`,
+  `fiig.smtp`, `fiig.jwt`), grouped by subject; and Hearsay's own
+  candidates.

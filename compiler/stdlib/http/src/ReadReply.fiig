@@ -1,3 +1,5 @@
+use fiig.http.httpText;
+
 // ADR 0074 §7: a reply from the bytes read so far. closed says the server
 // has hung up, which ends a body that runs until close and makes any other
 // unfinished reply Malformed, so with closed true this never answers
@@ -133,7 +135,7 @@ private {
                 }
 
                 name = parts.first();
-                if (!isToken(name)) {
+                if (!httpText.isToken(name)) {
                     return Err("the header name \"${name}\" isn't an HTTP token");
                 }
 

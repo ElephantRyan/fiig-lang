@@ -1,5 +1,6 @@
+use fiig.http.httpText;
 use fiig.http;
-use fiig.time;
+use fiig.time.calendar;
 
 // A presigned URL (ADR 0121 §5, amended 2026-11-21): SigV4 with the
 // signature in the query string instead of the Authorization header, so
@@ -32,7 +33,7 @@ conversion presignedUrl(
 
     endpoint = parseS3Endpoint(account.endpoint)?;
     target = objectTarget(endpoint, bucket, key, account.pathStyle)?;
-    stamp = mapErr(e in time.formatBasic(millis)):
+    stamp = mapErr(e in calendar.formatBasic(millis)):
             S3Error.InvalidRequest(reason: "the signing time is outside the years 0000 to 9999")?;
     day = stamp.slice(0, 8);
     scope = "${day}/${account.region}/s3/aws4_request";
@@ -64,10 +65,10 @@ conversion presignedUrl(
 private {
     // A query value as SigV4 encodes it: every byte but RFC 3986's
     // unreserved characters is %XX, `/` included, which is what
-    // http.pathSegment does; the empty, `.` and `..` values it refuses are
+    // httpText.pathSegment does; the empty, `.` and `..` values it refuses are
     // already their own encoding.
     queryValue(text: string) -> string {
-        return match (http.pathSegment(text)) {
+        return match (httpText.pathSegment(text)) {
             None -> text,
             encoded -> encoded
         }

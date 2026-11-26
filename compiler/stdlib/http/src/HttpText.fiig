@@ -1,0 +1,110 @@
+// Text an HTTP message is made of: a form or query body, a URL path
+// segment, a header name, and finding a header. Formulas, so a rule may use
+// them (ADR 0151).
+formulas httpText {
+    // ADR 0074 §6: name and value pairs as application/x-www-form-urlencoded,
+    // for a form body or, through .utf8(), a query string. Letters, digits,
+    // and *-._ stay as they are, a space becomes +, and every other byte of
+    // the UTF-8 is %XX.
+    formula formEncode(fields: List<Header>) -> bytes {
+        out: bytes = <<>>;
+        first: bool = true;
+        for (field in fields) {
+            if (!first) {
+                out = <<out: bytes, 38: u8>>;
+            }
+
+            first = false;
+            out = <<out: bytes, escaped(field.name): bytes, 61: u8, escaped(field.value): bytes>>;
+        }
+
+        return out;
+    }
+
+    // ADR 0101: text made safe to be one segment of a URL path. Every byte
+    // but RFC 3986's unreserved characters (A-Z a-z 0-9 - . _ ~) is
+    // percent-encoded, so a `/`, `?`, `#` or `%` in the text can't change
+    // the URL's shape. Empty, `.` and `..` are None: encoding can't make them
+    // safe, since a server resolves them as "here" and "up one".
+    formula pathSegment(text: string) -> string | None {
+        if (text == "" || text == "." || text == "..") {
+            return None;
+        }
+
+        out: bytes = <<>>;
+        for (b in text.utf8()) {
+            if ((b >= 65 && b <= 90) || (b >= 97 && b <= 122) || (b >= 48 && b <= 57) || b == 45 || b == 46 || b == 95 || b == 126) {
+                out = <<out: bytes, b: u8>>;
+            } else {
+                out = <<out: bytes, 37: u8, hexDigit(b / 16): u8, hexDigit(b % 16): u8>>;
+            }
+        }
+
+        // Every byte written is ASCII, so this is always the text.
+        return out.utf8() ?? "";
+    }
+
+    // RFC 9110 §5.6.2: a header name is one or more of letters, digits, and
+    // !#$%&'*+-.^_`|~.
+    formula isToken(text: string) -> bool {
+        raw = text.utf8();
+        if (raw.length() == 0) {
+            return false;
+        }
+
+        for (b in raw) {
+            letter = (b >= 65 && b <= 90) || (b >= 97 && b <= 122);
+            digit = b >= 48 && b <= 57;
+            mark = b == 33 || (b >= 35 && b <= 39) || b == 42 || b == 43 || b == 45 || b == 46 || (b >= 94 && b <= 96) || b == 124 || b == 126;
+            if (!(letter || digit || mark)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // The first header named name, ignoring ASCII case, or None. It takes a
+    // Request's headers as they are, so None, a request built with no
+    // headers, has none to find.
+    formula headerValue(headers: List<Header> | None, name: string) -> string | None {
+        return match (headers) {
+            None -> None,
+            given -> {
+                for (header in given) {
+                    if (header.name.equalsIgnoringCase(name)) {
+                        return header.value;
+                    }
+                }
+
+                return None;
+            }
+        }
+    }
+}
+
+private {
+    escaped(text: string) -> bytes {
+        out: bytes = <<>>;
+        for (b in text.utf8()) {
+            if ((b >= 65 && b <= 90) || (b >= 97 && b <= 122) || (b >= 48 && b <= 57) || b == 42 || b == 45 || b == 46 || b == 95) {
+                out = <<out: bytes, b: u8>>;
+            } else if (b == 32) {
+                out = <<out: bytes, 43: u8>>;
+            } else {
+                out = <<out: bytes, 37: u8, hexDigit(b / 16): u8, hexDigit(b % 16): u8>>;
+            }
+        }
+
+        return out;
+    }
+
+    // The ASCII code of an uppercase hex digit.
+    hexDigit(n: int) -> int {
+        if (n < 10) {
+            return 48 + n;
+        }
+
+        return 55 + n;
+    }
+}

@@ -1,9 +1,0 @@
-// ISO 8601's basic form, no separators: `20261120T135958Z`. AWS Signature
-// Version 4 signs with it, and its first eight characters are the day a
-// credential scope names (ADR 0123 §2). Whole seconds.
-conversion formatBasic(millis: int) -> Result<string, TimeError> {
-    t = toDateTime(millis)?;
-    date = "${zeroPad(t.year, 4)}${zeroPad(t.month, 2)}${zeroPad(t.day, 2)}";
-    clock = "${zeroPad(t.hour, 2)}${zeroPad(t.minute, 2)}${zeroPad(t.second, 2)}";
-    return Ok("${date}T${clock}Z");
-}

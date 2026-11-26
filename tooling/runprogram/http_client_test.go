@@ -41,6 +41,7 @@ gateway head(url: string) -> Result<http.Reply, http.HttpError>
     return HttpClient.send(http.Request(method: http.Method.Head, url: url));
 }`,
 	"post_form.fiig": `use fiig.http;
+use fiig.http.httpText;
 use fiig.http.HttpClient;
 
 gateway postForm(url: string, amount: string, note: string) -> Result<http.Reply, http.HttpError>
@@ -53,7 +54,7 @@ gateway postForm(url: string, amount: string, note: string) -> Result<http.Reply
             http.Header(name: "Authorization", value: "Bearer sk_test"),
             http.Header(name: "Content-Type", value: "application/x-www-form-urlencoded")
         ],
-        body: http.formEncode([
+        body: httpText.formEncode([
             http.Header(name: "amount", value: amount),
             http.Header(name: "note", value: note)
         ])
@@ -73,14 +74,16 @@ gateway withHeader(url: string, name: string, value: string, timeout: int) -> Re
     ));
 }`,
 	"segments.fiig": `use fiig.http;
+use fiig.http.httpText;
 activity segments() -> string {
-    return "${http.pathSegment("b-12_x.y~")}|${http.pathSegment("../../api/users")}|${http.pathSegment("a b?c#d%e")}|${http.pathSegment("Zoë")}|${http.pathSegment("..")}|${http.pathSegment(".")}|${http.pathSegment("")}";
+    return "${httpText.pathSegment("b-12_x.y~")}|${httpText.pathSegment("../../api/users")}|${httpText.pathSegment("a b?c#d%e")}|${httpText.pathSegment("Zoë")}|${httpText.pathSegment("..")}|${httpText.pathSegment(".")}|${httpText.pathSegment("")}";
 }`,
 	"header_of.fiig": `use fiig.http;
+use fiig.http.httpText;
 activity headerOf(token: string) -> string {
     bare = http.Request(method: http.Method.Get, url: "http://x.example.com");
     sent = http.Request(method: http.Method.Get, url: "http://x.example.com", headers: [http.Header(name: "Authorization", value: token)]);
-    return "${http.headerValue(bare.headers, "authorization")} ${http.headerValue(sent.headers, "AUTHORIZATION")}";
+    return "${httpText.headerValue(bare.headers, "authorization")} ${httpText.headerValue(sent.headers, "AUTHORIZATION")}";
 }`,
 }
 

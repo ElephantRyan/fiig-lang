@@ -1,3 +1,4 @@
+use fiig.http.httpText;
 use fiig.http;
 
 // A PUT's user metadata as the headers S3 stores it from: each key becomes
@@ -10,7 +11,7 @@ conversion metadataHeaders(metadata: Map<string, string>) -> Result<List<http.He
     byName: Map<string, string> = [:];
     for (key in metadata.keys()) {
         name = key.lowercase();
-        if (!http.isToken(name)) {
+        if (!httpText.isToken(name)) {
             return Err(
                 S3Error.InvalidRequest(
                     reason: "a metadata key is letters, digits and !#$%&'*+-.^_`|~"

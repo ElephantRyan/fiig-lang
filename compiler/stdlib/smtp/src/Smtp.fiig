@@ -1,4 +1,4 @@
-use fiig.time;
+use fiig.time.calendar;
 
 // ADR 0120: sending mail by SMTP, written in fiig over Socket. A mail goes
 // out on a connection an earlier one kept for the same server and login
@@ -22,7 +22,7 @@ capability Smtp {
         target = withLogin(parseSmtpUrl(SmtpServer.url.reveal())?, SmtpServer.auth, token)?;
         now = Clock.now();
         unique = Random.bytes(12).toHex();
-        date = mapErr(e in time.formatRfc5322(now)):
+        date = mapErr(e in calendar.formatRfc5322(now)):
                 SmtpError.Protocol(reason: "the clock reads a year outside 0000 to 9999")?;
         data = mailData(mail, date, messageIdFor(mail, unique));
         until: int = now + SmtpServer.timeoutMillis;

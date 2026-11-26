@@ -1,6 +1,9 @@
 # ADR 0123: Time Is a Library Over Int Milliseconds
 
 Status: Accepted (2026-11-20; the owner chose the library over a primitive in review). Implemented 2026-11-20 (98a4d3a, `fiig.time`); see Implementation notes.
+Amended by ADR 0151 (2026-11-25): the calendar functions are formulas in
+the `calendar` group (`use fiig.time.calendar;`, `calendar.formatIso(...)`),
+and `zeroPad` is its private helper.
 Date: 2026-11-20
 Related: ADR 0042 (the closed primitive set: write in fiig what can be
 written in fiig), ADR 0055 (no newtypes; named arguments are the defense

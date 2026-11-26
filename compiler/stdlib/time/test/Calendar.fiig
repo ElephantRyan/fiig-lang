@@ -1,0 +1,1272 @@
+use fiig.time.calendar;
+
+test toDateTimeat1970_1_1_0_0_0 {
+    expect calendar.toDateTime(0) is Ok(t);
+    expect t == DateTime(year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat1969_12_31_23_59_59_999 {
+    expect calendar.toDateTime(-1) is Ok(t);
+    expect t == DateTime(year: 1969, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999);
+}
+
+test toDateTimeat1969_12_31_0_0_0 {
+    expect calendar.toDateTime(-86400000) is Ok(t);
+    expect t == DateTime(year: 1969, month: 12, day: 31, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat1900_1_1_0_0_0 {
+    expect calendar.toDateTime(-2208988800000) is Ok(t);
+    expect t == DateTime(year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat1900_2_28_12_0_0 {
+    expect calendar.toDateTime(-2203934400000) is Ok(t);
+    expect t == DateTime(year: 1900, month: 2, day: 28, hour: 12, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat1900_3_1_0_0_0 {
+    expect calendar.toDateTime(-2203891200000) is Ok(t);
+    expect t == DateTime(year: 1900, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat2000_2_29_23_59_59_999 {
+    expect calendar.toDateTime(951868799999) is Ok(t);
+    expect t == DateTime(year: 2000, month: 2, day: 29, hour: 23, minute: 59, second: 59, millisecond: 999);
+}
+
+test toDateTimeat2000_3_1_0_0_0 {
+    expect calendar.toDateTime(951868800000) is Ok(t);
+    expect t == DateTime(year: 2000, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat2024_2_29_6_7_8_9 {
+    expect calendar.toDateTime(1709186828009) is Ok(t);
+    expect t == DateTime(year: 2024, month: 2, day: 29, hour: 6, minute: 7, second: 8, millisecond: 9);
+}
+
+test toDateTimeat2026_11_20_13_59_58 {
+    expect calendar.toDateTime(1795183198000) is Ok(t);
+    expect t == DateTime(year: 2026, month: 11, day: 20, hour: 13, minute: 59, second: 58, millisecond: 0);
+}
+
+test toDateTimeat2026_12_31_23_59_59_999 {
+    expect calendar.toDateTime(1798761599999) is Ok(t);
+    expect t == DateTime(year: 2026, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999);
+}
+
+test toDateTimeat2027_1_1_0_0_0 {
+    expect calendar.toDateTime(1798761600000) is Ok(t);
+    expect t == DateTime(year: 2027, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat2100_2_28_0_0_0 {
+    expect calendar.toDateTime(4107456000000) is Ok(t);
+    expect t == DateTime(year: 2100, month: 2, day: 28, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat2100_3_1_0_0_0 {
+    expect calendar.toDateTime(4107542400000) is Ok(t);
+    expect t == DateTime(year: 2100, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat2400_2_29_0_0_0 {
+    expect calendar.toDateTime(13574563200000) is Ok(t);
+    expect t == DateTime(year: 2400, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat1600_2_29_0_0_0 {
+    expect calendar.toDateTime(-11670998400000) is Ok(t);
+    expect t == DateTime(year: 1600, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat1582_10_15_0_0_0 {
+    expect calendar.toDateTime(-12219292800000) is Ok(t);
+    expect t == DateTime(year: 1582, month: 10, day: 15, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat1000_1_1_0_0_0 {
+    expect calendar.toDateTime(-30610224000000) is Ok(t);
+    expect t == DateTime(year: 1000, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat1_1_1_0_0_0 {
+    expect calendar.toDateTime(-62135596800000) is Ok(t);
+    expect t == DateTime(year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat9999_12_31_23_59_59_999 {
+    expect calendar.toDateTime(253402300799999) is Ok(t);
+    expect t == DateTime(year: 9999, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999);
+}
+
+test toDateTimeat2038_1_19_3_14_7 {
+    expect calendar.toDateTime(2147483647000) is Ok(t);
+    expect t == DateTime(year: 2038, month: 1, day: 19, hour: 3, minute: 14, second: 7, millisecond: 0);
+}
+
+test toDateTimeat2001_9_9_1_46_40 {
+    expect calendar.toDateTime(1000000000000) is Ok(t);
+    expect t == DateTime(year: 2001, month: 9, day: 9, hour: 1, minute: 46, second: 40, millisecond: 0);
+}
+
+test toDateTimeat1923_7_4_5_6_7_8 {
+    expect calendar.toDateTime(-1467312832992) is Ok(t);
+    expect t == DateTime(year: 1923, month: 7, day: 4, hour: 5, minute: 6, second: 7, millisecond: 8);
+}
+
+test toDateTimeat8000_6_15_12_30_0_500 {
+    expect calendar.toDateTime(190302784200500) is Ok(t);
+    expect t == DateTime(year: 8000, month: 6, day: 15, hour: 12, minute: 30, second: 0, millisecond: 500);
+}
+
+test toDateTimeat0_1_1_0_0_0 {
+    expect calendar.toDateTime(-62167219200000) is Ok(t);
+    expect t == DateTime(year: 0, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat0_2_29_0_0_0 {
+    expect calendar.toDateTime(-62162121600000) is Ok(t);
+    expect t == DateTime(year: 0, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0);
+}
+
+test toDateTimeat0_12_31_23_59_59_999 {
+    expect calendar.toDateTime(-62135596800001) is Ok(t);
+    expect t == DateTime(year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999);
+}
+
+test toDateTimeRefusesBeforeYearZero {
+    expect calendar.toDateTime(-62167219200001) is Err(TimeError.OutOfRange(reason));
+}
+
+test toDateTimeRefusesAfterYear9999 {
+    expect calendar.toDateTime(253402300800000) is Err(TimeError.OutOfRange(reason));
+}
+
+test toDateTimeSweepRoundTripsEveryFourYears {
+    // About every four years and a bit across the whole range, the way back
+    // from a reading is the moment it came from.
+    at: int = -62167219200000;
+    while (at <= 253402300799999) {
+        expect calendar.toDateTime(at) is Ok(t);
+        expect calendar.toMillis(t) is Ok(back);
+        expect back == at;
+        at = at + 126227704231;
+    }
+}
+
+test toMillisat1970_1_1_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == 0;
+}
+
+test toMillisat1969_12_31_23_59_59_999 {
+    expect calendar.toMillis(DateTime(year: 1969, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999)) is Ok(ms);
+    expect ms == -1;
+}
+
+test toMillisat1969_12_31_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 1969, month: 12, day: 31, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == -86400000;
+}
+
+test toMillisat1900_1_1_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == -2208988800000;
+}
+
+test toMillisat1900_2_28_12_0_0 {
+    expect calendar.toMillis(DateTime(year: 1900, month: 2, day: 28, hour: 12, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == -2203934400000;
+}
+
+test toMillisat1900_3_1_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 1900, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == -2203891200000;
+}
+
+test toMillisat2000_2_29_23_59_59_999 {
+    expect calendar.toMillis(DateTime(year: 2000, month: 2, day: 29, hour: 23, minute: 59, second: 59, millisecond: 999)) is Ok(ms);
+    expect ms == 951868799999;
+}
+
+test toMillisat2000_3_1_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 2000, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == 951868800000;
+}
+
+test toMillisat2024_2_29_6_7_8_9 {
+    expect calendar.toMillis(DateTime(year: 2024, month: 2, day: 29, hour: 6, minute: 7, second: 8, millisecond: 9)) is Ok(ms);
+    expect ms == 1709186828009;
+}
+
+test toMillisat2026_11_20_13_59_58 {
+    expect calendar.toMillis(DateTime(year: 2026, month: 11, day: 20, hour: 13, minute: 59, second: 58, millisecond: 0)) is Ok(ms);
+    expect ms == 1795183198000;
+}
+
+test toMillisat2026_12_31_23_59_59_999 {
+    expect calendar.toMillis(DateTime(year: 2026, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999)) is Ok(ms);
+    expect ms == 1798761599999;
+}
+
+test toMillisat2027_1_1_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 2027, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == 1798761600000;
+}
+
+test toMillisat2100_2_28_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 2100, month: 2, day: 28, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == 4107456000000;
+}
+
+test toMillisat2100_3_1_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 2100, month: 3, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == 4107542400000;
+}
+
+test toMillisat2400_2_29_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 2400, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == 13574563200000;
+}
+
+test toMillisat1600_2_29_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 1600, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == -11670998400000;
+}
+
+test toMillisat1582_10_15_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 1582, month: 10, day: 15, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == -12219292800000;
+}
+
+test toMillisat1000_1_1_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 1000, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == -30610224000000;
+}
+
+test toMillisat1_1_1_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == -62135596800000;
+}
+
+test toMillisat9999_12_31_23_59_59_999 {
+    expect calendar.toMillis(DateTime(year: 9999, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999)) is Ok(ms);
+    expect ms == 253402300799999;
+}
+
+test toMillisat2038_1_19_3_14_7 {
+    expect calendar.toMillis(DateTime(year: 2038, month: 1, day: 19, hour: 3, minute: 14, second: 7, millisecond: 0)) is Ok(ms);
+    expect ms == 2147483647000;
+}
+
+test toMillisat2001_9_9_1_46_40 {
+    expect calendar.toMillis(DateTime(year: 2001, month: 9, day: 9, hour: 1, minute: 46, second: 40, millisecond: 0)) is Ok(ms);
+    expect ms == 1000000000000;
+}
+
+test toMillisat1923_7_4_5_6_7_8 {
+    expect calendar.toMillis(DateTime(year: 1923, month: 7, day: 4, hour: 5, minute: 6, second: 7, millisecond: 8)) is Ok(ms);
+    expect ms == -1467312832992;
+}
+
+test toMillisat8000_6_15_12_30_0_500 {
+    expect calendar.toMillis(DateTime(year: 8000, month: 6, day: 15, hour: 12, minute: 30, second: 0, millisecond: 500)) is Ok(ms);
+    expect ms == 190302784200500;
+}
+
+test toMillisat0_1_1_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 0, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == -62167219200000;
+}
+
+test toMillisat0_2_29_0_0_0 {
+    expect calendar.toMillis(DateTime(year: 0, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(ms);
+    expect ms == -62162121600000;
+}
+
+test toMillisat0_12_31_23_59_59_999 {
+    expect calendar.toMillis(DateTime(year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, millisecond: 999)) is Ok(ms);
+    expect ms == -62135596800001;
+}
+
+test toMillisRefusesTheTwentyNinthOfFebruaryInACommonYear {
+    expect calendar.toMillis(DateTime(year: 2026, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0)) is Err(TimeError.Invalid(reason));
+}
+
+test toMillisRefusesTheTwentyNinthOfFebruaryInACenturyYear {
+    expect calendar.toMillis(DateTime(year: 2100, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0)) is Err(TimeError.Invalid(reason));
+}
+
+test toMillisRefusesTheThirtyFirstOfApril {
+    expect calendar.toMillis(DateTime(year: 2026, month: 4, day: 31, hour: 0, minute: 0, second: 0, millisecond: 0)) is Err(TimeError.Invalid(reason));
+}
+
+test toMillisRefusesMonthThirteen {
+    expect calendar.toMillis(DateTime(year: 2026, month: 13, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Err(TimeError.Invalid(reason));
+}
+
+test toMillisRefusesMonthZero {
+    expect calendar.toMillis(DateTime(year: 2026, month: 0, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Err(TimeError.Invalid(reason));
+}
+
+test toMillisRefusesDayZero {
+    expect calendar.toMillis(DateTime(year: 2026, month: 1, day: 0, hour: 0, minute: 0, second: 0, millisecond: 0)) is Err(TimeError.Invalid(reason));
+}
+
+test toMillisRefusesHourTwentyFour {
+    expect calendar.toMillis(DateTime(year: 2026, month: 1, day: 1, hour: 24, minute: 0, second: 0, millisecond: 0)) is Err(TimeError.Invalid(reason));
+}
+
+test toMillisRefusesMinuteSixty {
+    expect calendar.toMillis(DateTime(year: 2026, month: 1, day: 1, hour: 0, minute: 60, second: 0, millisecond: 0)) is Err(TimeError.Invalid(reason));
+}
+
+test toMillisRefusesSecondSixty {
+    expect calendar.toMillis(DateTime(year: 2026, month: 1, day: 1, hour: 0, minute: 0, second: 60, millisecond: 0)) is Err(TimeError.Invalid(reason));
+}
+
+test toMillisRefusesMillisecondAThousand {
+    expect calendar.toMillis(DateTime(year: 2026, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 1000)) is Err(TimeError.Invalid(reason));
+}
+
+test toMillisRefusesANegativeHour {
+    expect calendar.toMillis(DateTime(year: 2026, month: 1, day: 1, hour: -1, minute: 0, second: 0, millisecond: 0)) is Err(TimeError.Invalid(reason));
+}
+
+test toMillisRefusesYearTenThousand {
+    expect calendar.toMillis(DateTime(year: 10000, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Err(TimeError.OutOfRange(reason));
+}
+
+test toMillisRefusesANegativeYear {
+    expect calendar.toMillis(DateTime(year: -1, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0)) is Err(TimeError.OutOfRange(reason));
+}
+
+test toMillisAcceptsTheLeapDaysOfYearsDivisibleBy400 {
+    expect calendar.toMillis(DateTime(year: 2000, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(a);
+    expect calendar.toMillis(DateTime(year: 2400, month: 2, day: 29, hour: 0, minute: 0, second: 0, millisecond: 0)) is Ok(b);
+    expect a == 951782400000;
+    expect b == 13574563200000;
+}
+
+test weekdayat1970_1_1_0_0_0 {
+    expect calendar.weekday(0) == 4;
+}
+
+test weekdayat1969_12_31_23_59_59_999 {
+    expect calendar.weekday(-1) == 3;
+}
+
+test weekdayat1969_12_31_0_0_0 {
+    expect calendar.weekday(-86400000) == 3;
+}
+
+test weekdayat1900_1_1_0_0_0 {
+    expect calendar.weekday(-2208988800000) == 1;
+}
+
+test weekdayat1900_2_28_12_0_0 {
+    expect calendar.weekday(-2203934400000) == 3;
+}
+
+test weekdayat1900_3_1_0_0_0 {
+    expect calendar.weekday(-2203891200000) == 4;
+}
+
+test weekdayat2000_2_29_23_59_59_999 {
+    expect calendar.weekday(951868799999) == 2;
+}
+
+test weekdayat2000_3_1_0_0_0 {
+    expect calendar.weekday(951868800000) == 3;
+}
+
+test weekdayat2024_2_29_6_7_8_9 {
+    expect calendar.weekday(1709186828009) == 4;
+}
+
+test weekdayat2026_11_20_13_59_58 {
+    expect calendar.weekday(1795183198000) == 5;
+}
+
+test weekdayat2026_12_31_23_59_59_999 {
+    expect calendar.weekday(1798761599999) == 4;
+}
+
+test weekdayat2027_1_1_0_0_0 {
+    expect calendar.weekday(1798761600000) == 5;
+}
+
+test weekdayat2100_2_28_0_0_0 {
+    expect calendar.weekday(4107456000000) == 0;
+}
+
+test weekdayat2100_3_1_0_0_0 {
+    expect calendar.weekday(4107542400000) == 1;
+}
+
+test weekdayat2400_2_29_0_0_0 {
+    expect calendar.weekday(13574563200000) == 2;
+}
+
+test weekdayat1600_2_29_0_0_0 {
+    expect calendar.weekday(-11670998400000) == 2;
+}
+
+test weekdayat1582_10_15_0_0_0 {
+    expect calendar.weekday(-12219292800000) == 5;
+}
+
+test weekdayat1000_1_1_0_0_0 {
+    expect calendar.weekday(-30610224000000) == 3;
+}
+
+test weekdayat1_1_1_0_0_0 {
+    expect calendar.weekday(-62135596800000) == 1;
+}
+
+test weekdayat9999_12_31_23_59_59_999 {
+    expect calendar.weekday(253402300799999) == 5;
+}
+
+test weekdayat2038_1_19_3_14_7 {
+    expect calendar.weekday(2147483647000) == 2;
+}
+
+test weekdayat2001_9_9_1_46_40 {
+    expect calendar.weekday(1000000000000) == 0;
+}
+
+test weekdayat1923_7_4_5_6_7_8 {
+    expect calendar.weekday(-1467312832992) == 3;
+}
+
+test weekdayat8000_6_15_12_30_0_500 {
+    expect calendar.weekday(190302784200500) == 4;
+}
+
+test weekdayat0_1_1_0_0_0 {
+    expect calendar.weekday(-62167219200000) == 6;
+}
+
+test weekdayat0_2_29_0_0_0 {
+    expect calendar.weekday(-62162121600000) == 2;
+}
+
+test weekdayat0_12_31_23_59_59_999 {
+    expect calendar.weekday(-62135596800001) == 0;
+}
+
+test formatIsoat1970_1_1_0_0_0 {
+    expect calendar.formatIso(0) is Ok(text);
+    expect text == "1970-01-01T00:00:00.000Z";
+}
+
+test formatIsoat1969_12_31_23_59_59_999 {
+    expect calendar.formatIso(-1) is Ok(text);
+    expect text == "1969-12-31T23:59:59.999Z";
+}
+
+test formatIsoat1969_12_31_0_0_0 {
+    expect calendar.formatIso(-86400000) is Ok(text);
+    expect text == "1969-12-31T00:00:00.000Z";
+}
+
+test formatIsoat1900_1_1_0_0_0 {
+    expect calendar.formatIso(-2208988800000) is Ok(text);
+    expect text == "1900-01-01T00:00:00.000Z";
+}
+
+test formatIsoat1900_2_28_12_0_0 {
+    expect calendar.formatIso(-2203934400000) is Ok(text);
+    expect text == "1900-02-28T12:00:00.000Z";
+}
+
+test formatIsoat1900_3_1_0_0_0 {
+    expect calendar.formatIso(-2203891200000) is Ok(text);
+    expect text == "1900-03-01T00:00:00.000Z";
+}
+
+test formatIsoat2000_2_29_23_59_59_999 {
+    expect calendar.formatIso(951868799999) is Ok(text);
+    expect text == "2000-02-29T23:59:59.999Z";
+}
+
+test formatIsoat2000_3_1_0_0_0 {
+    expect calendar.formatIso(951868800000) is Ok(text);
+    expect text == "2000-03-01T00:00:00.000Z";
+}
+
+test formatIsoat2024_2_29_6_7_8_9 {
+    expect calendar.formatIso(1709186828009) is Ok(text);
+    expect text == "2024-02-29T06:07:08.009Z";
+}
+
+test formatIsoat2026_11_20_13_59_58 {
+    expect calendar.formatIso(1795183198000) is Ok(text);
+    expect text == "2026-11-20T13:59:58.000Z";
+}
+
+test formatIsoat2026_12_31_23_59_59_999 {
+    expect calendar.formatIso(1798761599999) is Ok(text);
+    expect text == "2026-12-31T23:59:59.999Z";
+}
+
+test formatIsoat2027_1_1_0_0_0 {
+    expect calendar.formatIso(1798761600000) is Ok(text);
+    expect text == "2027-01-01T00:00:00.000Z";
+}
+
+test formatIsoat2100_2_28_0_0_0 {
+    expect calendar.formatIso(4107456000000) is Ok(text);
+    expect text == "2100-02-28T00:00:00.000Z";
+}
+
+test formatIsoat2100_3_1_0_0_0 {
+    expect calendar.formatIso(4107542400000) is Ok(text);
+    expect text == "2100-03-01T00:00:00.000Z";
+}
+
+test formatIsoat2400_2_29_0_0_0 {
+    expect calendar.formatIso(13574563200000) is Ok(text);
+    expect text == "2400-02-29T00:00:00.000Z";
+}
+
+test formatIsoat1600_2_29_0_0_0 {
+    expect calendar.formatIso(-11670998400000) is Ok(text);
+    expect text == "1600-02-29T00:00:00.000Z";
+}
+
+test formatIsoat1582_10_15_0_0_0 {
+    expect calendar.formatIso(-12219292800000) is Ok(text);
+    expect text == "1582-10-15T00:00:00.000Z";
+}
+
+test formatIsoat1000_1_1_0_0_0 {
+    expect calendar.formatIso(-30610224000000) is Ok(text);
+    expect text == "1000-01-01T00:00:00.000Z";
+}
+
+test formatIsoat1_1_1_0_0_0 {
+    expect calendar.formatIso(-62135596800000) is Ok(text);
+    expect text == "0001-01-01T00:00:00.000Z";
+}
+
+test formatIsoat9999_12_31_23_59_59_999 {
+    expect calendar.formatIso(253402300799999) is Ok(text);
+    expect text == "9999-12-31T23:59:59.999Z";
+}
+
+test formatIsoat2038_1_19_3_14_7 {
+    expect calendar.formatIso(2147483647000) is Ok(text);
+    expect text == "2038-01-19T03:14:07.000Z";
+}
+
+test formatIsoat2001_9_9_1_46_40 {
+    expect calendar.formatIso(1000000000000) is Ok(text);
+    expect text == "2001-09-09T01:46:40.000Z";
+}
+
+test formatIsoat1923_7_4_5_6_7_8 {
+    expect calendar.formatIso(-1467312832992) is Ok(text);
+    expect text == "1923-07-04T05:06:07.008Z";
+}
+
+test formatIsoat8000_6_15_12_30_0_500 {
+    expect calendar.formatIso(190302784200500) is Ok(text);
+    expect text == "8000-06-15T12:30:00.500Z";
+}
+
+test formatIsoat0_1_1_0_0_0 {
+    expect calendar.formatIso(-62167219200000) is Ok(text);
+    expect text == "0000-01-01T00:00:00.000Z";
+}
+
+test formatIsoat0_2_29_0_0_0 {
+    expect calendar.formatIso(-62162121600000) is Ok(text);
+    expect text == "0000-02-29T00:00:00.000Z";
+}
+
+test formatIsoat0_12_31_23_59_59_999 {
+    expect calendar.formatIso(-62135596800001) is Ok(text);
+    expect text == "0000-12-31T23:59:59.999Z";
+}
+
+test formatIsoRefusesAMomentBeforeYearZero {
+    expect calendar.formatIso(-62167219200001) is Err(TimeError.OutOfRange(reason));
+}
+
+test formatIsoRefusesAMomentAfterYear9999 {
+    expect calendar.formatIso(253402300800000) is Err(TimeError.OutOfRange(reason));
+}
+
+// zeroPad is the group's private helper now (ADR 0151 §6); a year below
+// 1000 is where its padding shows.
+test formatIsoWritesFourDigitsForAnEarlyYear {
+    expect calendar.formatIso(-62135596800000) is Ok(text);
+    expect text == "0001-01-01T00:00:00.000Z";
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1970_1_1_0_0_0 {
+    expect calendar.parseIso("1970-01-01T00:00:00.000Z") is Ok(ms);
+    expect ms == 0;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1969_12_31_23_59_59_999 {
+    expect calendar.parseIso("1969-12-31T23:59:59.999Z") is Ok(ms);
+    expect ms == -1;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1969_12_31_0_0_0 {
+    expect calendar.parseIso("1969-12-31T00:00:00.000Z") is Ok(ms);
+    expect ms == -86400000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1900_1_1_0_0_0 {
+    expect calendar.parseIso("1900-01-01T00:00:00.000Z") is Ok(ms);
+    expect ms == -2208988800000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1900_2_28_12_0_0 {
+    expect calendar.parseIso("1900-02-28T12:00:00.000Z") is Ok(ms);
+    expect ms == -2203934400000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1900_3_1_0_0_0 {
+    expect calendar.parseIso("1900-03-01T00:00:00.000Z") is Ok(ms);
+    expect ms == -2203891200000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2000_2_29_23_59_59_999 {
+    expect calendar.parseIso("2000-02-29T23:59:59.999Z") is Ok(ms);
+    expect ms == 951868799999;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2000_3_1_0_0_0 {
+    expect calendar.parseIso("2000-03-01T00:00:00.000Z") is Ok(ms);
+    expect ms == 951868800000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2024_2_29_6_7_8_9 {
+    expect calendar.parseIso("2024-02-29T06:07:08.009Z") is Ok(ms);
+    expect ms == 1709186828009;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2026_11_20_13_59_58 {
+    expect calendar.parseIso("2026-11-20T13:59:58.000Z") is Ok(ms);
+    expect ms == 1795183198000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2026_12_31_23_59_59_999 {
+    expect calendar.parseIso("2026-12-31T23:59:59.999Z") is Ok(ms);
+    expect ms == 1798761599999;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2027_1_1_0_0_0 {
+    expect calendar.parseIso("2027-01-01T00:00:00.000Z") is Ok(ms);
+    expect ms == 1798761600000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2100_2_28_0_0_0 {
+    expect calendar.parseIso("2100-02-28T00:00:00.000Z") is Ok(ms);
+    expect ms == 4107456000000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2100_3_1_0_0_0 {
+    expect calendar.parseIso("2100-03-01T00:00:00.000Z") is Ok(ms);
+    expect ms == 4107542400000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2400_2_29_0_0_0 {
+    expect calendar.parseIso("2400-02-29T00:00:00.000Z") is Ok(ms);
+    expect ms == 13574563200000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1600_2_29_0_0_0 {
+    expect calendar.parseIso("1600-02-29T00:00:00.000Z") is Ok(ms);
+    expect ms == -11670998400000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1582_10_15_0_0_0 {
+    expect calendar.parseIso("1582-10-15T00:00:00.000Z") is Ok(ms);
+    expect ms == -12219292800000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1000_1_1_0_0_0 {
+    expect calendar.parseIso("1000-01-01T00:00:00.000Z") is Ok(ms);
+    expect ms == -30610224000000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1_1_1_0_0_0 {
+    expect calendar.parseIso("0001-01-01T00:00:00.000Z") is Ok(ms);
+    expect ms == -62135596800000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat9999_12_31_23_59_59_999 {
+    expect calendar.parseIso("9999-12-31T23:59:59.999Z") is Ok(ms);
+    expect ms == 253402300799999;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2038_1_19_3_14_7 {
+    expect calendar.parseIso("2038-01-19T03:14:07.000Z") is Ok(ms);
+    expect ms == 2147483647000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat2001_9_9_1_46_40 {
+    expect calendar.parseIso("2001-09-09T01:46:40.000Z") is Ok(ms);
+    expect ms == 1000000000000;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat1923_7_4_5_6_7_8 {
+    expect calendar.parseIso("1923-07-04T05:06:07.008Z") is Ok(ms);
+    expect ms == -1467312832992;
+}
+
+test parseIsoReadsWhatFormatIsoWritesat8000_6_15_12_30_0_500 {
+    expect calendar.parseIso("8000-06-15T12:30:00.500Z") is Ok(ms);
+    expect ms == 190302784200500;
+}
+
+test parseIsoAnOffsetIsFoldedIntoUtc {
+    expect calendar.parseIso("2026-11-20T15:59:58+02:00") is Ok(ms);
+    expect ms == 1795183198000;
+}
+
+test parseIsoANegativeOffset {
+    expect calendar.parseIso("2026-11-20T08:29:58-05:30") is Ok(ms);
+    expect ms == 1795183198000;
+}
+
+test parseIsoAFractionIsKept {
+    expect calendar.parseIso("2026-11-20T13:59:58.5Z") is Ok(ms);
+    expect ms == 1795183198500;
+}
+
+test parseIsoAFractionPastMillisecondsIsCut {
+    expect calendar.parseIso("2026-11-20T13:59:58.123456789Z") is Ok(ms);
+    expect ms == 1795183198123;
+}
+
+test parseIsoAShortFraction {
+    expect calendar.parseIso("2026-11-20T13:59:58.07Z") is Ok(ms);
+    expect ms == 1795183198070;
+}
+
+test parseIsoLowerCaseTAndZ {
+    expect calendar.parseIso("2026-11-20t13:59:58z") is Ok(ms);
+    expect ms == 1795183198000;
+}
+
+test parseIsoASpaceForTheT {
+    expect calendar.parseIso("2026-11-20 13:59:58Z") is Ok(ms);
+    expect ms == 1795183198000;
+}
+
+test parseIsoAnOffsetAcrossMidnight {
+    expect calendar.parseIso("2026-11-21T01:59:58+12:00") is Ok(ms);
+    expect ms == 1795183198000;
+}
+
+test parseIsoAnOffsetIntoThePreviousYear {
+    expect calendar.parseIso("2027-01-01T00:30:00+01:00") is Ok(ms);
+    expect ms == 1798759800000;
+}
+
+test parseIsoZeroOffset {
+    expect calendar.parseIso("2026-11-20T13:59:58+00:00") is Ok(ms);
+    expect ms == 1795183198000;
+}
+
+test parseIsoRefusesAnEmptyString {
+    expect calendar.parseIso("") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesADateAlone {
+    expect calendar.parseIso("2026-11-20") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesNoZone {
+    expect calendar.parseIso("2026-11-20T13:59:58") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesAZoneWithoutAColon {
+    expect calendar.parseIso("2026-11-20T13:59:58+0200") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesAWordForAZone {
+    expect calendar.parseIso("2026-11-20T13:59:58UTC") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesALeapSecond {
+    expect calendar.parseIso("2016-12-31T23:59:60Z") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesADayThatDoesNotExist {
+    expect calendar.parseIso("2026-02-29T00:00:00Z") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesAMonthThatDoesNotExist {
+    expect calendar.parseIso("2026-13-01T00:00:00Z") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesASignInAField {
+    expect calendar.parseIso("2026-11-+0T13:59:58Z") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesALetterInAField {
+    expect calendar.parseIso("2026-1a-20T13:59:58Z") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesAFractionWithNoDigits {
+    expect calendar.parseIso("2026-11-20T13:59:58.Z") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesAWrongSeparator {
+    expect calendar.parseIso("2026/11/20T13:59:58Z") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesAnOffsetHourOfTwentyFour {
+    expect calendar.parseIso("2026-11-20T13:59:58+24:00") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesAnOffsetMinuteOfSixty {
+    expect calendar.parseIso("2026-11-20T13:59:58+01:60") is Err(TimeError.Invalid(reason));
+}
+
+test parseIsoRefusesAnOffsetThatLeavesTheRange {
+    expect calendar.parseIso("0000-01-01T00:00:00+05:00") is Err(TimeError.OutOfRange(reason));
+}
+
+test parseIsoNeverRepeatsTheText {
+    expect calendar.parseIso("secret-9999") is Err(TimeError.Invalid(reason));
+    expect reason.contains("secret") == false;
+}
+
+test formatHttpat1970_1_1_0_0_0 {
+    expect calendar.formatHttp(0) is Ok(text);
+    expect text == "Thu, 01 Jan 1970 00:00:00 GMT";
+}
+
+test formatHttpat1969_12_31_23_59_59_999 {
+    expect calendar.formatHttp(-1) is Ok(text);
+    expect text == "Wed, 31 Dec 1969 23:59:59 GMT";
+}
+
+test formatHttpat1969_12_31_0_0_0 {
+    expect calendar.formatHttp(-86400000) is Ok(text);
+    expect text == "Wed, 31 Dec 1969 00:00:00 GMT";
+}
+
+test formatHttpat1900_1_1_0_0_0 {
+    expect calendar.formatHttp(-2208988800000) is Ok(text);
+    expect text == "Mon, 01 Jan 1900 00:00:00 GMT";
+}
+
+test formatHttpat1900_2_28_12_0_0 {
+    expect calendar.formatHttp(-2203934400000) is Ok(text);
+    expect text == "Wed, 28 Feb 1900 12:00:00 GMT";
+}
+
+test formatHttpat1900_3_1_0_0_0 {
+    expect calendar.formatHttp(-2203891200000) is Ok(text);
+    expect text == "Thu, 01 Mar 1900 00:00:00 GMT";
+}
+
+test formatHttpat2000_2_29_23_59_59_999 {
+    expect calendar.formatHttp(951868799999) is Ok(text);
+    expect text == "Tue, 29 Feb 2000 23:59:59 GMT";
+}
+
+test formatHttpat2000_3_1_0_0_0 {
+    expect calendar.formatHttp(951868800000) is Ok(text);
+    expect text == "Wed, 01 Mar 2000 00:00:00 GMT";
+}
+
+test formatHttpat2024_2_29_6_7_8_9 {
+    expect calendar.formatHttp(1709186828009) is Ok(text);
+    expect text == "Thu, 29 Feb 2024 06:07:08 GMT";
+}
+
+test formatHttpat2026_11_20_13_59_58 {
+    expect calendar.formatHttp(1795183198000) is Ok(text);
+    expect text == "Fri, 20 Nov 2026 13:59:58 GMT";
+}
+
+test formatHttpat2026_12_31_23_59_59_999 {
+    expect calendar.formatHttp(1798761599999) is Ok(text);
+    expect text == "Thu, 31 Dec 2026 23:59:59 GMT";
+}
+
+test formatHttpat2027_1_1_0_0_0 {
+    expect calendar.formatHttp(1798761600000) is Ok(text);
+    expect text == "Fri, 01 Jan 2027 00:00:00 GMT";
+}
+
+test formatHttpat2100_2_28_0_0_0 {
+    expect calendar.formatHttp(4107456000000) is Ok(text);
+    expect text == "Sun, 28 Feb 2100 00:00:00 GMT";
+}
+
+test formatHttpat2100_3_1_0_0_0 {
+    expect calendar.formatHttp(4107542400000) is Ok(text);
+    expect text == "Mon, 01 Mar 2100 00:00:00 GMT";
+}
+
+test formatHttpat2400_2_29_0_0_0 {
+    expect calendar.formatHttp(13574563200000) is Ok(text);
+    expect text == "Tue, 29 Feb 2400 00:00:00 GMT";
+}
+
+test formatHttpat1600_2_29_0_0_0 {
+    expect calendar.formatHttp(-11670998400000) is Ok(text);
+    expect text == "Tue, 29 Feb 1600 00:00:00 GMT";
+}
+
+test formatHttpat1582_10_15_0_0_0 {
+    expect calendar.formatHttp(-12219292800000) is Ok(text);
+    expect text == "Fri, 15 Oct 1582 00:00:00 GMT";
+}
+
+test formatHttpat1000_1_1_0_0_0 {
+    expect calendar.formatHttp(-30610224000000) is Ok(text);
+    expect text == "Wed, 01 Jan 1000 00:00:00 GMT";
+}
+
+test formatHttpat1_1_1_0_0_0 {
+    expect calendar.formatHttp(-62135596800000) is Ok(text);
+    expect text == "Mon, 01 Jan 0001 00:00:00 GMT";
+}
+
+test formatHttpat9999_12_31_23_59_59_999 {
+    expect calendar.formatHttp(253402300799999) is Ok(text);
+    expect text == "Fri, 31 Dec 9999 23:59:59 GMT";
+}
+
+test formatHttpat2038_1_19_3_14_7 {
+    expect calendar.formatHttp(2147483647000) is Ok(text);
+    expect text == "Tue, 19 Jan 2038 03:14:07 GMT";
+}
+
+test formatHttpat2001_9_9_1_46_40 {
+    expect calendar.formatHttp(1000000000000) is Ok(text);
+    expect text == "Sun, 09 Sep 2001 01:46:40 GMT";
+}
+
+test formatHttpat1923_7_4_5_6_7_8 {
+    expect calendar.formatHttp(-1467312832992) is Ok(text);
+    expect text == "Wed, 04 Jul 1923 05:06:07 GMT";
+}
+
+test formatHttpat8000_6_15_12_30_0_500 {
+    expect calendar.formatHttp(190302784200500) is Ok(text);
+    expect text == "Thu, 15 Jun 8000 12:30:00 GMT";
+}
+
+test formatHttpat0_1_1_0_0_0 {
+    expect calendar.formatHttp(-62167219200000) is Ok(text);
+    expect text == "Sat, 01 Jan 0000 00:00:00 GMT";
+}
+
+test formatHttpat0_2_29_0_0_0 {
+    expect calendar.formatHttp(-62162121600000) is Ok(text);
+    expect text == "Tue, 29 Feb 0000 00:00:00 GMT";
+}
+
+test formatHttpat0_12_31_23_59_59_999 {
+    expect calendar.formatHttp(-62135596800001) is Ok(text);
+    expect text == "Sun, 31 Dec 0000 23:59:59 GMT";
+}
+
+test formatHttpRefusesAMomentBeforeYearZero {
+    expect calendar.formatHttp(-62167219200001) is Err(TimeError.OutOfRange(reason));
+}
+
+test formatHttpRefusesAMomentAfterYear9999 {
+    expect calendar.formatHttp(253402300800000) is Err(TimeError.OutOfRange(reason));
+}
+
+test formatRfc5322at1970_1_1_0_0_0 {
+    expect calendar.formatRfc5322(0) is Ok(text);
+    expect text == "Thu, 1 Jan 1970 00:00:00 +0000";
+}
+
+test formatRfc5322at1969_12_31_23_59_59_999 {
+    expect calendar.formatRfc5322(-1) is Ok(text);
+    expect text == "Wed, 31 Dec 1969 23:59:59 +0000";
+}
+
+test formatRfc5322at1969_12_31_0_0_0 {
+    expect calendar.formatRfc5322(-86400000) is Ok(text);
+    expect text == "Wed, 31 Dec 1969 00:00:00 +0000";
+}
+
+test formatRfc5322at1900_1_1_0_0_0 {
+    expect calendar.formatRfc5322(-2208988800000) is Ok(text);
+    expect text == "Mon, 1 Jan 1900 00:00:00 +0000";
+}
+
+test formatRfc5322at1900_2_28_12_0_0 {
+    expect calendar.formatRfc5322(-2203934400000) is Ok(text);
+    expect text == "Wed, 28 Feb 1900 12:00:00 +0000";
+}
+
+test formatRfc5322at1900_3_1_0_0_0 {
+    expect calendar.formatRfc5322(-2203891200000) is Ok(text);
+    expect text == "Thu, 1 Mar 1900 00:00:00 +0000";
+}
+
+test formatRfc5322at2000_2_29_23_59_59_999 {
+    expect calendar.formatRfc5322(951868799999) is Ok(text);
+    expect text == "Tue, 29 Feb 2000 23:59:59 +0000";
+}
+
+test formatRfc5322at2000_3_1_0_0_0 {
+    expect calendar.formatRfc5322(951868800000) is Ok(text);
+    expect text == "Wed, 1 Mar 2000 00:00:00 +0000";
+}
+
+test formatRfc5322at2024_2_29_6_7_8_9 {
+    expect calendar.formatRfc5322(1709186828009) is Ok(text);
+    expect text == "Thu, 29 Feb 2024 06:07:08 +0000";
+}
+
+test formatRfc5322at2026_11_20_13_59_58 {
+    expect calendar.formatRfc5322(1795183198000) is Ok(text);
+    expect text == "Fri, 20 Nov 2026 13:59:58 +0000";
+}
+
+test formatRfc5322at2026_12_31_23_59_59_999 {
+    expect calendar.formatRfc5322(1798761599999) is Ok(text);
+    expect text == "Thu, 31 Dec 2026 23:59:59 +0000";
+}
+
+test formatRfc5322at2027_1_1_0_0_0 {
+    expect calendar.formatRfc5322(1798761600000) is Ok(text);
+    expect text == "Fri, 1 Jan 2027 00:00:00 +0000";
+}
+
+test formatRfc5322at2100_2_28_0_0_0 {
+    expect calendar.formatRfc5322(4107456000000) is Ok(text);
+    expect text == "Sun, 28 Feb 2100 00:00:00 +0000";
+}
+
+test formatRfc5322at2100_3_1_0_0_0 {
+    expect calendar.formatRfc5322(4107542400000) is Ok(text);
+    expect text == "Mon, 1 Mar 2100 00:00:00 +0000";
+}
+
+test formatRfc5322at2400_2_29_0_0_0 {
+    expect calendar.formatRfc5322(13574563200000) is Ok(text);
+    expect text == "Tue, 29 Feb 2400 00:00:00 +0000";
+}
+
+test formatRfc5322at1600_2_29_0_0_0 {
+    expect calendar.formatRfc5322(-11670998400000) is Ok(text);
+    expect text == "Tue, 29 Feb 1600 00:00:00 +0000";
+}
+
+test formatRfc5322at1582_10_15_0_0_0 {
+    expect calendar.formatRfc5322(-12219292800000) is Ok(text);
+    expect text == "Fri, 15 Oct 1582 00:00:00 +0000";
+}
+
+test formatRfc5322at1000_1_1_0_0_0 {
+    expect calendar.formatRfc5322(-30610224000000) is Ok(text);
+    expect text == "Wed, 1 Jan 1000 00:00:00 +0000";
+}
+
+test formatRfc5322at1_1_1_0_0_0 {
+    expect calendar.formatRfc5322(-62135596800000) is Ok(text);
+    expect text == "Mon, 1 Jan 0001 00:00:00 +0000";
+}
+
+test formatRfc5322at9999_12_31_23_59_59_999 {
+    expect calendar.formatRfc5322(253402300799999) is Ok(text);
+    expect text == "Fri, 31 Dec 9999 23:59:59 +0000";
+}
+
+test formatRfc5322at2038_1_19_3_14_7 {
+    expect calendar.formatRfc5322(2147483647000) is Ok(text);
+    expect text == "Tue, 19 Jan 2038 03:14:07 +0000";
+}
+
+test formatRfc5322at2001_9_9_1_46_40 {
+    expect calendar.formatRfc5322(1000000000000) is Ok(text);
+    expect text == "Sun, 9 Sep 2001 01:46:40 +0000";
+}
+
+test formatRfc5322at1923_7_4_5_6_7_8 {
+    expect calendar.formatRfc5322(-1467312832992) is Ok(text);
+    expect text == "Wed, 4 Jul 1923 05:06:07 +0000";
+}
+
+test formatRfc5322at8000_6_15_12_30_0_500 {
+    expect calendar.formatRfc5322(190302784200500) is Ok(text);
+    expect text == "Thu, 15 Jun 8000 12:30:00 +0000";
+}
+
+test formatRfc5322at0_1_1_0_0_0 {
+    expect calendar.formatRfc5322(-62167219200000) is Ok(text);
+    expect text == "Sat, 1 Jan 0000 00:00:00 +0000";
+}
+
+test formatRfc5322at0_2_29_0_0_0 {
+    expect calendar.formatRfc5322(-62162121600000) is Ok(text);
+    expect text == "Tue, 29 Feb 0000 00:00:00 +0000";
+}
+
+test formatRfc5322at0_12_31_23_59_59_999 {
+    expect calendar.formatRfc5322(-62135596800001) is Ok(text);
+    expect text == "Sun, 31 Dec 0000 23:59:59 +0000";
+}
+
+test formatRfc5322RefusesAMomentBeforeYearZero {
+    expect calendar.formatRfc5322(-62167219200001) is Err(TimeError.OutOfRange(reason));
+}
+
+test formatRfc5322RefusesAMomentAfterYear9999 {
+    expect calendar.formatRfc5322(253402300800000) is Err(TimeError.OutOfRange(reason));
+}
+
+test formatBasicat1970_1_1_0_0_0 {
+    expect calendar.formatBasic(0) is Ok(text);
+    expect text == "19700101T000000Z";
+}
+
+test formatBasicat1969_12_31_23_59_59_999 {
+    expect calendar.formatBasic(-1) is Ok(text);
+    expect text == "19691231T235959Z";
+}
+
+test formatBasicat1969_12_31_0_0_0 {
+    expect calendar.formatBasic(-86400000) is Ok(text);
+    expect text == "19691231T000000Z";
+}
+
+test formatBasicat1900_1_1_0_0_0 {
+    expect calendar.formatBasic(-2208988800000) is Ok(text);
+    expect text == "19000101T000000Z";
+}
+
+test formatBasicat1900_2_28_12_0_0 {
+    expect calendar.formatBasic(-2203934400000) is Ok(text);
+    expect text == "19000228T120000Z";
+}
+
+test formatBasicat1900_3_1_0_0_0 {
+    expect calendar.formatBasic(-2203891200000) is Ok(text);
+    expect text == "19000301T000000Z";
+}
+
+test formatBasicat2000_2_29_23_59_59_999 {
+    expect calendar.formatBasic(951868799999) is Ok(text);
+    expect text == "20000229T235959Z";
+}
+
+test formatBasicat2000_3_1_0_0_0 {
+    expect calendar.formatBasic(951868800000) is Ok(text);
+    expect text == "20000301T000000Z";
+}
+
+test formatBasicat2024_2_29_6_7_8_9 {
+    expect calendar.formatBasic(1709186828009) is Ok(text);
+    expect text == "20240229T060708Z";
+}
+
+test formatBasicat2026_11_20_13_59_58 {
+    expect calendar.formatBasic(1795183198000) is Ok(text);
+    expect text == "20261120T135958Z";
+}
+
+test formatBasicat2026_12_31_23_59_59_999 {
+    expect calendar.formatBasic(1798761599999) is Ok(text);
+    expect text == "20261231T235959Z";
+}
+
+test formatBasicat2027_1_1_0_0_0 {
+    expect calendar.formatBasic(1798761600000) is Ok(text);
+    expect text == "20270101T000000Z";
+}
+
+test formatBasicat2100_2_28_0_0_0 {
+    expect calendar.formatBasic(4107456000000) is Ok(text);
+    expect text == "21000228T000000Z";
+}
+
+test formatBasicat2100_3_1_0_0_0 {
+    expect calendar.formatBasic(4107542400000) is Ok(text);
+    expect text == "21000301T000000Z";
+}
+
+test formatBasicat2400_2_29_0_0_0 {
+    expect calendar.formatBasic(13574563200000) is Ok(text);
+    expect text == "24000229T000000Z";
+}
+
+test formatBasicat1600_2_29_0_0_0 {
+    expect calendar.formatBasic(-11670998400000) is Ok(text);
+    expect text == "16000229T000000Z";
+}
+
+test formatBasicat1582_10_15_0_0_0 {
+    expect calendar.formatBasic(-12219292800000) is Ok(text);
+    expect text == "15821015T000000Z";
+}
+
+test formatBasicat1000_1_1_0_0_0 {
+    expect calendar.formatBasic(-30610224000000) is Ok(text);
+    expect text == "10000101T000000Z";
+}
+
+test formatBasicat1_1_1_0_0_0 {
+    expect calendar.formatBasic(-62135596800000) is Ok(text);
+    expect text == "00010101T000000Z";
+}
+
+test formatBasicat9999_12_31_23_59_59_999 {
+    expect calendar.formatBasic(253402300799999) is Ok(text);
+    expect text == "99991231T235959Z";
+}
+
+test formatBasicat2038_1_19_3_14_7 {
+    expect calendar.formatBasic(2147483647000) is Ok(text);
+    expect text == "20380119T031407Z";
+}
+
+test formatBasicat2001_9_9_1_46_40 {
+    expect calendar.formatBasic(1000000000000) is Ok(text);
+    expect text == "20010909T014640Z";
+}
+
+test formatBasicat1923_7_4_5_6_7_8 {
+    expect calendar.formatBasic(-1467312832992) is Ok(text);
+    expect text == "19230704T050607Z";
+}
+
+test formatBasicat8000_6_15_12_30_0_500 {
+    expect calendar.formatBasic(190302784200500) is Ok(text);
+    expect text == "80000615T123000Z";
+}
+
+test formatBasicat0_1_1_0_0_0 {
+    expect calendar.formatBasic(-62167219200000) is Ok(text);
+    expect text == "00000101T000000Z";
+}
+
+test formatBasicat0_2_29_0_0_0 {
+    expect calendar.formatBasic(-62162121600000) is Ok(text);
+    expect text == "00000229T000000Z";
+}
+
+test formatBasicat0_12_31_23_59_59_999 {
+    expect calendar.formatBasic(-62135596800001) is Ok(text);
+    expect text == "00001231T235959Z";
+}
+
+test formatBasicRefusesAMomentBeforeYearZero {
+    expect calendar.formatBasic(-62167219200001) is Err(TimeError.OutOfRange(reason));
+}
+
+test formatBasicRefusesAMomentAfterYear9999 {
+    expect calendar.formatBasic(253402300800000) is Err(TimeError.OutOfRange(reason));
+}
