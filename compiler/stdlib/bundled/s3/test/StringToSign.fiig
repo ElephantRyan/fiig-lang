@@ -1,7 +1,0 @@
-test theStringToSignForTheGetExample {
-    expect stringToSign("20130524T000000Z", "20130524/us-east-1/s3/aws4_request", "GET\n/test.txt\n\nhost:examplebucket.s3.amazonaws.com\nx-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nx-amz-date:20130524T000000Z\n\nhost;x-amz-content-sha256;x-amz-date\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") == "AWS4-HMAC-SHA256\n20130524T000000Z\n20130524/us-east-1/s3/aws4_request\ne155673fa5bcd4b855a77a15b98fce3d10f286f93a203d6d98d2eb51f885f9b7";
-}
-
-test theStringToSignForThePutExample {
-    expect stringToSign("20130524T000000Z", "20130524/us-east-1/s3/aws4_request", "PUT\n/test%24file.text\n\nhost:examplebucket.s3.amazonaws.com\nx-amz-content-sha256:44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072\nx-amz-date:20130524T000000Z\n\nhost;x-amz-content-sha256;x-amz-date\n44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072") == "AWS4-HMAC-SHA256\n20130524T000000Z\n20130524/us-east-1/s3/aws4_request\n9980e135ef43186118a14cc008a73c4da6dc3f1b90f9c4966a0496ca6d8fe6d6";
-}

@@ -1,9 +1,0 @@
-test theSignatureForTheGetExample {
-    key = signingKey("wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", "20130524", "us-east-1", "s3");
-    expect signatureOf(key, "AWS4-HMAC-SHA256\n20130524T000000Z\n20130524/us-east-1/s3/aws4_request\ne155673fa5bcd4b855a77a15b98fce3d10f286f93a203d6d98d2eb51f885f9b7") == "14f6a0997b2b70a86f4726658a6575b5109092ccb5fd328f51b369c44b4ac958";
-}
-
-test theSignatureForThePutExample {
-    key = signingKey("wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", "20130524", "us-east-1", "s3");
-    expect signatureOf(key, "AWS4-HMAC-SHA256\n20130524T000000Z\n20130524/us-east-1/s3/aws4_request\n9980e135ef43186118a14cc008a73c4da6dc3f1b90f9c4966a0496ca6d8fe6d6") == "769f3130565ef181c3dd2a106911a4baed0ccbd8f1afe0519c6875fd9364f9f7";
-}

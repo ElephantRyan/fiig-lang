@@ -1,0 +1,306 @@
+use fiig.http;
+use fiig.time.calendar;
+use fiig.http.syntax;
+use com.degeneratedevelopment.s3.objects;
+use com.degeneratedevelopment.s3.sigV4;
+
+// AWS Signature Version 4, as S3 takes it: the canonical request, the
+// string to sign, the signing key, and a request signed in its headers or
+// in a presigned URL (ADR 0121). AWS signs every service this way, so this
+// group is kept apart from what is S3's own.
+formulas sigV4 {
+    // The headers a request is signed over, as SigV4 canonicalises them: the
+    // ones every request signs (host, x-amz-content-sha256, x-amz-date and, with
+    // a session token, x-amz-security-token) and an operation's own (a
+    // checksum, metadata, a copy source, a range), each name in lower case and
+    // each value trimmed with its runs of spaces made one, sorted by name. Two
+    // of one name are refused, since a server joins them into one value the
+    // signature didn't cover.
+    formula canonicalHeaders(
+        host: string,
+        payloadHash: string,
+        stamp: string,
+        token: string,
+        extra: List<http.Header>)
+            -> Result<List<http.Header>, S3Error> {
+        byName: Map<string, string> = ["host": host, "x-amz-content-sha256": payloadHash, "x-amz-date": stamp];
+        if (token != "") {
+            byName = byName.put("x-amz-security-token", token);
+        }
+
+        for (header in extra) {
+            name = header.name.lowercase();
+            if (byName.containsKey(name)) {
+                return Err(
+                    S3Error.InvalidRequest(reason: "a request can't sign two ${name} headers")
+                );
+            }
+
+            byName = byName.put(name, header.value);
+        }
+
+        headers: List<http.Header> = [];
+        for (name in byName.keys().sorted()) {
+            headers = append(
+                headers,
+                http.Header(name: name, value: canonicalValue(byName.at(name)))
+            );
+        }
+
+        return Ok(headers);
+    }
+
+    // SigV4's canonical request for a request that signs only what every one
+    // does: the headers host, x-amz-content-sha256, x-amz-date and, with a
+    // session token, x-amz-security-token, in that order, which is
+    // alphabetical. An operation with headers of its own (a checksum, metadata,
+    // a copy source, a range) goes through canonicalHeaders and
+    // canonicalRequestOf, as signedRequest does.
+    formula canonicalRequest(
+        method: string,
+        path: string,
+        host: string,
+        payloadHash: string,
+        stamp: string,
+        token: string)
+            -> string {
+        headers: List<http.Header> = [
+            http.Header(name: "host", value: host),
+            http.Header(name: "x-amz-content-sha256", value: payloadHash),
+            http.Header(name: "x-amz-date", value: stamp)
+        ];
+        if (token != "") {
+            headers = append(headers, http.Header(name: "x-amz-security-token", value: token));
+        }
+
+        return canonicalRequestOf(method, path, headers, payloadHash);
+    }
+
+    // The signature: the string to sign, keyed by the signing key, in hex.
+    formula signatureOf(key: bytes, toSign: string) -> string {
+        return crypto.hmacSha256(key, toSign.utf8()).toHex();
+    }
+
+    // The names of canonicalHeaders' headers, in their order, joined by
+    // semicolons: the SignedHeaders of the Authorization header.
+    formula signedHeaderList(headers: List<http.Header>) -> string {
+        names: List<string> = [];
+        for (header in headers) {
+            names = append(names, header.name);
+        }
+
+        return names.join(";");
+    }
+
+    // The names of the headers a request is signed over, in the order they
+    // appear in the canonical request: lower case and sorted, joined by
+    // semicolons. A session token adds one.
+    formula signedHeaderNames(token: string) -> string {
+        if (token != "") {
+            return "host;x-amz-content-sha256;x-amz-date;x-amz-security-token";
+        }
+
+        return "host;x-amz-content-sha256;x-amz-date";
+    }
+
+    // SigV4's signing key: the secret keys an HMAC of the day, whose result keys
+    // one of the region, then the service, then the literal `aws4_request`. The
+    // secret is a string here because the gateway revealed it to get this far;
+    // what leaves is a key valid for one day, region and service.
+    formula signingKey(secret: string, day: string, region: string, service: string) -> bytes {
+        seed: bytes = <<"AWS4": utf8, secret: utf8>>;
+        dayKey = crypto.hmacSha256(seed, day.utf8());
+        regionKey = crypto.hmacSha256(dayKey, region.utf8());
+        serviceKey = crypto.hmacSha256(regionKey, service.utf8());
+        return crypto.hmacSha256(serviceKey, "aws4_request".utf8());
+    }
+
+    // SigV4's string to sign: the algorithm, the timestamp, the credential scope,
+    // and the SHA-256 of the canonical request in hex, a line each.
+    formula stringToSign(stamp: string, scope: string, canonical: string) -> string {
+        digest = crypto.sha256(canonical.utf8()).toHex();
+        return "AWS4-HMAC-SHA256\n${stamp}\n${scope}\n${digest}";
+    }
+
+    // An operation as a signed HTTP request (ADR 0121 §3): AWS Signature
+    // Version 4 over the headers host, x-amz-content-sha256 and x-amz-date (and
+    // x-amz-security-token with temporary credentials) and every header the
+    // call adds, sent in the Authorization header. millis is the signing time, Unix milliseconds. The
+    // body's SHA-256 is signed, so a body altered in transit fails the check.
+    formula signedRequest(call: S3Call, account: S3Account, millis: int)
+            -> Result<http.Request, S3Error> {
+        verb = verbOf(call.method)?;
+        endpoint = objects.parseS3Endpoint(account.endpoint)?;
+        target = objects.objectTarget(endpoint, call.bucket, call.key, account.pathStyle)?;
+        stamp = mapErr(e in calendar.formatBasic(millis)):
+                S3Error.InvalidRequest(
+                    reason: "the signing time is outside the years 0000 to 9999"
+                )?;
+        day = stamp.slice(0, 8);
+        payload = crypto.sha256(call.body).toHex();
+        signed = canonicalHeaders(target.host, payload, stamp, account.token, call.headers)?;
+        canonical = canonicalRequestOf(call.method, target.path, signed, payload);
+        scope = "${day}/${account.region}/s3/aws4_request";
+        key = signingKey(account.secret, day, account.region, "s3");
+        signature = signatureOf(key, stringToSign(stamp, scope, canonical));
+        credential = "Credential=${account.accessKeyId}/${scope}";
+        authorization = "AWS4-HMAC-SHA256 ${credential}, SignedHeaders=${signedHeaderList(signed)}, Signature=${signature}";
+        headers: List<http.Header> = [
+            http.Header(name: "x-amz-content-sha256", value: payload),
+            http.Header(name: "x-amz-date", value: stamp),
+            http.Header(name: "Authorization", value: authorization)
+        ];
+        if (account.token != "") {
+            headers = append(
+                headers,
+                http.Header(name: "x-amz-security-token", value: account.token)
+            );
+        }
+
+        for (header in call.headers) {
+            headers = append(headers, header);
+        }
+
+        if (call.contentType != "") {
+            headers = append(headers, http.Header(name: "Content-Type", value: call.contentType));
+        }
+
+        return Ok(
+            http.Request(
+                method: verb,
+                url: target.url,
+                headers: headers,
+                body: call.body,
+                timeoutMillis: account.timeoutMillis
+            )
+        );
+    }
+
+    // A presigned URL (ADR 0121 §5, amended 2026-11-21): SigV4 with the
+    // signature in the query string instead of the Authorization header, so
+    // whoever holds the URL can make the one request it names until it expires,
+    // with no keys of their own. Only `host` is signed and the payload is
+    // `UNSIGNED-PAYLOAD`, since the body isn't known when the URL is made; a
+    // session token rides in X-Amz-Security-Token and is signed too. The query's
+    // names are written in SigV4's sorted order, so no general canonicaliser is
+    // needed. millis is the signing time, Unix milliseconds; expiresSeconds is 1
+    // to 604800 (seven days), S3's own bounds.
+    formula presignedUrl(
+        method: string,
+        bucket: string,
+        key: string,
+        expiresSeconds: int,
+        account: S3Account,
+        millis: int)
+            -> Result<string, S3Error> {
+        if (method != "GET" && method != "PUT" && method != "HEAD" && method != "DELETE") {
+            return Err(
+                S3Error.InvalidRequest(reason: "S3 operations are GET, PUT, HEAD and DELETE")
+            );
+        }
+
+        if (expiresSeconds < 1 || expiresSeconds > 604800) {
+            return Err(
+                S3Error.InvalidRequest(
+                    reason: "a presigned URL expires in 1 to 604800 seconds (seven days)"
+                )
+            );
+        }
+
+        endpoint = objects.parseS3Endpoint(account.endpoint)?;
+        target = objects.objectTarget(endpoint, bucket, key, account.pathStyle)?;
+        stamp = mapErr(e in calendar.formatBasic(millis)):
+                S3Error.InvalidRequest(
+                    reason: "the signing time is outside the years 0000 to 9999"
+                )?;
+        day = stamp.slice(0, 8);
+        scope = "${day}/${account.region}/s3/aws4_request";
+        fields: List<http.Header> = [
+            http.Header(name: "X-Amz-Algorithm", value: "AWS4-HMAC-SHA256"),
+            http.Header(name: "X-Amz-Credential", value: "${account.accessKeyId}/${scope}"),
+            http.Header(name: "X-Amz-Date", value: stamp),
+            http.Header(name: "X-Amz-Expires", value: "${expiresSeconds}")
+        ];
+        if (account.token != "") {
+            fields = append(
+                fields,
+                http.Header(name: "X-Amz-Security-Token", value: account.token)
+            );
+        }
+
+        fields = append(fields, http.Header(name: "X-Amz-SignedHeaders", value: "host"));
+        pairs: List<string> = [];
+        for (field in fields) {
+            pairs = append(pairs, "${field.name}=${queryValue(field.value)}");
+        }
+
+        query = pairs.join("&");
+        canonical = "${method}\n${target.path}\n${query}\nhost:${target.host}\n\nhost\nUNSIGNED-PAYLOAD";
+        signature = signatureOf(
+            signingKey(account.secret, day, account.region, "s3"),
+            stringToSign(stamp, scope, canonical)
+        );
+        return Ok("${target.url}?${query}&X-Amz-Signature=${signature}");
+    }
+}
+
+private {
+    canonicalValue(value: string) -> string {
+        out: string = value.trim();
+        while (out.contains("  ")) {
+            out = out.replaceAll("  ", " ");
+        }
+
+        return out;
+    }
+
+    // SigV4's canonical request over headers canonicalHeaders made: the method,
+    // the path as sent, no query string, a line per header, the names they are
+    // signed under, and the body's SHA-256 in hex. path is already
+    // percent-encoded once, which is how S3 wants it (it never encodes twice).
+    canonicalRequestOf(
+        method: string,
+        path: string,
+        headers: List<http.Header>,
+        payloadHash: string)
+            -> string {
+        lines: List<string> = [];
+        for (header in headers) {
+            lines = append(lines, "${header.name}:${header.value}");
+        }
+
+        text = lines.join("\n");
+        return "${method}\n${path}\n\n${text}\n\n${sigV4.signedHeaderList(headers)}\n${payloadHash}";
+    }
+
+    verbOf(method: string) -> Result<http.Method, S3Error> {
+        if (method == "GET") {
+            return Ok(http.Method.Get);
+        }
+
+        if (method == "PUT") {
+            return Ok(http.Method.Put);
+        }
+
+        if (method == "HEAD") {
+            return Ok(http.Method.Head);
+        }
+
+        if (method == "DELETE") {
+            return Ok(http.Method.Delete);
+        }
+
+        return Err(S3Error.InvalidRequest(reason: "S3 operations are GET, PUT, HEAD and DELETE"));
+    }
+
+    // A query value as SigV4 encodes it: every byte but RFC 3986's
+    // unreserved characters is %XX, `/` included, which is what
+    // syntax.pathSegment does; the empty, `.` and `..` values it refuses are
+    // already their own encoding.
+    queryValue(text: string) -> string {
+        return match (syntax.pathSegment(text)) {
+            None -> text,
+            encoded -> encoded
+        }
+    }
+}

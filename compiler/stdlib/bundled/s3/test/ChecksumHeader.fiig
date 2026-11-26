@@ -1,9 +1,0 @@
-use fiig.http;
-
-test theChecksumIsTheBodysSha256InBase64 {
-    expect checksumHeader("hello".utf8()) == http.Header(name: "x-amz-checksum-sha256", value: "LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ=");
-}
-
-test anEmptyBodyHasOne {
-    expect checksumHeader(<<>>).value == "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=";
-}

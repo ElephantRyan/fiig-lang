@@ -1,0 +1,18 @@
+{
+  "toolchain": "dev",
+  "dependencies": [
+    {
+      "path": "fiig.http",
+      "version": "1.0.0",
+      "source": "builtin:http",
+      "capabilities": [
+        "Socket"
+      ]
+    },
+    {
+      "path": "fiig.time",
+      "version": "1.0.0",
+      "source": "builtin:time"
+    }
+  ]
+}

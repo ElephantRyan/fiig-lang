@@ -1,5 +1,7 @@
 use fiig.http;
 use fiig.http.HttpClient;
+use com.degeneratedevelopment.s3.objects;
+use com.degeneratedevelopment.s3.sigV4;
 
 // ADR 0121: an S3-compatible object store, written in fiig over fiig.http.
 // Each operation signs its request (AWS Signature Version 4), sends it with
@@ -39,11 +41,11 @@ capability S3 {
             key: key,
             body: body,
             contentType: contentType,
-            headers: [checksumHeader(body)]
+            headers: [objects.checksumHeader(body)]
         );
-        request = signedRequest(call, account, Clock.now())?;
+        request = sigV4.signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
-        return putResult(reply);
+        return objects.putResult(reply);
     }
 
     gateway get(bucket: string, key: string) -> Result<bytes, S3Error> requires HttpClient {
@@ -72,9 +74,9 @@ capability S3 {
             contentType: "",
             headers: []
         );
-        request = signedRequest(call, account, Clock.now())?;
+        request = sigV4.signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
-        return getResult(reply);
+        return objects.getResult(reply);
     }
 
     gateway head(bucket: string, key: string) -> Result<ObjectInfo, S3Error> requires HttpClient {
@@ -103,9 +105,9 @@ capability S3 {
             contentType: "",
             headers: []
         );
-        request = signedRequest(call, account, Clock.now())?;
+        request = sigV4.signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
-        return headResult(reply);
+        return objects.headResult(reply);
     }
 
     gateway delete(bucket: string, key: string) -> Result<None, S3Error> requires HttpClient {
@@ -134,9 +136,9 @@ capability S3 {
             contentType: "",
             headers: []
         );
-        request = signedRequest(call, account, Clock.now())?;
+        request = sigV4.signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
-        return deleteResult(reply);
+        return objects.deleteResult(reply);
     }
 
     gateway putWithMetadata(
@@ -164,18 +166,18 @@ capability S3 {
             pathStyle: S3Settings.pathStyle,
             timeoutMillis: S3Settings.timeoutMillis
         );
-        metadataSent = metadataHeaders(metadata)?;
+        metadataSent = objects.metadataHeaders(metadata)?;
         call = S3Call(
             method: "PUT",
             bucket: bucket,
             key: key,
             body: body,
             contentType: contentType,
-            headers: append(metadataSent, checksumHeader(body))
+            headers: append(metadataSent, objects.checksumHeader(body))
         );
-        request = signedRequest(call, account, Clock.now())?;
+        request = sigV4.signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
-        return putResult(reply);
+        return objects.putResult(reply);
     }
 
     gateway getObject(bucket: string, key: string) -> Result<S3Object, S3Error>
@@ -205,9 +207,9 @@ capability S3 {
             contentType: "",
             headers: []
         );
-        request = signedRequest(call, account, Clock.now())?;
+        request = sigV4.signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
-        return objectResult(reply);
+        return objects.objectResult(reply);
     }
 
     gateway getRange(bucket: string, key: string, first: int, last: int | None)
@@ -230,7 +232,7 @@ capability S3 {
             pathStyle: S3Settings.pathStyle,
             timeoutMillis: S3Settings.timeoutMillis
         );
-        part = rangeHeader(first, last)?;
+        part = objects.rangeHeader(first, last)?;
         call = S3Call(
             method: "GET",
             bucket: bucket,
@@ -239,9 +241,9 @@ capability S3 {
             contentType: "",
             headers: [part]
         );
-        request = signedRequest(call, account, Clock.now())?;
+        request = sigV4.signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
-        return rangeResult(reply, first, last);
+        return objects.rangeResult(reply, first, last);
     }
 
     gateway copy(fromBucket: string, fromKey: string, toBucket: string, toKey: string)
@@ -264,7 +266,7 @@ capability S3 {
             pathStyle: S3Settings.pathStyle,
             timeoutMillis: S3Settings.timeoutMillis
         );
-        source = copySource(fromBucket, fromKey)?;
+        source = objects.copySource(fromBucket, fromKey)?;
         call = S3Call(
             method: "PUT",
             bucket: toBucket,
@@ -273,9 +275,9 @@ capability S3 {
             contentType: "",
             headers: [source]
         );
-        request = signedRequest(call, account, Clock.now())?;
+        request = sigV4.signedRequest(call, account, Clock.now())?;
         reply = mapErr(e in HttpClient.send(request)): S3Error.Http(failure: e)?;
-        return copyResult(reply);
+        return objects.copyResult(reply);
     }
 
     // A URL that lets whoever holds it make one GET, PUT, HEAD or DELETE of
@@ -304,6 +306,6 @@ capability S3 {
             pathStyle: S3Settings.pathStyle,
             timeoutMillis: S3Settings.timeoutMillis
         );
-        return presignedUrl(method, bucket, key, expiresSeconds, account, Clock.now());
+        return sigV4.presignedUrl(method, bucket, key, expiresSeconds, account, Clock.now());
     }
 }

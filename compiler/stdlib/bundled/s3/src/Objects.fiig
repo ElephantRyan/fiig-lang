@@ -1,0 +1,415 @@
+use fiig.http.syntax;
+use fiig.http;
+use com.degeneratedevelopment.s3.objects;
+
+// S3's object API: where an object is, the headers a request carries, and
+// reading each reply into a result or an S3Error (ADR 0121).
+formulas objects {
+    // S3_ENDPOINT read (ADR 0121 §2): a scheme and a host with an optional port,
+    // and nothing else. A bucket belongs in each call, not here, and a path
+    // would be signed and sent as part of every object's.
+    formula parseS3Endpoint(url: string) -> Result<S3Endpoint, S3Error> {
+        scheme: string = "";
+        rest: string = "";
+        if (url.startsWith("https://")) {
+            scheme = "https";
+            rest = url.removePrefix("https://");
+        } else if (url.startsWith("http://")) {
+            scheme = "http";
+            rest = url.removePrefix("http://");
+        } else {
+            return Err(invalid("it must start with http:// or https://"));
+        }
+
+        authority = rest.removeSuffix("/");
+        if (authority == "") {
+            return Err(invalid("it has no host"));
+        }
+
+        if (authority.contains("/") || authority.contains("?") || authority.contains("#")) {
+            return Err(
+                invalid("it has a path, query, or fragment; give only the service's address")
+            );
+        }
+
+        if (authority.contains("@")) {
+            return Err(
+                invalid(
+                    "it has user information; the keys are S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY"
+                )
+            );
+        }
+
+        for (b in authority.utf8()) {
+            if (b <= 32 || b >= 127) {
+                return Err(
+                    invalid("it has a space, a control character, or a character outside ASCII")
+                );
+            }
+        }
+
+        return Ok(S3Endpoint(scheme: scheme, authority: authority));
+    }
+
+    // The URL of a key in a bucket (ADR 0121 §2). Path style puts the bucket
+    // in the path (host/bucket/key), which every S3-compatible server takes;
+    // virtual-hosted style puts it in the host (bucket.host/key), which AWS
+    // prefers. Each segment of the key is percent-encoded once, so a `?` or
+    // `%` in a key can't change the URL; `/` keeps its place, so keys that look
+    // like folders work. `.` and `..` segments are refused, since a server
+    // resolves them as "here" and "up one".
+    formula objectTarget(endpoint: S3Endpoint, bucket: string, key: string, pathStyle: bool)
+            -> Result<S3Target, S3Error> {
+        if (!validBucket(bucket)) {
+            return Err(
+                S3Error.InvalidRequest(
+                    reason: "a bucket name is 3 to 63 lowercase letters, digits, hyphens and dots, starting and ending with a letter or digit"
+                )
+            );
+        }
+
+        if (key == "") {
+            return Err(S3Error.InvalidRequest(reason: "a key can't be empty"));
+        }
+
+        if (key.utf8().length() > 1024) {
+            return Err(S3Error.InvalidRequest(reason: "a key is at most 1024 bytes"));
+        }
+
+        for (b in key.utf8()) {
+            if (b < 32 || b == 127) {
+                return Err(S3Error.InvalidRequest(reason: "a key has a control character"));
+            }
+        }
+
+        segments: List<string> = [];
+        for (segment in key.split("/")) {
+            if (segment == "") {
+                segments = append(segments, "");
+            } else {
+                match (syntax.pathSegment(segment)) {
+                    None -> {
+                        return Err(
+                            S3Error.InvalidRequest(reason: "a key can't have a . or .. segment")
+                        );
+                    },
+
+                    encoded -> {
+                        segments = append(segments, encoded);
+                    }
+                }
+            }
+        }
+
+        encodedKey = segments.join("/");
+        host: string = endpoint.authority;
+        path: string = "/${bucket}/${encodedKey}";
+        if (!pathStyle) {
+            host = "${bucket}.${endpoint.authority}";
+            path = "/${encodedKey}";
+        }
+
+        return Ok(S3Target(url: "${endpoint.scheme}://${host}${path}", host: host, path: path));
+    }
+
+    // The x-amz-copy-source header of a copy: /bucket/key, the key's segments
+    // percent-encoded once, which is the path-style path of the source object.
+    // The source bucket and key are checked as any object's are, so a `..` or
+    // a control character in a source key is refused before any connection.
+    formula copySource(bucket: string, key: string) -> Result<http.Header, S3Error> {
+        // Only the path is taken, so the endpoint is any valid one.
+        target = objectTarget(S3Endpoint(scheme: "https", authority: "s3"), bucket, key, true)?;
+        return Ok(http.Header(name: "x-amz-copy-source", value: target.path));
+    }
+
+    // The x-amz-checksum-sha256 header of a PUT: the body's SHA-256 in base64.
+    // S3 checks it against the bytes it receives, refusing the upload when they
+    // differ, and stores it with the object.
+    formula checksumHeader(body: bytes) -> http.Header {
+        return http.Header(name: "x-amz-checksum-sha256", value: crypto.sha256(body).toBase64());
+    }
+
+    // A PUT's user metadata as the headers S3 stores it from: each key becomes
+    // x-amz-meta-<key> in lower case, which is how S3 keeps it, so two keys that
+    // differ only in case are refused rather than one silently replacing the
+    // other. A key is a header name (letters, digits and !#$%&'*+-.^_`|~) and a
+    // value is printable ASCII, since S3 returns a value byte for byte and
+    // anything else would need an encoding every reader had to undo.
+    formula metadataHeaders(metadata: Map<string, string>) -> Result<List<http.Header>, S3Error> {
+        byName: Map<string, string> = [:];
+        for (key in metadata.keys()) {
+            name = key.lowercase();
+            if (!syntax.isToken(name)) {
+                return Err(
+                    S3Error.InvalidRequest(
+                        reason: "a metadata key is letters, digits and !#$%&'*+-.^_`|~"
+                    )
+                );
+            }
+
+            if (byName.containsKey(name)) {
+                return Err(S3Error.InvalidRequest(reason: "two metadata keys differ only in case"));
+            }
+
+            value = metadata.at(key);
+            for (b in value.utf8()) {
+                if (b < 32 || b > 126) {
+                    return Err(
+                        S3Error.InvalidRequest(
+                            reason: "a metadata value is printable ASCII, with no control characters"
+                        )
+                    );
+                }
+            }
+
+            byName = byName.put(name, value);
+        }
+
+        headers: List<http.Header> = [];
+        for (name in byName.keys().sorted()) {
+            headers = append(
+                headers,
+                http.Header(name: "x-amz-meta-${name}", value: byName.at(name))
+            );
+        }
+
+        return Ok(headers);
+    }
+
+    // The Range header of a GET of part of an object: bytes first to last, both
+    // counted from 0 and included, or from first to the end when last is None.
+    // A range that starts before 0 or ends before it starts is refused here; one
+    // that starts past the end is the server's to answer (416, OutOfRange).
+    formula rangeHeader(first: int, last: int | None) -> Result<http.Header, S3Error> {
+        if (first < 0) {
+            return Err(S3Error.InvalidRequest(reason: "a range starts at byte 0 or later"));
+        }
+
+        return match (last) {
+            None -> Ok(http.Header(name: "Range", value: "bytes=${first}-")),
+            given -> {
+                if (given < first) {
+                    return Err(
+                        S3Error.InvalidRequest(reason: "a range can't end before it starts")
+                    );
+                }
+
+                return Ok(http.Header(name: "Range", value: "bytes=${first}-${given}"));
+            }
+        }
+    }
+
+    // A copy is done when the server says 200 and its body is a
+    // CopyObjectResult. S3 may answer 200 and then fail the copy, putting an
+    // error document in the body instead (its documentation says to read the
+    // body), so a 200 whose body holds `<Error>` is Refused with that
+    // document's code and message. A missing source key is NotFound.
+    formula copyResult(reply: http.Reply) -> Result<None, S3Error> {
+        if (reply.status == 200 && !textOf(reply.body).contains("<Error>")) {
+            return Ok(None);
+        }
+
+        return Err(errorOf(reply));
+    }
+
+    // A DELETE is done when the server says 204 (or 200). S3 answers 204 for a
+    // key that was never there, so a delete is safe to repeat.
+    formula deleteResult(reply: http.Reply) -> Result<None, S3Error> {
+        if (reply.status == 204 || reply.status == 200) {
+            return Ok(None);
+        }
+
+        return Err(errorOf(reply));
+    }
+
+    // A reply the caller didn't ask for, as an error (ADR 0121 §4): a 404 for a
+    // missing key is NotFound, and any other status (and a 404 for a missing
+    // bucket) is Refused with the code and message of the
+    // S3 error document in its body (`<Code>AccessDenied</Code>`), or empty ones
+    // when it has none (a HEAD has no body). The document is read by looking for
+    // its two tags, not as XML, since the body is the server's to shape.
+    formula errorOf(reply: http.Reply) -> S3Error {
+        text = textOf(reply.body);
+        code = tagText(text, "Code");
+        // A key that isn't there is an answer; a bucket that isn't there is a
+        // mistake in the call or the settings, so it stays an error. A HEAD has
+        // no body to tell them apart by, and is NotFound.
+        if (reply.status == 404 && code != "NoSuchBucket") {
+            return S3Error.NotFound;
+        }
+
+        return S3Error.Refused(status: reply.status, code: code, message: tagText(text, "Message"));
+    }
+
+    // A GET's object is the reply's body when the server says 200; a 404 is
+    // NotFound and anything else is its error. The whole object is read into
+    // memory (known limitations), so a very large one belongs in a streaming
+    // download, which fiig.http can't do yet.
+    formula getResult(reply: http.Reply) -> Result<bytes, S3Error> {
+        if (reply.status == 200) {
+            return Ok(reply.body);
+        }
+
+        return Err(errorOf(reply));
+    }
+
+    // What a HEAD says about an object, from its reply's headers (its
+    // metadata included), when the server says 200. A reply with no Content-Length is malformed: the size is
+    // the point of asking.
+    formula headResult(reply: http.Reply) -> Result<ObjectInfo, S3Error> {
+        if (reply.status != 200) {
+            return Err(errorOf(reply));
+        }
+
+        return match (headerValue(reply, "Content-Length").toIntOrNone()) {
+            None -> Err(
+                S3Error.Http(
+                    failure: http.HttpError.MalformedReply(
+                        reason: "a HEAD reply has no readable Content-Length"
+                    )
+                )
+            ),
+            size -> Ok(objectInfoOf(reply, size))
+        }
+    }
+
+    // The user metadata a reply carries, from its x-amz-meta-* headers in any
+    // case, keyed in lower case without the prefix. The first header of a name
+    // wins.
+    formula metadataOf(headers: List<http.Header>) -> Map<string, string> {
+        metadata: Map<string, string> = [:];
+        for (header in headers) {
+            name = header.name.lowercase();
+            if (name.startsWith("x-amz-meta-") && name != "x-amz-meta-") {
+                metadata = metadata.putIfAbsent(name.removePrefix("x-amz-meta-"), header.value);
+            }
+        }
+
+        return metadata;
+    }
+
+    // A GET's object with what is known about it, when the server says 200: the
+    // body, and its size, content type, ETag and metadata from the headers. A
+    // 404 is NotFound and anything else is its error.
+    formula objectResult(reply: http.Reply) -> Result<S3Object, S3Error> {
+        if (reply.status == 200) {
+            return Ok(S3Object(body: reply.body, info: objectInfoOf(reply, reply.body.length())));
+        }
+
+        return Err(errorOf(reply));
+    }
+
+    // A PUT is stored when the server says 200; anything else is its error.
+    formula putResult(reply: http.Reply) -> Result<None, S3Error> {
+        if (reply.status == 200) {
+            return Ok(None);
+        }
+
+        return Err(errorOf(reply));
+    }
+
+    // A ranged GET's bytes: the body of a 206, which is the part asked for (cut
+    // short when the object ends first). A 416 is OutOfRange, a range that
+    // starts past the object's end. A server that ignores Range answers 200 with
+    // the whole object, so the part is cut from it here, the same bytes a 206
+    // would have held.
+    formula rangeResult(reply: http.Reply, first: int, last: int | None) -> Result<bytes, S3Error> {
+        if (reply.status == 206) {
+            return Ok(reply.body);
+        }
+
+        if (reply.status == 416) {
+            return Err(S3Error.OutOfRange);
+        }
+
+        if (reply.status != 200) {
+            return Err(errorOf(reply));
+        }
+
+        size = reply.body.length();
+        if (first >= size) {
+            return Err(S3Error.OutOfRange);
+        }
+
+        end: int = size;
+        match (last) {
+            None -> None,
+            given -> {
+                if (given < size - 1) {
+                    end = given + 1;
+                }
+            }
+        }
+
+        return Ok(reply.body.slice(first, end));
+    }
+}
+
+private {
+    invalid(why: string) -> S3Error {
+        return S3Error.InvalidConfig(reason: "S3_ENDPOINT can't be used: ${why}");
+    }
+
+    // The rules for a bucket that every S3 service takes, without the ones
+    // about IP addresses and reserved prefixes, which the server enforces.
+    validBucket(name: string) -> bool {
+        raw = name.utf8();
+        if (raw.length() < 3 || raw.length() > 63) {
+            return false;
+        }
+
+        i: int = 0;
+        while (i < raw.length()) {
+            b = raw.at(i);
+            edge = i == 0 || i == raw.length() - 1;
+            letter = b >= 97 && b <= 122;
+            digit = b >= 48 && b <= 57;
+            if (!(letter || digit) && (edge || (b != 45 && b != 46))) {
+                return false;
+            }
+
+            i = i + 1;
+        }
+
+        return true;
+    }
+
+    textOf(body: bytes) -> string {
+        return match (body.utf8()) {
+            None -> "",
+            text -> text
+        }
+    }
+
+    // What is between <name> and </name>, or "".
+    tagText(text: string, name: string) -> string {
+        parts = text.split("<${name}>");
+        if (parts.length() < 2) {
+            return "";
+        }
+
+        return parts.at(1).split("</${name}>").first();
+    }
+
+    // The first header of that name, in any case, or "".
+    headerValue(reply: http.Reply, name: string) -> string {
+        for (header in reply.headers) {
+            if (header.name.equalsIgnoringCase(name)) {
+                return header.value;
+            }
+        }
+
+        return "";
+    }
+
+    // What a HEAD's or a GET's reply says about its object, given its size:
+    // the content type, the ETag and the metadata, from the headers.
+    objectInfoOf(reply: http.Reply, size: int) -> ObjectInfo {
+        return ObjectInfo(
+            size: size,
+            contentType: headerValue(reply, "Content-Type"),
+            etag: headerValue(reply, "ETag"),
+            metadata: objects.metadataOf(reply.headers)
+        );
+    }
+}
