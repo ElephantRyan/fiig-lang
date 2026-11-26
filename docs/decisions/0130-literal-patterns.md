@@ -1,6 +1,7 @@
 # ADR 0130: Literal Patterns for `int`, `string` and `bool`
 
-Status: Proposed
+Status: Accepted (2026-11-25, by the owner). Implemented 2026-11-21 (see
+Implementation notes).
 Date: 2026-11-21
 Answers: ADR 0091 open question 6; `tour.md`'s "Known gaps" (literal patterns).
 Related: ADR 0048 (float), ADR 0052 (comparability), ADR 0064 (decimal), ADR

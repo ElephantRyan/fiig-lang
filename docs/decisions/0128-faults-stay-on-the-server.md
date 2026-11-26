@@ -1,6 +1,7 @@
 # ADR 0128: Faults Stay on the Server, and Every Request Has an Id
 
-Status: Proposed
+Status: Accepted (2026-11-25, by the owner). Implemented 2026-11-21 (see
+Implementation notes).
 Date: 2026-11-21
 Fixes: ADR 0026's "Known issue (2026-10-29)".
 Related: ADR 0026 (default adapter response), ADR 0076 (request limits),

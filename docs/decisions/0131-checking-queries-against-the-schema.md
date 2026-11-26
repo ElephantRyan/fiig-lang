@@ -1,6 +1,7 @@
 # ADR 0131: Checking Queries Against the Schema, `fiig check -schema`
 
-Status: Proposed
+Status: Accepted (2026-11-25, by the owner). Implemented 2026-11-21 (see
+Implementation notes).
 Date: 2026-11-21
 Answers: ADR 0082 open question 3 (in part); ADR 0096's "checking queries
 against tables becomes possible. That's its own ADR."

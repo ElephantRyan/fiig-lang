@@ -81,7 +81,7 @@ The last row is the most important finding, and was not among the questions.
 | A4 | **Metrics from the spans.** Counts and durations by declaration, kind and outcome, plus startup, schedule and stream state, as Prometheus text on a separate port. No program change, since the spans already carry it. | M | ADR |
 | A5 | **A status route** `fiig serve` adds: version, startup routes that passed or degraded, the loops that are running. | S | ADR (exposure, naming) |
 
-**Status (2026-11-21): A1 and A2 are done (ADR 0128, Proposed).** A3 is
+**Status (2026-11-21): A1 and A2 are done (ADR 0128, accepted 2026-11-25).** A3 is
 done as ADR 0150 (2026-11-25): a request's gateway calls are recorded by a
 tracer scoped to it, counted on its access line, and written out when it
 failed, with JSON lines for a log platform. A4 and A5 hang on the same
@@ -98,7 +98,7 @@ failed, with JSON lines for a log platform. A4 and A5 hang on the same
 | B5 | **A batch of small methods**: string `padLeft`, `padRight`; list `distinct`, `reverse`, `take`, `drop`, `indexOf`; a way to list an enum's variants. Each is a table row and a runtime body, as ADR 0093 did. `Set` and `zip` need a type (a set, a pair) and are their own questions. | M | ADR (one, listing them) |
 | B6 | **Collect time evidence**: when a real program mixes a moment and a span, or a unit, record it against ADR 0123's trigger. | S | none |
 
-**Status (2026-11-21): B1 is done (ADR 0130, Proposed).** Building it found
+**Status (2026-11-21): B1 is done (ADR 0130, accepted 2026-11-25).** Building it found
 that `true` and `false` in a pattern were silently names, so `match on { true
 -> 1  false -> 2 }` passed `fiig check` and answered 1 for `false`; they are
 the values now.
@@ -110,7 +110,7 @@ before it kept: `&&`, `||`, `!`, `;`, `++`, `--`, `+=` and its kin, `=>`, a
 ternary, a brace map literal (it says `["a": 1]`), a C-style `for`, `elif`,
 `switch`, `const`, `import`, `function`, `try`. B4: `fiig check` reports every
 failing package, and leaves one that imports a failed package for the next
-run. B5 is ADR 0129 (Proposed), with `Set` and `zip` left out as their own
+run. B5 is ADR 0129 (accepted 2026-11-25), with `Set` and `zip` left out as their own
 questions. A parse error still lets the checker run on the partial tree, which
 adds a follow-on line (a type mismatch after the map-literal hint); skipping
 the checker for a file that didn't parse is a small follow-up.
@@ -122,7 +122,7 @@ the checker for a file that didn't parse is a small follow-up.
 | C1 | **Check queries against the schema.** Migrations are plain SQL files (ADR 0096) and every query is a literal (Q1), and a test already applies a package's migrations to an in-memory SQLite database. `fiig check -schema` would apply them there and prepare each query, finding a misspelt column or table before run time. Postgres-only SQL would use `-caps`, as `fiig test` does. ADR 0096's consequences say this "is its own ADR". | M | ADR |
 | C2 | **Data-dependent SQL by enum.** An enum whose variants carry constant SQL text (ADR 0046 §4a) can be spliced into a query, since only its constants can appear, so a dynamic `ORDER BY` needs no builder and stays injection-safe. ADR 0082 open question 1 names this candidate. | M | ADR |
 
-**Status (2026-11-21): C1 is done (ADR 0131, Proposed):** `fiig check -schema`.
+**Status (2026-11-21): C1 is done (ADR 0131, accepted 2026-11-25):** `fiig check -schema`.
 It found 0 problems in abs-recommendations' 19 queries, and both of two
 mistakes put into a copy, which plain `fiig check` passes. It leaves Postgres-only
 SQL unchecked, with a note. C2 is not started.

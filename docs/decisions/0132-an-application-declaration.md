@@ -1,6 +1,7 @@
 # ADR 0132: The `application` Declaration
 
-Status: Proposed
+Status: Accepted (2026-11-25, by the owner). Implemented 2026-11-21, except
+the IntelliJ icon for `application` files (see Implementation notes).
 Date: 2026-11-21
 Related: ADR 0079 §6 (several adapters on one listener; one adapter per
 domain), ADR 0105 (a folder is a package), ADR 0108 (an application declares

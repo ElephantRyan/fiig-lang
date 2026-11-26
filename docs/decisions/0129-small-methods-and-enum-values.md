@@ -1,6 +1,7 @@
 # ADR 0129: A Batch of Small Methods, and `Enum.values()`
 
-Status: Proposed
+Status: Accepted (2026-11-25, by the owner). Implemented 2026-11-21 (see
+Implementation notes).
 Date: 2026-11-21
 Related: ADR 0049 (the closed method table), ADR 0065 (list queries), ADR
 0067 (strings), ADR 0093 (list forms), ADR 0056 (no lambdas, no generics).

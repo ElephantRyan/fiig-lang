@@ -1,7 +1,7 @@
 # ADR 0138: A Renamed Package Keeps Its Migration History, and a Builtin Carries No Lock Hash
 
-Status: Proposed. The owner chose these options in review on 2026-11-21;
-implemented the same day (see Implementation notes).
+Status: Accepted (2026-11-25, by the owner; the options chosen in review on
+2026-11-21). Implemented 2026-11-21 (see Implementation notes).
 Date: 2026-11-21
 Related: ADR 0096 (migrations), ADR 0033 (the lockfile), ADR 0032 (package
 versions), Hearsay GAPS G55 and G62.
