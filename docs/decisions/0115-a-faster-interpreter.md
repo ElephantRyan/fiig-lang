@@ -1,6 +1,7 @@
 # ADR 0115: A Faster Interpreter, Without a Build Step
 
-Status: Accepted (2026-11-20, by the owner)
+Status: Accepted (2026-11-20, by the owner). Implemented 2026-11-20, all
+seven steps (73e81df through 77f65f1); see Results.
 Date: 2026-11-20
 Answers: Milestone 7's "interpreter performance work for byte-stream
 workloads".

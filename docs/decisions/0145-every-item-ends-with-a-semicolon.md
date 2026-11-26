@@ -1,6 +1,7 @@
 # ADR 0145: Every Item Ends with a Semicolon, Every Alternative with a Comma
 
-Status: Accepted (2026-11-22). Amends ADR 0142 §1.
+Status: Accepted (2026-11-22). Implemented 2026-11-22 (62ccdbd, with the
+relayout fix c7fad67). Amends ADR 0142 §1.
 Amended by ADR 0147 (2026-11-23): a comma after the last alternative, or
 before any closing bracket, is now a syntax error, and `fiig fmt` removes it.
 

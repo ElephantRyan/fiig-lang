@@ -1,6 +1,6 @@
 # ADR 0124: Startup Checks: `adapter startup`
 
-Status: Accepted (2026-11-20; the owner approved the design in review).
+Status: Accepted (2026-11-20; the owner approved the design in review). Implemented 2026-11-20 (7fd1db3), with §6 after it (a7790a8, 8b612e5); see Implementation notes.
 Date: 2026-11-20
 Related: ADR 0044 (a workflow is the adapter boundary), ADR 0047 (stream
 adapters: a route has no caller, so its mapping must be exhaustive), ADR 0071

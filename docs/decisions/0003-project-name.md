@@ -1,6 +1,7 @@
 # ADR 0003: Project Name and File Extension
 
-Status: Accepted, with one pending mechanical follow-up (see "Pending actions")
+Status: Accepted. The one pending mechanical follow-up, renaming the
+project directory to `fiig-lang`, has since been done (audit, 2026-11-25).
 Date: 2026-09-22
 
 ## Decision
@@ -29,7 +30,7 @@ Extensive search turned up that almost every direct or translated word for "weav
 
 ## Pending actions (mechanical, not decisions)
 
-1. **Rename the project root directory** from `language` to `fiig-lang`. Attempted 2026-09-22 and failed with "Device or resource busy" — the IDE had the folder open and held a lock. Needs the IDE/project closed first, then:
+1. **Rename the project root directory** from `language` to `fiig-lang`. *Done since: the repository is `fiig-lang` (audit, 2026-11-25).* Attempted 2026-09-22 and failed with "Device or resource busy" — the IDE had the folder open and held a lock. Needs the IDE/project closed first, then:
    ```
    mv "C:\Users\ryans\IdeaProjects\language" "C:\Users\ryans\IdeaProjects\fiig-lang"
    ```

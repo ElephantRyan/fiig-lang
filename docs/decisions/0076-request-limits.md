@@ -1,7 +1,8 @@
 # ADR 0076: Request Limits in `fiig serve`
 
 Status: Accepted (2026-11-15, with §2's bound on waiting requests and §1's
-64 KiB header limit added in review)
+64 KiB header limit added in review). Implemented 2026-11-15 (0c65de7); see
+Implementation notes.
 Date: 2026-11-11
 Related: ADR 0021 (request bodies), ADR 0059 §4 (the call's deadline),
 ADR 0069 (routes, `consumes`), ADR 0070 (`ALLOW_ORIGINS`, deployment

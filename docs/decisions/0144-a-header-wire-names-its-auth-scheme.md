@@ -1,6 +1,6 @@
 # ADR 0144: A Header Wire Names Its Auth Scheme
 
-Status: Accepted
+Status: Accepted. Implemented 2026-11-21 (95a9ab1).
 Date: 2026-11-21
 Related: ADR 0137 (principals), ADR 0141 (named principals, OpenAPI
 schemes), ADR 0143 (wires), ADR 0142 (syntax used here), Hearsay GAPS G65.

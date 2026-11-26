@@ -2,7 +2,9 @@
 
 Status: Accepted (2026-10-27, after review). Done: the `time.library` rename,
 and the wildcard-import removal (§2.4, 2026-11-01; see Implementation notes).
-Not yet implemented: the formula-group part of N1, which waits on ADR 0049.
+The formula-group part of N1 has since been implemented, as ADR 0049
+§2.1 revised it: a `formulas` group and an alias of one start lowercase
+(`compiler/checker/formula.go`, `capability.go`; audit, 2026-11-25).
 Date: 2026-10-13 (revised the same day: §2.1 split into a checked half and a
 conventional half by ADR 0051, which also closes two open questions)
 

@@ -3,9 +3,11 @@
 Status: Accepted (2026-11-21; the owner asked for it to be implemented). §1 amended by ADR 0145: items take `;` and alternatives `,` too.
 Step 1 (§5) done in fiig-lang: the new forms parse and run beside the
 old ones, `fiig fmt` writes only the new ones, and the standard library,
-the examples and the editors are rewritten. Left for step 1: the examples
-in the other lane, Hearsay (its owner's), and the fiig snippets in Go
-tests and docs. Step 2, the old forms as errors, follows.
+the examples and the editors are rewritten. The rest of step 1 in
+fiig-lang followed the same day: the other lane's examples (a0c965b) and
+the fiig snippets in Go tests and docs (24dd642). Left for step 1:
+Hearsay (its owner's). Step 2, the old forms as errors, is not done: the
+checker still accepts `if a and b {` without `;` (audit, 2026-11-25).
 Date: 2026-11-21
 Amends: ADR 0011 (boolean operators), ADR 0099 (`or` gives a default),
 ADR 0013 (`if`/`else` chains), ADR 0053 (`for`), ADR 0059 (`while`).

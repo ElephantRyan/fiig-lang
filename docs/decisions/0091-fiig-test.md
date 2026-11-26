@@ -1,6 +1,6 @@
 # ADR 0091: `fiig test`, Tests Written in fiig
 
-Status: Accepted (2026-11-18)
+Status: Accepted (2026-11-18). Implemented 2026-11-19 (ce9bc21).
 Date: 2026-11-18
 Related: fiig-lang.md §3.2 (composition), §3.9 (files), Milestone 8 ("test
 framework with fake capability providers"), ADR 0027 (capabilities
