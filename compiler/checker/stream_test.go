@@ -13,6 +13,7 @@ const streamModels = `model OrderPlaced {
     orderId: string;
     quantity: int;
     lines: List<string>;
+    weight: float;
 }`
 
 const streamErrors = `enum OrderError {
@@ -66,6 +67,7 @@ func TestStreamRouteBugClasses(t *testing.T) {
 		{"no key", `source "orders" group "intake" from earliest -> placeOrder(order: OrderPlaced) { _ -> ack }`, "I1", "names the field that identifies an element"},
 		{"key isn't a field", `source "orders" group "intake" from earliest key id -> placeOrder(order: OrderPlaced) { _ -> ack }`, "I1", `key "id" isn't a field of OrderPlaced`},
 		{"key text can't carry", `source "orders" group "intake" from earliest key lines -> placeOrder(order: OrderPlaced) { _ -> ack }`, "I1", `key "lines" is List<string>`},
+		{"key is a float", `source "orders" group "intake" from earliest key weight -> placeOrder(order: OrderPlaced) { _ -> ack }`, "I1", `a float is never a key`},
 		{"key on bytes", `source "raw" group "intake" from earliest key id -> placeRaw(payload: bytes) { _ -> ack }`, "I1", "has no fields, so the route has no key"},
 		{"no mapping", `source "orders" group "intake" from earliest key orderId -> placeOrder(order: OrderPlaced)`, "I2", "has no mapping"},
 		{"missing variant", `source "orders" group "intake" from earliest key orderId -> placeOrder(order: OrderPlaced) {

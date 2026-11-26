@@ -97,6 +97,7 @@ failed, with JSON lines for a log platform. A4 and A5 hang on the same
 | B4 | **`fiig check` reports every failing package** in one run. | S | none |
 | B5 | **A batch of small methods**: string `padLeft`, `padRight`; list `distinct`, `reverse`, `take`, `drop`, `indexOf`; a way to list an enum's variants. Each is a table row and a runtime body, as ADR 0093 did. `Set` and `zip` need a type (a set, a pair) and are their own questions. | M | ADR (one, listing them) |
 | B6 | **Collect time evidence**: when a real program mixes a moment and a span, or a unit, record it against ADR 0123's trigger. | S | none |
+| B7 | **Highlight the list forms.** `sorted`, `filter`, `map`, `groupBy`, `then` and the other contextual words of ADR 0093 are plain names in IntelliJ: its keyword list is generated from reserved words, and `fiig lsp`'s semantic tokens (ADR 0106) colour calls, not these. A `keyword` token type for them in `tooling/lsp/semantic.go` would do it. Found by the ADR audit of 2026-11-25 (ADR 0092). | S | none |
 
 **Status (2026-11-21): B1 is done (ADR 0130, accepted 2026-11-25).** Building it found
 that `true` and `false` in a pattern were silently names, so `match on { true

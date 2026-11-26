@@ -2,8 +2,9 @@
 
 Status: Accepted (2026-10-27, after a one-decision-at-a-time review; see the
 review note below). Implemented 2026-11-02, with §2.7's crossing rules
-arriving the same day in ADR 0049's `math` group; only §2.6/J1 remains,
-waiting on streams (ADR 0047). See Implementation notes.
+arriving the same day in ADR 0049's `math` group; and §2.6
+on 2026-11-25, as stream adapters' I1 (not the J1 proposed below: J1 is now
+the JSON bug class of ADR 0073). See Implementation notes.
 Date: 2026-10-12 (revised 2026-10-13: ADR 0051 withdrew J2 and replaced it with
 a typing restriction — `==`/`!=` over two `float` operands is a type error)
 

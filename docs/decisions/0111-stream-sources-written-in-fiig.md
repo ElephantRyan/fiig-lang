@@ -262,7 +262,10 @@ stops.
 
 - **I1**: a model element's route has no `key`, its `key` isn't a field of
   the model, the field isn't a type text can carry (W4's list), or a
-  `bytes` element's route has a `key`.
+  `bytes` element's route has a `key`. *Amended 2026-11-25 (audit): the
+  key's field isn't a `float` either, as ADR 0048 §2.6 says. The key no
+  longer decides ordering here, but a float is never a key anywhere, as it
+  isn't a map's (M1).*
 - **I2**: a stream route's mapping is missing, or isn't exhaustive over
   the workflow's result; or a `retry` limit isn't at least 1.
 - **I3**: a stream route's call doesn't have exactly one argument.

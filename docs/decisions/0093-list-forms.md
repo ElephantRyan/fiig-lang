@@ -210,7 +210,9 @@ keyword list doesn't change.
 - The runtime evaluates each form eagerly, like `sorted`. A chain like
   `sum(x in filter(...))` builds the inner list; nothing streams.
 - `grammar.md`, `tour.md`, and the IntelliJ plugin's highlighting of
-  `sorted` gain the new forms (highlighting is ADR 0092's open item C).
+  `sorted` gain the new forms. *(Highlighting them in IntelliJ was never
+  done; it is improvement idea B7. This line named "ADR 0092's open item
+  C", an ADR that was never written; see ADR 0092.)*
 
 ## Open questions
 

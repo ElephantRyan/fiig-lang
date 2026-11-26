@@ -82,8 +82,13 @@ func (c *checker) checkStreamElement(route *syntax.Route, wd *syntax.WorkflowDec
 			continue
 		}
 		ft := c.resolveField(model, f)
-		if bare := withoutNone(ft); !isUnknown(ft) && !isWireScalar(bare) && !isTextEnum(bare) {
-			c.report(route.Key.Start, "I1", "key %q is %s; a key is written in logs and a halt's message, so it is a string, int, float, decimal, bool, or an enum without payloads (ADR 0111 §6)", f.Name, ft)
+		bare := withoutNone(ft)
+		if p, ok := bare.(types.Primitive); ok && p.Name == "float" {
+			// ADR 0048 §2.6: a float is never a key, here as for a map's
+			// (M1): two floats that should agree can differ in the last bit.
+			c.report(route.Key.Start, "I1", "key %q is float; a float is never a key, since two floats that should agree can differ in the last bit (ADR 0048 §2.6); key on a string, int or decimal field instead", f.Name)
+		} else if !isUnknown(ft) && !isWireScalar(bare) && !isTextEnum(bare) {
+			c.report(route.Key.Start, "I1", "key %q is %s; a key is written in logs and a halt's message, so it is a string, int, decimal, bool, or an enum without payloads (ADR 0111 §6)", f.Name, ft)
 		}
 		return
 	}
