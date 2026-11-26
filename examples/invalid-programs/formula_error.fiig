@@ -1,12 +1,8 @@
-// ADR 0049 §2.2: the three restrictions that make a formula a formula, and
-// the closed native set (§2.1). Each member breaks exactly one.
+// ADR 0049 §2.2: the restrictions that make a formula a formula, and the
+// closed native set (§2.1). Each member breaks exactly one. (K3, a formula
+// returning a Result, was retired by ADR 0151: a formula may say why it
+// failed.)
 formulas brokenChecks {
-    // K3: a formula may fault but never fail in domain terms; a check
-    // with a reason to give is a rule.
-    formula parseEmail(s: string) -> Result<string, CustomerError> {
-        return Ok(s);
-    }
-
     // K4: a formula is pure, so it reaches nothing outside the program.
     formula lookupDomain(s: string) -> string requires Socket {
         return s;

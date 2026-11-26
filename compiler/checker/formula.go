@@ -15,7 +15,7 @@ import (
 // its own package (§2.5), and its members call each other unqualified. The
 // bug classes:
 //
-//   - K3: a formula returns a Result (§2.2 restriction 3).
+//   - K3: retired by ADR 0151; a formula may return a Result.
 //   - K4: a formula has a `requires` clause (§2.2 restriction 1).
 //   - K5: a formula has no body. Only the prelude math group's members
 //     have none, and they are a table (compiler/types), not source.
@@ -69,7 +69,7 @@ func (c *checker) formulasImport(name string) (*types.GroupRef, bool) {
 }
 
 // checkFormulasDecl checks a formulas group: its name, and each member as a
-// formula (K3-K5), with the group in scope so members call each other
+// formula (K4, K5), with the group in scope so members call each other
 // unqualified.
 func (c *checker) checkFormulasDecl(d *syntax.FormulasDecl) {
 	if isUpper(d.Name) {
@@ -92,27 +92,11 @@ func (c *checker) checkFormulasDecl(d *syntax.FormulasDecl) {
 		if f.Body == nil {
 			c.report(f.Start, "K5", "formula %s.%s has no body; only the prelude math group's members, which the compiler supplies, have none (ADR 0049 §2.1)", d.Name, f.Name)
 		}
-		ret := c.checkCallable(f.Params, f.ReturnType, f.Body)
-		if holdsResult(ret) {
-			c.report(f.Start, "K3", "formula %s.%s returns %s; a formula can only fault, never fail in domain terms. A check with a reason to give is a rule (ADR 0049 §2.2)", d.Name, f.Name, ret)
-		}
+		// A formula may return a Result (ADR 0151, retiring K3): a parser
+		// or a decoder has a reason to give and no judgment in it.
+		c.checkCallable(f.Params, f.ReturnType, f.Body)
 	}
 	c.group = nil
-}
-
-// holdsResult reports whether t is a Result, or a union with one in it.
-func holdsResult(t types.Type) bool {
-	switch t := t.(type) {
-	case types.Generic:
-		return t.Name == "Result"
-	case types.Union:
-		for _, m := range t.Members {
-			if holdsResult(m) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // callFormula checks `group.member(args)`: a call to a formula through its

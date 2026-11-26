@@ -79,3 +79,35 @@ func TestFormulaAcrossPackages(t *testing.T) {
 		t.Fatalf("diag = %v, %v; want 5", got, fault)
 	}
 }
+
+// ADR 0151: a formula's Err reaches its caller, through ? inside its group
+// and mapErr in a rule.
+func TestAFormulasErrReachesItsCaller(t *testing.T) {
+	u := universeFromSource(t,
+		"enum DateError {\n    MonthOutOfRange(month: int)\n}",
+		"enum InvoiceError {\n    BadDate(month: int)\n}",
+		`formulas date {
+    formula month(n: int) -> Result<int, DateError> {
+        if (n < 1 || n > 12) {
+            return Err(DateError.MonthOutOfRange(month: n));
+        }
+        return Ok(n);
+    }
+
+    formula quarter(n: int) -> Result<int, DateError> {
+        m = month(n)?;
+        return Ok((m - 1) / 3 + 1);
+    }
+}`,
+		"use geo.date;\n\nrule dueQuarter(n: int) -> Result<int, InvoiceError> {\n    return mapErr(e in date.quarter(n)): InvoiceError.BadDate(month: n);\n}",
+	)
+	in := newTestInterp(u, nil)
+	ok, fault := in.Call(context.Background(), "dueQuarter", map[string]Value{"n": Int(11)})
+	if fault != nil || ok.String() != "Ok(4)" {
+		t.Errorf("dueQuarter(11) = %v, %v; want Ok(4)", ok, fault)
+	}
+	bad, fault := in.Call(context.Background(), "dueQuarter", map[string]Value{"n": Int(13)})
+	if fault != nil || !strings.Contains(bad.String(), "BadDate") {
+		t.Errorf("dueQuarter(13) = %v, %v; want Err(InvoiceError.BadDate(...))", bad, fault)
+	}
+}

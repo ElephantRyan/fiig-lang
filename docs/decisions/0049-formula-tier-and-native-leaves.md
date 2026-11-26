@@ -148,7 +148,9 @@ enforceable surrogate is three restrictions, all decidable:
    workflow. A formula is the bottom of the composition lattice, so it cannot
    become a laundering channel for reaching something a rule is forbidden to
    reach.
-3. **May not return `Result`.** A rule can fail *in domain terms*; a formula
+3. *(Lifted by ADR 0151, 2026-11-25: a formula may return a `Result`, and
+   K3 is withdrawn. The text below is the original reasoning.)* **May not
+   return `Result`.** A rule can fail *in domain terms*; a formula
    can only fault. This is the sharpest of the three and the one the category
    is really built on — see the Rationale.
 
@@ -393,7 +395,10 @@ naming what it was enforcing. Naming it shows the exemption is principled
 rather than a carve-out: the tier is admitted precisely because the three
 restrictions in §2.2 fence it out of the thing isolation exists to prevent.
 
-**Why `Result` is the load-bearing restriction.** Of the three, the capability
+**Why `Result` is the load-bearing restriction.** *(Superseded by ADR 0151:
+the ban caught parsers and decoders, which have a reason to give and no
+judgment, and missed a policy written as `bool`; restrictions 1 and 2 are
+the fences that keep the tier safe.)* Of the three, the capability
 ban and the call restriction are obvious. The `Result` ban is what actually
 separates a formula from a rule, because business judgment almost always needs
 to signal a typed failure: a validation that can't say *why* it failed is

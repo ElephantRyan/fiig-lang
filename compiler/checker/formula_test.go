@@ -71,14 +71,8 @@ func TestFormulaCallsAreTyped(t *testing.T) {
 	}
 }
 
-func TestFormulaRestrictionsAreK3K4K5(t *testing.T) {
-	diags := checkGeo(t, `enum GeoError {
-	Bad
-}`, `formulas checks {
-	formula parse(s: string) -> Result<int, GeoError> {
-		return Ok(1);
-	}
-
+func TestFormulaRestrictionsAreK4K5(t *testing.T) {
+	diags := checkGeo(t, `formulas checks {
 	formula fetch(s: string) -> int requires Socket {
 		return 1;
 	}
@@ -86,10 +80,39 @@ func TestFormulaRestrictionsAreK3K4K5(t *testing.T) {
 	formula sqrt(x: int) -> int;
 }`)
 	got := rules(diags)
-	for _, rule := range []string{"K3", "K4", "K5"} {
+	for _, rule := range []string{"K4", "K5"} {
 		if got[rule] != 1 {
 			t.Errorf("got %d %s, want 1: %+v", got[rule], rule, diags)
 		}
+	}
+}
+
+// ADR 0151 §1: a formula may return a Result, a rule handles it like any
+// other, and a formula calling another propagates it with ?.
+func TestAFormulaMaySayWhyItFailed(t *testing.T) {
+	diags := checkGeo(t, `enum GeoError {
+	Negative
+}`, `enum ShapeError {
+	BadSide
+}`, `formulas checks {
+	formula side(n: int) -> Result<int, GeoError> {
+		if (n < 0) {
+			return Err(GeoError.Negative);
+		}
+		return Ok(n);
+	}
+
+	formula area(n: int) -> Result<int, GeoError> {
+		s = side(n)?;
+		return Ok(s * s);
+	}
+}`, `use geo.checks;
+
+rule squareArea(n: int) -> Result<int, ShapeError> {
+	return mapErr(e in checks.area(n)): ShapeError.BadSide;
+}`)
+	if len(diags) != 0 {
+		t.Errorf("diags = %+v, want none", diags)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"testing/fstest"
 )
 
 // TestFormulaCardsAreOnePerMember checks ADR 0049's cards: a formulas group
@@ -36,5 +37,20 @@ func TestFormulaCardsAreOnePerMember(t *testing.T) {
 	found := Find(cards, Query{Text: "square"})
 	if len(found) != 1 || found[0].Name != "vector.square" {
 		t.Errorf("find square: %+v", found)
+	}
+}
+
+// ADR 0151 §4: a formula that may fail shows its error, and `find --error`
+// reaches it as it reaches a rule.
+func TestAFormulaCardShowsItsError(t *testing.T) {
+	cards, fileErrs, err := GenerateFS(fstest.MapFS{
+		"src/Date.fiig": {Data: []byte("formulas date {\n\tformula month(n: int) -> Result<int, DateError> {\n\t\treturn Ok(n);\n\t}\n\n\tformula clamp(n: int) -> int {\n\t\treturn n;\n\t}\n}\n")},
+	})
+	if err != nil || len(fileErrs) > 0 {
+		t.Fatalf("GenerateFS: %v %+v", err, fileErrs)
+	}
+	found := Find(cards, Query{Error: "DateError"})
+	if len(found) != 1 || found[0].Name != "date.month" || found[0].Error != "DateError" {
+		t.Errorf("find --error DateError = %+v, want date.month alone", found)
 	}
 }

@@ -345,8 +345,8 @@ member is always called through the group, `text.isEmailShaped(email)`, and
 only in a file that imports the group by path tail, even when it is in the
 same package (ADR 0049 §2.5): `use customer.service.text`. Inside the group,
 members call each other unqualified; that is the one place a formula's bare
-name resolves. Group and member names are lowercase. A formula may not
-return a `Result` (K3) or have a `requires` clause (K4; the parser accepts
+name resolves. Group and member names are lowercase. A formula may return
+a `Result` (ADR 0151) but may not have a `requires` clause (K4; the parser accepts
 one only so the checker can say why). Every member written in source has a
 block; one without is K5. Attested: `customer-service/formulas/text.fiig`,
 called from `customer-service/rules/validate_email.fiig`, and

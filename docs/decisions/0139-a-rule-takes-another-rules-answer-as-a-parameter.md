@@ -122,7 +122,10 @@ conversion.
    (ADRs 0029, 0049). G58 is answered by the shape above: a rule that needs
    another rule's answer takes it as a parameter. The activity that calls
    the rule calls the other rule too, and passes the answer by name.
-2. **B7's message for a rule calling a rule offers that shape first**,
+2. *(Amended by ADR 0151 §3, 2026-11-25: the message no longer ends with
+   "if `callee` is a format check, it can be a formula", since a formula
+   may now return a `Result` and that would be the way around rule
+   isolation for any two rules.)* **B7's message for a rule calling a rule offers that shape first**,
    and offers "make it a conversion" only when the caller is reshaping data:
 
    ```

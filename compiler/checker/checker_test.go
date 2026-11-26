@@ -86,7 +86,7 @@ func TestValidCorpusHasNoDiagnostics(t *testing.T) {
 // TestInvalidProgramsCatchEveryAttestedBugClass checks each
 // invalid-programs/*.fiig fixture against bug-classes.md's own
 // attestation table — every numbered bug class this package implements
-// (A1-A4, A6-A9, B1-B11, E1, G1, G2, H5, K3-K5) must fire on the file that attests it.
+// (A1-A4, A6-A9, B1-B11, E1, G1, G2, H5, K4-K5) must fire on the file that attests it.
 // G3 is attested by TestDuplicateImportAliasIsG3 instead — it needs two
 // imports in one file, which no corpus fixture has, and the bug it guards
 // against is specifically that both `use` lines look individually fine.
@@ -182,7 +182,6 @@ func TestInvalidProgramsCatchEveryAttestedBugClass(t *testing.T) {
 			"G1": 7, // eight declarations packed into one file, incidental but real
 		}},
 		{"invalid-programs/formula_error.fiig", map[string]int{
-			"K3":  1, // parseEmail: returns a Result
 			"K4":  1, // lookupDomain: requires Socket
 			"K5":  1, // normalize: no body
 			"B11": 1, // shipsFree: calls a rule

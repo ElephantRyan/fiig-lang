@@ -1,6 +1,7 @@
 # ADR 0151: A Formula May Say Why It Failed
 
-Status: Proposed
+Status: Accepted (2026-11-25, by the owner). Implemented the same day (see
+Implementation notes).
 Date: 2026-11-25
 Amends: ADR 0049 §2.2 (restriction 3 and its Rationale), ADR 0139 §2 (B7's
 hint).
@@ -247,3 +248,27 @@ migration in §Consequences leaves the line between them unclear.
    conversion" still sends a rule to a kind that may call rules. ADR 0139
    kept it deliberately, for the reshaping case; whether it is used as an
    escape the same way is worth reading for at §5's revisit.
+
+## Implementation notes (2026-11-25)
+
+- **Checker**: `compiler/checker/formula.go` no longer reports K3, and its
+  `holdsResult` helper is gone. B7's rule-calls-rule message in
+  `checker.go` ends at the conversion clause.
+- **Catalog**: a formula's card carries `error` (`errorTypeOf`, as a
+  rule's does), so `fiig catalog find --error DateError` finds
+  `date.month`.
+- **Tests**: `TestAFormulaMaySayWhyItFailed` (checker: a formula returning
+  a `Result`, another propagating it with `?`, a rule translating it with
+  `mapErr`, no diagnostics), `TestAFormulasErrReachesItsCaller` (runtime:
+  `Ok(4)` for month 11, `Err(InvoiceError.BadDate(...))` for month 13),
+  `TestAFormulaCardShowsItsError` (registry). `TestFormulaRestrictionsAreK3K4K5`
+  became `...K4K5`; `formula_error.fiig` lost its K3 member; the B7
+  message's test lost its formula clause.
+- **Dogfooded** with `fiig check`, `fiig run` and `fiig catalog find --error DateError` on a small app: a `date.month` formula returning `Result`, a rule mapping it (`Err(InvoiceError.BadDate(13))`, `Ok(7)`), and B7 for a rule calling a rule now ending at the conversion clause.
+- **Docs**: K3's row in `bug-classes.md` is withdrawn, with its number
+  reserved; `grammar.md`'s formula paragraph; ADR 0049 §2.2 and its
+  Rationale, and ADR 0139 §2, point here; `docs/layers.md` gains "A rule or
+  a formula".
+- **Not done here**, as §Consequences says: moving `http.formEncode` and
+  the domain-free decoders of the standard library into `formulas` groups,
+  and Hearsay's own candidates.

@@ -1246,10 +1246,12 @@ func (c *checker) checkEffect(callee syntax.Decl, calleeKind declKind, calleeNam
 	}
 	if c.callerKind == kindRule && calleeKind == kindRule && c.entry != nil && callee != c.entry {
 		// ADR 0139 §2 (Hearsay G58): a rule doesn't combine decisions; it
-		// takes the other rule's answer as a parameter. A conversion or a
-		// formula comes second, for the cases they fit.
+		// takes the other rule's answer as a parameter. A conversion comes
+		// second, for a caller that only reshapes data. The message never
+		// offers a formula: once a formula may return a Result, that would
+		// be the way around rule isolation for any two rules (ADR 0151 §3).
 		caller := syntax.DeclName(c.entry)
-		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "rule may not call rule %q; a rule doesn't combine decisions, so take its answer as a parameter (`%s: %s`) and call %s from the activity that calls %s (ADR 0029, ADR 0139). If %s only reshapes data, it can be a conversion; if %s is a format check, it can be a formula (ADR 0049)", calleeName, answerParamName(calleeName), ruleReturnText(callee), calleeName, caller, caller, lastSegment(calleeName))
+		c.report(at, bugClassForEffect(c.callerKind, calleeKind), "rule may not call rule %q; a rule doesn't combine decisions, so take its answer as a parameter (`%s: %s`) and call %s from the activity that calls %s (ADR 0029, ADR 0139). If %s only reshapes data, it can be a conversion", calleeName, answerParamName(calleeName), ruleReturnText(callee), calleeName, caller, caller)
 		return
 	}
 	if c.callerKind == kindRule && calleeKind == kindConversion && c.entry != nil && callee != c.entry {

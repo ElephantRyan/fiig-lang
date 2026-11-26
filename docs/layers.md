@@ -180,6 +180,26 @@ and doesn't combine decisions. Don't make the callee a formula either,
 unless it's a format check that any app would answer the same way (ADR
 0049).
 
+## A rule or a formula
+
+Both are pure, and both may say why they failed with a `Result` (ADR
+0151). What separates them is what they know:
+
+- **A rule is a decision of your domain**: whether a rating is valid, who
+  may administer the server. It's named for what it decides, sits in its
+  domain's folder, and doesn't call other rules, so each decision is made
+  in one place.
+- **A formula is computation any domain could use**: parsing a date,
+  encoding a form, a vector's length. It lives in a `formulas` group named
+  for its subject (`date`, `http`, `vector`), is called as
+  `date.parse(...)`, and may call the group's other formulas.
+
+The checker can't tell a decision from a computation, so this is the
+author's call. Its sign: a formula that fails with your domain's error
+(`OrderError`, `AdminError`) rather than a format's (`DateError`) is
+usually a rule that was moved to get around "a rule doesn't call a rule".
+`fiig catalog find --error OrderError` lists formulas beside rules.
+
 ## Why a workflow doesn't call a gateway
 
 A workflow that calls `findBook` directly depends on how the book is

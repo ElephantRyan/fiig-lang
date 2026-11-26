@@ -207,7 +207,8 @@ func BuildCards(decl syntax.Decl, source string) []*Card {
 			cards[i] = &Card{
 				Name: d.Name + "." + f.Name, Kind: "formula", Group: d.Name, Catalog: Default, Source: source,
 				Params: paramParams(f.Params), Returns: typeString(f.ReturnType), Pure: true,
-				Dependencies: siblingCalls(d, f),
+				// ADR 0151 §4: a formula that may fail shows its error, as a rule does.
+				Error: errorTypeOf(f.ReturnType), Dependencies: siblingCalls(d, f),
 			}
 		}
 		return cards
